@@ -389,7 +389,11 @@ func (m *Model) unlockLines() []string {
 }
 
 func (m *Model) pickerLines() []string {
-	body := []string{muted.Render("Path · type or paste; Tab uses selected file"), accent.Render(m.inputs[0].display(false) + "▏"), ""}
+	pathLine := muted.Render(m.inputs[0].display(false))
+	if m.pickerEditing {
+		pathLine = accent.Render(m.inputs[0].display(false) + "▏")
+	}
+	body := []string{muted.Render("Path · Tab to edit, or type/paste a new path"), pathLine, ""}
 	capacity := max(1, m.height-16)
 	start := max(0, m.fileIndex-capacity+1)
 	for i := start; i < len(m.files) && i < start+capacity; i++ {
@@ -399,7 +403,12 @@ func (m *Model) pickerLines() []string {
 			name += "/"
 		}
 		if i == m.fileIndex {
-			name = active.Render(fit("› "+name, min(m.width-14, 72)))
+			name = fit("› "+name, min(m.width-14, 72))
+			if m.pickerEditing {
+				name = inactive.Render(name)
+			} else {
+				name = active.Render(name)
+			}
 		} else {
 			name = "  " + name
 		}
@@ -411,7 +420,7 @@ func (m *Model) pickerLines() []string {
 	if m.err != "" {
 		body = append(body, "", errorStyle.Render(m.err))
 	}
-	return m.box("Open Vault", body, "↑↓ select · Tab use path · Enter open · Esc cancel")
+	return m.box("Open Vault", body, "↑↓ select · Enter open · ← parent · Tab path · Esc cancel")
 }
 
 func (m *Model) helpLines() []string {

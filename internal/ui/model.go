@@ -47,6 +47,7 @@ type Model struct {
 	path, directory string
 	files           []fileItem
 	fileIndex       int
+	pickerEditing   bool
 	recent          []string
 	recentIndex     int
 	err, notice     string
@@ -302,7 +303,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	session := m.ws.ActiveSession()
 	if session == nil {
 		switch key {
-		case "o", "enter":
+		case "o", "O", "enter":
 			if key == "enter" && len(m.recent) > 0 {
 				m.beginUnlock(m.recent[m.recentIndex])
 				return nil
@@ -334,7 +335,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	v := m.ws.ActiveView()
 	switch key {
-	case "o":
+	case "o", "O":
 		return m.openPicker()
 	case "tab":
 		v.Focus = (v.Focus + 1) % 3
@@ -506,6 +507,7 @@ func (m *Model) openPicker() tea.Cmd {
 	m.inputs[0].set(dir + string(os.PathSeparator))
 	m.files = nil
 	m.fileIndex = 0
+	m.pickerEditing = false
 	return listDirectory(dir)
 }
 
@@ -522,6 +524,12 @@ func listDirectory(dir string) tea.Cmd {
 			}
 		}
 		sort.SliceStable(files, func(i, j int) bool {
+			if files[i].name == ".." {
+				return files[j].name != ".."
+			}
+			if files[j].name == ".." {
+				return false
+			}
 			if files[i].dir != files[j].dir {
 				return files[i].dir
 			}
@@ -539,22 +547,52 @@ func (m *Model) fileKey(k tea.KeyMsg) tea.Cmd {
 		m.err = ""
 		return nil
 	case "up":
+		m.pickerEditing = false
 		m.fileIndex = max(0, m.fileIndex-1)
 		return nil
 	case "down":
+		m.pickerEditing = false
 		m.fileIndex = min(max(0, len(m.files)-1), m.fileIndex+1)
 		return nil
 	case "tab":
-		if len(m.files) > 0 {
-			m.inputs[0].set(m.files[m.fileIndex].path)
+		m.pickerEditing = !m.pickerEditing
+		return nil
+	case "ctrl+u":
+		m.pickerEditing = true
+		m.inputs[0].clear()
+		m.err = ""
+		return nil
+	case "left", "backspace":
+		if !m.pickerEditing {
+			return m.changeDirectory(filepath.Dir(m.directory))
 		}
+		m.inputs[0].update(k)
+		return nil
+	case "right":
+		if !m.pickerEditing {
+			if len(m.files) > 0 && m.files[m.fileIndex].dir {
+				return m.changeDirectory(m.files[m.fileIndex].path)
+			}
+			return nil
+		}
+		m.inputs[0].update(k)
 		return nil
 	case "enter":
-		path := expandPath(m.inputs[0].value())
+		path := m.directory
+		if m.pickerEditing {
+			if m.inputs[0].value() == "" {
+				m.err = "Enter a vault or directory path."
+				return nil
+			}
+			path = expandPath(m.inputs[0].value())
+			if !filepath.IsAbs(path) {
+				path = filepath.Join(m.directory, path)
+			}
+		} else if len(m.files) > 0 {
+			path = m.files[m.fileIndex].path
+		}
 		if info, err := os.Stat(path); err == nil && info.IsDir() {
-			m.directory = path
-			m.inputs[0].set(path + string(os.PathSeparator))
-			return listDirectory(path)
+			return m.changeDirectory(path)
 		}
 		info, err := os.Stat(path)
 		if err != nil || !info.Mode().IsRegular() {
@@ -564,8 +602,25 @@ func (m *Model) fileKey(k tea.KeyMsg) tea.Cmd {
 		m.beginUnlock(path)
 		return nil
 	default:
+		if !m.pickerEditing {
+			if k.Type != tea.KeyRunes {
+				return nil
+			}
+			m.pickerEditing = true
+			m.inputs[0].clear()
+		}
 		m.inputs[0].update(k)
 		m.err = ""
 	}
 	return nil
+}
+
+func (m *Model) changeDirectory(path string) tea.Cmd {
+	m.directory = path
+	m.files = nil
+	m.fileIndex = 0
+	m.pickerEditing = false
+	m.err = ""
+	m.inputs[0].set(path + string(os.PathSeparator))
+	return listDirectory(path)
 }

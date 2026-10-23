@@ -3,6 +3,8 @@ package ui
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -274,5 +276,86 @@ func TestWelcomeMouseAndVaultTabMouse(t *testing.T) {
 	m.pointer(tea.MouseMsg{X: 1, Y: 2, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
 	if m.ws.Active != 0 {
 		t.Fatal("tab not clickable")
+	}
+}
+
+func TestFilePickerEnterOpensHighlightedParent(t *testing.T) {
+	parent := t.TempDir()
+	child := filepath.Join(parent, "child")
+	if err := os.Mkdir(child, 0700); err != nil {
+		t.Fatal(err)
+	}
+	m := New(Options{})
+	m.screen = chooseFile
+	m.directory = child
+	m.inputs[0].set(child + string(os.PathSeparator))
+	m.Update(listDirectory(child)())
+	if len(m.files) == 0 || m.files[0].name != ".." {
+		t.Fatal("parent row missing")
+	}
+	cmd := m.key(key("enter"))
+	if cmd == nil {
+		t.Fatal("parent navigation did not load directory")
+	}
+	m.Update(cmd())
+	if m.directory != parent {
+		t.Fatalf("Enter opened %q instead of selected parent %q", m.directory, parent)
+	}
+}
+
+func TestFilePickerArrowEnterOpensDirectoryThenVault(t *testing.T) {
+	parent := t.TempDir()
+	child := filepath.Join(parent, "child")
+	if err := os.Mkdir(child, 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(child, "fixture.kdbx")
+	if err := os.WriteFile(path, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	m := New(Options{})
+	m.screen = chooseFile
+	m.directory = parent
+	m.inputs[0].set(parent + string(os.PathSeparator))
+	m.Update(listDirectory(parent)())
+	m.key(tea.KeyMsg{Type: tea.KeyDown})
+	cmd := m.key(key("enter"))
+	if cmd == nil {
+		t.Fatal("selected directory didn't open")
+	}
+	m.Update(cmd())
+	if m.directory != child {
+		t.Fatal("opened wrong directory")
+	}
+	m.key(tea.KeyMsg{Type: tea.KeyDown})
+	m.key(key("enter"))
+	if m.screen != unlock || m.path != path {
+		t.Fatal("selected vault didn't open")
+	}
+}
+
+func TestFilePickerBackspaceRespectsFocus(t *testing.T) {
+	parent := t.TempDir()
+	child := filepath.Join(parent, "child")
+	if err := os.Mkdir(child, 0700); err != nil {
+		t.Fatal(err)
+	}
+	m := New(Options{})
+	m.screen = chooseFile
+	m.directory = child
+	m.inputs[0].set(child + string(os.PathSeparator))
+	m.key(key("tab"))
+	m.key(tea.KeyMsg{Type: tea.KeyBackspace})
+	if m.directory != child {
+		t.Fatal("editing path navigated directory")
+	}
+	m.key(key("tab"))
+	cmd := m.key(tea.KeyMsg{Type: tea.KeyBackspace})
+	if cmd == nil {
+		t.Fatal("list Backspace didn't navigate parent")
+	}
+	m.Update(cmd())
+	if m.directory != parent {
+		t.Fatal("parent directory not opened")
 	}
 }

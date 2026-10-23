@@ -44,10 +44,14 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 			bodyLen += 2
 		}
 		top := max(0, (m.height-(min(bodyLen, max(1, m.height-8))+4))/2)
+		if msg.Y == top+3 {
+			m.pickerEditing = true
+			return nil
+		}
 		index := msg.Y - top - 5 + start
 		if index >= start && index < len(m.files) && index < start+visible {
 			m.fileIndex = index
-			m.inputs[0].set(m.files[index].path)
+			m.pickerEditing = false
 		}
 		return nil
 	}

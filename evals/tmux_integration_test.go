@@ -59,7 +59,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 
 	// Exercise an authentication failure followed by a retry. Passwords are
 	// sent as literal tmux input and are never included in diagnostics.
-	e.openPath(e.db1)
+	e.openPathBySelection()
 	e.typeText(fixtureWrongPassword)
 	e.key("Enter")
 	e.mustShow("Could not unlock")
@@ -126,12 +126,13 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 }
 
 type evalSession struct {
-	t      *testing.T
-	root   string
-	label  string
-	db1    string
-	db2    string
-	closed bool
+	t          *testing.T
+	root       string
+	pickerRoot string
+	label      string
+	db1        string
+	db2        string
+	closed     bool
 }
 
 func newEval(t *testing.T) *evalSession {
@@ -142,8 +143,13 @@ func newEval(t *testing.T) *evalSession {
 	}
 	label := fmt.Sprintf("kui%d", time.Now().UnixNano()%1_000_000_000)
 	e := &evalSession{t: t, root: root, label: label}
-	e.db1 = filepath.Join(root, "first.kdbx")
-	e.db2 = filepath.Join(root, "second.kdbx")
+	e.pickerRoot = filepath.Join(root, "picker")
+	vaultDir := filepath.Join(e.pickerRoot, "vaults")
+	if err := os.MkdirAll(vaultDir, 0700); err != nil {
+		t.Fatal("create picker fixture directory:", err)
+	}
+	e.db1 = filepath.Join(vaultDir, "first.kdbx")
+	e.db2 = filepath.Join(vaultDir, "second.kdbx")
 	for _, path := range []string{e.db1, e.db2} {
 		if err := os.WriteFile(path, nil, 0600); err != nil {
 			t.Fatal("create synthetic vault path:", err)
@@ -181,8 +187,28 @@ func (e *evalSession) start() {
 	if err := os.WriteFile(launcher, []byte(script), 0700); err != nil {
 		e.t.Fatal("write application launcher:", err)
 	}
-	e.tmux("-f", "/dev/null", "new-session", "-d", "-x", "120", "-y", "35", "-s", "eval", launcher)
+	e.tmux("-f", "/dev/null", "new-session", "-d", "-x", "120", "-y", "35", "-s", "eval", "-c", e.pickerRoot, launcher)
 	e.mustShow("KeePassUI", "Open Vault")
+}
+
+func (e *evalSession) openPathBySelection() {
+	e.t.Helper()
+	e.key("o")
+	e.mustShow("vaults/")
+	e.key("Down") // ".." -> "vaults"
+	e.key("Enter")
+	e.mustShow("first.kdbx")
+	e.key("Left") // navigate to the parent directory while list-focused
+	e.mustShow("vaults/")
+	e.key("Down")
+	e.key("Enter")
+	e.mustShow("first.kdbx")
+	e.key("Down") // ".." -> "first.kdbx"
+	e.key("Enter")
+	e.waitFor("password field", func() bool {
+		s := e.capture()
+		return strings.Contains(s, "Password") || strings.Contains(s, "Unlock")
+	})
 }
 
 func (e *evalSession) openPath(path string) {
