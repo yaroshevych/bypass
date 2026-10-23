@@ -44,6 +44,27 @@ func TestCLIMissingBinaryAndInvalidPath(t *testing.T) {
 	}
 }
 
+func TestCLIOpenDetectsExternalFileChange(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "fake-cli")
+	vaultPath := filepath.Join(dir, "vault.kdbx")
+	if err := os.WriteFile(vaultPath, []byte("encrypted-before"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	script := `#!/bin/sh
+printf x >> "$6"
+cat <<'XML'
+<?xml version="1.0"?><KeePassFile><Meta/><Root><Group><UUID>AQEBAQEBAQEBAQEBAQEBAQ==</UUID><Name>Root</Name></Group></Root></KeePassFile>
+XML
+`
+	if err := os.WriteFile(bin, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewCLI(bin).Open(context.Background(), vaultPath, Credentials{NoPassword: true}); !errors.Is(err, ErrExternalChanged) {
+		t.Fatalf("expected external change sentinel, got %v", err)
+	}
+}
+
 func TestCLIOpenSuccessUsesArgumentsAndPasswordStdin(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX shell fixture")
@@ -54,11 +75,15 @@ func TestCLIOpenSuccessUsesArgumentsAndPasswordStdin(t *testing.T) {
 	if err := os.WriteFile(vaultPath, []byte("fixture"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	expectedPath, err := canonicalPath(vaultPath)
+	if err != nil {
+		t.Fatal(err)
+	}
 	script := `#!/bin/sh
 [ "$#" -eq 9 ] || exit 10
 [ "$1" = export ] && [ "$2" = -q ] && [ "$3" = -f ] && [ "$4" = xml ] || exit 11
 [ "$5" = -k ] && [ "$6" = "key file" ] && [ "$7" = -y ] && [ "$8" = "2:serial" ] || exit 12
-[ "$9" = "` + vaultPath + `" ] || exit 13
+[ "$9" = "` + expectedPath + `" ] || exit 13
 IFS= read -r provided || exit 14
 [ "$provided" = "test password" ] || exit 15
 cat <<'XML'
@@ -171,5 +196,50 @@ func TestOpenRealVaultOptIn(t *testing.T) {
 	}
 	if sha256.Sum256(afterBytes) != beforeHash {
 		t.Fatal("vault file changed during read-only open")
+	}
+}
+
+func TestOpenPinsCanonicalTargetBeforeBackendRuns(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell fixture")
+	}
+	dir := t.TempDir()
+	first := filepath.Join(dir, "first.kdbx")
+	second := filepath.Join(dir, "second.kdbx")
+	alias := filepath.Join(dir, "alias.kdbx")
+	for _, path := range []string{first, second} {
+		if err := os.WriteFile(path, []byte("encrypted fixture"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(first, alias); err != nil {
+		t.Skip("symlinks unavailable")
+	}
+	expected, err := canonicalPath(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(dir, "fake-cli")
+	script := `#!/bin/sh
+[ "$6" = "` + expected + `" ] || exit 10
+ln -sf "` + second + `" "` + alias + `" || exit 11
+cat <<'XML'
+<KeePassFile><Meta/><Root><Group><UUID>AQEBAQEBAQEBAQEBAQEBAQ==</UUID><Name>Root</Name></Group></Root></KeePassFile>
+XML
+`
+	if err := os.WriteFile(bin, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	db, err := NewCLI(bin).Open(context.Background(), alias, Credentials{NoPassword: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Clear()
+	if db.Path != expected {
+		t.Fatal("opened session followed a retargeted alias")
+	}
+	actual, err := canonicalPath(alias)
+	if err != nil || actual == db.Path {
+		t.Fatal("test did not retarget symlink")
 	}
 }

@@ -2,6 +2,11 @@ package vault
 
 import (
 	"context"
+	"crypto/sha256"
+	"io"
+	"os"
+	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -12,8 +17,51 @@ type Credentials struct {
 	YubiKey    string
 }
 
+func (c Credentials) Clone() Credentials {
+	c.Password = append([]byte(nil), c.Password...)
+	return c
+}
+
+func (c *Credentials) Clear() {
+	if c == nil {
+		return
+	}
+	for i := range c.Password {
+		c.Password[i] = 0
+	}
+	c.Password = nil
+	c.KeyFile = ""
+	c.NoPassword = false
+	c.YubiKey = ""
+}
+
 type Backend interface {
 	Open(context.Context, string, Credentials) (*Database, error)
+}
+
+type ChangeKind string
+
+const (
+	AddEntry    ChangeKind = "add_entry"
+	EditEntry   ChangeKind = "edit_entry"
+	MoveEntry   ChangeKind = "move_entry"
+	DeleteEntry ChangeKind = "delete_entry"
+	CreateGroup ChangeKind = "create_group"
+	DeleteGroup ChangeKind = "delete_group"
+)
+
+type Change struct {
+	Kind            ChangeKind
+	EntryUUID       string
+	GroupUUID       string
+	Values          map[string]string
+	Password        []byte
+	PasswordChanged bool
+	NewName         string
+}
+
+type Writer interface {
+	Apply(context.Context, *Database, Credentials, Change, string) (*Database, error)
 }
 
 type Database struct {
@@ -24,6 +72,71 @@ type Database struct {
 	RecycleBinEnabled bool
 	Groups            []Group
 	Entries           []Entry
+	Revision          [32]byte
+}
+
+func (d *Database) Clone() *Database {
+	if d == nil {
+		return nil
+	}
+	out := *d
+	out.Groups = append([]Group(nil), d.Groups...)
+	out.Entries = make([]Entry, len(d.Entries))
+	for i, e := range d.Entries {
+		out.Entries[i] = e
+		out.Entries[i].Fields = append([]Field(nil), e.Fields...)
+		out.Entries[i].Tags = append([]string(nil), e.Tags...)
+		out.Entries[i].AttachmentNames = append([]string(nil), e.AttachmentNames...)
+	}
+	return &out
+}
+
+var pathLocks = struct {
+	sync.Mutex
+	byPath map[string]*sync.Mutex
+}{byPath: make(map[string]*sync.Mutex)}
+
+func lockCanonicalPath(path string) (string, func(), error) {
+	canonical, err := canonicalPath(path)
+	if err != nil {
+		return "", nil, err
+	}
+	pathLocks.Lock()
+	mu := pathLocks.byPath[canonical]
+	if mu == nil {
+		mu = &sync.Mutex{}
+		pathLocks.byPath[canonical] = mu
+	}
+	pathLocks.Unlock()
+	mu.Lock()
+	return canonical, mu.Unlock, nil
+}
+
+func canonicalPath(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", err
+	}
+	return resolved, nil
+}
+
+func Revision(path string) ([32]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return [32]byte{}, ErrInvalidPath
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return [32]byte{}, ErrInvalidPath
+	}
+	var sum [32]byte
+	copy(sum[:], h.Sum(nil))
+	return sum, nil
 }
 
 type Group struct {

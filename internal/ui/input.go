@@ -29,6 +29,10 @@ func (i *input) set(s string) {
 }
 
 func (i *input) update(k tea.KeyMsg) {
+	if k.Type == tea.KeySpace {
+		k.Type = tea.KeyRunes
+		k.Runes = []rune{' '}
+	}
 	switch k.Type {
 	case tea.KeyLeft:
 		i.cursor = max(0, i.cursor-1)

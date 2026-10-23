@@ -17,6 +17,7 @@ import (
 const (
 	fixturePassword      = "fixture-passphrase"
 	fixtureWrongPassword = "incorrect-eval-password"
+	fixtureEntryPassword = "m2-entry-password"
 	secretSentinel       = "EVAL-PROTECTED-SECRET-DO-NOT-DISPLAY"
 )
 
@@ -36,7 +37,7 @@ func TestMain(m *testing.M) {
 		os.Exit(2)
 	}
 	appBinary = filepath.Join(root, "keepassui")
-	cmd := exec.Command("go", "build", "-o", appBinary, "./cmd/keepassui")
+	cmd := exec.Command("go", "build", "-race", "-o", appBinary, "./cmd/keepassui")
 	cmd.Dir = ".."
 	if output, err := cmd.CombinedOutput(); err != nil {
 		fmt.Fprintf(os.Stderr, "build keepassui: %v\n%s", err, output)
@@ -122,7 +123,190 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	e.mustShow("KeePassUI", "Open Vault")
 
 	e.key("q")
-	e.waitFor("application quit", func() bool { return e.applicationStopped() })
+	e.waitForCleanQuit()
+}
+
+func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("tmux evals use Unix process and shell behavior")
+	}
+	backend, err := exec.LookPath("keepassxc-cli")
+	if err != nil {
+		t.Skip("keepassxc-cli is not installed")
+	}
+	e := newEval(t)
+	defer e.close()
+	createRealVault(e, backend)
+
+	e.startWith(backend, e.realDB)
+	e.mustShow("Unlock Vault")
+	e.typeText(fixturePassword)
+	e.key("Enter")
+	e.mustShow("Seed Entry")
+
+	// A new multiline entry starts in the vault's root group.
+	e.key("n")
+	e.mustShow("New Entry")
+	e.typeText("Eval Created")
+	e.key("Tab")
+	e.typeText("m2-user")
+	e.key("Tab")
+	e.typeText(fixtureEntryPassword)
+	e.key("Tab")
+	e.typeText("https://m2.test")
+	e.key("Tab")
+	e.typeText("first note line")
+	e.key("Enter")
+	e.typeText("second note line")
+	e.key("C-s")
+	e.mustShowWrite("Eval Created", "Saved. Encrypted backup created.")
+	e.mustNotShow(fixtureEntryPassword)
+
+	// Edit the title, cancel one generator dialog, then apply a generated
+	// password and save the edit. The generated value must stay masked.
+	e.key("e")
+	e.mustShow("Edit Entry")
+	e.typeText(" Edited")
+	e.key("C-g")
+	e.mustShow("Length (8–128)")
+	e.key("Escape")
+	e.mustShow("Edit Entry")
+	e.mustNotShow("Password *")
+	e.key("C-g")
+	e.key("Enter")
+	e.mustShow("Generated password")
+	e.mustNotShow(fixtureEntryPassword)
+	e.key("Enter")
+	e.mustShow("Edit Entry *", "Password *")
+	e.mustNotShow(fixtureEntryPassword)
+	e.key("C-s")
+	e.mustShowWrite("n new", "Eval Created Edited")
+
+	// Unsaved Esc defaults to Cancel. Left selects Discard; Enter removes the
+	// draft without writing it.
+	e.key("n")
+	e.typeText("Discard Draft")
+	e.key("Escape")
+	e.mustShow("Unsaved entry")
+	e.key("Enter")
+	e.mustShow("New Entry")
+	e.key("Escape")
+	e.mustShow("Unsaved entry")
+	e.key("Left")
+	e.key("Enter")
+	e.mustNotShow("Discard Draft")
+
+	// Create a group, move the entry into it, recycle, then restore to root.
+	e.key("g")
+	e.mustShow("New Group")
+	e.typeText("Archive")
+	e.key("Enter")
+	e.mustShowWrite("Archive", "Saved. Encrypted backup created.")
+	e.key("Left")
+	e.key("Left")
+	for i := 0; i < 8; i++ {
+		e.key("Up")
+	}
+	e.key("/")
+	e.typeText("Eval Created Edited")
+	e.key("Enter")
+	e.mustShow("Eval Created Edited")
+	e.key("Right")
+	e.key("Right")
+	e.key("m")
+	e.mustShow("Move Entry")
+	e.typeText("Archive")
+	e.key("Down")
+	e.key("Enter")
+	e.mustShowWrite("Passwords/Archive", "Saved. Encrypted backup created.")
+	e.key("d")
+	e.mustShow("Move to Recycle Bin")
+	e.key("Right")
+	e.key("Enter")
+	e.mustShowWrite("Saved. Encrypted backup created.")
+	e.key("Left")
+	e.key("Left")
+	for i := 0; i < 4; i++ {
+		e.key("Up")
+	}
+	for i := 0; i < 3; i++ {
+		e.key("Down")
+	}
+	e.mustShow("Recycle Bin", "Eval Created Edited")
+	e.key("r")
+	e.mustShow("Restore Entry")
+	e.typeText("Passwords")
+	e.key("Enter")
+	for i := 0; i < 3; i++ {
+		e.key("Up")
+	}
+	e.mustShow("Eval Created Edited")
+	e.key("Escape")
+	e.mustShow("Seed Entry")
+
+	// An external CLI write is detected, can be kept temporarily, then reloaded.
+	addExternalEntry(e, backend)
+	e.waitFor("external change indicator", func() bool {
+		screen := e.capture()
+		return strings.Contains(screen, "Changed externally") || strings.Contains(screen, "Vault changed externally")
+	})
+	if !strings.Contains(e.capture(), "Vault changed externally") {
+		e.key("n")
+	}
+	e.mustShow("Vault changed externally")
+	e.key("Enter") // Keep Current View is selected by default.
+	e.mustShow("Changed externally")
+	e.key("C-r")
+	e.mustShow("Vault reloaded.", "External Entry")
+
+	// Read-only mode blocks new writes with a visible reason.
+	e.key("R")
+	e.mustShow("Read only enabled.")
+	e.key("n")
+	e.mustShow("Read only: enable writes with R first.")
+	e.mustNotShow("New Entry")
+
+	e.key("q")
+	e.waitForCleanQuit()
+}
+
+func TestMilestone2IdleLockTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("tmux evals use Unix process and shell behavior")
+	}
+	e := newEval(t)
+	defer e.close()
+	e.startWith(filepath.Join(e.root, "fake-keepassxc-cli"), "--idle-timeout=2s", e.db1)
+	e.mustShow("Unlock Vault")
+	e.typeText(fixturePassword)
+	e.key("Enter")
+	e.mustShow("Eval Entry")
+	e.waitFor("idle vault lock", func() bool {
+		return strings.Contains(e.capture(), "Vault locked")
+	})
+}
+
+func createRealVault(e *evalSession, backend string) {
+	e.t.Helper()
+	runCLI(e, backend, fixturePassword+"\n"+fixturePassword+"\n", "db-create", "--set-password", "--decryption-time", "100", e.realDB)
+	runCLI(e, backend, fixturePassword+"\n"+fixtureEntryPassword+"\n", "add", "--quiet", "--username", "seed-user", "--url", "https://seed.test", "--notes", "synthetic seed note", "--password-prompt", e.realDB, "Seed Entry")
+}
+
+func addExternalEntry(e *evalSession, backend string) {
+	e.t.Helper()
+	runCLI(e, backend, fixturePassword+"\n", "add", "--quiet", "--username", "external-user", "--url", "https://external.test", "--generate", e.realDB, "External Entry")
+}
+
+func runCLI(e *evalSession, backend, stdin string, args ...string) {
+	e.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, backend, args...)
+	cmd.Stdin = strings.NewReader(stdin)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		e.t.Fatalf("synthetic KeePassXC setup command %q failed: %v: %s", args[0], err, e.redact(string(output)))
+	}
 }
 
 type evalSession struct {
@@ -132,6 +316,7 @@ type evalSession struct {
 	label      string
 	db1        string
 	db2        string
+	realDB     string
 	closed     bool
 }
 
@@ -150,6 +335,7 @@ func newEval(t *testing.T) *evalSession {
 	}
 	e.db1 = filepath.Join(vaultDir, "first.kdbx")
 	e.db2 = filepath.Join(vaultDir, "second.kdbx")
+	e.realDB = filepath.Join(vaultDir, "real-cli.kdbx")
 	for _, path := range []string{e.db1, e.db2} {
 		if err := os.WriteFile(path, nil, 0600); err != nil {
 			t.Fatal("create synthetic vault path:", err)
@@ -174,9 +360,17 @@ func newEval(t *testing.T) *evalSession {
 }
 
 func (e *evalSession) start() {
+	e.startWith(filepath.Join(e.root, "fake-keepassxc-cli"), "--read-only")
+	e.mustShow("KeePassUI", "Open Vault")
+}
+
+func (e *evalSession) startWith(backend string, appArgs ...string) {
 	e.t.Helper()
 	launcher := filepath.Join(e.root, "launch.sh")
-	command := shellQuote(appBinary) + " --backend " + shellQuote(filepath.Join(e.root, "fake-keepassxc-cli"))
+	command := shellQuote(appBinary) + " --backend " + shellQuote(backend)
+	for _, arg := range appArgs {
+		command += " " + shellQuote(arg)
+	}
 	script := "#!/bin/sh\nexec env HOME=" + shellQuote(filepath.Join(e.root, "home")) +
 		" XDG_CONFIG_HOME=" + shellQuote(filepath.Join(e.root, "xdg-config")) +
 		" XDG_DATA_HOME=" + shellQuote(filepath.Join(e.root, "xdg-data")) +
@@ -187,8 +381,12 @@ func (e *evalSession) start() {
 	if err := os.WriteFile(launcher, []byte(script), 0700); err != nil {
 		e.t.Fatal("write application launcher:", err)
 	}
-	e.tmux("-f", "/dev/null", "new-session", "-d", "-x", "120", "-y", "35", "-s", "eval", "-c", e.pickerRoot, launcher)
-	e.mustShow("KeePassUI", "Open Vault")
+	tmuxConfig := filepath.Join(e.root, "tmux.conf")
+	if err := os.WriteFile(tmuxConfig, []byte("set-option -w -g remain-on-exit on\n"), 0600); err != nil {
+		e.t.Fatal("write private tmux config:", err)
+	}
+	e.tmux("-f", tmuxConfig, "new-session", "-d", "-x", "120", "-y", "35", "-s", "eval", "-c", e.pickerRoot, launcher)
+	e.tmux("set-option", "-w", "-t", "eval", "remain-on-exit", "on")
 }
 
 func (e *evalSession) openPathBySelection() {
@@ -267,7 +465,17 @@ func (e *evalSession) scrollDownUntil(text string, maxSteps int) {
 
 func (e *evalSession) mustShow(parts ...string) {
 	e.t.Helper()
-	e.waitFor("screen to contain "+strings.Join(parts, ", "), func() bool {
+	e.mustShowWithin(4*time.Second, parts...)
+}
+
+func (e *evalSession) mustShowWrite(parts ...string) {
+	e.t.Helper()
+	e.mustShowWithin(20*time.Second, parts...)
+}
+
+func (e *evalSession) mustShowWithin(timeout time.Duration, parts ...string) {
+	e.t.Helper()
+	e.waitForWithin(timeout, "screen to contain "+strings.Join(parts, ", "), func() bool {
 		s := e.capture()
 		for _, part := range parts {
 			if !strings.Contains(s, part) {
@@ -286,8 +494,12 @@ func (e *evalSession) mustNotShow(value string) {
 }
 
 func (e *evalSession) waitFor(description string, condition func() bool) {
+	e.waitForWithin(4*time.Second, description, condition)
+}
+
+func (e *evalSession) waitForWithin(timeout time.Duration, description string, condition func() bool) {
 	e.t.Helper()
-	deadline := time.Now().Add(4 * time.Second)
+	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if condition() {
 			return
@@ -306,24 +518,35 @@ func (e *evalSession) capture() string {
 	return string(out)
 }
 
-func (e *evalSession) paneDead() bool {
+func (e *evalSession) paneExitStatus() (dead bool, status string, available bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "tmux", "-L", e.label, "display-message", "-p", "-t", "eval", "#{pane_dead}")
+	cmd := exec.CommandContext(ctx, "tmux", "-L", e.label, "display-message", "-p", "-t", "eval", "#{pane_dead} #{pane_dead_status}")
 	cmd.Env = tmuxEnv(e.label)
 	out, err := cmd.Output()
-	return err == nil && strings.TrimSpace(string(out)) == "1"
+	if err != nil {
+		return false, "", false
+	}
+	parts := strings.Fields(string(out))
+	if len(parts) != 2 {
+		return false, "", false
+	}
+	return parts[0] == "1", parts[1], true
 }
 
-func (e *evalSession) applicationStopped() bool {
-	if e.paneDead() {
-		return true
+func (e *evalSession) waitForCleanQuit() {
+	e.t.Helper()
+	e.waitFor("application exit", func() bool {
+		dead, _, available := e.paneExitStatus()
+		return available && dead
+	})
+	dead, status, available := e.paneExitStatus()
+	if !available {
+		e.failWithScreen("tmux pane exit status unavailable after quit", e.capture())
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "tmux", "-L", e.label, "has-session", "-t", "eval")
-	cmd.Env = tmuxEnv(e.label)
-	return cmd.Run() != nil
+	if !dead || status != "0" {
+		e.failWithScreen("application quit abnormally (pane_dead="+fmt.Sprint(dead)+", pane_dead_status="+status+")", e.capture())
+	}
 }
 
 func (e *evalSession) tmux(args ...string) string {
@@ -356,6 +579,7 @@ func (e *evalSession) redact(s string) string {
 		secretSentinel, "[REDACTED]",
 		fixturePassword, "[REDACTED]",
 		fixtureWrongPassword, "[REDACTED]",
+		fixtureEntryPassword, "[REDACTED]",
 	).Replace(s)
 }
 

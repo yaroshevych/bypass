@@ -7,8 +7,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"keepassui/internal/clipboard"
+	"keepassui/internal/platform"
 	"keepassui/internal/vault"
 	"keepassui/internal/workspace"
 )
@@ -24,6 +27,11 @@ type Options struct {
 	Store       RecentStore
 	InitialPath string
 	Context     context.Context
+	Settings    platform.Settings
+	Clipboard   *clipboard.Manager
+	ReadOnly    bool
+	Now         func() time.Time
+	Warning     string
 }
 
 type screen int
@@ -35,31 +43,57 @@ const (
 )
 
 type Model struct {
-	backend         vault.Backend
-	store           RecentStore
-	ctx             context.Context
-	ws              *workspace.Workspace
-	width, height   int
-	screen          screen
-	inputs          [3]input // password/path, key file, hardware slot
-	inputFocus      int
-	noPassword      bool
-	path, directory string
-	files           []fileItem
-	fileIndex       int
-	pickerEditing   bool
-	recent          []string
-	recentIndex     int
-	err, notice     string
-	busy            bool
-	cancel          context.CancelFunc
-	request         uint64
-	searching       bool
-	query           input
-	previousQuery   string
-	help            bool
-	backendVersion  string
-	backendMissing  bool
+	backend                                 vault.Backend
+	store                                   RecentStore
+	ctx                                     context.Context
+	ws                                      *workspace.Workspace
+	width, height                           int
+	screen                                  screen
+	inputs                                  [3]input // password/path, key file, hardware slot
+	inputFocus                              int
+	noPassword                              bool
+	path, directory                         string
+	files                                   []fileItem
+	fileIndex                               int
+	pickerEditing                           bool
+	recent                                  []string
+	recentIndex                             int
+	err, notice                             string
+	busy                                    bool
+	cancel                                  context.CancelFunc
+	request                                 uint64
+	searching                               bool
+	query                                   input
+	previousQuery                           string
+	help                                    bool
+	helpOffset                              int
+	backendVersion                          string
+	backendMissing                          bool
+	settings                                platform.Settings
+	clipboard                               *clipboard.Manager
+	readOnly                                bool
+	now                                     func() time.Time
+	editor                                  *entryEditor
+	editorSession                           string
+	dialog                                  *actionDialog
+	afterSave                               func() tea.Cmd
+	operation                               uint64
+	operationCancel                         context.CancelFunc
+	operationSession                        string
+	writing                                 bool
+	clipGeneration                          uint64
+	clipCancel                              context.CancelFunc
+	clipboardExpires                        time.Time
+	noticeExpires                           time.Time
+	revealEntry, revealField, revealSession string
+	revealUntil                             time.Time
+	revealValue                             []byte
+	revealGeneration                        uint64
+	revealCancel                            context.CancelFunc
+	checking                                map[string]bool
+	changeDismissed                         map[string]bool
+	ticks                                   uint64
+	cleanupErr                              error
 }
 
 type fileItem struct {
@@ -67,9 +101,10 @@ type fileItem struct {
 	dir        bool
 }
 type openedMsg struct {
-	request uint64
-	db      *vault.Database
-	err     error
+	request     uint64
+	db          *vault.Database
+	err         error
+	credentials vault.Credentials
 }
 type recentMsg struct {
 	paths []string
@@ -97,6 +132,22 @@ func New(opts Options) *Model {
 		ctx = context.Background()
 	}
 	m := &Model{backend: opts.Backend, store: opts.Store, ctx: ctx, ws: workspace.New(), width: 100, height: 30}
+	m.now = opts.Now
+	if m.now == nil {
+		m.now = time.Now
+	}
+	m.settings = opts.Settings
+	if m.settings.IdleTimeout <= 0 {
+		m.settings.IdleTimeout = 15 * time.Minute
+	}
+	if m.settings.ClipboardTimeout <= 0 {
+		m.settings.ClipboardTimeout = 10 * time.Second
+	}
+	m.clipboard = opts.Clipboard
+	m.readOnly = opts.ReadOnly
+	m.notice = opts.Warning
+	m.checking = make(map[string]bool)
+	m.changeDismissed = make(map[string]bool)
 	if opts.InitialPath != "" {
 		m.path = expandPath(opts.InitialPath)
 		m.screen = unlock
@@ -106,6 +157,7 @@ func New(opts Options) *Model {
 
 func (m *Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
+	cmds = append(cmds, nextTick())
 	if m.store != nil {
 		store := m.store
 		cmds = append(cmds, func() tea.Msg { paths, err := store.LoadRecent(); return recentMsg{paths, err} })
@@ -120,6 +172,19 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func (m *Model) Close() {
+	m.cancelOperation()
+	m.clearEditor()
+	m.clearDialog()
+	m.hideReveal()
+	if m.clipCancel != nil {
+		m.clipCancel()
+	}
+	m.clipGeneration++
+	ctx, cancel := context.WithTimeout(context.Background(), 3500*time.Millisecond)
+	if err := m.clipboard.Clear(ctx); err != nil {
+		m.cleanupErr = err
+	}
+	cancel()
 	m.request++
 	if m.cancel != nil {
 		m.cancel()
@@ -133,7 +198,13 @@ func (m *Model) Close() {
 	m.ws.Close()
 }
 
+func (m *Model) CleanupError() error { return m.cleanupErr }
+
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if cmd, ok := m.updateOperation(msg); ok {
+		m.adjustViewport()
+		return m, cmd
+	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -160,6 +231,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case openedMsg:
 		if msg.request != m.request {
+			msg.credentials.Clear()
 			if msg.db != nil {
 				msg.db.Clear()
 			}
@@ -172,6 +244,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.err != nil {
 			m.err = "Could not unlock. Check credentials, file access and backend support."
+			msg.credentials.Clear()
 			if errors.Is(msg.err, vault.ErrUnavailable) {
 				m.err = "Could not unlock. Install KeePassXC or set --backend executable."
 			}
@@ -187,10 +260,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			break
 		}
 		if msg.db == nil {
+			msg.credentials.Clear()
 			m.err = "Could not unlock. Backend returned no database."
 			break
 		}
-		m.ws.Open(msg.db)
+		reused := m.ws.Open(msg.db)
+		session := m.ws.ActiveSession()
+		if session != nil {
+			m.ws.SetCredentials(session.ID, msg.credentials)
+			session.LastActivity = m.now()
+			if !reused {
+				session.ReadOnly = m.readOnly
+				if info, err := os.Stat(session.Path); err == nil && info.Mode().Perm()&0222 == 0 {
+					session.ReadOnly = true
+				}
+			}
+		}
+		msg.credentials.Clear()
 		m.screen, m.err, m.notice = browse, "", ""
 		m.restoreGroup()
 		m.normalize()
@@ -206,11 +292,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case tea.MouseMsg:
+		if s := m.ws.ActiveSession(); s != nil && s.DB != nil && m.screen == browse {
+			s.LastActivity = m.now()
+		}
 		cmd := m.pointer(msg)
+		m.touchActive()
 		m.adjustViewport()
 		return m, cmd
 	case tea.KeyMsg:
 		cmd := m.key(msg)
+		m.touchActive()
 		m.adjustViewport()
 		return m, cmd
 	}
@@ -218,13 +309,46 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *Model) touchActive() {
+	if s := m.ws.ActiveSession(); s != nil && s.DB != nil && m.screen == browse {
+		s.LastActivity = m.now()
+	}
+}
+
 func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	key := k.String()
+	if key != "v" {
+		m.hideReveal()
+	}
+	if s := m.ws.ActiveSession(); s != nil && s.DB != nil && m.screen == browse {
+		s.LastActivity = m.now()
+	}
+	if m.dialog != nil {
+		return m.dialogKey(k)
+	}
 	if key == "ctrl+c" {
-		m.Close()
-		return tea.Quit
+		return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit })
+	}
+	if m.writing {
+		if key == "ctrl+l" || key == "L" {
+			return m.lockCurrent(key == "L")
+		}
+		return nil
+	}
+	if m.editor != nil {
+		return m.editorKey(k)
 	}
 	if m.help {
+		switch key {
+		case "up", "k":
+			m.helpOffset = max(0, m.helpOffset-1)
+		case "down", "j":
+			m.helpOffset++
+		case "pgup":
+			m.helpOffset = max(0, m.helpOffset-8)
+		case "pgdown":
+			m.helpOffset += 8
+		}
 		if key == "esc" || key == "?" || key == "enter" {
 			m.help = false
 		}
@@ -268,7 +392,9 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	case "ctrl+o":
 		return m.openPicker()
 	case "?":
+		m.hideReveal()
 		m.help = true
+		m.helpOffset = 0
 		return nil
 	case "ctrl+t":
 		m.ws.Duplicate()
@@ -284,16 +410,15 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	case "ctrl+w":
+		m.hideReveal()
 		m.ws.CloseView()
 		m.err = ""
 		m.normalize()
-		return nil
+		return m.clearClipboard()
 	case "ctrl+l":
-		m.ws.LockActive()
-		m.query.clear()
-		m.previousQuery = ""
-		m.err = ""
-		return nil
+		return m.lockCurrent(false)
+	case "L":
+		return m.lockCurrent(true)
 	}
 	if strings.HasPrefix(key, "alt+") && len(key) == 5 && key[4] >= '1' && key[4] <= '9' {
 		m.ws.Switch(int(key[4] - '1'))
@@ -334,13 +459,33 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	v := m.ws.ActiveView()
+	if cmd, handled := m.operationKey(k); handled {
+		return cmd
+	}
+	if key == "tab" || key == "shift+tab" || key == "up" || key == "down" || key == "left" || key == "right" || key == "enter" || strings.HasPrefix(key, "alt+") {
+		m.hideReveal()
+	}
 	switch key {
 	case "o", "O":
 		return m.openPicker()
 	case "tab":
-		v.Focus = (v.Focus + 1) % 3
+		v.DetailManual = false
+		if v.Focus == 2 && v.FieldIndex < len(m.fieldNames())-1 {
+			v.FieldIndex++
+		} else {
+			v.Focus = (v.Focus + 1) % 3
+			v.FieldIndex = 0
+		}
 	case "shift+tab":
-		v.Focus = (v.Focus + 2) % 3
+		v.DetailManual = false
+		if v.Focus == 2 && v.FieldIndex > 0 {
+			v.FieldIndex--
+		} else {
+			v.Focus = (v.Focus + 2) % 3
+			if v.Focus == 2 {
+				v.FieldIndex = max(0, len(m.fieldNames())-1)
+			}
+		}
 	case "left", "h":
 		v.Focus = max(0, v.Focus-1)
 	case "right", "l":
@@ -350,9 +495,19 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	case "down", "j":
 		m.move(1)
 	case "pgup":
-		m.move(-max(1, m.height-10))
+		if v.Focus == 2 {
+			v.DetailManual = true
+			v.DetailOffset = max(0, v.DetailOffset-max(1, m.height-10))
+		} else {
+			m.move(-max(1, m.height-10))
+		}
 	case "pgdown":
-		m.move(max(1, m.height-10))
+		if v.Focus == 2 {
+			v.DetailManual = true
+			v.DetailOffset += max(1, m.height-10)
+		} else {
+			m.move(max(1, m.height-10))
+		}
 	case "enter":
 		if v.Focus < 2 {
 			v.Focus++
@@ -369,6 +524,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 }
 
 func (m *Model) beginUnlock(path string) {
+	m.hideReveal()
 	for i := range m.inputs {
 		m.inputs[i].clear()
 	}
@@ -473,7 +629,11 @@ func (m *Model) startOpen() tea.Cmd {
 	return func() tea.Msg {
 		defer clear(creds.Password)
 		db, err := backend.Open(ctx, path, creds)
-		return openedMsg{id, db, err}
+		result := openedMsg{request: id, db: db, err: err}
+		if err == nil {
+			result.credentials = creds.Clone()
+		}
+		return result
 	}
 }
 
@@ -493,6 +653,7 @@ func expandOptional(path string) string {
 }
 
 func (m *Model) openPicker() tea.Cmd {
+	m.hideReveal()
 	m.err = ""
 	m.screen = chooseFile
 	m.inputFocus = 0

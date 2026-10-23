@@ -10,6 +10,28 @@ import (
 )
 
 func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
+	m.hideReveal()
+	if m.dialog != nil || m.writing {
+		return nil
+	}
+	if m.editor != nil {
+		if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+			return nil
+		}
+		lw, cw, rw := m.paneWidths()
+		if msg.X < lw+cw+2 || msg.Y < 4 || msg.Y >= m.height-2 {
+			return m.leaveEditor(func() tea.Cmd { return m.pointer(msg) })
+		}
+		switch m.editor.pointer(msg.Y-4, rw, m.height-6) {
+		case editorSave:
+			return m.saveEditor()
+		case editorCancel:
+			return m.leaveEditor(func() tea.Cmd { return nil })
+		case editorGenerate:
+			m.openGenerator()
+		}
+		return nil
+	}
 	if m.help || m.width < 65 || m.height < 16 {
 		return nil
 	}
@@ -229,7 +251,8 @@ func (m *Model) move(delta int) {
 		v.SelectedUUID = entries[index].UUID
 		v.DetailOffset = 0
 	case 2:
-		v.DetailOffset = max(0, v.DetailOffset+delta)
+		v.DetailManual = false
+		v.FieldIndex = min(max(0, v.FieldIndex+delta), max(0, len(m.fieldNames())-1))
 	}
 }
 
@@ -244,6 +267,16 @@ func (m *Model) mouse(msg tea.MouseMsg) {
 	}
 	lw, mw, _ := m.paneWidths()
 	if msg.Action == tea.MouseActionPress && (msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown) {
+		if msg.X > lw+mw+1 {
+			v.Focus = 2
+			v.DetailManual = true
+			delta := 3
+			if msg.Button == tea.MouseButtonWheelUp {
+				delta = -3
+			}
+			v.DetailOffset = max(0, v.DetailOffset+delta)
+			return
+		}
 		if msg.Button == tea.MouseButtonWheelUp {
 			m.move(-1)
 		} else {
@@ -282,6 +315,15 @@ func (m *Model) mouse(msg tea.MouseMsg) {
 		}
 	default:
 		v.Focus = 2
+		v.DetailManual = false
+		_, _, rw := m.paneWidths()
+		_, positions := m.detailLayout(rw)
+		row := msg.Y - 4 + v.DetailOffset
+		for i, start := range positions {
+			if row >= start {
+				v.FieldIndex = i
+			}
+		}
 	}
 }
 
@@ -332,7 +374,19 @@ func (m *Model) adjustViewport() {
 	}
 	v.EntryOffset = min(v.EntryOffset, max(0, len(entries)-capacity))
 	_, _, rw := m.paneWidths()
-	v.DetailOffset = min(max(0, v.DetailOffset), max(0, len(m.detailContent(rw))-max(1, m.height-6)))
+	lines, positions := m.detailLayout(rw)
+	bodyH := max(1, m.height-6)
+	if v.Focus == 2 && len(positions) > 0 && !v.DetailManual {
+		v.FieldIndex = min(max(0, v.FieldIndex), len(positions)-1)
+		row := positions[v.FieldIndex]
+		if row < v.DetailOffset {
+			v.DetailOffset = row
+		}
+		if row+1 >= v.DetailOffset+bodyH {
+			v.DetailOffset = max(0, row+2-bodyH)
+		}
+	}
+	v.DetailOffset = min(max(0, v.DetailOffset), max(0, len(lines)-bodyH))
 }
 
 func visibleField(e vault.Entry, name string) string {

@@ -4,14 +4,19 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"keepassui/internal/vault"
 )
 
 type Session struct {
-	ID   string
-	Path string
-	DB   *vault.Database
+	ID           string
+	Path         string
+	DB           *vault.Database
+	Credentials  vault.Credentials
+	ReadOnly     bool
+	Stale        bool
+	LastActivity time.Time
 }
 
 type View struct {
@@ -24,6 +29,8 @@ type View struct {
 	NavIndex     int
 	EntryOffset  int
 	DetailOffset int
+	DetailManual bool
+	FieldIndex   int
 }
 
 type Workspace struct {
@@ -53,7 +60,7 @@ func (w *Workspace) Open(db *vault.Database) (reused bool) {
 	if session != nil {
 		reused = true
 		if session.DB == nil {
-			session.DB = db
+			w.ReplaceDatabase(session.ID, db)
 		} else if session.DB != db {
 			// The caller may have just decrypted a second copy of the same
 			// vault. Keep one shared database and discard the duplicate plaintext.
@@ -66,7 +73,7 @@ func (w *Workspace) Open(db *vault.Database) (reused bool) {
 			}
 		}
 	} else {
-		session = &Session{ID: w.id("session"), Path: path, DB: db}
+		session = &Session{ID: w.id("session"), Path: path, DB: db, ReadOnly: true, LastActivity: time.Now()}
 		w.Sessions[session.ID] = session
 	}
 	w.Views = append(w.Views, View{ID: w.id("view"), SessionID: session.ID, GroupUUID: db.RootUUID})
@@ -131,18 +138,66 @@ func (w *Workspace) CloseView() bool {
 // session while retaining the view navigation UUIDs.
 func (w *Workspace) LockActive() bool {
 	session := w.ActiveSession()
-	if session == nil || session.DB == nil {
+	if session == nil {
 		return false
 	}
-	session.DB.Clear()
-	session.DB = nil
+	return w.LockSession(session.ID)
+}
+
+func (w *Workspace) ReplaceDatabase(sessionID string, db *vault.Database) bool {
+	session := w.Sessions[sessionID]
+	if session == nil || db == nil {
+		return false
+	}
+	if session.DB != nil && session.DB != db {
+		session.DB.Clear()
+	}
+	session.DB = db
+	session.Stale = false
+	session.LastActivity = time.Now()
+	return true
+}
+
+func (w *Workspace) SetCredentials(sessionID string, credentials vault.Credentials) bool {
+	session := w.Sessions[sessionID]
+	if session == nil {
+		return false
+	}
+	owned := credentials.Clone()
+	session.Credentials.Clear()
+	session.Credentials = owned
+	session.LastActivity = time.Now()
+	return true
+}
+
+func (w *Workspace) LockSession(sessionID string) bool {
+	session := w.Sessions[sessionID]
+	if session == nil {
+		return false
+	}
+	if session.DB != nil {
+		session.DB.Clear()
+		session.DB = nil
+	}
+	session.Credentials.Clear()
 	for i := range w.Views {
-		if w.Views[i].SessionID == session.ID {
+		if w.Views[i].SessionID == sessionID {
 			w.Views[i].Query = ""
 			w.Views[i].DetailOffset = 0
+			w.Views[i].DetailManual = false
+			w.Views[i].FieldIndex = 0
 		}
 	}
 	return true
+}
+
+func (w *Workspace) LockAll() {
+	if w == nil {
+		return
+	}
+	for id := range w.Sessions {
+		w.LockSession(id)
+	}
 }
 
 // CloseVault closes all views for the active vault and clears its data.
@@ -155,6 +210,7 @@ func (w *Workspace) CloseVault() bool {
 		session.DB.Clear()
 		session.DB = nil
 	}
+	session.Credentials.Clear()
 	oldLen := len(w.Views)
 	kept := w.Views[:0]
 	newActive := 0
@@ -191,9 +247,12 @@ func (w *Workspace) Close() {
 		w.Views[i] = View{}
 	}
 	for _, session := range w.Sessions {
-		if session != nil && session.DB != nil {
-			session.DB.Clear()
-			session.DB = nil
+		if session != nil {
+			if session.DB != nil {
+				session.DB.Clear()
+				session.DB = nil
+			}
+			session.Credentials.Clear()
 		}
 	}
 	w.Views = nil
@@ -212,6 +271,7 @@ func (w *Workspace) cleanupSession(id string) {
 			session.DB.Clear()
 			session.DB = nil
 		}
+		session.Credentials.Clear()
 		delete(w.Sessions, id)
 	}
 }

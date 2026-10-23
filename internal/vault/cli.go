@@ -13,12 +13,18 @@ import (
 )
 
 var (
-	ErrUnavailable = errors.New("vault CLI unavailable")
-	ErrInvalidPath = errors.New("invalid vault path")
-	ErrUnlock      = errors.New("unable to unlock vault")
-	ErrCanceled    = errors.New("vault operation canceled")
-	ErrMalformed   = errors.New("malformed vault export")
-	ErrTooLarge    = errors.New("vault export exceeds size limit")
+	ErrUnavailable     = errors.New("vault CLI unavailable")
+	ErrInvalidPath     = errors.New("invalid vault path")
+	ErrUnlock          = errors.New("unable to unlock vault")
+	ErrCanceled        = errors.New("vault operation canceled")
+	ErrMalformed       = errors.New("malformed vault export")
+	ErrTooLarge        = errors.New("vault export exceeds size limit")
+	ErrReadOnly        = errors.New("vault is read-only")
+	ErrAmbiguous       = errors.New("vault selector is ambiguous")
+	ErrUnsupported     = errors.New("vault change is unsupported")
+	ErrExternalChanged = errors.New("vault changed outside this application")
+	ErrWrite           = errors.New("vault write failed")
+	ErrBackup          = errors.New("vault backup failed")
 )
 
 const (
@@ -65,22 +71,21 @@ func (c *CLI) Open(ctx context.Context, path string, creds Credentials) (*Databa
 	if path == "" {
 		return nil, ErrInvalidPath
 	}
+	canonical, err := canonicalPath(path)
+	if err != nil {
+		return nil, ErrInvalidPath
+	}
+	path = canonical
 	st, err := os.Stat(path)
 	if err != nil || !st.Mode().IsRegular() {
 		return nil, ErrInvalidPath
 	}
-	if creds.NoPassword && len(creds.Password) > 0 {
-		return nil, ErrUnlock
+	initialRevision, err := Revision(path)
+	if err != nil {
+		return nil, err
 	}
-	for _, b := range creds.Password {
-		if b == '\n' || b == '\r' || b == 0 {
-			return nil, ErrUnlock
-		}
-	}
-	for _, s := range []string{creds.KeyFile, creds.YubiKey} {
-		if strings.ContainsAny(s, "\r\n\x00") {
-			return nil, ErrUnlock
-		}
+	if err := validateCredentials(creds); err != nil {
+		return nil, err
 	}
 
 	ctx, cancel := boundedContext(ctx)
@@ -108,7 +113,15 @@ func (c *CLI) Open(ctx context.Context, path string, creds Credentials) (*Databa
 		cmd.Stdin = bytes.NewReader(input)
 		defer zero(input)
 	}
-	if err := cmd.Run(); err != nil {
+	runErr := cmd.Run()
+	finalRevision, revisionErr := Revision(path)
+	if revisionErr != nil {
+		return nil, ErrExternalChanged
+	}
+	if initialRevision != finalRevision {
+		return nil, ErrExternalChanged
+	}
+	if err := runErr; err != nil {
 		if stdout.exceeded {
 			return nil, ErrTooLarge
 		}
@@ -129,7 +142,25 @@ func (c *CLI) Open(ctx context.Context, path string, creds Credentials) (*Databa
 	if err != nil {
 		return nil, err
 	}
+	db.Revision = finalRevision
 	return db, nil
+}
+
+func validateCredentials(creds Credentials) error {
+	if creds.NoPassword && len(creds.Password) > 0 {
+		return ErrUnlock
+	}
+	for _, b := range creds.Password {
+		if b == '\n' || b == '\r' || b == 0 {
+			return ErrUnlock
+		}
+	}
+	for _, s := range []string{creds.KeyFile, creds.YubiKey} {
+		if strings.ContainsAny(s, "\r\n\x00") {
+			return ErrUnlock
+		}
+	}
+	return nil
 }
 
 func boundedContext(ctx context.Context) (context.Context, context.CancelFunc) {

@@ -1,0 +1,859 @@
+package ui
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"keepassui/internal/vault"
+)
+
+type appliedMsg struct {
+	id        uint64
+	sessionID string
+	db        *vault.Database
+	err       error
+	change    vault.Change
+}
+type reloadedMsg struct {
+	id        uint64
+	sessionID string
+	db        *vault.Database
+	err       error
+}
+type generatedMsg struct {
+	id    uint64
+	value []byte
+	err   error
+}
+type copiedMsg struct {
+	id      uint64
+	label   string
+	expires time.Time
+	err     error
+}
+type resolvedCopyMsg struct {
+	id    uint64
+	label string
+	value []byte
+	err   error
+}
+type resolvedRevealMsg struct {
+	id    uint64
+	value []byte
+	err   error
+}
+type clipboardClearedMsg struct{ err error }
+type clipboardExpiryMsg struct {
+	id  uint64
+	now time.Time
+}
+type tickMsg time.Time
+type revisionMsg struct {
+	sessionID        string
+	expected, actual [32]byte
+	err              error
+}
+
+func nextTick() tea.Cmd {
+	return tea.Tick(time.Second, func(now time.Time) tea.Msg { return tickMsg(now) })
+}
+
+func (m *Model) writable() bool {
+	s := m.ws.ActiveSession()
+	if s == nil || s.DB == nil {
+		return false
+	}
+	if s.ReadOnly {
+		m.setNotice("Read only: enable writes with R first.", true)
+		return false
+	}
+	if m.settings.BackupDir == "" {
+		m.setNotice("Backup location unavailable. Check local state settings.", true)
+		return false
+	}
+	if s.Stale {
+		m.showExternal(s.ID)
+		return false
+	}
+	if _, ok := m.backend.(vault.Writer); !ok {
+		m.setNotice("This backend does not support writes.", true)
+		return false
+	}
+	return true
+}
+
+func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
+	s := m.ws.ActiveSession()
+	if s == nil || s.DB == nil {
+		return nil, false
+	}
+	switch k.String() {
+	case "n":
+		if !m.writable() {
+			return nil, true
+		}
+		group := s.DB.RootUUID
+		if v := m.ws.ActiveView(); v != nil && v.GroupUUID != "" {
+			for _, g := range s.DB.Groups {
+				if g.UUID == v.GroupUUID && !g.Recycled {
+					group = g.UUID
+				}
+			}
+		}
+		m.startEditor(nil, group)
+		return nil, true
+	case "e":
+		if !m.writable() {
+			return nil, true
+		}
+		if e := m.selected(); e != nil {
+			m.startEditor(e, e.GroupUUID)
+		}
+		return nil, true
+	case "g":
+		if !m.writable() {
+			return nil, true
+		}
+		group := s.DB.RootUUID
+		if v := m.ws.ActiveView(); v != nil && v.NavIndex >= 4 {
+			group = m.navigation()[v.NavIndex].group
+		}
+		m.hideReveal()
+		m.dialog = &actionDialog{kind: "group", title: "New Group", sessionID: s.ID, groupUUID: group}
+		return nil, true
+	case "d", "delete":
+		if !m.writable() {
+			return nil, true
+		}
+		m.confirmDelete()
+		return nil, true
+	case "m", "r":
+		if !m.writable() {
+			return nil, true
+		}
+		e := m.selected()
+		if e == nil {
+			return nil, true
+		}
+		if k.String() == "r" && !e.Recycled {
+			m.setNotice("Restore is available for recycled entries.", true)
+			return nil, true
+		}
+		m.chooseDestination(e)
+		return nil, true
+	case "c":
+		return m.copyField(""), true
+	case "v":
+		return m.toggleReveal(), true
+	case "ctrl+g":
+		m.openGenerator()
+		return nil, true
+	case "R":
+		s.ReadOnly = !s.ReadOnly
+		if s.ReadOnly {
+			m.setNotice("Read only enabled.", false)
+		} else {
+			m.setNotice("Writes enabled; encrypted backup before every change.", false)
+		}
+		return nil, true
+	case "ctrl+r":
+		return m.requestReload(s.ID), true
+	}
+	return nil, false
+}
+
+func (m *Model) startEditor(e *vault.Entry, group string) {
+	m.hideReveal()
+	m.clearEditor()
+	m.editor = newEntryEditor(e, group)
+	m.editorSession = m.ws.ActiveSession().ID
+	m.ws.ActiveView().Focus = 2
+	m.ws.ActiveView().DetailOffset = 0
+}
+func (m *Model) clearEditor() {
+	if m.editor != nil {
+		m.editor.clear()
+	}
+	m.editor = nil
+	m.editorSession = ""
+	m.afterSave = nil
+}
+func (m *Model) leaveEditor(action func() tea.Cmd) tea.Cmd {
+	if m.editor == nil {
+		return action()
+	}
+	if !m.editor.dirty() {
+		m.clearEditor()
+		return action()
+	}
+	m.hideReveal()
+	m.dialog = &actionDialog{kind: "unsaved", title: "Unsaved entry", options: []string{"Save", "Discard", "Cancel"}, selected: 2, after: action, sessionID: m.editorSession}
+	return nil
+}
+func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
+	switch k.String() {
+	case "ctrl+o":
+		return m.leaveEditor(m.openPicker)
+	case "ctrl+w":
+		return m.leaveEditor(func() tea.Cmd { m.ws.CloseView(); m.normalize(); return m.clearClipboard() })
+	case "ctrl+l":
+		return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(false) })
+	case "L": // Uppercase text is ordinary editor input; lock all remains outside editor.
+	case "ctrl+pgup", "ctrl+pgdown":
+		delta := 1
+		if k.String() == "ctrl+pgup" {
+			delta = -1
+		}
+		return m.leaveEditor(func() tea.Cmd {
+			n := len(m.ws.Views)
+			if n > 0 {
+				m.ws.Switch((m.ws.Active + n + delta) % n)
+			}
+			return nil
+		})
+	case "ctrl+g":
+		m.openGenerator()
+		return nil
+	case "ctrl+r":
+		if s := m.ws.ActiveSession(); s != nil {
+			return m.requestReload(s.ID)
+		}
+		return nil
+	}
+	if key := k.String(); strings.HasPrefix(key, "alt+") && len(key) == 5 && key[4] >= '1' && key[4] <= '9' {
+		index := int(key[4] - '1')
+		return m.leaveEditor(func() tea.Cmd { m.ws.Switch(index); return nil })
+	}
+	switch m.editor.key(k) {
+	case editorSave:
+		return m.saveEditor()
+	case editorCancel:
+		return m.leaveEditor(func() tea.Cmd { return nil })
+	case editorGenerate:
+		m.openGenerator()
+	}
+	return nil
+}
+
+func (m *Model) saveEditor() tea.Cmd {
+	if m.editor == nil {
+		return nil
+	}
+	if err := m.editor.validate(); err != nil {
+		return nil
+	}
+	if !m.editor.isNew && !m.editor.dirty() {
+		m.clearEditor()
+		m.setNotice("No changes.", false)
+		return nil
+	}
+	change := vault.Change{Kind: vault.EditEntry, EntryUUID: m.editor.EntryUUID, GroupUUID: m.editor.GroupUUID, Values: m.editor.values(), PasswordChanged: m.editor.passwordChanged()}
+	if m.editor.isNew {
+		change.Kind = vault.AddEntry
+	}
+	if change.PasswordChanged {
+		change.Password = m.editor.password()
+	}
+	return m.apply(change)
+}
+
+func (m *Model) apply(change vault.Change) tea.Cmd {
+	if !m.writable() {
+		clear(change.Password)
+		return nil
+	}
+	s := m.ws.ActiveSession()
+	writer := m.backend.(vault.Writer)
+	snapshot := s.DB.Clone()
+	creds := s.Credentials.Clone()
+	id := m.beginOperation(s.ID)
+	ctx := m.operationContext()
+	backupDir := m.settings.BackupDir
+	return func() tea.Msg {
+		defer snapshot.Clear()
+		defer creds.Clear()
+		defer clear(change.Password)
+		db, err := writer.Apply(ctx, snapshot, creds, change, backupDir)
+		// The result carries only metadata needed to restore selection, never password bytes.
+		change.Password = nil
+		return appliedMsg{id: id, sessionID: s.ID, db: db, err: err, change: change}
+	}
+}
+
+func (m *Model) beginOperation(session string) uint64 {
+	m.cancelOperation()
+	m.operation++
+	m.operationSession = session
+	m.writing = true
+	m.operationCancel = func() {} // Replaced by operationContext before the command starts.
+	m.hideReveal()
+	return m.operation
+}
+func (m *Model) operationContext() context.Context {
+	ctx, cancel := context.WithCancel(m.ctx)
+	m.operationCancel = cancel
+	return ctx
+}
+func (m *Model) cancelOperation() {
+	if m.operationCancel != nil {
+		m.operationCancel()
+		m.operationCancel = nil
+	}
+	m.operation++
+	m.operationSession = ""
+	m.writing = false
+}
+
+func (m *Model) reload(id string) tea.Cmd {
+	s := m.ws.Sessions[id]
+	if s == nil || s.DB == nil {
+		return nil
+	}
+	request := m.beginOperation(id)
+	ctx := m.operationContext()
+	creds := s.Credentials.Clone()
+	backend := m.backend
+	path := s.Path
+	return func() tea.Msg {
+		defer creds.Clear()
+		db, err := backend.Open(ctx, path, creds)
+		return reloadedMsg{request, id, db, err}
+	}
+}
+
+func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case appliedMsg:
+		if msg.id != m.operation {
+			if msg.db != nil {
+				msg.db.Clear()
+			}
+			return nil, true
+		}
+		m.cancelOperation()
+		if msg.err != nil {
+			if msg.db != nil {
+				msg.db.Clear()
+			}
+			text := writeError(msg.err)
+			if m.editor != nil {
+				m.editor.err = text
+			}
+			m.afterSave = nil
+			m.setNotice(text, true)
+			if errors.Is(msg.err, vault.ErrExternalChanged) {
+				if s := m.ws.Sessions[msg.sessionID]; s != nil {
+					s.Stale = true
+				}
+				m.showExternal(msg.sessionID)
+			}
+			return nil, true
+		}
+		if !m.ws.ReplaceDatabase(msg.sessionID, msg.db) {
+			if msg.db != nil {
+				msg.db.Clear()
+			}
+			return nil, true
+		}
+		m.ws.Sessions[msg.sessionID].LastActivity = m.now()
+		after := m.afterSave
+		m.clearEditor()
+		m.clearDialog()
+		m.changeDismissed[msg.sessionID] = false
+		m.restoreGroup()
+		m.normalize()
+		m.selectResult(msg.change)
+		m.setNotice("Saved. Encrypted backup created.", false)
+		if after != nil {
+			return after(), true
+		}
+		return nil, true
+	case reloadedMsg:
+		if msg.id != m.operation {
+			if msg.db != nil {
+				msg.db.Clear()
+			}
+			return nil, true
+		}
+		m.cancelOperation()
+		if msg.err != nil {
+			m.setNotice("Reload failed. Check file access; lock and unlock again if credentials changed.", true)
+			return nil, true
+		}
+		if !m.ws.ReplaceDatabase(msg.sessionID, msg.db) {
+			if msg.db != nil {
+				msg.db.Clear()
+			}
+			return nil, true
+		}
+		m.ws.Sessions[msg.sessionID].LastActivity = m.now()
+		m.changeDismissed[msg.sessionID] = false
+		m.restoreGroup()
+		m.normalize()
+		m.setNotice("Vault reloaded.", false)
+		return nil, true
+	case generatedMsg:
+		defer clear(msg.value)
+		if msg.id != m.operation {
+			return nil, true
+		}
+		m.cancelOperation()
+		if m.dialog == nil || m.dialog.kind != "generator" {
+			return nil, true
+		}
+		if msg.err != nil {
+			m.dialog.err = "Could not generate password."
+			return nil, true
+		}
+		clear(m.dialog.secret)
+		m.dialog.secret = append([]byte(nil), msg.value...)
+		m.dialog.err = ""
+		return nil, true
+	case copiedMsg:
+		if msg.id != m.clipGeneration {
+			return nil, true
+		}
+		if msg.err != nil {
+			m.setNotice("Copy failed. System clipboard unavailable.", true)
+			return nil, true
+		}
+		m.clipboardExpires = msg.expires
+		m.setNotice(msg.label+" copied.", false)
+		id := msg.id
+		delay := max(time.Duration(0), msg.expires.Sub(m.now()))
+		return tea.Tick(delay, func(now time.Time) tea.Msg { return clipboardExpiryMsg{id, now} }), true
+	case resolvedCopyMsg:
+		if msg.id != m.clipGeneration {
+			clear(msg.value)
+			return nil, true
+		}
+		if msg.err != nil {
+			clear(msg.value)
+			m.setNotice("Could not resolve field. Reload if vault changed.", true)
+			return nil, true
+		}
+		return m.copyValue(msg.value, msg.label), true
+	case resolvedRevealMsg:
+		defer clear(msg.value)
+		if msg.id != m.revealGeneration {
+			return nil, true
+		}
+		if m.revealCancel != nil {
+			m.revealCancel()
+			m.revealCancel = nil
+		}
+		if msg.err != nil {
+			m.hideReveal()
+			m.setNotice("Could not resolve field. Reload if vault changed.", true)
+			return nil, true
+		}
+		clear(m.revealValue)
+		m.revealValue = append([]byte(nil), msg.value...)
+		m.revealUntil = m.now().Add(5 * time.Second)
+		return nil, true
+	case clipboardExpiryMsg:
+		if msg.id != m.clipGeneration {
+			return nil, true
+		}
+		m.clipboardExpires = time.Time{}
+		manager := m.clipboard
+		return func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 3500*time.Millisecond)
+			defer cancel()
+			_, err := manager.Expire(ctx, msg.now)
+			return clipboardClearedMsg{err}
+		}, true
+	case clipboardClearedMsg:
+		if msg.err != nil {
+			m.setNotice("Could not clear clipboard; clear it manually.", true)
+		}
+		return nil, true
+	case tickMsg:
+		return m.onTick(time.Time(msg)), true
+	case revisionMsg:
+		delete(m.checking, msg.sessionID)
+		s := m.ws.Sessions[msg.sessionID]
+		if s != nil && s.DB != nil && !s.Stale && s.DB.Revision == msg.expected && (msg.err != nil || msg.actual != msg.expected) {
+			s.Stale = true
+			if m.dialog == nil && !m.writing {
+				m.showExternal(s.ID)
+			}
+		}
+		return nil, true
+	}
+	return nil, false
+}
+
+func writeError(err error) string {
+	switch {
+	case errors.Is(err, vault.ErrExternalChanged):
+		return "File changed externally. Reload before saving."
+	case errors.Is(err, vault.ErrAmbiguous):
+		return "Cannot safely select this item: duplicate or ambiguous path."
+	case errors.Is(err, vault.ErrUnsupported):
+		return "Unsupported change. Check field values and item names."
+	case errors.Is(err, vault.ErrReadOnly):
+		return "Vault file is read only."
+	case errors.Is(err, vault.ErrBackup):
+		return "Backup failed. Vault was not changed. Check backup location."
+	case errors.Is(err, vault.ErrCanceled):
+		return "Operation canceled. Reload to check current state."
+	default:
+		return "Save failed. Draft retained; check access, credentials and backend support."
+	}
+}
+
+func (m *Model) selectResult(change vault.Change) {
+	s := m.ws.ActiveSession()
+	v := m.ws.ActiveView()
+	if s == nil || s.DB == nil || v == nil {
+		return
+	}
+	if change.Kind == vault.CreateGroup {
+		for _, g := range s.DB.Groups {
+			if g.ParentUUID == change.GroupUUID && g.Name == change.NewName {
+				v.GroupUUID = g.UUID
+				v.NavIndex = 4
+				m.restoreGroup()
+				m.normalize()
+				return
+			}
+		}
+	}
+	if change.Kind == vault.MoveEntry || change.Kind == vault.AddEntry {
+		v.NavIndex = 0
+		v.GroupUUID = ""
+		v.Query = ""
+		for _, e := range s.DB.Entries {
+			if (change.Kind == vault.MoveEntry && e.UUID == change.EntryUUID) || (change.Kind == vault.AddEntry && e.GroupUUID == change.GroupUUID && e.Get("Title") == change.Values["Title"]) {
+				v.SelectedUUID = e.UUID
+				break
+			}
+		}
+	}
+}
+
+func (m *Model) fieldNames() []string {
+	e := m.selected()
+	if e == nil {
+		return nil
+	}
+	names := []string{"UserName", "Password", "URL", "Notes"}
+	seen := map[string]bool{"Title": true, "UserName": true, "Password": true, "URL": true, "Notes": true}
+	for _, f := range e.Fields {
+		if !seen[f.Name] {
+			names = append(names, f.Name)
+			seen[f.Name] = true
+		}
+	}
+	return names
+}
+func (m *Model) focusedField() string {
+	v := m.ws.ActiveView()
+	names := m.fieldNames()
+	if v == nil || len(names) == 0 {
+		return "Password"
+	}
+	if v.Focus != 2 {
+		return "Password"
+	}
+	return names[min(max(v.FieldIndex, 0), len(names)-1)]
+}
+func (m *Model) copyField(name string) tea.Cmd {
+	e := m.selected()
+	if e == nil {
+		return nil
+	}
+	if name == "" {
+		name = m.focusedField()
+	}
+	label := name
+	if label == "UserName" {
+		label = "Username"
+	}
+	if strings.Contains(e.Get(name), "{") {
+		resolver, ok := m.backend.(interface {
+			ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
+		})
+		if !ok {
+			m.setNotice("Field references are not supported by this backend.", true)
+			return nil
+		}
+		if m.clipCancel != nil {
+			m.clipCancel()
+		}
+		ctx, cancel := context.WithCancel(m.ctx)
+		m.clipCancel = cancel
+		m.clipGeneration++
+		id := m.clipGeneration
+		s := m.ws.ActiveSession()
+		db := s.DB.Clone()
+		creds := s.Credentials.Clone()
+		entryID := e.UUID
+		return func() tea.Msg {
+			defer db.Clear()
+			defer creds.Clear()
+			value, err := resolver.ResolveField(ctx, db, creds, entryID, name)
+			return resolvedCopyMsg{id, label, value, err}
+		}
+	}
+	return m.copyValue([]byte(e.Get(name)), label)
+}
+func (m *Model) copyValue(value []byte, label string) tea.Cmd {
+	if m.clipboard == nil {
+		clear(value)
+		m.setNotice("System clipboard unavailable.", true)
+		return nil
+	}
+	if m.clipCancel != nil {
+		m.clipCancel()
+	}
+	ctx, cancel := context.WithCancel(m.ctx)
+	m.clipCancel = cancel
+	m.clipGeneration++
+	id := m.clipGeneration
+	now := m.now()
+	expires := now.Add(m.settings.ClipboardTimeout)
+	manager := m.clipboard
+	timeout := m.settings.ClipboardTimeout
+	return func() tea.Msg {
+		defer clear(value)
+		err := manager.Copy(ctx, value, now, timeout)
+		return copiedMsg{id, label, expires, err}
+	}
+}
+func (m *Model) clearClipboard() tea.Cmd {
+	if m.clipCancel != nil {
+		m.clipCancel()
+		m.clipCancel = nil
+	}
+	m.clipGeneration++
+	m.clipboardExpires = time.Time{}
+	manager := m.clipboard
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 3500*time.Millisecond)
+		defer cancel()
+		return clipboardClearedMsg{manager.Clear(ctx)}
+	}
+}
+func (m *Model) toggleReveal() tea.Cmd {
+	e := m.selected()
+	s := m.ws.ActiveSession()
+	if e == nil || s == nil {
+		return nil
+	}
+	name := m.focusedField()
+	if m.revealEntry == e.UUID && m.revealField == name {
+		m.hideReveal()
+		return nil
+	}
+	m.revealEntry = e.UUID
+	m.revealField = name
+	m.revealSession = s.ID
+	if strings.Contains(e.Get(name), "{") {
+		resolver, ok := m.backend.(interface {
+			ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
+		})
+		if !ok {
+			m.hideReveal()
+			m.setNotice("Field references are not supported by this backend.", true)
+			return nil
+		}
+		ctx, cancel := context.WithCancel(m.ctx)
+		m.revealCancel = cancel
+		m.revealGeneration++
+		id := m.revealGeneration
+		db := s.DB.Clone()
+		creds := s.Credentials.Clone()
+		entryID := e.UUID
+		return func() tea.Msg {
+			defer db.Clear()
+			defer creds.Clear()
+			value, err := resolver.ResolveField(ctx, db, creds, entryID, name)
+			return resolvedRevealMsg{id, value, err}
+		}
+	}
+	clear(m.revealValue)
+	m.revealValue = []byte(e.Get(name))
+	m.revealUntil = m.now().Add(5 * time.Second)
+	return nil
+}
+func (m *Model) hideReveal() {
+	if m.revealCancel != nil {
+		m.revealCancel()
+		m.revealCancel = nil
+	}
+	m.revealGeneration++
+	clear(m.revealValue)
+	m.revealValue = nil
+	m.revealEntry = ""
+	m.revealField = ""
+	m.revealSession = ""
+	m.revealUntil = time.Time{}
+}
+func (m *Model) fieldValue(e vault.Entry, name string) string {
+	if m.revealed(e.UUID, name) {
+		return safe(string(m.revealValue))
+	}
+	return visibleField(e, name)
+}
+
+func (m *Model) revealed(uuid, name string) bool {
+	s := m.ws.ActiveSession()
+	return s != nil && s.ID == m.revealSession && m.revealEntry == uuid && m.revealField == name && m.now().Before(m.revealUntil)
+}
+
+func (m *Model) requestReload(id string) tea.Cmd {
+	if m.editor != nil && m.editorSession == id && m.editor.dirty() {
+		m.dialog = &actionDialog{kind: "discardReload", title: "Discard draft and reload?", options: []string{"Cancel", "Discard and Reload"}, selected: 0, sessionID: id}
+		return nil
+	}
+	m.clearEditor()
+	return m.reload(id)
+}
+func (m *Model) setNotice(text string, persistent bool) {
+	m.notice = safe(text)
+	m.noticeExpires = time.Time{}
+	if !persistent {
+		m.noticeExpires = m.now().Add(3 * time.Second)
+	}
+}
+
+func (m *Model) lockCurrent(all bool) tea.Cmd {
+	if all {
+		for id := range m.ws.Sessions {
+			m.lockSession(id)
+		}
+	} else if s := m.ws.ActiveSession(); s != nil {
+		m.lockSession(s.ID)
+	}
+	return m.clearClipboard()
+}
+func (m *Model) lockSession(id string) {
+	if m.clipCancel != nil {
+		m.clipCancel()
+		m.clipCancel = nil
+	}
+	m.clipGeneration++
+	if m.operationSession == id {
+		m.cancelOperation()
+	}
+	if m.editorSession == id {
+		m.clearEditor()
+	}
+	if m.dialog != nil && m.dialog.sessionID == id {
+		m.clearDialog()
+	}
+	if m.revealSession == id {
+		m.hideReveal()
+	}
+	if s := m.ws.ActiveSession(); s != nil && s.ID == id {
+		m.searching = false
+		m.query.clear()
+		m.previousQuery = ""
+		m.help = false
+	}
+	m.ws.LockSession(id)
+	delete(m.changeDismissed, id)
+	delete(m.checking, id)
+}
+
+func (m *Model) onTick(now time.Time) tea.Cmd {
+	m.ticks++
+	cmds := []tea.Cmd{nextTick()}
+	if !m.noticeExpires.IsZero() && !now.Before(m.noticeExpires) {
+		m.notice = ""
+		m.noticeExpires = time.Time{}
+	}
+	if !m.revealUntil.IsZero() && !now.Before(m.revealUntil) {
+		m.hideReveal()
+	}
+	locked := false
+	for id, s := range m.ws.Sessions {
+		if s.DB == nil {
+			continue
+		}
+		if !s.LastActivity.IsZero() && now.Sub(s.LastActivity) >= m.settings.IdleTimeout {
+			m.lockSession(id)
+			locked = true
+			continue
+		}
+		if m.ticks%2 == 0 && !m.checking[id] && !m.writing {
+			m.checking[id] = true
+			path := s.Path
+			expected := s.DB.Revision
+			sessionID := id
+			cmds = append(cmds, func() tea.Msg {
+				actual, err := vault.Revision(path)
+				return revisionMsg{sessionID, expected, actual, err}
+			})
+		}
+		if s.Stale && !m.changeDismissed[id] && m.dialog == nil && !m.writing {
+			m.showExternal(id)
+		}
+	}
+	if locked {
+		cmds = append(cmds, m.clearClipboard())
+	}
+	if !m.clipboardExpires.IsZero() && !now.Before(m.clipboardExpires) {
+		m.clipboardExpires = time.Time{}
+		manager := m.clipboard
+		cmds = append(cmds, func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 3500*time.Millisecond)
+			defer cancel()
+			_, err := manager.Expire(ctx, now)
+			return clipboardClearedMsg{err}
+		})
+	}
+	return tea.Batch(cmds...)
+}
+
+func (m *Model) openGenerator() {
+	m.hideReveal()
+	m.dialog = &actionDialog{kind: "generator", title: "Password Generator"}
+	if s := m.ws.ActiveSession(); s != nil {
+		m.dialog.sessionID = s.ID
+	}
+	m.dialog.input.set("24")
+}
+func (m *Model) generate() tea.Cmd {
+	generator, ok := m.backend.(interface {
+		Generate(context.Context, int) ([]byte, error)
+	})
+	if !ok {
+		m.dialog.err = "Password generation unavailable."
+		return nil
+	}
+	length, err := strconv.Atoi(m.dialog.input.value())
+	if err != nil || length < 8 || length > 128 {
+		m.dialog.err = "Choose length from 8 to 128."
+		return nil
+	}
+	id := m.beginOperation("")
+	ctx := m.operationContext()
+	return func() tea.Msg { value, err := generator.Generate(ctx, length); return generatedMsg{id, value, err} }
+}
+
+func vaultLabel(path string) string { return safe(filepath.Base(path)) }
+func groupLabel(path string) string {
+	if path == "" {
+		return "/"
+	}
+	return safe(path)
+}
+func (m *Model) clipboardStatus() string {
+	if m.clipboardExpires.IsZero() {
+		return ""
+	}
+	remaining := int(m.clipboardExpires.Sub(m.now()).Seconds() + 0.999)
+	if remaining < 0 {
+		remaining = 0
+	}
+	return fmt.Sprintf("Clipboard clears in %ds", remaining)
+}

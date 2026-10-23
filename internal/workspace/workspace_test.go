@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"keepassui/internal/vault"
 )
@@ -94,10 +95,11 @@ func TestOpenLockedSessionRefreshesAndDuplicateCopiesView(t *testing.T) {
 		}
 	}
 	refreshed := database(db.Path, "refreshed", "root")
+	w.ActiveSession().Stale = true
 	if !w.Open(refreshed) || len(w.Sessions) != 1 || len(w.Views) != 2 {
 		t.Fatal("opening locked path did not refresh existing session")
 	}
-	if w.ActiveSession().DB != refreshed {
+	if w.ActiveSession().DB != refreshed || w.ActiveSession().Stale {
 		t.Fatal("locked session was not refreshed with supplied database")
 	}
 }
@@ -162,5 +164,144 @@ func TestCloseClearsEverySession(t *testing.T) {
 	w.Close()
 	if len(w.Views) != 0 || len(w.Sessions) != 0 || len(first.Entries) != 0 || len(second.Entries) != 0 {
 		t.Fatal("Close left session data behind")
+	}
+}
+
+func TestSetCredentialsClonesAndReplacingCredentialsClearsOldCopy(t *testing.T) {
+	w := New()
+	w.Open(database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root"))
+	session := w.ActiveSession()
+	input := vault.Credentials{Password: []byte("first-secret"), KeyFile: "/keys/first"}
+	if !w.SetCredentials(session.ID, input) {
+		t.Fatal("SetCredentials failed")
+	}
+	input.Password[0] = 'X'
+	if string(session.Credentials.Password) != "first-secret" {
+		t.Fatal("session retained caller-owned password bytes")
+	}
+	oldPassword := session.Credentials.Password
+	if !w.SetCredentials(session.ID, vault.Credentials{Password: []byte("next-secret")}) {
+		t.Fatal("replacing credentials failed")
+	}
+	if string(oldPassword) != string(make([]byte, len(oldPassword))) {
+		t.Fatal("replaced credential bytes were not cleared")
+	}
+	if string(session.Credentials.Password) != "next-secret" {
+		t.Fatal("replacement credentials were not cloned")
+	}
+}
+
+func TestReplaceDatabasePreservesViewUUIDsAndClearsOldDatabase(t *testing.T) {
+	w := New()
+	first := database(filepath.Join(t.TempDir(), "vault.kdbx"), "old", "root")
+	w.Open(first)
+	w.Duplicate()
+	for i := range w.Views {
+		w.Views[i].GroupUUID = "group-id"
+		w.Views[i].SelectedUUID = "entry-id"
+		w.Views[i].Query = "private query"
+	}
+	session := w.ActiveSession()
+	session.Stale = true
+	second := database(first.Path, "new", "new-root")
+	if !w.ReplaceDatabase(session.ID, second) {
+		t.Fatal("ReplaceDatabase failed")
+	}
+	if len(first.Entries) != 0 || session.DB != second || session.Stale {
+		t.Fatal("database was not replaced and old content cleared")
+	}
+	for _, view := range w.Views {
+		if view.GroupUUID != "group-id" || view.SelectedUUID != "entry-id" || view.Query != "private query" {
+			t.Fatalf("replacement changed view identity/state: %#v", view)
+		}
+	}
+	if w.ReplaceDatabase("missing", database("missing", "x", "x")) {
+		t.Fatal("ReplaceDatabase accepted an unknown session")
+	}
+}
+
+func TestLockSessionAndLockAllClearCredentialsAcrossViews(t *testing.T) {
+	w := New()
+	first := database(filepath.Join(t.TempDir(), "one.kdbx"), "one", "root-one")
+	w.Open(first)
+	w.Duplicate()
+	firstSession := w.ActiveSession()
+	firstID := firstSession.ID
+	w.SetCredentials(firstID, vault.Credentials{Password: []byte("one-secret")})
+	firstPassword := firstSession.Credentials.Password
+	for i := range w.Views {
+		w.Views[i].Query = "search term"
+		w.Views[i].DetailOffset = 3
+		w.Views[i].FieldIndex = 2
+		w.Views[i].SelectedUUID = "selected-entry"
+	}
+	if !w.LockSession(firstID) {
+		t.Fatal("LockSession failed")
+	}
+	if firstSession.DB != nil || len(first.Entries) != 0 || len(firstPassword) == 0 || string(firstPassword) != string(make([]byte, len(firstPassword))) {
+		t.Fatal("LockSession did not clear DB and credential bytes")
+	}
+	for _, view := range w.Views {
+		if view.SessionID == firstID && (view.Query != "" || view.DetailOffset != 0 || view.FieldIndex != 0 || view.SelectedUUID != "selected-entry") {
+			t.Fatalf("LockSession retained query/detail or erased selection UUID: %#v", view)
+		}
+	}
+
+	second := database(filepath.Join(t.TempDir(), "two.kdbx"), "two", "root-two")
+	w.Open(second)
+	secondSession := w.ActiveSession()
+	w.SetCredentials(secondSession.ID, vault.Credentials{Password: []byte("two-secret")})
+	secondPassword := secondSession.Credentials.Password
+	w.LockAll()
+	if secondSession.DB != nil || len(second.Entries) != 0 || string(secondPassword) != string(make([]byte, len(secondPassword))) {
+		t.Fatal("LockAll did not clear independent session data")
+	}
+	if firstSession.Credentials.Password != nil || secondSession.Credentials.Password != nil {
+		t.Fatal("LockAll retained credentials")
+	}
+	if !firstSession.ReadOnly || !secondSession.ReadOnly {
+		t.Fatal("sessions were not marked read-only")
+	}
+	if firstSession.LastActivity.IsZero() || secondSession.LastActivity.IsZero() {
+		t.Fatal("sessions did not record activity")
+	}
+}
+
+func TestRemovedSessionsClearCredentials(t *testing.T) {
+	w := New()
+	db := database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root")
+	w.Open(db)
+	session := w.ActiveSession()
+	w.SetCredentials(session.ID, vault.Credentials{Password: []byte("close-secret")})
+	password := session.Credentials.Password
+	if !w.CloseVault() || session.Credentials.Password != nil || string(password) != string(make([]byte, len(password))) {
+		t.Fatal("CloseVault retained removed-session credentials")
+	}
+
+	db = database(filepath.Join(t.TempDir(), "other.kdbx"), "other", "root")
+	w.Open(db)
+	session = w.ActiveSession()
+	w.SetCredentials(session.ID, vault.Credentials{Password: []byte("shutdown-secret")})
+	password = session.Credentials.Password
+	w.Close()
+	if session.Credentials.Password != nil || string(password) != string(make([]byte, len(password))) {
+		t.Fatal("Close retained removed-session credentials")
+	}
+}
+
+func TestActivityTimestampChangesOnCredentialAndDatabaseOperations(t *testing.T) {
+	w := New()
+	w.Open(database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root"))
+	session := w.ActiveSession()
+	initial := session.LastActivity
+	if !w.SetCredentials(session.ID, vault.Credentials{Password: []byte("pw")}) {
+		t.Fatal("SetCredentials failed")
+	}
+	if session.LastActivity.Before(initial) {
+		t.Fatalf("activity timestamp moved backwards: %s < %s", session.LastActivity.Format(time.RFC3339Nano), initial.Format(time.RFC3339Nano))
+	}
+	old := session.DB
+	if !w.ReplaceDatabase(session.ID, database(session.Path, "reloaded", "root")) || old.Entries != nil {
+		t.Fatal("database activity did not replace and clear previous database")
 	}
 }

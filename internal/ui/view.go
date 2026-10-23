@@ -48,6 +48,8 @@ func (m *Model) View() string {
 	var lines []string
 	if w < 65 || h < 16 {
 		lines = []string{accent.Render("KeePassUI"), "Terminal too small", muted.Render("Resize to at least 65 × 16"), "Ctrl+C quit"}
+	} else if m.dialog != nil {
+		lines = m.dialogLines()
 	} else if m.help {
 		lines = m.helpLines()
 	} else if m.screen == chooseFile {
@@ -118,12 +120,18 @@ func (m *Model) workspaceLines() []string {
 	w := m.width
 	name := safe(filepath.Base(s.Path))
 	status := "Read only"
+	if !s.ReadOnly {
+		status = "Unlocked"
+	}
 	if s.DB == nil {
 		status = "Vault locked"
 	}
 	right := status
 	if s.DB != nil {
-		right = fmt.Sprintf("Read only  ·  %d entries  ·  %d groups", len(s.DB.Entries), len(s.DB.Groups))
+		right = fmt.Sprintf("%s  ·  %d entries  ·  %d groups", status, len(s.DB.Entries), len(s.DB.Groups))
+		if s.Stale {
+			right = "Changed externally · Ctrl+R reload"
+		}
 	}
 	lines := []string{accent.Render(fit("  "+name, max(0, w-lipgloss.Width(right)-2))) + muted.Render(right), rule(w)}
 	var tabs []string
@@ -148,10 +156,13 @@ func (m *Model) workspaceLines() []string {
 	left := m.navLines(lw, bodyH, v.Focus == 0)
 	center := m.entryLines(cw, bodyH, v.Focus == 1)
 	rightLines := m.detailLines(rw, bodyH, v.Focus == 2)
+	if m.editor != nil {
+		rightLines = m.editor.render(rw, bodyH)
+	}
 	for i := 0; i < bodyH; i++ {
 		lines = append(lines, fit(left[i], lw)+lineStyle.Render("│")+fit(center[i], cw)+lineStyle.Render("│")+fit(rightLines[i], rw))
 	}
-	footer := "  Tab panes  / search  Ctrl+O open  Ctrl+T view  Ctrl+W close  ? help"
+	footer := "  n new  e edit  d delete  c copy  v reveal  / search  ? help"
 	if v.Query != "" {
 		footer = "  Filter: " + safe(v.Query) + " · Esc clear"
 	}
@@ -160,6 +171,15 @@ func (m *Model) workspaceLines() []string {
 	}
 	if m.notice != "" {
 		footer = "  " + m.notice
+	}
+	if m.editor != nil {
+		footer = "  Tab fields · Ctrl+S save · Esc cancel · Ctrl+G generator"
+	}
+	if m.writing {
+		footer = "  Working…"
+	}
+	if status := m.clipboardStatus(); status != "" {
+		footer += " · " + status
 	}
 	return append(lines, rule(w), muted.Render(fit(footer, w)))
 }
@@ -241,7 +261,11 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 		if v.Query != "" {
 			lines = append(lines, muted.Render(" Esc clears filter"))
 		} else {
-			lines = append(lines, muted.Render(" Read-only foundation"))
+			text := " n creates an entry"
+			if s := m.ws.ActiveSession(); s != nil && s.ReadOnly {
+				text = " Read only · R enables writes"
+			}
+			lines = append(lines, muted.Render(text))
 		}
 		return padLines(lines, height)
 	}
@@ -275,9 +299,14 @@ func (m *Model) detailLines(width, height int, focused bool) []string {
 }
 
 func (m *Model) detailContent(width int) []string {
+	lines, _ := m.detailLayout(width)
+	return lines
+}
+
+func (m *Model) detailLayout(width int) ([]string, []int) {
 	e := m.selected()
 	if e == nil {
-		return []string{muted.Render("  Select an entry")}
+		return []string{muted.Render("  Select an entry")}, nil
 	}
 	title := "  " + visibleField(*e, "Title")
 	title = muted.Render(title)
@@ -286,26 +315,25 @@ func (m *Model) detailContent(width int) []string {
 		lines = append(lines, muted.Render("  Modified "+e.Modified.Local().Format("2006-01-02")))
 	}
 	lines = append(lines, muted.Render("  "+safe(e.GroupPath)), rule(width))
-	names := []string{"UserName", "Password", "URL", "Notes"}
-	seen := map[string]bool{"Title": true}
-	for _, f := range e.Fields {
-		if f.Name != "Title" && f.Name != "UserName" && f.Name != "Password" && f.Name != "URL" && f.Name != "Notes" {
-			names = append(names, f.Name)
-		}
-	}
-	for _, name := range names {
-		if seen[name] {
-			continue
-		}
-		seen[name] = true
+	names := m.fieldNames()
+	var positions []int
+	for index, name := range names {
+		positions = append(positions, len(lines)+1)
 		label := name
 		if name == "UserName" {
 			label = "Username"
 		}
-		lines = append(lines, "", "  "+safe(label))
-		value := visibleField(*e, name)
-		if name == "Notes" && !e.IsProtected(name) {
+		labelLine := "  " + safe(label)
+		if v := m.ws.ActiveView(); v != nil && v.Focus == 2 && index == v.FieldIndex {
+			labelLine = active.Render(fit("› "+safe(label), width))
+		}
+		lines = append(lines, "", labelLine)
+		value := m.fieldValue(*e, name)
+		if name == "Notes" && (!e.IsProtected(name) || m.revealed(e.UUID, name)) {
 			value = e.Get(name)
+			if m.revealed(e.UUID, name) {
+				value = string(m.revealValue)
+			}
 		}
 		if value == "" {
 			value = "—"
@@ -320,7 +348,7 @@ func (m *Model) detailContent(width int) []string {
 	if len(e.Tags) > 0 {
 		lines = append(lines, "", muted.Render("  Tags: "+safe(strings.Join(e.Tags, ", "))))
 	}
-	return lines
+	return lines, positions
 }
 
 func padLines(lines []string, height int) []string {
@@ -425,10 +453,13 @@ func (m *Model) pickerLines() []string {
 
 func (m *Model) helpLines() []string {
 	body := []string{
-		"Ctrl+O        Open another vault", "Ctrl+T        Duplicate current view", "Alt+1…9       Switch view", "Ctrl+W        Close current view", "Ctrl+L        Lock current vault", "", "Tab / Shift+Tab   Next / previous pane", "↑↓ / j k      Select row / scroll details", "←→ / h l      Focus pane", "/ or Ctrl+F   Search entry fields", "Esc           Clear filter / cancel input", "?             Keyboard shortcuts", "q / Ctrl+C    Quit (q types normally in inputs)", "", muted.Render("Foundation · read only · secrets remain masked"),
+		"Ctrl+O          Open another vault", "Ctrl+T          Duplicate current view", "Alt+1…9         Switch view", "Ctrl+W          Close current view", "Ctrl+L / L      Lock current / all vaults", "Tab / Shift+Tab Next / previous pane or field", "↑↓ / j k        Select row / field", "←→ / h l        Focus pane", "/ or Ctrl+F     Search entry fields", "n / e           New / edit entry", "g               New group", "m / r           Move / restore entry", "d               Delete entry/group", "c / v           Copy / timed reveal field", "Ctrl+G          Password generator", "Ctrl+S          Save entry draft", "Ctrl+R / R      Reload / toggle read only", "Esc             Clear filter / cancel / go back", "q / Ctrl+C      Quit (letters type normally in inputs)", "", muted.Render("Encrypted backup before every write"),
 	}
 	if m.backendVersion != "" {
 		body = append(body, muted.Render("Backend: "+m.backendVersion))
 	}
-	return m.box("Keyboard Shortcuts", body, "Esc / Enter close")
+	capacity := max(1, m.height-8)
+	start := min(m.helpOffset, max(0, len(body)-capacity))
+	end := min(len(body), start+capacity)
+	return m.box("Keyboard Shortcuts", body[start:end], "↑↓ scroll · Esc / Enter close")
 }
