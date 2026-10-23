@@ -88,11 +88,11 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	// A duplicate view and a second vault remain independently addressable.
 	e.key("C-t")
 	e.mustShow("Eval Entry", "2 first.kdbx")
-	e.key("M-1")
+	e.key("1")
 	e.mustShow("1 first.kdbx")
-	e.key("M-2")
+	e.key("2")
 	e.mustShow("Eval Entry", "2 first.kdbx")
-	e.key("M-1")
+	e.key("1")
 	e.mustShow("1 first.kdbx")
 	e.key("C-o")
 	e.key("C-u")
@@ -104,9 +104,15 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	e.mustNotShow(secretSentinel)
 	e.key("C-l")
 	e.mustShow("Vault locked", "second.kdbx")
-	e.key("M-1")
+	e.key("1")
+	e.mustActiveVault("first.kdbx")
 	e.mustShow("Eval Entry")
 	e.mustNotShow(secretSentinel)
+	e.key("3")
+	e.mustActiveVault("second.kdbx")
+	e.mustShow("Vault locked")
+	e.key("1")
+	e.mustActiveVault("first.kdbx")
 
 	// Close all views and confirm the welcome screen is restored.
 	e.key("C-w")
@@ -466,6 +472,14 @@ func (e *evalSession) scrollDownUntil(text string, maxSteps int) {
 func (e *evalSession) mustShow(parts ...string) {
 	e.t.Helper()
 	e.mustShowWithin(4*time.Second, parts...)
+}
+
+func (e *evalSession) mustActiveVault(name string) {
+	e.t.Helper()
+	e.waitFor("active vault "+name, func() bool {
+		first := strings.SplitN(e.capture(), "\n", 2)[0]
+		return strings.HasPrefix(strings.TrimSpace(first), name+" ")
+	})
 }
 
 func (e *evalSession) mustShowWrite(parts ...string) {

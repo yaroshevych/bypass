@@ -145,7 +145,7 @@ func (m *Model) workspaceLines() []string {
 	}
 	lines = append(lines, fit(strings.Join(tabs, lineStyle.Render("│")), w), rule(w))
 	if s.DB == nil {
-		lines = append(lines, "", accent.Render("  Vault locked"), muted.Render("  Enter to unlock with vault credentials."), "", muted.Render("  Alt+1…9 switch vault views · Ctrl+O open another vault"))
+		lines = append(lines, "", accent.Render("  Vault locked"), muted.Render("  Enter to unlock with vault credentials."), "", muted.Render("  1–9 switch vault views · Ctrl+O open another vault"))
 		for len(lines) < m.height-2 {
 			lines = append(lines, "")
 		}
@@ -162,7 +162,7 @@ func (m *Model) workspaceLines() []string {
 	for i := 0; i < bodyH; i++ {
 		lines = append(lines, fit(left[i], lw)+lineStyle.Render("│")+fit(center[i], cw)+lineStyle.Render("│")+fit(rightLines[i], rw))
 	}
-	footer := "  n new  e edit  d delete  c copy  v reveal  / search  ? help"
+	footer := "  1–9 tabs  n new  e edit  c copy  v reveal  / search  ? help"
 	if v.Query != "" {
 		footer = "  Filter: " + safe(v.Query) + " · Esc clear"
 	}
@@ -453,7 +453,7 @@ func (m *Model) pickerLines() []string {
 
 func (m *Model) helpLines() []string {
 	body := []string{
-		"Ctrl+O          Open another vault", "Ctrl+T          Duplicate current view", "Alt+1…9         Switch view", "Ctrl+W          Close current view", "Ctrl+L / L      Lock current / all vaults", "Tab / Shift+Tab Next / previous pane or field", "↑↓ / j k        Select row / field", "←→ / h l        Focus pane", "/ or Ctrl+F     Search entry fields", "n / e           New / edit entry", "g               New group", "m / r           Move / restore entry", "d               Delete entry/group", "c / v           Copy / timed reveal field", "Ctrl+G          Password generator", "Ctrl+S          Save entry draft", "Ctrl+R / R      Reload / toggle read only", "Esc             Clear filter / cancel / go back", "q / Ctrl+C      Quit (letters type normally in inputs)", "", muted.Render("Encrypted backup before every write"),
+		"Ctrl+O          Open another vault", "Ctrl+T          Duplicate current view", "1–9 / Alt+1–9   Switch view (outside text input)", "Ctrl+W          Close current view", "Ctrl+L / L      Lock current / all vaults", "Tab / Shift+Tab Next / previous pane or field", "↑↓ / j k        Select row / field", "←→ / h l        Focus pane", "/ or Ctrl+F     Search entry fields", "n / e           New / edit entry", "g               New group", "m / r           Move / restore entry", "d               Delete entry/group", "c / v           Copy / timed reveal field", "Ctrl+G          Password generator", "Ctrl+S          Save entry draft", "Ctrl+R / R      Reload / toggle read only", "Esc             Clear filter / cancel / go back", "q / Ctrl+C      Quit (letters type normally in inputs)", "", muted.Render("Encrypted backup before every write"),
 	}
 	if m.backendVersion != "" {
 		body = append(body, muted.Render("Backend: "+m.backendVersion))

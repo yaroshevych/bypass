@@ -420,8 +420,9 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	case "L":
 		return m.lockCurrent(true)
 	}
-	if strings.HasPrefix(key, "alt+") && len(key) == 5 && key[4] >= '1' && key[4] <= '9' {
-		m.ws.Switch(int(key[4] - '1'))
+	tabKey := strings.TrimPrefix(key, "alt+")
+	if len(tabKey) == 1 && tabKey[0] >= '1' && tabKey[0] <= '9' {
+		m.ws.Switch(int(tabKey[0] - '1'))
 		m.err = ""
 		return nil
 	}

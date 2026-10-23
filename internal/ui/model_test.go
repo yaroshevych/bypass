@@ -359,3 +359,73 @@ func TestFilePickerBackspaceRespectsFocus(t *testing.T) {
 		t.Fatal("parent directory not opened")
 	}
 }
+
+func TestNumberKeysSwitchViewsIncludingLockedVault(t *testing.T) {
+	m := New(Options{})
+	m.ws.Open(fixture("/tmp/first.kdbx"))
+	m.ws.Open(fixture("/tmp/second.kdbx"))
+	m.normalize()
+	m.key(key("1"))
+	if m.ws.Active != 0 {
+		t.Fatal("1 did not select first view")
+	}
+	m.key(key("2"))
+	if m.ws.Active != 1 {
+		t.Fatal("2 did not select second view")
+	}
+	m.ws.LockActive()
+	m.key(key("1"))
+	if m.ws.ActiveSession().DB == nil {
+		t.Fatal("could not leave locked vault with number key")
+	}
+	m.key(key("2"))
+	if m.ws.ActiveSession().DB != nil {
+		t.Fatal("number key did not select locked vault")
+	}
+	m.key(key("9"))
+	if m.ws.Active != 1 {
+		t.Fatal("unavailable view number changed selection")
+	}
+	m.key(tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'1'}})
+	if m.ws.Active != 0 {
+		t.Fatal("Alt+1 alias broken")
+	}
+}
+
+func TestNumberKeysRemainTextInInputs(t *testing.T) {
+	t.Run("search", func(t *testing.T) {
+		m := New(Options{})
+		m.ws.Open(fixture("/tmp/first.kdbx"))
+		m.ws.Open(fixture("/tmp/second.kdbx"))
+		m.normalize()
+		m.key(key("/"))
+		m.key(key("1"))
+		m.key(key("2"))
+		if m.ws.Active != 1 || m.query.value() != "12" {
+			t.Fatal("search digits triggered tab switching")
+		}
+	})
+	t.Run("unlock", func(t *testing.T) {
+		m := New(Options{})
+		m.ws.Open(fixture("/tmp/first.kdbx"))
+		m.ws.Open(fixture("/tmp/second.kdbx"))
+		m.beginUnlock("/tmp/third.kdbx")
+		m.key(key("1"))
+		m.key(key("2"))
+		if m.ws.Active != 1 || m.inputs[0].value() != "12" {
+			t.Fatal("password digits triggered tab switching")
+		}
+	})
+	t.Run("editor", func(t *testing.T) {
+		m, _ := operationModel(t)
+		m.ws.Open(fixture("/tmp/other.kdbx"))
+		m.ws.ActiveSession().ReadOnly = false
+		m.normalize()
+		m.key(key("e"))
+		m.key(key("1"))
+		m.key(key("2"))
+		if m.ws.Active != 1 || m.editor.inputs[editTitle].value() != "Alpha12" {
+			t.Fatal("editor digits triggered tab switching")
+		}
+	})
+}

@@ -12,7 +12,8 @@ just check
 just eval # deterministic terminal integration tests; requires tmux
 ```
 
-`?` lists controls. `n`/`e` create/edit; `Ctrl+S` saves; `c` copies;
+`?` lists controls. `1`–`9` switch tabs outside text inputs.
+`n`/`e` create/edit; `Ctrl+S` saves; `c` copies;
 `v` briefly reveals; `Ctrl+L` locks. Clipboard defaults to 10s, idle lock to 15m.
 Secrets stay in memory; backups remain encrypted. Config uses platform/XDG
 config storage (`config.json`); recent paths and backups use state storage.
