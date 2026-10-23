@@ -1,0 +1,6 @@
+/bin/
+/evals/artifacts/
+*.kdbx
+*.key
+.env
+.DS_Store
