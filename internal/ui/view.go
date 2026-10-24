@@ -1091,7 +1091,11 @@ func padLines(lines []string, height int) []string {
 	return lines
 }
 
-func (m *Model) box(title string, body []string, footer string, header ...dialogrender.Header) []string {
+func (m *Model) box(title string, body []string, statusBar string, header ...dialogrender.Header) []string {
+	return m.boxWithBodyRows(title, body, statusBar, 0, header...)
+}
+
+func (m *Model) boxWithBodyRows(title string, body []string, statusBar string, bodyRows int, header ...dialogrender.Header) []string {
 	c := m.colors()
 	theme := colorsForTheme(m.settings.Theme)
 	restoreResets := func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) }
@@ -1100,7 +1104,7 @@ func (m *Model) box(title string, body []string, footer string, header ...dialog
 		headerContent, headerDivider = header[0].Content, header[0].Divider
 	}
 	return dialogrender.Render(dialogrender.Options{
-		Mode: dialogrender.Box, Title: title, HeaderContent: headerContent, HeaderDivider: headerDivider, Body: body, Footer: footer,
+		Mode: dialogrender.Box, Title: title, HeaderContent: headerContent, HeaderDivider: headerDivider, Body: body, BodyRows: bodyRows, StatusBar: statusBar,
 		Backdrop: m.modalBackdrop(), Width: min(m.width-6, 82), ScreenWidth: m.width,
 		Height: m.height, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
 		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, Pill: c.active, Divider: c.divider,
@@ -1220,7 +1224,7 @@ func (m *Model) pickerLines() []string {
 		rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: name, selected: !m.pickerEditing && !m.pickerRecent && i == m.fileIndex, activeFill: true, pillSelected: true})
 		browseRows++
 	}
-	if len(m.files) == 0 {
+	if len(m.files) == 0 && capacity > 0 {
 		rows = append(rows, listComponentRow{kind: listComponentItem, item: -1, text: secondary.Render("No vault files here. Enter another path.")})
 		browseRows++
 	}
@@ -1237,10 +1241,8 @@ func (m *Model) pickerLines() []string {
 	}
 	if m.err != "" {
 		body = append(body, error.Render(m.err))
-	} else {
-		body = append(body, "")
 	}
-	return m.box("Open Vault", body, "")
+	return m.boxWithBodyRows("Open Vault", body, m.pickerStatusBar(), m.pickerBodyRows())
 }
 
 func (m *Model) helpLines() []string {

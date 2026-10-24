@@ -239,6 +239,37 @@ func TestOpenVaultCommandUsesCtrlOPicker(t *testing.T) {
 	}
 }
 
+func TestCommandPaletteRendersShortcutsInLowercase(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 100, 30
+	m.settings.Appearance = "classic"
+	m.openPalette("actions", false)
+	choices := m.paletteChoices()
+	rows, _ := m.paletteRows(choices)
+	want := map[string][2]string{
+		"open":  {"ctrl+o", "Ctrl+O"},
+		"theme": {"shift+t", "Shift+T"},
+	}
+	for _, row := range rows {
+		if row.choice < 0 {
+			continue
+		}
+		choice := choices[row.choice]
+		checks, ok := want[choice.id]
+		if !ok {
+			continue
+		}
+		plain := ansi.Strip(row.text)
+		if !strings.Contains(plain, checks[0]) || strings.Contains(plain, checks[1]) {
+			t.Errorf("%s shortcut was not rendered lowercase: %q", choice.id, plain)
+		}
+		delete(want, choice.id)
+	}
+	if len(want) > 0 {
+		t.Fatalf("did not check shortcuts for commands: %v", want)
+	}
+}
+
 func TestPaletteDisabledReasonIsRightAlignedAndFirstGroupHasNoLeadingBlank(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 72, 24

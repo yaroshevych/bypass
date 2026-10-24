@@ -397,7 +397,7 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 			group = section
 		}
 		text := m.highlightText(choice.label, p.query.value(), "title")
-		right := choice.key
+		right := strings.ToLower(choice.key)
 		if choice.reason != "" {
 			label := safe(choice.label)
 			text = c.secondary.Render(label)

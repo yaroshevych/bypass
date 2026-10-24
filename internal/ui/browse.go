@@ -138,8 +138,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	case chooseFile:
 		start, capacity := m.fileViewport()
 		visible := min(len(m.files)-start, capacity)
-		bodyLen := m.pickerFixedRows() + capacity + 1
-		top := max(0, (m.height-(min(bodyLen, max(1, m.height-8))+4))/2)
+		top := max(0, (m.height-(m.pickerBodyRows()+4))/2)
 		pathY := top + 2 + m.pickerPathRow()
 		if msg.Y == pathY {
 			m.pickerEditing = true
@@ -252,9 +251,21 @@ func (m *Model) tabAt(x, y int) (int, bool) {
 }
 
 func (m *Model) fileViewport() (start, capacity int) {
-	capacity = min(15, max(1, max(1, m.height-8)-m.pickerFixedRows()-1))
-	start = viewportOffset(m.fileIndex, len(m.files), capacity, m.fileOffset)
+	available := max(0, m.pickerBodyRows()-m.pickerFixedRows())
+	if m.pickerStatusBar() != "" {
+		available--
+	}
+	if m.err != "" {
+		available--
+	}
+	capacity = max(0, available)
+	start = viewportOffset(m.fileIndex, len(m.files), max(1, capacity), m.fileOffset)
 	return start, capacity
+}
+
+func (m *Model) pickerBodyRows() int {
+	// Keep the picker sized for up to five Recent rows and fifteen Browse rows.
+	return min(26, max(1, m.height-9))
 }
 
 func (m *Model) pickerRecentCount() int {
@@ -263,6 +274,13 @@ func (m *Model) pickerRecentCount() int {
 		limit = min(limit, max(0, m.height-16))
 	}
 	return min(limit, len(m.recent))
+}
+
+func (m *Model) pickerStatusBar() string {
+	if m.screen == chooseFile && m.pickerRecent {
+		return "delete remove recent"
+	}
+	return ""
 }
 
 func (m *Model) pickerFixedRows() int {

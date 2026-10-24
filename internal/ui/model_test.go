@@ -31,6 +31,26 @@ func fixture(path string) *vault.Database {
 		{UUID: "b", GroupUUID: "root", Fields: []vault.Field{{Name: "Title", Value: "Beta"}, {Name: "Notes", Value: "public note"}}},
 	}}
 }
+
+type memoryRecentStore struct{ paths []string }
+
+func (s *memoryRecentStore) LoadRecent() ([]string, error) {
+	return append([]string(nil), s.paths...), nil
+}
+func (s *memoryRecentStore) Remember(path string) error {
+	s.paths = append([]string{path}, s.paths...)
+	return nil
+}
+func (s *memoryRecentStore) Remove(path string) error {
+	for i, item := range s.paths {
+		if item == path {
+			s.paths = append(s.paths[:i], s.paths[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
 func TestRenderNeverExposesProtectedFields(t *testing.T) {
 	m := New(Options{})
 	db := fixture("/tmp/fixture.kdbx")
@@ -470,6 +490,52 @@ func TestOpenVaultPickerShowsAndNavigatesRecentVaults(t *testing.T) {
 	}
 }
 
+func TestPickerRecentFooterConsumesBrowseRowAndDeleteRemovesRecent(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 100, 35
+	m.screen = chooseFile
+	m.recent = []string{"/recent/one.kdbx", "/recent/two.kdbx", "/recent/three.kdbx", "/recent/four.kdbx", "/recent/five.kdbx"}
+	m.files = make([]fileItem, 20)
+	for i := range m.files {
+		m.files[i] = fileItem{name: fmt.Sprintf("folder-%02d", i), path: fmt.Sprintf("/folder-%02d", i), dir: true}
+	}
+	m.store = &memoryRecentStore{paths: append([]string(nil), m.recent...)}
+	m.pickerRecent = true
+	_, recentCapacity := m.fileViewport()
+	recentRows := strings.Join(m.pickerLines(), "\n")
+	if !strings.Contains(ansi.Strip(recentRows), "delete remove recent") || strings.Contains(ansi.Strip(recentRows), "folder-15") {
+		t.Fatal("Recent footer was missing or did not take the final Browse row")
+	}
+
+	m.pickerRecent = false
+	_, browseCapacity := m.fileViewport()
+	browseRows := strings.Join(m.pickerLines(), "\n")
+	if browseCapacity != recentCapacity+1 || strings.Contains(ansi.Strip(browseRows), "delete remove recent") || !strings.Contains(ansi.Strip(browseRows), "folder-15") {
+		t.Fatalf("Browse did not reclaim the Recent footer row: recent=%d browse=%d", recentCapacity, browseCapacity)
+	}
+
+	m.pickerRecent = true
+	m.pickerRecentIndex = 1
+	cmd := m.key(tea.KeyMsg{Type: tea.KeyDelete})
+	if cmd == nil {
+		t.Fatal("Delete did not schedule recent-vault removal")
+	}
+	msg := cmd()
+	m.Update(msg)
+	if len(m.recent) != 4 || m.recent[1] != "/recent/three.kdbx" || m.pickerRecentIndex != 1 || !m.pickerRecent {
+		t.Fatalf("Delete did not remove the selected recent vault and preserve focus: recent=%v focus=%v index=%d", m.recent, m.pickerRecent, m.pickerRecentIndex)
+	}
+	m.recent = []string{"/recent/only.kdbx"}
+	m.store = &memoryRecentStore{paths: append([]string(nil), m.recent...)}
+	m.pickerRecent = true
+	m.pickerRecentIndex = 0
+	cmd = m.key(tea.KeyMsg{Type: tea.KeyDelete})
+	m.Update(cmd())
+	if len(m.recent) != 0 || m.pickerRecent {
+		t.Fatalf("removing the last recent vault left Recent focused: recent=%v focus=%v", m.recent, m.pickerRecent)
+	}
+}
+
 func TestOpenVaultPickerKeepsDialogPositionAcrossDirectorySizes(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 100, 35
@@ -480,8 +546,8 @@ func TestOpenVaultPickerKeepsDialogPositionAcrossDirectorySizes(t *testing.T) {
 	m.inputs[0].set("/first/")
 	m.files = []fileItem{{name: "only.kdbx", path: "/first/only.kdbx"}}
 	_, capacity := m.fileViewport()
-	if capacity != 15 {
-		t.Fatalf("browse viewport capacity = %d, want 15", capacity)
+	if capacity != 16 {
+		t.Fatalf("browse viewport capacity = %d, want 16", capacity)
 	}
 	first := m.pickerLines()
 	m.directory = "/second"

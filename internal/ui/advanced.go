@@ -397,7 +397,7 @@ func (m *Model) overlay(title string, body []string, footer string, width, x, y 
 	}
 	return dialogrender.Render(dialogrender.Options{
 		Mode: dialogrender.Overlay, Title: title, HeaderContent: headerContent, HeaderDivider: headerDivider,
-		CompactAccessory: compactAccessory, CompactAccessoryStyle: compactAccessoryStyle, CompactCount: compactCount, Body: body, Footer: footer,
+		CompactAccessory: compactAccessory, CompactAccessoryStyle: compactAccessoryStyle, CompactCount: compactCount, Body: body, StatusBar: footer,
 		Backdrop: m.modalBackdrop(), Width: width, ScreenWidth: m.width,
 		Height: m.height, X: x, Y: y, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
 		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, Pill: c.active, Divider: c.divider,

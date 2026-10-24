@@ -36,10 +36,10 @@ func TestFilePickerViewportKeepsTwoContextRows(t *testing.T) {
 	m := New(Options{})
 	m.height = 30
 	m.files = make([]fileItem, 40)
-	m.fileIndex = 12
+	m.fileIndex = 13
 	start, capacity := m.fileViewport()
-	if capacity != 15 || start != 0 {
-		t.Fatalf("file viewport = start %d, capacity %d; want 0, 15", start, capacity)
+	if capacity != 16 || start != 0 {
+		t.Fatalf("file viewport = start %d, capacity %d; want 0, 16", start, capacity)
 	}
 	if m.fileIndex-start != capacity-3 {
 		t.Fatalf("selected file row %d, want two rows after it", m.fileIndex-start)
@@ -108,7 +108,7 @@ func TestFilePickerMouseUsesScrolledViewport(t *testing.T) {
 	m.adjustViewport()
 	start, capacity := m.fileViewport()
 	target := start + 4
-	bodyLen := m.pickerFixedRows() + capacity + 1
+	bodyLen := m.pickerFixedRows() + capacity
 	top := max(0, (m.height-(min(bodyLen, max(1, m.height-8))+4))/2)
 	boxWidth := min(m.width-6, 82)
 	left := max(0, (m.width-boxWidth)/2)

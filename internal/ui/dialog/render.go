@@ -33,7 +33,8 @@ type Options struct {
 	CompactAccessoryStyle      lipgloss.Style
 	CompactCount               string
 	Body                       []string
-	Footer                     string
+	BodyRows                   int
+	StatusBar                  string
 	Backdrop                   []string
 	Width, ScreenWidth         int
 	Height, X, Y               int
@@ -56,9 +57,21 @@ func Render(o Options) []string {
 	if width <= 0 {
 		width = max(1, o.Width)
 	}
-	maxBody := max(1, o.Height-8)
+	statusBar := lowercaseShortcutLabels(o.StatusBar)
+	maxBody := BodyCapacity(o.Height, statusBar)
+	if o.BodyRows > 0 {
+		maxBody = o.BodyRows
+		if statusBar != "" {
+			maxBody = max(1, maxBody-1)
+		}
+	}
 	if len(o.Body) > maxBody {
 		o.Body = o.Body[:maxBody]
+	}
+	if o.BodyRows > 0 {
+		for len(o.Body) < maxBody {
+			o.Body = append(o.Body, "")
+		}
 	}
 	border, horizontal := "│", "─"
 	tl, tr, bl, br := "┌", "┐", "└", "┘"
@@ -75,7 +88,6 @@ func Render(o Options) []string {
 	} else if o.Compact {
 		tl, tr, bl, br = "╭", "╮", "╰", "╯"
 	}
-	footer := lowercaseShortcutLabels(o.Footer)
 	background := make([]string, o.Height)
 	for i := range background {
 		if i < len(o.Backdrop) {
@@ -84,9 +96,19 @@ func Render(o Options) []string {
 	}
 
 	if o.Mode == Overlay {
-		return renderOverlay(o, background, width, border, horizontal, tl, tr, bl, br, leftRule, rightRule, title, footer)
+		return renderOverlay(o, background, width, border, horizontal, tl, tr, bl, br, leftRule, rightRule, title, statusBar)
 	}
-	return renderBox(o, background, width, border, horizontal, tl, tr, bl, br, leftRule, rightRule, title, footer)
+	return renderBox(o, background, width, border, horizontal, tl, tr, bl, br, leftRule, rightRule, title, statusBar)
+}
+
+// BodyCapacity returns the number of dialog rows available for content after
+// reserving one row for a visible status bar.
+func BodyCapacity(height int, statusBar string) int {
+	capacity := max(1, height-8)
+	if statusBar != "" {
+		capacity = max(1, capacity-1)
+	}
+	return capacity
 }
 
 func renderOverlay(o Options, background []string, width int, border, horizontal, tl, tr, bl, br, leftRule, rightRule, title, footer string) []string {

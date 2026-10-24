@@ -10,7 +10,7 @@ import (
 
 func TestClassicBoxJoinsHeaderAndRightAlignsFooter(t *testing.T) {
 	lines := Render(Options{
-		Mode: Box, Title: "New Vault", Body: []string{"Path"}, Footer: "Tab next · Ctrl+S submit",
+		Mode: Box, Title: "New Vault", Body: []string{"Path"}, StatusBar: "Tab next · Ctrl+S submit",
 		Backdrop: make([]string, 20), Width: 40, ScreenWidth: 60, Height: 20,
 	})
 	joined := strings.Join(strip(lines), "\n")

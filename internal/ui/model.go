@@ -135,6 +135,11 @@ type recentMsg struct {
 	paths []string
 	err   error
 }
+type recentRemovedMsg struct {
+	paths   []string
+	err     error
+	updated bool
+}
 type rememberedMsg struct{ err error }
 type probedMsg struct {
 	version string
@@ -294,6 +299,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.recentIndex = min(m.recentIndex, max(0, len(m.recent)-1))
 		if msg.err != nil {
 			m.notice = "Recent vaults unavailable; Open Vault still works."
+		}
+	case recentRemovedMsg:
+		if msg.updated {
+			m.setRecentAfterPickerRemoval(msg.paths)
+		}
+		if msg.err != nil {
+			m.err = "Could not remove this recent vault."
+		} else {
+			m.err = ""
 		}
 	case rememberedMsg:
 		if msg.err != nil {
@@ -970,6 +984,11 @@ func (m *Model) fileKey(k tea.KeyMsg) tea.Cmd {
 		}
 		m.beginUnlock(path)
 		return nil
+	case "delete":
+		if m.pickerRecent {
+			return m.removePickerRecent(m.pickerRecentIndex)
+		}
+		return nil
 	default:
 		if !m.pickerEditing {
 			if k.Type != tea.KeyRunes {
@@ -994,4 +1013,43 @@ func (m *Model) changeDirectory(path string) tea.Cmd {
 	m.err = ""
 	m.inputs[0].set(path + string(os.PathSeparator))
 	return listDirectory(path)
+}
+
+func (m *Model) removePickerRecent(index int) tea.Cmd {
+	if index < 0 || index >= m.pickerRecentCount() {
+		return nil
+	}
+	path := m.recent[index]
+	remaining := make([]string, 0, len(m.recent)-1)
+	remaining = append(remaining, m.recent[:index]...)
+	remaining = append(remaining, m.recent[index+1:]...)
+	if m.store == nil {
+		m.setRecentAfterPickerRemoval(remaining)
+		m.err = ""
+		return nil
+	}
+	store := m.store
+	return func() tea.Msg {
+		if err := store.Remove(path); err != nil {
+			return recentRemovedMsg{err: err}
+		}
+		paths, err := store.LoadRecent()
+		if err != nil {
+			paths = remaining
+		}
+		return recentRemovedMsg{paths: paths, err: err, updated: true}
+	}
+}
+
+func (m *Model) setRecentAfterPickerRemoval(paths []string) {
+	m.recent = paths
+	m.recentIndex = min(m.recentIndex, max(0, len(m.recent)-1))
+	count := m.pickerRecentCount()
+	if count == 0 {
+		m.pickerRecent = false
+		m.pickerRecentIndex = 0
+		return
+	}
+	m.pickerRecent = true
+	m.pickerRecentIndex = min(m.pickerRecentIndex, count-1)
 }
