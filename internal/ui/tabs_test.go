@@ -52,6 +52,24 @@ func TestTabPlusHoverAndPerViewItemTitles(t *testing.T) {
 	}
 }
 
+func TestClassicTabDividersJoinHorizontalRules(t *testing.T) {
+	m := New(Options{})
+	m.ws.Open(fixture("/tmp/tab-rule-joins.kdbx"))
+	m.width, m.height = 120, 35
+	m.normalize()
+	m.duplicateTab()
+	m.duplicateTab()
+	lines := m.workspaceLines()
+	spans := m.tabSpans()
+	top, tabs, bottom := []rune(ansi.Strip(lines[1])), []rune(ansi.Strip(lines[2])), []rune(ansi.Strip(lines[3]))
+	for i := 0; i+1 < len(spans); i++ {
+		x := spans[i].End
+		if top[x] != '┬' || tabs[x] != '│' || bottom[x] != '┴' {
+			t.Fatalf("tab divider at %d does not join the rules: top=%q tabs=%q bottom=%q", x, top[x], tabs[x], bottom[x])
+		}
+	}
+}
+
 func TestTabCreationStopsAtNineAndResumesAfterClose(t *testing.T) {
 	m := New(Options{})
 	m.ws.Open(fixture("/tmp/limit.kdbx"))

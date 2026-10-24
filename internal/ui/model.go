@@ -424,7 +424,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	if key == "ctrl+l" && m.screen == unlock {
 		m.cancelPendingOpen()
-		return m.lockCurrent(false)
+		return m.lockCurrent(true)
 	}
 	if m.dialog != nil {
 		return m.dialogKey(k)
@@ -467,7 +467,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	if m.writing {
 		if key == "ctrl+l" || key == "L" {
-			return m.lockCurrent(key == "L")
+			return m.lockCurrent(true)
 		}
 		return nil
 	}
@@ -540,7 +540,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		m.normalize()
 		return m.clearClipboard()
 	case "ctrl+l":
-		return m.lockCurrent(false)
+		return m.lockCurrent(true)
 	case "L":
 		return m.lockCurrent(true)
 	}

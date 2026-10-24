@@ -223,7 +223,7 @@ func (m *Model) extrasKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }), true
 	case "ctrl+l":
 		m.clearExtras()
-		return m.lockCurrent(false), true
+		return m.lockCurrent(true), true
 	case "L":
 		m.clearExtras()
 		return m.lockCurrent(true), true

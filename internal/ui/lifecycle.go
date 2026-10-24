@@ -337,7 +337,7 @@ func (m *Model) lifecycleKey(k tea.KeyMsg) tea.Cmd {
 	}
 	if key == "ctrl+l" || key == "L" && (l.kind == "info" || l.kind == "settings") {
 		m.clearLifecycle()
-		return m.lockCurrent(key == "L")
+		return m.lockCurrent(true)
 	}
 	if l.busy {
 		return nil

@@ -106,12 +106,12 @@ func (m *Model) commands() []command {
 	add("close-vault", "File", "Close Current Vault", "", closeReason, "", func() tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd { m.ws.CloseVault(); m.normalize(); m.syncPrivacyState(); return m.clearClipboard() })
 	})
-	add("lock", "Vault", "Lock Current Vault", "Ctrl+L", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(false) }) })
+	add("lock", "Vault", "Lock Current Vault", "", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(false) }) })
 	allReason := ""
 	if !m.anyUnlocked() {
 		allReason = "No unlocked vaults"
 	}
-	add("lock-all", "Vault", "Lock All Vaults", "L", allReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) }) })
+	add("lock-all", "Vault", "Lock All Vaults", "Ctrl+L", allReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) }) })
 	add("reload", "Vault", "Reload Vault", "Ctrl+R", needVault, "", func() tea.Cmd { return m.requestReload(s.ID) })
 	readLabel := "Enable Read Only"
 	if s != nil && s.ReadOnly {

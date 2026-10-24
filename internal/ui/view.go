@@ -153,15 +153,15 @@ func (m *Model) workspaceLines() []string {
 	}
 	right := status
 	if s.DB != nil {
-		right = fmt.Sprintf("%s  ·  %d entries  ·  %d groups", status, len(s.DB.Entries), len(s.DB.Groups))
+		right = fmt.Sprintf("%d entries · ctrl+l lock", len(s.DB.Entries))
 		if s.Stale {
-			right = "Changed externally · Ctrl+R reload"
+			right = "Changed externally · ctrl+r reload · ctrl+l lock"
 		}
 	}
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	lines := []string{accent.Render(fit("  "+name, max(0, w-lipgloss.Width(right)-2))) + muted.Render(right)}
+	lines := []string{accent.Render(fit("  "+name, max(0, w-lipgloss.Width(right)))) + muted.Render(right)}
 	if !compact {
-		lines = append(lines, m.themedRule(w))
+		lines = append(lines, m.tabRule(w, true))
 	}
 	var tabs []string
 	labels := m.tabLabels()
@@ -221,7 +221,7 @@ func (m *Model) workspaceLines() []string {
 	}
 	lines = append(lines, fit(tabLine, w))
 	if !compact {
-		lines = append(lines, m.themedRule(w))
+		lines = append(lines, m.tabRule(w, false))
 	}
 	if s.DB == nil {
 		lines = append(lines, "", accent.Render("  Vault locked"), muted.Render("  enter to unlock with vault credentials."), "", muted.Render("  1–9 switch vault views · ctrl+o open another vault"))
@@ -233,7 +233,7 @@ func (m *Model) workspaceLines() []string {
 	}
 	l := m.layout()
 	if !compact {
-		lines[l.BodyY-1] = m.paneRule(l, true)
+		lines[l.BodyY-1] = m.workspaceTopRule(l)
 	}
 	lines = append(lines, m.layoutBody(l)...)
 	footer := m.footerText()
@@ -283,6 +283,44 @@ func (m *Model) paneRule(layout viewLayout, top bool) string {
 	for i, pane := range layout.Panes {
 		if x := pane.X + pane.Width; i < len(layout.Panes)-1 && x >= 0 && x < len(line) {
 			line[x] = junction
+		}
+	}
+	return m.colors().lineStyle.Render(string(line))
+}
+
+func (m *Model) tabRule(width int, top bool) string {
+	horizontal, junction := '─', '┬'
+	if !top {
+		junction = '┴'
+	}
+	if m.settings.ASCII {
+		horizontal, junction = '-', '+'
+	}
+	line := []rune(strings.Repeat(string(horizontal), max(0, width)))
+	spans := m.tabSpans()
+	for i := 0; i+1 < len(spans); i++ {
+		if x := spans[i].End; x >= 0 && x < len(line) {
+			line[x] = junction
+		}
+	}
+	return m.colors().lineStyle.Render(string(line))
+}
+
+func (m *Model) workspaceTopRule(layout viewLayout) string {
+	line := []rune(ansi.Strip(m.paneRule(layout, true)))
+	spans := m.tabSpans()
+	for i, span := range spans {
+		if i+1 >= len(spans) {
+			break
+		}
+		if x := span.End; x >= 0 && x < len(line) {
+			if line[x] == '┬' {
+				line[x] = '┼'
+			} else if m.settings.ASCII {
+				line[x] = '+'
+			} else {
+				line[x] = '┴'
+			}
 		}
 	}
 	return m.colors().lineStyle.Render(string(line))

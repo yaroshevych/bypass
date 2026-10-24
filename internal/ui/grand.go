@@ -37,7 +37,7 @@ func (m *Model) grandKey(k tea.KeyMsg) tea.Cmd {
 	case "ctrl+k":
 		return m.protectScreen()
 	case "ctrl+l", "L":
-		return m.lockCurrent(k.String() == "L")
+		return m.lockCurrent(true)
 	case "ctrl+p":
 		m.openPalette("actions", false)
 	case "up", "k":

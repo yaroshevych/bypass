@@ -218,8 +218,8 @@ func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 	case "ctrl+w":
 		return m.leaveEditor(func() tea.Cmd { m.ws.CloseView(); m.normalize(); return m.clearClipboard() })
 	case "ctrl+l":
-		return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(false) })
-	case "L": // Uppercase text is ordinary editor input; lock all remains outside editor.
+		return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) })
+	case "L": // Uppercase text is ordinary editor input; keep the all-vault action global.
 	case "ctrl+pgup", "ctrl+pgdown":
 		delta := 1
 		if k.String() == "ctrl+pgup" {

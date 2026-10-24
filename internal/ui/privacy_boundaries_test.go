@@ -103,7 +103,7 @@ func TestPublicFullLockDiscardsPendingVaultCreation(t *testing.T) {
 	awaitBoundary(t, backend.started)
 	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlL})
 	if first.DB != nil {
-		t.Fatal("Ctrl+L did not lock the active existing vault during creation")
+		t.Fatal("Ctrl+L did not full-lock every existing vault during creation")
 	}
 	close(backend.release)
 	msg := awaitBoundary(t, result)
@@ -486,7 +486,7 @@ func TestIdleFullLockDropsPendingVaultCreation(t *testing.T) {
 	}
 }
 
-func TestCurrentLockCancelsPendingUnlockAndPreservesOtherVault(t *testing.T) {
+func TestCtrlLFullLockCancelsPendingUnlockAndLocksOtherVault(t *testing.T) {
 	backend := &boundaryOpenBackend{started: make(chan struct{}), release: make(chan struct{})}
 	cleanupBoundaryRelease(t, backend.release)
 	m := newBoundaryModel(t, backend, fixture("/tmp/other-authenticated.kdbx"))
@@ -503,14 +503,14 @@ func TestCurrentLockCancelsPendingUnlockAndPreservesOtherVault(t *testing.T) {
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.started)
 	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlL})
-	if current.DB != nil || other.DB == nil || m.busy {
-		t.Fatal("current lock must cancel pending authentication and preserve the other vault")
+	if current.DB != nil || other.DB != nil || m.busy {
+		t.Fatal("Ctrl+L must cancel pending authentication and lock every vault")
 	}
 	close(backend.release)
 	msg := awaitBoundary(t, result)
 	db := msg.(openedMsg).db
 	m.Update(msg)
 	if len(m.ws.Sessions) != 2 || len(db.Groups) != 0 || current.DB != nil {
-		t.Fatal("canceled unlock resurrected a vault after current lock")
+		t.Fatal("canceled unlock resurrected a vault after full lock")
 	}
 }
