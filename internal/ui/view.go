@@ -164,8 +164,12 @@ func (m *Model) workspaceLines() []string {
 	}
 	var tabs []string
 	labels := m.tabLabels()
+	labels = append(labels, "+")
 	for _, span := range m.tabSpans() {
 		label := labels[span.Index]
+		if !compact && span.Index == len(m.ws.Views) {
+			label = " + "
+		}
 		if compact {
 			if span.Index == m.ws.Active {
 				if m.settings.ASCII {
@@ -179,16 +183,28 @@ func (m *Model) workspaceLines() []string {
 		}
 		label = fit(label, span.End-span.Start)
 		if span.Index == m.ws.Active {
+			style := active
+			if m.tabHovered && m.hoverTab == span.Index {
+				style = style.Foreground(styles.accent.GetForeground())
+			}
 			if compact && !m.settings.ASCII {
-				label = m.pillOn(labels[span.Index], span.End-span.Start, true, styles.inactive)
+				label = renderPill(labels[span.Index], span.End-span.Start, style, styles.inactive)
 			} else {
-				label = active.Render(label)
+				label = style.Render(label)
 			}
 		} else {
 			if compact {
-				label = styles.inactive.Render(label)
+				style := styles.inactive
+				if m.tabHovered && m.hoverTab == span.Index {
+					style = style.Foreground(styles.accent.GetForeground()).Bold(true)
+				}
+				label = style.Render(label)
 			} else {
-				label = muted.Render(label)
+				style := muted
+				if m.tabHovered && m.hoverTab == span.Index {
+					style = styles.inactive.Foreground(styles.accent.GetForeground()).Bold(true)
+				}
+				label = style.Render(label)
 			}
 		}
 		tabs = append(tabs, label)
@@ -364,6 +380,15 @@ func (m *Model) tabLabels() []string {
 		}
 		if s.DB == nil {
 			label += " [locked]"
+		} else {
+			for _, entry := range s.DB.Entries {
+				if entry.UUID == view.SelectedUUID {
+					if title := visibleField(entry, "Title"); title != "" {
+						label = fmt.Sprintf("%d %s", i+1, title)
+					}
+					break
+				}
+			}
 		}
 		if !compact {
 			label = " " + label + " "
@@ -382,10 +407,10 @@ func (m *Model) tabSpans() []tabSpan {
 	}
 	activeIndex := min(len(labels)-1, max(0, m.ws.Active))
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	capacity := m.width
+	capacity := max(1, m.width-4) // Reserve a gap and the rightmost + tab.
 	startX := 0
 	if compact && !m.settings.ASCII {
-		capacity = max(1, m.width-2)
+		capacity = max(1, m.width-6)
 		startX = 1
 	}
 	visible := map[int]string{}
@@ -444,6 +469,7 @@ func (m *Model) tabSpans() []tabSpan {
 		spans = append(spans, tabSpan{Index: i, Start: x, End: x + width})
 		x += width
 	}
+	spans = append(spans, tabSpan{Index: len(labels), Start: x + 1, End: x + 4})
 	return spans
 }
 

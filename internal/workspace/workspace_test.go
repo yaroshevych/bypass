@@ -10,6 +10,29 @@ import (
 	"keepassui/internal/vault"
 )
 
+func TestNineTabLimitAllowsExistingVaultAndRejectsNewVault(t *testing.T) {
+	w := New()
+	path := filepath.Join(t.TempDir(), "existing.kdbx")
+	w.Open(database(path, "existing", "root"))
+	for len(w.Views) < MaxTabs {
+		w.Duplicate()
+	}
+	if w.Duplicate() || !w.CanOpen(path) {
+		t.Fatal("limit must reject duplication but permit existing vault activation")
+	}
+	rejected := database(filepath.Join(t.TempDir(), "other.kdbx"), "other", "root2")
+	if w.CanOpen(rejected.Path) {
+		t.Fatal("limit allowed a new vault")
+	}
+	w.Open(rejected)
+	if len(w.Views) != MaxTabs || len(w.Sessions) != 1 {
+		t.Fatal("rejected vault changed workspace")
+	}
+	if !w.Open(database(path, "existing", "root")) || w.Active != 0 {
+		t.Fatal("existing vault did not activate at capacity")
+	}
+}
+
 func database(path, name, root string) *vault.Database {
 	return &vault.Database{
 		Path: path, Name: name, RootUUID: root,

@@ -63,6 +63,21 @@ type Workspace struct {
 	nextID   uint64
 }
 
+const MaxTabs = 9
+
+func (w *Workspace) CanOpen(path string) bool {
+	if len(w.Views) < MaxTabs {
+		return true
+	}
+	path = canonicalPath(path)
+	for _, view := range w.Views {
+		if session := w.Sessions[view.SessionID]; session != nil && session.Path == path {
+			return true
+		}
+	}
+	return false
+}
+
 func New() *Workspace { return &Workspace{Sessions: make(map[string]*Session)} }
 
 // Open activates a view for db, sharing an existing session when its path
@@ -70,6 +85,10 @@ func New() *Workspace { return &Workspace{Sessions: make(map[string]*Session)} }
 // a locked session is refreshed with db.
 func (w *Workspace) Open(db *vault.Database) (reused bool) {
 	if db == nil {
+		return false
+	}
+	if !w.CanOpen(db.Path) {
+		db.Clear()
 		return false
 	}
 	path := canonicalPath(db.Path)
@@ -121,7 +140,7 @@ func (w *Workspace) ActiveSession() *Session {
 
 func (w *Workspace) Duplicate() bool {
 	view := w.ActiveView()
-	if view == nil {
+	if view == nil || len(w.Views) >= MaxTabs {
 		return false
 	}
 	copy := *view

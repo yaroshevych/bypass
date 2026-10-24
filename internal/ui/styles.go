@@ -68,6 +68,10 @@ func (m *Model) pillOn(text string, width int, focused bool, surface lipgloss.St
 	if focused {
 		style = c.active
 	}
+	return renderPill(text, width, style, surface)
+}
+
+func renderPill(text string, width int, style, surface lipgloss.Style) string {
 	if width < 4 {
 		return style.Render(fit(text, width))
 	}

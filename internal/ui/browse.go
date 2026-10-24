@@ -6,9 +6,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"keepassui/internal/vault"
+	"keepassui/internal/workspace"
 )
 
 func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
+	m.tabHovered = false
 	if m.layout().Mode == "tiny" {
 		return nil
 	}
@@ -36,6 +38,25 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	}
 	if m.jump {
 		return nil
+	}
+	if msg.Action == tea.MouseActionMotion && m.dragging == 0 {
+		if !m.help && m.screen == browse && m.ws.ActiveSession() != nil {
+			m.hoverTab, m.tabHovered = m.tabAt(msg.X, msg.Y)
+		}
+		return nil
+	}
+	if !m.help && !m.writing && m.screen == browse && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+		if index, hit := m.tabAt(msg.X, msg.Y); hit {
+			return m.leaveEditor(func() tea.Cmd {
+				if index == len(m.ws.Views) {
+					return m.duplicateTab()
+				} else {
+					m.ws.Switch(index)
+				}
+				m.normalize()
+				return nil
+			})
+		}
 	}
 	m.hideReveal()
 
@@ -157,22 +178,31 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		}
 		return nil
 	}
-	tabRow := 2
-	if strings.EqualFold(m.settings.Appearance, "compact") {
-		tabRow = 1
-	}
-	if msg.Y == tabRow {
-		for _, span := range m.tabSpans() {
-			if msg.X >= span.Start && msg.X < span.End {
-				m.ws.Switch(span.Index)
-				m.normalize()
-				return nil
-			}
-		}
-		return nil
-	}
 	m.mouse(msg)
 	return nil
+}
+
+func (m *Model) duplicateTab() tea.Cmd {
+	if !m.ws.Duplicate() && len(m.ws.Views) >= workspace.MaxTabs {
+		m.setNotice("Maximum 9 tabs. Close a tab to add another.", false)
+	}
+	m.normalize()
+	return nil
+}
+
+func (m *Model) tabAt(x, y int) (int, bool) {
+	row := 2
+	if strings.EqualFold(m.settings.Appearance, "compact") {
+		row = 1
+	}
+	if y == row {
+		for _, span := range m.tabSpans() {
+			if x >= span.Start && x < span.End {
+				return span.Index, true
+			}
+		}
+	}
+	return 0, false
 }
 
 func (m *Model) fileViewport() (start, capacity int) {

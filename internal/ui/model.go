@@ -45,6 +45,8 @@ const (
 )
 
 type Model struct {
+	hoverTab                                int
+	tabHovered                              bool
 	lifecycle                               *lifecycleState
 	extras                                  *extraState
 	styles                                  styleSet
@@ -342,6 +344,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = "Could not unlock. Backend returned no database."
 			break
 		}
+		if !m.ws.CanOpen(msg.db.Path) {
+			msg.db.Clear()
+			msg.credentials.Clear()
+			m.err = "Maximum 9 tabs. Close a tab before opening another vault."
+			break
+		}
 		reused := m.ws.Open(msg.db)
 		session := m.ws.ActiveSession()
 		if session != nil {
@@ -371,10 +379,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.MouseMsg:
 		cmd := m.pointer(msg)
-		m.touchActive()
+		if msg.Action != tea.MouseActionMotion {
+			m.touchActive()
+		}
 		m.adjustViewport()
 		return m, cmd
 	case tea.KeyMsg:
+		m.tabHovered = false
 		cmd := m.key(msg)
 		m.touchActive()
 		m.adjustViewport()
@@ -506,9 +517,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		m.helpQuery.clear()
 		return nil
 	case "ctrl+t":
-		m.ws.Duplicate()
-		m.normalize()
-		return nil
+		return m.duplicateTab()
 	case "ctrl+pgup":
 		if n := len(m.ws.Views); n > 0 {
 			m.ws.Switch((m.ws.Active + n - 1) % n)
@@ -739,6 +748,10 @@ func (m *Model) unlockKey(k tea.KeyMsg) tea.Cmd {
 }
 
 func (m *Model) startOpen() tea.Cmd {
+	if !m.ws.CanOpen(m.path) {
+		m.err = "Maximum 9 tabs. Close a tab before opening another vault."
+		return nil
+	}
 	if m.backend == nil {
 		m.err = "Could not unlock. keepassxc-cli unavailable."
 		return nil

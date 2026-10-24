@@ -244,7 +244,7 @@ func (m *Model) commands() []command {
 	add("zoom", "View", "Zoom / Restore Focused Pane", "z", needVault, "", func() tea.Cmd { v.Zoom = !v.Zoom; return nil })
 	add("wider", "View", "Widen Focused Pane", "]", needVault, "", func() tea.Cmd { m.resizeFocused(2); return nil })
 	add("narrower", "View", "Narrow Focused Pane", "[", needVault, "", func() tea.Cmd { m.resizeFocused(-2); return nil })
-	add("duplicate", "Tabs", "Duplicate Current View", "Ctrl+T", closeReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.ws.Duplicate(); m.normalize(); return nil }) })
+	add("duplicate", "Tabs", "Duplicate Current View", "Ctrl+T", closeReason, "", func() tea.Cmd { return m.leaveEditor(m.duplicateTab) })
 	for index, view := range m.ws.Views {
 		index, view := index, view
 		session := m.ws.Sessions[view.SessionID]

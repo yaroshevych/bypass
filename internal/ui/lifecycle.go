@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"keepassui/internal/vault"
+	"keepassui/internal/workspace"
 )
 
 type lifecycleState struct {
@@ -59,6 +60,10 @@ func (m *Model) clearLifecycle() {
 }
 
 func (m *Model) openCreateVault() tea.Cmd {
+	if len(m.ws.Views) >= workspace.MaxTabs {
+		m.setNotice("Maximum 9 tabs. Close a tab before creating a vault.", false)
+		return nil
+	}
 	if reason := m.nativeReason("db-create"); reason != "" {
 		m.setNotice(reason, true)
 		return nil
@@ -281,6 +286,11 @@ func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
 		return nil, true
 	}
 	if result.kind == "create" {
+		if !m.ws.CanOpen(result.db.Path) {
+			result.db.Clear()
+			l.err = "Vault created. Close a tab before opening it (maximum 9 tabs)."
+			return nil, true
+		}
 		m.ws.Open(result.db)
 		s := m.ws.ActiveSession()
 		m.ws.SetCredentials(s.ID, result.credentials)
