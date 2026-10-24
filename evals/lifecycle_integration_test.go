@@ -26,7 +26,7 @@ func TestMilestone4VaultLifecycleTmux(t *testing.T) {
 	e := newEval(t)
 	defer e.close()
 	e.startWith(backend)
-	e.mustShow("Bypass", "Open Vault", "New Vault")
+	e.mustShow("bypass", "Open Vault", "New Vault")
 
 	// Create a synthetic vault from the welcome screen, with a modest KDF target.
 	e.key("N")

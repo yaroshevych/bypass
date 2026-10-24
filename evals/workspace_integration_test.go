@@ -34,7 +34,7 @@ func TestWorkspaceNativeViewsDraftsAndSessionLocks(t *testing.T) {
 	createWorkspaceVault(e, backend, secondDB, secondVaultPassword, "Second Native Entry", "second-user", fixtureWrongPassword)
 
 	e.startWith(backend)
-	e.mustShow("Bypass", "Open Vault")
+	e.mustShow("bypass", "Open Vault")
 	openWorkspaceVault(e, firstDB, fixturePassword)
 	e.mustShow("First Native Entry")
 	e.mustNotShow(secretSentinel)
@@ -180,7 +180,7 @@ func TestWorkspaceNativeViewsDraftsAndSessionLocks(t *testing.T) {
 	e.key("C-w")
 	e.key("C-w")
 	e.key("C-w")
-	e.mustShow("Bypass", "Open Vault")
+	e.mustShow("bypass", "Open Vault")
 	e.key("q")
 	e.waitForCleanQuit()
 }
@@ -266,7 +266,7 @@ func createWorkspaceVault(e *evalSession, backend, path, masterPassword, title, 
 func openWorkspaceVault(e *evalSession, path, password string) {
 	e.t.Helper()
 	screen := e.capture()
-	if strings.Contains(screen, "Bypass") && strings.Contains(screen, "Open Vault") {
+	if strings.Contains(screen, "bypass") && strings.Contains(screen, "Open Vault") {
 		e.key("o")
 	} else {
 		e.key("C-o")

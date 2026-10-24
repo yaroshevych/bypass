@@ -57,7 +57,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	defer e.close()
 
 	e.start()
-	e.mustShow("Bypass", "Open Vault")
+	e.mustShow("bypass", "Open Vault")
 
 	// Exercise an authentication failure followed by a retry. Passwords are
 	// sent as literal tmux input and are never included in diagnostics.
@@ -119,7 +119,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	e.key("C-w")
 	e.key("C-w")
 	e.key("C-w")
-	e.mustShow("Bypass", "Open Vault")
+	e.mustShow("bypass", "Open Vault")
 
 	// Tiny terminals show a useful message and recover after resize.
 	e.resize(20, 5)
@@ -127,7 +127,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	e.mustShow("Terminal too small")
 	e.resize(120, 35)
 	e.mustDimensions(120, 35)
-	e.mustShow("Bypass", "Open Vault")
+	e.mustShow("bypass", "Open Vault")
 
 	e.key("q")
 	e.waitForCleanQuit()
@@ -561,7 +561,7 @@ func newEval(t *testing.T) *evalSession {
 
 func (e *evalSession) start() {
 	e.startWith(filepath.Join(e.root, "fake-keepassxc-cli"), "--read-only")
-	e.mustShow("Bypass", "Open Vault")
+	e.mustShow("bypass", "Open Vault")
 }
 
 func (e *evalSession) startWith(backend string, appArgs ...string) {

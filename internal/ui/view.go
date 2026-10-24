@@ -59,7 +59,7 @@ func (m *Model) View() string {
 		if m.settings.ASCII {
 			minimum = "Resize to at least 48x14"
 		}
-		lines = []string{accent.Render("Bypass"), "Terminal too small", muted.Render(minimum), "q quit · Ctrl+C quit"}
+		lines = []string{accent.Render("bypass"), "Terminal too small", muted.Render(minimum), "q quit · Ctrl+C quit"}
 		if m.editor != nil && m.editor.dirty() {
 			lines[3] = "Draft kept · resize · Ctrl+C quits"
 		}
@@ -98,7 +98,7 @@ func (m *Model) welcomeLines() []string {
 	left := max(0, (w-contentW)/2)
 	pad := strings.Repeat(" ", left)
 	lines := make([]string, max(1, (m.height-18)/2))
-	lines = append(lines, pad+accent.Render("        ◇"), "", pad+accent.Render("Bypass Secrets Manager"), pad+muted.Render("Your vaults. Your keys. Your terminal."), "", pad+active.Render("  Open Vault  ")+muted.Render("  o / Ctrl+O"), "", pad+muted.Render("Open an existing KeePass-compatible .kdbx file."))
+	lines = append(lines, pad+accent.Render("        ◇"), "", pad+accent.Render("bypass secrets manager"), pad+muted.Render("Your vaults. Your keys. Your terminal."), "", pad+active.Render("  Open Vault  ")+muted.Render("  o / Ctrl+O"), "", pad+muted.Render("Open an existing KeePass-compatible .kdbx file."))
 	if m.canCreateVault() {
 		lines = append(lines, pad+accent.Render("New Vault")+muted.Render("  N"))
 	}
@@ -122,10 +122,18 @@ func (m *Model) welcomeLines() []string {
 	if m.backendMissing {
 		lines = append(lines, "", pad+errorStyle.Render("Install KeePassXC or set --backend executable."))
 	}
-	for len(lines) < m.height-2 {
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	footerHeight := 2
+	if compact {
+		footerHeight = 1
+	}
+	for len(lines) < m.height-footerHeight {
 		lines = append(lines, "")
 	}
-	lines = append(lines, m.themedRule(w), muted.Render("  o open vault    ? shortcuts    q quit"))
+	if !compact {
+		lines = append(lines, m.themedRule(w))
+	}
+	lines = append(lines, m.footerLine("o open vault    ? shortcuts    q quit"))
 	return lines
 }
 
@@ -234,7 +242,7 @@ func (m *Model) workspaceLines() []string {
 		if !compact {
 			lines = append(lines, m.themedRule(w))
 		}
-		return append(lines, muted.Render("  Enter unlock    Ctrl+W close view    q quit"))
+		return append(lines, m.footerLine("Enter unlock    Ctrl+W close view    q quit"))
 	}
 	l := m.layout()
 	lines = append(lines, m.layoutBody(l)...)
@@ -254,7 +262,21 @@ func (m *Model) workspaceLines() []string {
 	if !compact {
 		lines = append(lines, m.themedRule(w))
 	}
-	return append(lines, muted.Render(fit(footer, w)))
+	return append(lines, m.footerLine(footer))
+}
+
+func (m *Model) footerLine(text string) string {
+	c := m.colors()
+	style := c.active.Foreground(c.base.GetBackground()).Background(c.accent.GetForeground())
+	badge := style.Render(" bypass ")
+	if strings.EqualFold(m.settings.Appearance, "compact") {
+		if m.settings.ASCII {
+			badge = style.Render("[ bypass ]")
+		} else {
+			badge = renderPill("bypass", 10, style, c.base)
+		}
+	}
+	return fit(badge+" "+c.muted.Render(strings.TrimSpace(text)), m.width)
 }
 
 func (m *Model) layoutBody(layout viewLayout) []string {

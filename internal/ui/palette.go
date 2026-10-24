@@ -95,7 +95,7 @@ func (m *Model) commands() []command {
 	}
 	add("new-vault", "File", "New Vault…", "N", createReason, "", func() tea.Cmd { return m.leaveEditor(m.openCreateVault) })
 	add("open", "File", "Open Vault…", "Ctrl+O", "", "files", nil)
-	add("quit", "App", "Quit Bypass", "q", "", "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }) })
+	add("quit", "App", "Quit bypass", "q", "", "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }) })
 	closeReason := ""
 	if v == nil {
 		closeReason = "No open view"
