@@ -214,7 +214,7 @@ func TestUnlockControlsFitMinimumSize(t *testing.T) {
 	m.width, m.height = 65, 16
 	m.err = "Could not unlock"
 	text := m.View()
-	for _, want := range []string{"Password auth", "Could not unlock", "Enter unlock"} {
+	for _, want := range []string{"Password auth", "Could not unlock", "enter unlock"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("minimum view hides %q", want)
 		}

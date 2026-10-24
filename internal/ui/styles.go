@@ -6,6 +6,21 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var shortcutLabelCaser = strings.NewReplacer(
+	"Ctrl+", "ctrl+",
+	"Enter", "enter",
+	"Esc", "esc",
+	"Tab", "tab",
+	"Space", "space",
+	"Delete", "delete",
+	"PgUp", "pgup",
+	"PgDn", "pgdn",
+)
+
+func lowercaseShortcutLabels(text string) string {
+	return shortcutLabelCaser.Replace(text)
+}
+
 type styleSet struct {
 	base, accent, muted, lineStyle, active, inactive, errorStyle lipgloss.Style
 }

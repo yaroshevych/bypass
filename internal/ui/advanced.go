@@ -379,6 +379,7 @@ func (m *Model) advancedScreen() ([]string, bool) {
 }
 
 func (m *Model) overlay(title string, body []string, footer string, width, x, y int) []string {
+	footer = lowercaseShortcutLabels(footer)
 	c := m.colors()
 	width = min(max(20, width), max(20, m.width-2))
 	maxBody := max(1, m.height-8)
@@ -446,22 +447,24 @@ func (m *Model) modalBackdrop() []string {
 
 func (m *Model) footerText() string {
 	v := m.ws.ActiveView()
-	text := "/ filter · Ctrl+P commands"
-	if v != nil {
-		if v.Query != "" {
-			text += " · Fuzzy search: " + safe(v.Query)
-		}
-		if v.NavFilter != "" {
-			text += " · Views filter: " + safe(v.NavFilter)
-		}
-		if v.DetailFilter != "" {
-			text += " · Fields filter: " + safe(v.DetailFilter)
-		}
-	}
 	if m.searching {
-		label := []string{"Views", "Entries", "Fields"}[min(max(0, m.searchColumn), 2)]
-		text += " · " + label + " search: " + safe(m.query.value()) + "▏"
+		query := strings.TrimSpace(m.query.value())
+		if query == "" {
+			return "/ filter"
+		}
+		return "/ " + safe(query)
 	}
+	if v != nil && (v.Query != "" || v.NavFilter != "" || v.DetailFilter != "") {
+		query := v.Query
+		if query == "" {
+			query = v.NavFilter
+		}
+		if query == "" {
+			query = v.DetailFilter
+		}
+		return "/ " + safe(query)
+	}
+	text := "/ filter · ctrl+p commands"
 	if m.searchError != "" {
 		text += " · " + m.searchError
 	}
@@ -473,21 +476,21 @@ func (m *Model) footerContext() string {
 		return ""
 	}
 	if m.editor != nil {
-		return "Ctrl+S save · Esc cancel · Ctrl+G generator"
+		return "ctrl+s save · esc cancel · ctrl+g generator"
 	}
 	if m.searching {
-		return "Enter apply · Esc cancel"
+		return "enter apply · esc cancel"
 	}
 	v := m.ws.ActiveView()
 	if v == nil {
 		return ""
 	}
 	if v.Query != "" || v.NavFilter != "" || v.DetailFilter != "" {
-		return "Esc clear"
+		return "esc cancel"
 	}
 	switch v.Focus {
 	case 0:
-		return "↑↓ select · Enter entries"
+		return "↑↓ select · enter entries"
 	case 1:
 		return "n new · e edit"
 	case 2:

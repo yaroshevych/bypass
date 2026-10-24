@@ -605,13 +605,13 @@ func dirtyMarker(dirty bool) string {
 func editorFooter(width int) string {
 	switch {
 	case width >= 40:
-		return "Tab focus · Ctrl+S save · Esc cancel"
+		return "tab focus · ctrl+s save · esc cancel"
 	case width >= 24:
-		return "Ctrl+S save · Esc cancel"
+		return "ctrl+s save · esc cancel"
 	case width >= 12:
-		return "Ctrl+S save · Esc"
+		return "ctrl+s save · esc"
 	default:
-		return "Ctrl+S/Esc"
+		return "ctrl+s/esc"
 	}
 }
 

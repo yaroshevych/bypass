@@ -57,12 +57,28 @@ func TestViewStripsTerminalControlsFromDatabaseText(t *testing.T) {
 	}
 }
 
+func TestSelectedEntryDoesNotReceiveSearchMatchHighlight(t *testing.T) {
+	m := New(Options{})
+	m.ws.Open(fixture("/tmp/selected-search-highlight.kdbx"))
+	m.width, m.height = 120, 35
+	m.normalize()
+	v := m.ws.ActiveView()
+	v.Focus = 1
+	v.SelectedUUID = "a"
+	withoutQuery := ansi.Strip(m.entryLines(80, 10, true)[1])
+	v.Query = "a"
+	withQuery := ansi.Strip(m.entryLines(80, 10, true)[1])
+	if withQuery != withoutQuery {
+		t.Fatalf("selected entry changed when its match was highlighted:\nbefore %q\nafter  %q", withoutQuery, withQuery)
+	}
+}
+
 func TestMinimumUnlockKeepsFilenameAndEssentialControls(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 48, 14
 	m.path = "/a/very/long/directory/with/many/components/demo-vault.kdbx"
 	text := ansi.Strip(strings.Join(m.unlockLines(), "\n"))
-	for _, label := range []string{"demo-vault.kdbx", "Password:", "Key file:", "Hardware slot:", "Password auth:", "Esc cancel"} {
+	for _, label := range []string{"demo-vault.kdbx", "Password:", "Key file:", "Hardware slot:", "Password auth:", "esc cancel"} {
 		if !strings.Contains(text, label) {
 			t.Fatalf("minimum-size unlock lost %q:\n%s", label, text)
 		}

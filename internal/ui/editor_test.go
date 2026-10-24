@@ -264,7 +264,7 @@ func TestEntryEditorNotesCursorRemainsVisibleWhenPaneIsShort(t *testing.T) {
 	if len(lines) != 12 {
 		t.Fatalf("render produced %d lines, want 12", len(lines))
 	}
-	for _, want := range []string{"New Entry", "Notes", "▏", "Ctrl+S save", "Esc cancel"} {
+	for _, want := range []string{"New Entry", "Notes", "▏", "ctrl+s save", "esc cancel"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("short-pane render missing %q:\n%s", want, joined)
 		}

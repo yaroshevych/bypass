@@ -55,6 +55,55 @@ func TestSearchHistoryRepeatApplyAndRemove(t *testing.T) {
 	}
 }
 
+func TestBinSearchIncludesEntriesFromSearchDisabledGroups(t *testing.T) {
+	m := New(Options{})
+	db := fixture("/tmp/bin-search.kdbx")
+	db.Groups[0].SearchEnabled = false
+	db.Entries[0].Recycled = true
+	db.Entries[0].Fields[1].Value = "Mira Wilson"
+	m.ws.Open(db)
+	m.normalize()
+	v := m.ws.ActiveView()
+	v.NavKey = "trash"
+	m.remapNav()
+	v.Query = "mir"
+	entries := m.entries()
+	if len(entries) != 1 || entries[0].UUID != "a" {
+		t.Fatalf("Bin search for username returned %#v", entries)
+	}
+}
+
+func TestSlashAlwaysSearchesTheEntryList(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		width int
+	}{
+		{name: "wide", width: 140},
+		{name: "narrow", width: 70},
+	} {
+		for _, initialFocus := range []int{0, 1, 2} {
+			focusName := []string{"sidebar", "entries", "details"}[initialFocus]
+			t.Run(tt.name+"/"+focusName, func(t *testing.T) {
+				m, _ := operationModel(t)
+				m.width, m.height = tt.width, 30
+				v := m.ws.ActiveView()
+				v.Focus = initialFocus
+				m.key(key("/"))
+				if !m.searching || m.searchColumn != 1 || v.Focus != 1 {
+					t.Fatalf("slash search state = searching %v, column %d, focus %d", m.searching, m.searchColumn, v.Focus)
+				}
+				if tt.name == "narrow" && m.layout().Panes[0].Focus != 1 {
+					t.Fatalf("narrow layout did not navigate to the entry list: %+v", m.layout())
+				}
+				m.key(key("esc"))
+				if m.searching || v.Focus != initialFocus {
+					t.Fatalf("cancel did not restore the original focus %d: %#v", initialFocus, *v)
+				}
+			})
+		}
+	}
+}
+
 func TestJumpToPasswordDoesNotRevealIt(t *testing.T) {
 	m, _ := operationModel(t)
 	v := m.ws.ActiveView()

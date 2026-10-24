@@ -59,9 +59,9 @@ func (m *Model) View() string {
 		if m.settings.ASCII {
 			minimum = "Resize to at least 48x14"
 		}
-		lines = []string{accent.Render("bypass"), "Terminal too small", muted.Render(minimum), "q quit · Ctrl+C quit"}
+		lines = []string{accent.Render("bypass"), "Terminal too small", muted.Render(minimum), "q quit · ctrl+c quit"}
 		if m.editor != nil && m.editor.dirty() {
-			lines[3] = "Draft kept · resize · Ctrl+C quits"
+			lines[3] = "Draft kept · resize · ctrl+c quits"
 		}
 	} else if advanced, ok := m.advancedScreen(); ok {
 		lines = advanced
@@ -98,7 +98,7 @@ func (m *Model) welcomeLines() []string {
 	left := max(0, (w-contentW)/2)
 	pad := strings.Repeat(" ", left)
 	lines := make([]string, max(1, (m.height-18)/2))
-	lines = append(lines, pad+accent.Render("        ◇"), "", pad+accent.Render("bypass secrets manager"), pad+muted.Render("Your vaults. Your keys. Your terminal."), "", pad+active.Render("  Open Vault  ")+muted.Render("  o / Ctrl+O"), "", pad+muted.Render("Open an existing KeePass-compatible .kdbx file."))
+	lines = append(lines, pad+accent.Render("        ◇"), "", pad+accent.Render("bypass secrets manager"), pad+muted.Render("Your vaults. Your keys. Your terminal."), "", pad+active.Render("  Open Vault  ")+muted.Render("  o / ctrl+o"), "", pad+muted.Render("Open an existing KeePass-compatible .kdbx file."))
 	if m.canCreateVault() {
 		lines = append(lines, pad+accent.Render("New Vault")+muted.Render("  N"))
 	}
@@ -114,7 +114,7 @@ func (m *Model) welcomeLines() []string {
 			}
 			lines = append(lines, pad+text)
 		}
-		lines = append(lines, pad+muted.Render("↑↓ select · Enter open · Delete remove recent"))
+		lines = append(lines, pad+muted.Render("↑↓ select · enter open · delete remove recent"))
 	}
 	if m.notice != "" {
 		lines = append(lines, "", pad+muted.Render(m.notice))
@@ -231,7 +231,7 @@ func (m *Model) workspaceLines() []string {
 		lines = append(lines, m.themedRule(w))
 	}
 	if s.DB == nil {
-		lines = append(lines, "", accent.Render("  Vault locked"), muted.Render("  Enter to unlock with vault credentials."), "", muted.Render("  1–9 switch vault views · Ctrl+O open another vault"))
+		lines = append(lines, "", accent.Render("  Vault locked"), muted.Render("  enter to unlock with vault credentials."), "", muted.Render("  1–9 switch vault views · ctrl+o open another vault"))
 		footerHeight := 2
 		if compact {
 			footerHeight = 1
@@ -242,7 +242,7 @@ func (m *Model) workspaceLines() []string {
 		if !compact {
 			lines = append(lines, m.themedRule(w))
 		}
-		return append(lines, m.footerLine("Enter unlock    Ctrl+W close view    q quit"))
+		return append(lines, m.footerLine("enter unlock    ctrl+w close view    q quit"))
 	}
 	l := m.layout()
 	if !compact {
@@ -278,7 +278,13 @@ func (m *Model) workspaceLines() []string {
 			}
 		}
 	}
-	return append(lines, m.footerLine(footer, contextual))
+	footerLine := m.footerLine(footer, contextual)
+	if m.searching {
+		footerLine = m.searchFooterLine(footer, contextual, false)
+	} else if v := m.ws.ActiveView(); v != nil && (v.Query != "" || v.NavFilter != "" || v.DetailFilter != "") {
+		footerLine = m.searchFooterLine(footer, contextual, true)
+	}
+	return append(lines, footerLine)
 }
 
 func (m *Model) paneRule(layout viewLayout, top bool) string {
@@ -313,12 +319,67 @@ func (m *Model) footerBadge() string {
 }
 
 func (m *Model) footerLine(text string, contextual ...string) string {
+	return m.footerLineWithLeftStyle(text, m.colors().muted, contextual...)
+}
+
+func (m *Model) searchFooterLine(text, contextual string, applied bool) string {
+	c := m.colors()
+	style := c.inactive
+	if applied {
+		style = c.base.Bold(true).Background(c.inactive.GetBackground())
+	}
+	if strings.EqualFold(m.settings.Appearance, "compact") {
+		label := strings.TrimSpace(text)
+		var content string
+		switch {
+		case m.searching && strings.TrimSpace(m.query.value()) == "":
+			content = c.inactive.Render("/ ") + c.active.Render("f") + c.inactive.Render("ilter ")
+		case m.searching:
+			content = c.inactive.Render(label) + c.active.Render(" ")
+		default:
+			content = style.Render(label + " ")
+		}
+		width := lipgloss.Width(content) + 2 // one cell of inner padding per side plus caps
+		edge := c.base.Foreground(style.GetBackground())
+		control := fit(edge.Render("\ue0b6")+content+edge.Render("\ue0b4"), width)
+		if m.settings.ASCII {
+			control = fit(style.Render("[")+content+style.Render("]"), width)
+		}
+		left := m.footerBadge() + " " + control
+		if contextual != "" {
+			left += " " + c.muted.Render(lowercaseShortcutLabels(contextual))
+		}
+		return fit(ansi.Truncate(left, m.width, "…"), m.width)
+	}
+	if m.searching && strings.TrimSpace(m.query.value()) == "" {
+		text = c.inactive.Render(" ") + c.inactive.Render("/ ") + c.active.Render("f") + c.inactive.Render("ilter") + c.inactive.Render(" ")
+	} else if m.searching {
+		text = style.Render(" "+strings.TrimSpace(text)) + c.active.Render(" ")
+	} else {
+		text = style.Render(" " + strings.TrimSpace(text) + " ")
+	}
+	left := m.footerBadge()
+	left += text
+	if contextual != "" {
+		left += " " + c.muted.Render(lowercaseShortcutLabels(contextual))
+	}
+	return fit(ansi.Truncate(left, m.width, "…"), m.width)
+}
+
+func (m *Model) footerLineWithLeftStyle(text string, leftStyle lipgloss.Style, contextual ...string) string {
+	text = lowercaseShortcutLabels(text)
 	c := m.colors()
 	badge := m.footerBadge()
-	left := badge + " " + c.muted.Render(strings.TrimSpace(text))
+	gap := " "
+	if strings.HasPrefix(strings.TrimSpace(text), "/ filter · ctrl+p commands") {
+		if strings.EqualFold(m.settings.Appearance, "compact") {
+			gap = "  "
+		}
+	}
+	left := badge + gap + leftStyle.Render(strings.TrimSpace(text))
 	if len(contextual) > 0 && contextual[0] != "" {
-		right := c.muted.Render(contextual[0])
-		minimumLeft := lipgloss.Width(badge) + 1 + lipgloss.Width("/ filter · Ctrl+P commands")
+		right := c.muted.Render(lowercaseShortcutLabels(contextual[0]))
+		minimumLeft := lipgloss.Width(badge) + lipgloss.Width(gap) + lipgloss.Width("/ filter · ctrl+p commands")
 		if status := m.clipboardStatus(); status != "" {
 			minimumLeft += 3 + lipgloss.Width(status)
 		}
@@ -435,7 +496,7 @@ func (m *Model) layoutBreadcrumb(layout viewLayout) string {
 		back = "<"
 	}
 	if layout.Zoomed {
-		return "  " + location + "  ·  Zoomed  ·  Esc restore layout"
+		return "  " + location + "  ·  Zoomed  ·  esc restore layout"
 	}
 	return "  " + back + " " + location + "  ·  Tab next pane"
 }
@@ -688,7 +749,7 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 		}
 		lines = append(lines, "", muted.Render(" "+text))
 		if v.Query != "" {
-			lines = append(lines, muted.Render(" Esc clears filter"))
+			lines = append(lines, muted.Render(" esc clears filter"))
 		} else {
 			text := " n creates an entry"
 			if s := m.ws.ActiveSession(); s != nil && s.ReadOnly {
@@ -712,6 +773,7 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 	}
 	for i := start; i < len(entries) && len(lines) < height; i++ {
 		e := entries[i]
+		selected := e.UUID == v.SelectedUUID
 		url := strings.TrimPrefix(strings.TrimPrefix(visibleField(e, "URL"), "https://"), "http://")
 		title, username := visibleField(e, "Title"), visibleField(e, "UserName")
 		if e.HasTOTP {
@@ -723,16 +785,16 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 		if e.ExpiryEnabled && !e.Expires.IsZero() && !m.now().Before(e.Expires) {
 			title += " [expired]"
 		}
-		if v.Query != "" {
+		if v.Query != "" && !selected {
 			title = m.highlightText(title, v.Query, "Title")
 			username = m.highlightText(username, v.Query, "UserName")
 			url = m.highlightText(url, v.Query, "URL")
 		}
 		text := row(title, username, url)
 		if compact {
-			if e.UUID == v.SelectedUUID && !m.settings.ASCII {
+			if selected && !m.settings.ASCII {
 				text = m.pill(text, width, focused)
-			} else if e.UUID == v.SelectedUUID {
+			} else if selected {
 				style := inactive
 				if focused {
 					style = active
@@ -741,7 +803,7 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 			} else {
 				text = fit("  "+text, width)
 			}
-		} else if e.UUID == v.SelectedUUID {
+		} else if selected {
 			if focused {
 				text = active.Render(text)
 			} else {
@@ -850,6 +912,7 @@ func padLines(lines []string, height int) []string {
 }
 
 func (m *Model) box(title string, body []string, footer string) []string {
+	footer = lowercaseShortcutLabels(footer)
 	styles := m.colors()
 	accent, muted := styles.accent, styles.muted
 	width := min(m.width-6, 82)
@@ -897,10 +960,10 @@ func (m *Model) unlockLines() []string {
 	}
 	body := []string{muted.Render(path), ""}
 	labels := []string{"Password", "Key file (optional)", "Hardware slot (optional, e.g. 1)", "Password authentication"}
-	footer := "Enter unlock · Tab next · Space toggle · Esc cancel"
+	footer := "enter unlock · tab next · space toggle · esc cancel"
 	if m.width < 70 {
 		labels = []string{"Password", "Key file", "Hardware slot", "Password auth"}
-		footer = "Enter unlock · Tab next · Esc cancel"
+		footer = "enter unlock · tab next · esc cancel"
 	}
 	for i, label := range labels {
 		prefix := "  "
@@ -925,7 +988,7 @@ func (m *Model) unlockLines() []string {
 		body = append(body, line)
 	}
 	if m.busy {
-		body = append(body, accent.Render("Unlocking… Esc cancels"))
+		body = append(body, accent.Render("Unlocking… esc cancels"))
 	}
 	if m.err != "" {
 		body = append(body, errorStyle.Render(m.err))
@@ -966,7 +1029,7 @@ func (m *Model) pickerLines() []string {
 	if m.err != "" {
 		body = append(body, "", errorStyle.Render(m.err))
 	}
-	return m.box("Open Vault", body, "↑↓ select · Enter open · ← parent · Tab path · Esc cancel")
+	return m.box("Open Vault", body, "↑↓ select · enter open · ← parent · tab path · esc cancel")
 }
 
 func (m *Model) helpLines() []string {
@@ -979,5 +1042,5 @@ func (m *Model) helpLines() []string {
 	capacity := max(1, m.height-8)
 	start := min(m.helpOffset, max(0, len(body)-capacity))
 	end := min(len(body), start+capacity)
-	return m.box("Keyboard Shortcuts", body[start:end], "↑↓ scroll · Esc / Enter close")
+	return m.box("Keyboard Shortcuts", body[start:end], "↑↓ scroll · esc / enter close")
 }

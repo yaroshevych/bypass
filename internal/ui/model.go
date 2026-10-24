@@ -502,6 +502,9 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if m.searching {
 		return m.searchKey(k)
 	}
+	if m.debugAppearanceToggle(key) {
+		return nil
+	}
 	switch key {
 	case "N", "ctrl+n":
 		return m.leaveEditor(m.openCreateVault)

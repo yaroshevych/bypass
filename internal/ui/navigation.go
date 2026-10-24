@@ -274,7 +274,9 @@ func (m *Model) filterEntries(nav navItem, query string) []vault.Entry {
 				continue
 			}
 		}
-		if query != "" && !searchable[e.GroupUUID] {
+		// Bin is an explicit user-selected view; keep its entries searchable
+		// even when their former group was excluded from ordinary searches.
+		if query != "" && nav.kind != "trash" && !searchable[e.GroupUUID] {
 			continue
 		}
 		entries = append(entries, e)
@@ -340,9 +342,11 @@ func (m *Model) beginSearch(global bool) tea.Cmd {
 		v.NavKey = "all"
 		v.GroupUUID = ""
 		m.remapNav()
-		v.Focus = 1
 	}
-	m.searchColumn = v.Focus
+	// Slash always searches the central entry list. In narrow mode, changing
+	// Focus also navigates the single visible pane to the entry list.
+	v.Focus = 1
+	m.searchColumn = 1
 	m.searching = true
 	m.previousQuery = m.paneFilter()
 	m.query.set(m.previousQuery)
@@ -462,7 +466,7 @@ func (m *Model) highlightText(text, query, field string) string {
 	var b strings.Builder
 	for i, r := range []rune(text) {
 		if marked[i] {
-			b.WriteString(m.colors().accent.Underline(true).Render(string(r)))
+			b.WriteString(m.colors().inactive.Render(string(r)))
 		} else {
 			b.WriteRune(r)
 		}
