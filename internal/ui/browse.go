@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 	"keepassui/internal/vault"
@@ -192,7 +194,7 @@ func (m *Model) destinationPointer(msg tea.MouseMsg) {
 	}
 	lines := m.dialogLines()
 	top := 0
-	for top < len(lines) && ansi.Strip(lines[top]) == "" {
+	for top < len(lines) && strings.TrimSpace(ansi.Strip(ansi.Cut(lines[top], left+2, left+boxWidth-2))) != d.title {
 		top++
 	}
 	firstGroupRow := top + 2 + len(d.message) + 3

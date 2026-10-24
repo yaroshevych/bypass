@@ -40,3 +40,16 @@ coverage:
     mkdir -p evals/artifacts
     go test -race -coverprofile=evals/artifacts/coverage.out ./cmd/keepassui ./internal/...
     go tool cover -func=evals/artifacts/coverage.out
+
+# Synthetic native vault + real tmux journey; PNG, ANSI, text and metadata.
+screenshot screen="workspace" appearance="classic" theme="macchiato" width="120" height="35": build
+    python3 evals/screenshots/capture.py {{quote(screen)}} --appearance {{quote(appearance)}} --theme {{quote(theme)}} --width {{quote(width)}} --height {{quote(height)}}
+
+screenshots: build
+    python3 evals/screenshots/capture.py --all
+
+screenshot-list:
+    python3 evals/screenshots/capture.py --list
+
+screenshot-check:
+    python3 -m unittest discover -s evals/screenshots -p 'test_*.py'

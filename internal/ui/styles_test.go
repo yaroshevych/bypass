@@ -56,3 +56,15 @@ func TestViewStripsTerminalControlsFromDatabaseText(t *testing.T) {
 		t.Fatal("database content injected a terminal control sequence")
 	}
 }
+
+func TestMinimumUnlockKeepsFilenameAndEssentialControls(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 48, 14
+	m.path = "/a/very/long/directory/with/many/components/demo-vault.kdbx"
+	text := ansi.Strip(strings.Join(m.unlockLines(), "\n"))
+	for _, label := range []string{"demo-vault.kdbx", "Password:", "Key file:", "Hardware slot:", "Password auth:", "Esc cancel"} {
+		if !strings.Contains(text, label) {
+			t.Fatalf("minimum-size unlock lost %q:\n%s", label, text)
+		}
+	}
+}

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -78,12 +79,17 @@ func TestDestinationViewportAndMouseShareScrollOffset(t *testing.T) {
 
 	target := next + 4
 	lines := m.dialogLines()
-	top := 0
-	for top < len(lines) && ansi.Strip(lines[top]) == "" {
-		top++
+	row := -1
+	for i, line := range lines {
+		if strings.Contains(ansi.Strip(line), groupLabel(d.filteredGroups()[target].Path)) {
+			row = i
+			break
+		}
 	}
-	firstGroupRow := top + 2 + len(d.message) + 3
-	msg := tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 50, Y: firstGroupRow + target - next}
+	if row < 0 {
+		t.Fatal("destination target is not visible")
+	}
+	msg := tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: 50, Y: row}
 	m.pointer(msg)
 	if d.selected != target {
 		t.Fatalf("mouse selected destination %d, want %d", d.selected, target)

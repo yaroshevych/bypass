@@ -122,6 +122,7 @@ func TestWorkspaceNativeViewsDraftsAndSessionLocks(t *testing.T) {
 	e.key("Escape")
 	e.mustShow("Unsaved entry")
 	e.key("Enter")
+	e.waitFor("cancel closes unsaved dialog", func() bool { return !strings.Contains(e.capture(), "Unsaved entry") })
 	e.mustShow("New Entry", "Saved Through Navigation")
 	e.key("Escape")
 	e.mustShow("Unsaved entry")
@@ -137,6 +138,7 @@ func TestWorkspaceNativeViewsDraftsAndSessionLocks(t *testing.T) {
 	e.mustShow("Unsaved entry")
 	e.key("Left")
 	e.key("Enter")
+	e.waitFor("discard closes unsaved dialog", func() bool { return !strings.Contains(e.capture(), "Unsaved entry") })
 	e.mustNotShow("Discarded Through Navigation")
 
 	// Open a second, independently encrypted native vault. Locking it leaves

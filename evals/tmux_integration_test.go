@@ -199,11 +199,13 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 	e.key("Escape")
 	e.mustShow("Unsaved entry")
 	e.key("Enter")
+	e.waitFor("cancel closes unsaved dialog", func() bool { return !strings.Contains(e.capture(), "Unsaved entry") })
 	e.mustShow("New Entry")
 	e.key("Escape")
 	e.mustShow("Unsaved entry")
 	e.key("Left")
 	e.key("Enter")
+	e.waitFor("discard closes unsaved dialog", func() bool { return !strings.Contains(e.capture(), "Unsaved entry") })
 	e.mustNotShow("Discard Draft")
 
 	// Create a group, move the entry into it, recycle, then restore to root.
@@ -678,7 +680,27 @@ func (e *evalSession) mustActiveVault(name string) {
 
 func (e *evalSession) mustShowWrite(parts ...string) {
 	e.t.Helper()
-	e.mustShowWithin(20*time.Second, parts...)
+	e.waitForWithin(20*time.Second, "completed operation: "+strings.Join(parts, ", "), func() bool {
+		s := e.capture()
+		if strings.Contains(s, "Working…") {
+			return false
+		}
+		if strings.Contains(strings.Join(parts, " "), "Saved. Encrypted backup created.") {
+			// A shaded modal preserves the previous success notice underneath.
+			// That notice is not evidence that this mutation has completed.
+			for _, title := range []string{"New Entry", "Edit Entry", "New Group", "Move Entry", "Restore Entry", "Move to Recycle Bin", "Delete Permanently", "Unsaved entry"} {
+				if strings.Contains(s, title) {
+					return false
+				}
+			}
+		}
+		for _, part := range parts {
+			if !strings.Contains(s, part) {
+				return false
+			}
+		}
+		return true
+	})
 }
 
 func (e *evalSession) mustShowWithin(timeout time.Duration, parts ...string) {

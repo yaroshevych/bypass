@@ -4,3 +4,4 @@
 *.key
 .env
 .DS_Store
+__pycache__/

@@ -70,12 +70,17 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	e.mustShow("New Group")
 	e.typeText("Temporary Group")
 	e.key("Enter")
+	e.waitForWithin(20*time.Second, "new group dialog completed", func() bool {
+		s := e.capture()
+		return !strings.Contains(s, "New Group") && !strings.Contains(s, "Working…") && strings.Contains(s, "Saved. Encrypted backup created.")
+	})
 	e.mustShowWrite("Temporary Group", "Saved. Encrypted backup created.")
 	e.key("Left")
 	groupHash := vaultFileHash(t, e.realDB)
 	e.key("d")
 	e.mustShow("Move to Recycle Bin", "Temporary Group", "Cancel")
 	e.key("Enter")
+	e.waitFor("group-delete cancel closes dialog", func() bool { return !strings.Contains(e.capture(), "Move to Recycle Bin") })
 	if vaultFileHash(t, e.realDB) != groupHash {
 		t.Fatal("default group-delete confirmation mutated the vault")
 	}

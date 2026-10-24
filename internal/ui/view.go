@@ -176,7 +176,11 @@ func (m *Model) workspaceLines() []string {
 		}
 		label = fit(label, span.End-span.Start)
 		if span.Index == m.ws.Active {
-			label = active.Render(label)
+			if compact && !m.settings.ASCII {
+				label = m.pill(labels[span.Index], span.End-span.Start, true)
+			} else {
+				label = active.Render(label)
+			}
 		} else {
 			label = muted.Render(label)
 		}
@@ -437,7 +441,9 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 			}
 			label = fit(text, width)
 			if i == v.NavIndex {
-				if focused {
+				if !m.settings.ASCII {
+					label = m.pill(strings.Repeat("  ", min(item.depth, 3))+itemLabel+fmt.Sprintf("  %d", countValue), width, focused)
+				} else if focused {
 					label = active.Render(label)
 				} else {
 					label = inactive.Render(label)
@@ -470,10 +476,14 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 func (m *Model) entryLines(width, height int, focused bool) []string {
 	styles := m.colors()
 	accent, muted, active, inactive := styles.accent, styles.muted, styles.active, styles.inactive
-	tw := max(7, width*40/100)
-	uw := max(5, width*27/100)
-	urlw := max(0, width-tw-uw)
-	row := func(a, b, c string) string { return fit(a, tw) + fit(b, uw) + fit(c, urlw) }
+	available := max(0, width-2)
+	tw := min(available, max(7, available*40/100))
+	uw := min(available-tw, max(5, available*27/100))
+	urlw := max(0, available-tw-uw)
+	cell := func(text string, width int) string {
+		return fit(ansi.Truncate(text, width, "…"), width)
+	}
+	row := func(a, b, c string) string { return fit(cell(a, tw)+" "+cell(b, uw)+" "+cell(c, urlw), width) }
 	heading := row("Title", "Username", "Website")
 	if focused {
 		heading = accent.Render(heading)
@@ -655,18 +665,43 @@ func (m *Model) box(title string, body []string, footer string) []string {
 	content = append(content, m.themedRule(width), muted.Render("  "+footer))
 	left := max(0, (m.width-width)/2)
 	top := max(0, (m.height-len(content))/2)
-	lines := make([]string, top)
-	for _, line := range content {
-		lines = append(lines, strings.Repeat(" ", left)+line)
+	// Keep body coordinates shared with keyboard/mouse navigation, while giving
+	// every dialog an opaque surface, frame, and the same shaded workspace.
+	background := m.modalBackdrop()
+	border, tl, tr, bl, br, horizontal := "│", "┌", "┐", "└", "┘", "─"
+	if m.settings.ASCII {
+		border, tl, tr, bl, br, horizontal = "|", "+", "+", "+", "+", "-"
 	}
-	return lines
+	frame := func(row int, text string) {
+		if row < 0 || row >= len(background) {
+			return
+		}
+		original := background[row]
+		background[row] = ansi.Cut(original, 0, left) + text + ansi.Cut(original, left+width, m.width)
+	}
+	frame(top-1, styles.lineStyle.Render(tl+strings.Repeat(horizontal, width-2)+tr))
+	for i, line := range content {
+		frame(top+i, styles.lineStyle.Render(border)+styles.base.Render(" "+fit(ansi.Cut(line, 2, width-2), inner)+" ")+styles.lineStyle.Render(border))
+	}
+	frame(top+len(content), styles.lineStyle.Render(bl+strings.Repeat(horizontal, width-2)+br))
+	return background
 }
 
 func (m *Model) unlockLines() []string {
 	styles := m.colors()
 	accent, muted, errorStyle := styles.accent, styles.muted, styles.errorStyle
-	body := []string{muted.Render(safe(m.path)), ""}
+	path := safe(m.path)
+	pathWidth := max(1, min(m.width-6, 82)-4)
+	if cells := lipgloss.Width(path); cells > pathWidth {
+		path = "…" + ansi.Cut(path, cells-pathWidth+1, cells)
+	}
+	body := []string{muted.Render(path), ""}
 	labels := []string{"Password", "Key file (optional)", "Hardware slot (optional, e.g. 1)", "Password authentication"}
+	footer := "Enter unlock · Tab next · Space toggle · Esc cancel"
+	if m.width < 70 {
+		labels = []string{"Password", "Key file", "Hardware slot", "Password auth"}
+		footer = "Enter unlock · Tab next · Esc cancel"
+	}
 	for i, label := range labels {
 		prefix := "  "
 		if i == m.inputFocus {
@@ -695,7 +730,7 @@ func (m *Model) unlockLines() []string {
 	if m.err != "" {
 		body = append(body, errorStyle.Render(m.err))
 	}
-	return m.box("Unlock Vault", body, "Enter unlock · Tab next · Space toggle · Esc cancel")
+	return m.box("Unlock Vault", body, footer)
 }
 
 func (m *Model) pickerLines() []string {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"keepassui/internal/privacy"
 )
@@ -408,6 +409,28 @@ func (m *Model) overlay(title string, body []string, footer string, width, x, y 
 		y = (m.height - len(box)) / 2
 	}
 	y = min(max(0, y), max(0, m.height-len(box)))
+	background := m.modalBackdrop()
+	for i, line := range box {
+		row := y + i
+		if row >= m.height {
+			break
+		}
+		original := fit(background[row], m.width)
+		background[row] = ansi.Cut(original, 0, x) + line + ansi.Cut(original, x+width, m.width)
+	}
+	return background
+}
+
+func (m *Model) modalBackdrop() []string {
+	c := colorsForTheme(m.settings.Theme)
+	// Blend both text and surface toward black. Explicit cell backgrounds keep
+	// the scrim consistent in light themes and terminal multiplexers.
+	shade := func(value string, factor float64) lipgloss.Color {
+		var r, g, b int
+		fmt.Sscanf(value, "#%02x%02x%02x", &r, &g, &b)
+		return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", int(float64(r)*factor), int(float64(g)*factor), int(float64(b)*factor)))
+	}
+	scrim := lipgloss.NewStyle().Foreground(shade(c.muted, .60)).Background(shade(c.background, .78))
 	var background []string
 	if m.ws.ActiveSession() == nil {
 		background = m.welcomeLines()
@@ -416,15 +439,7 @@ func (m *Model) overlay(title string, body []string, footer string, width, x, y 
 	}
 	background = padLines(background, m.height)
 	for i := range background {
-		background[i] = c.muted.Render(fit(ansi.Strip(background[i]), m.width))
-	}
-	for i, line := range box {
-		row := y + i
-		if row >= m.height {
-			break
-		}
-		original := fit(background[row], m.width)
-		background[row] = ansi.Cut(original, 0, x) + line + ansi.Cut(original, x+width, m.width)
+		background[i] = scrim.Render(fit(ansi.Strip(background[i]), m.width))
 	}
 	return background
 }
