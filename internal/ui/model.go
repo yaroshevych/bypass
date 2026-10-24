@@ -82,6 +82,7 @@ type Model struct {
 	pickerRecentIndex                       int
 	recent                                  []string
 	recentIndex                             int
+	landingFocus                            int
 	err, notice                             string
 	busy                                    bool
 	cancel                                  context.CancelFunc
@@ -134,6 +135,11 @@ type openedMsg struct {
 type recentMsg struct {
 	paths []string
 	err   error
+}
+type landingRecentRemovedMsg struct {
+	paths   []string
+	err     error
+	removed int
 }
 type recentRemovedMsg struct {
 	paths   []string
@@ -297,9 +303,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case recentMsg:
 		m.recent = msg.paths
 		m.recentIndex = min(m.recentIndex, max(0, len(m.recent)-1))
+		m.landingFocus = min(m.landingFocus, m.landingMaxFocus())
 		if msg.err != nil {
 			m.notice = "Recent vaults unavailable; Open Vault still works."
 		}
+	case landingRecentRemovedMsg:
+		if msg.err != nil {
+			m.notice = "Could not remove this recent vault."
+			break
+		}
+		m.recent = msg.paths
+		m.recentIndex = min(m.recentIndex, max(0, len(m.recent)-1))
+		m.landingFocus = min(msg.removed, m.landingRecentCount())
 	case recentRemovedMsg:
 		if msg.updated {
 			m.setRecentAfterPickerRemoval(msg.paths)
@@ -578,27 +593,16 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	session := m.ws.ActiveSession()
 	if session == nil {
 		switch key {
-		case "o", "O", "enter":
-			if key == "enter" && len(m.recent) > 0 {
-				m.beginUnlock(m.recent[m.recentIndex])
-				return nil
-			}
+		case "o", "O":
 			return m.openPicker()
+		case "enter":
+			return m.activateLandingFocus()
 		case "up", "k":
-			m.recentIndex = max(0, m.recentIndex-1)
+			m.landingFocus = max(0, m.landingFocus-1)
 		case "down", "j":
-			m.recentIndex = min(max(0, len(m.recent)-1), m.recentIndex+1)
-		case "delete":
-			if len(m.recent) > 0 && m.store != nil {
-				path := m.recent[m.recentIndex]
-				return func() tea.Msg {
-					if err := m.store.Remove(path); err != nil {
-						return rememberedMsg{err}
-					}
-					paths, err := m.store.LoadRecent()
-					return recentMsg{paths, err}
-				}
-			}
+			m.landingFocus = min(m.landingMaxFocus(), m.landingFocus+1)
+		case "delete", "backspace":
+			return m.removeLandingRecent(m.landingFocus)
 		}
 		return nil
 	}
@@ -938,6 +942,9 @@ func (m *Model) fileKey(k tea.KeyMsg) tea.Cmd {
 			return m.changeDirectory(filepath.Dir(m.directory))
 		}
 		if m.pickerRecent {
+			if k.String() == "backspace" {
+				return m.removePickerRecent(m.pickerRecentIndex)
+			}
 			return nil
 		}
 		m.inputs[0].update(k)
@@ -1041,9 +1048,36 @@ func (m *Model) removePickerRecent(index int) tea.Cmd {
 	}
 }
 
+func (m *Model) removeLandingRecent(index int) tea.Cmd {
+	if index < 0 || index >= m.landingRecentCount() {
+		return nil
+	}
+	path := m.recent[index]
+	remaining := make([]string, 0, len(m.recent)-1)
+	remaining = append(remaining, m.recent[:index]...)
+	remaining = append(remaining, m.recent[index+1:]...)
+	if m.store == nil {
+		m.recent = remaining
+		m.landingFocus = min(index, m.landingMaxFocus())
+		return nil
+	}
+	store := m.store
+	return func() tea.Msg {
+		if err := store.Remove(path); err != nil {
+			return landingRecentRemovedMsg{err: err, removed: index}
+		}
+		paths, err := store.LoadRecent()
+		if err != nil {
+			paths = remaining
+		}
+		return landingRecentRemovedMsg{paths: paths, removed: index}
+	}
+}
+
 func (m *Model) setRecentAfterPickerRemoval(paths []string) {
 	m.recent = paths
 	m.recentIndex = min(m.recentIndex, max(0, len(m.recent)-1))
+	m.landingFocus = min(m.landingFocus, m.landingMaxFocus())
 	count := m.pickerRecentCount()
 	if count == 0 {
 		m.pickerRecent = false

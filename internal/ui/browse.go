@@ -173,25 +173,34 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	if m.ws.ActiveSession() == nil {
-		top := max(1, (m.height-18)/2)
-		if msg.Y == top+5 {
-			return m.openPicker()
-		}
-		extra := 0
-		if m.canCreateVault() {
-			if msg.Y == top+8 {
-				return m.openCreateVault()
-			}
-			extra = 1
-		}
-		index := msg.Y - top - 10 - extra
-		if index >= 0 && index < min(5, len(m.recent)) {
-			m.recentIndex = index
-			m.beginUnlock(m.recent[index])
-		}
-		return nil
+		return m.welcomePointer(msg)
 	}
 	m.mouse(msg)
+	return nil
+}
+
+func (m *Model) welcomePointer(msg tea.MouseMsg) tea.Cmd {
+	lines := m.welcomeLines()
+	if msg.Y < 0 || msg.Y >= len(lines) {
+		return nil
+	}
+	plain := ansi.Strip(lines[msg.Y])
+	for i := 0; i < m.landingRecentCount(); i++ {
+		label := safe(vaultLabel(m.recent[i]))
+		if strings.Contains(plain, label) {
+			m.landingFocus = i
+			m.recentIndex = i
+			return nil
+		}
+	}
+	if strings.Contains(plain, "ctrl+o") {
+		m.landingFocus = m.landingRecentCount()
+		return m.openPicker()
+	}
+	if strings.Contains(plain, "ctrl+n") {
+		m.landingFocus = m.landingRecentCount() + 1
+		return m.openCreateVault()
+	}
 	return nil
 }
 
@@ -278,7 +287,7 @@ func (m *Model) pickerRecentCount() int {
 
 func (m *Model) pickerStatusBar() string {
 	if m.screen == chooseFile && m.pickerRecent {
-		return "delete remove recent"
+		return m.recentRemovalStatusBar()
 	}
 	return ""
 }

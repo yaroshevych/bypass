@@ -10,6 +10,7 @@ import (
 
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/workspace"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -95,6 +96,7 @@ func (m *Model) View() string {
 		modal = true
 	} else if m.ws.ActiveSession() == nil {
 		lines = m.welcomeLines()
+		modal = true
 	} else {
 		lines = m.workspaceLines()
 	}
@@ -191,43 +193,117 @@ func restoreThemeResets(text, foreground, background string) string {
 }
 
 func (m *Model) welcomeLines() []string {
-	styles := m.colors()
-	accent, secondary, active, inactive, error := styles.accent, styles.secondary, styles.active, styles.inactive, styles.error
-	w := m.width
-	contentW := min(62, w-8)
-	left := max(0, (w-contentW)/2)
-	pad := strings.Repeat(" ", left)
-	lines := make([]string, max(1, (m.height-18)/2))
-	lines = append(lines, pad+accent.Render("        ◇"), "", pad+accent.Render("bypass secrets manager"), pad+secondary.Render("Your vaults. Your keys. Your terminal."), "", pad+active.Render("  Open Vault  ")+secondary.Render("  o / ctrl+o"), "", pad+secondary.Render("Open an existing KeePass-compatible .kdbx file."))
-	if m.canCreateVault() {
-		lines = append(lines, pad+accent.Render("New Vault")+secondary.Render("  N"))
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	headerIndent := "  "
+	if !compact {
+		headerIndent = " "
 	}
-	if len(m.recent) > 0 {
-		lines = append(lines, "", pad+accent.Render("Recent Vaults"))
-		for i, path := range m.recent {
-			if i >= min(5, max(1, m.height-len(lines)-5)) {
-				break
+	rows := make([]listComponentRow, 0, m.landingBodyRows())
+	recentCount := m.landingRecentCount()
+	if recentCount > 0 {
+		rows = append(rows, listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "RECENT ", divider: true})
+		for i := 0; i < recentCount; i++ {
+			name := safe(vaultLabel(m.recent[i])) + " · " + safe(filepath.Dir(m.recent[i]))
+			if !compact {
+				name = " " + name
 			}
-			text := fit("  "+safe(filepath.Base(path))+"  "+safe(filepath.Dir(path)), contentW)
-			if i == m.recentIndex {
-				text = inactive.Render(text)
-			}
-			lines = append(lines, pad+text)
+			rows = append(rows, listComponentRow{
+				kind: listComponentItem, item: i, text: name, selected: m.landingFocus == i,
+				activeFill: true, pillSelected: true,
+			})
 		}
-		lines = append(lines, pad+secondary.Render("↑↓ select · enter open · delete remove recent"))
+		rows = append(rows, listComponentRow{kind: listComponentSpacer, item: -1})
 	}
-	if m.notice != "" {
-		lines = append(lines, "", pad+secondary.Render(m.notice))
+	rows = append(rows, listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "VAULTS ", divider: true})
+	openFocus := recentCount
+	openLabel, openShortcut := "Open", "ctrl+o"
+	createLabel, createShortcut := "Create", "ctrl+n"
+	if !compact {
+		openLabel, openShortcut = " Open", "ctrl+o "
+		createLabel, createShortcut = " Create", "ctrl+n "
 	}
-	if m.backendMissing {
-		lines = append(lines, "", pad+error.Render("Install KeePassXC or set --backend executable."))
+	rows = append(rows, listComponentRow{kind: listComponentItem, item: openFocus, text: openLabel, right: openShortcut, selected: m.landingFocus == openFocus, activeFill: true, pillSelected: true})
+	if m.canCreateVault() {
+		createFocus := openFocus + 1
+		rows = append(rows, listComponentRow{kind: listComponentItem, item: createFocus, text: createLabel, right: createShortcut, selected: m.landingFocus == createFocus, activeFill: true, pillSelected: true})
 	}
-	footerHeight := 1
-	for len(lines) < m.height-footerHeight {
-		lines = append(lines, "")
+	component := m.renderListComponent(rows, listComponentOptions{
+		width: max(1, min(m.width-6, 82)-4), compact: compact, ascii: m.settings.ASCII, focused: true, sidebar: true,
+	})
+	body := make([]string, 0, len(component))
+	for _, row := range component {
+		body = append(body, row.text)
 	}
-	lines = append(lines, m.footerLine("o open vault    ? shortcuts    q quit"))
+	statusBar := ""
+	if m.landingFocus < recentCount {
+		statusBar = m.recentRemovalStatusBar()
+	}
+	lines := m.boxWithBodyRowsOnBackdrop("Bypass - Secrets Manager", body, statusBar, m.landingBodyRows(), make([]string, m.height))
+	if len(lines) > 0 {
+		theme := colorsForTheme(m.settings.Theme)
+		lines[len(lines)-1] = restoreThemeResets(m.footerLine("", "q quit"), theme.primary, theme.background)
+	}
 	return lines
+}
+
+func (m *Model) recentRemovalStatusBar() string {
+	statusBar := "delete remove recent"
+	if strings.EqualFold(m.settings.Appearance, "compact") {
+		statusBar += "  "
+	} else {
+		statusBar += " "
+	}
+	return statusBar
+}
+
+func (m *Model) landingBodyRows() int {
+	contentRows := 1 + 1 // VAULTS heading and Open action.
+	if m.canCreateVault() {
+		contentRows++
+	}
+	if count := m.landingRecentCount(); count > 0 {
+		contentRows += count + 2 // RECENT heading, entries, and section spacing.
+	}
+	return min(m.landingMaxBodyRows(), contentRows+1) // Keep one status-bar row reserved.
+}
+
+func (m *Model) landingRecentCount() int {
+	if len(m.recent) == 0 {
+		return 0
+	}
+	actions := 1
+	if m.canCreateVault() {
+		actions++
+	}
+	available := m.landingMaxBodyRows() - actions - 4 // Status row, both headings, and section spacing.
+	return min(5, min(len(m.recent), max(0, available)))
+}
+
+func (m *Model) landingMaxBodyRows() int {
+	return min(11, max(1, m.height-4))
+}
+
+func (m *Model) landingMaxFocus() int {
+	maxFocus := m.landingRecentCount()
+	if m.canCreateVault() {
+		maxFocus++
+	}
+	return maxFocus
+}
+
+func (m *Model) activateLandingFocus() tea.Cmd {
+	recentCount := m.landingRecentCount()
+	if m.landingFocus < recentCount {
+		m.beginUnlock(m.recent[m.landingFocus])
+		return nil
+	}
+	if m.landingFocus == recentCount {
+		return m.openPicker()
+	}
+	if m.canCreateVault() && m.landingFocus == recentCount+1 {
+		return m.openCreateVault()
+	}
+	return nil
 }
 
 func (m *Model) paneWidths() (int, int, int) {
@@ -1096,6 +1172,10 @@ func (m *Model) box(title string, body []string, statusBar string, header ...dia
 }
 
 func (m *Model) boxWithBodyRows(title string, body []string, statusBar string, bodyRows int, header ...dialogrender.Header) []string {
+	return m.boxWithBodyRowsOnBackdrop(title, body, statusBar, bodyRows, m.modalBackdrop(), header...)
+}
+
+func (m *Model) boxWithBodyRowsOnBackdrop(title string, body []string, statusBar string, bodyRows int, backdrop []string, header ...dialogrender.Header) []string {
 	c := m.colors()
 	theme := colorsForTheme(m.settings.Theme)
 	restoreResets := func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) }
@@ -1105,7 +1185,7 @@ func (m *Model) boxWithBodyRows(title string, body []string, statusBar string, b
 	}
 	return dialogrender.Render(dialogrender.Options{
 		Mode: dialogrender.Box, Title: title, HeaderContent: headerContent, HeaderDivider: headerDivider, Body: body, BodyRows: bodyRows, StatusBar: statusBar,
-		Backdrop: m.modalBackdrop(), Width: min(m.width-6, 82), ScreenWidth: m.width,
+		Backdrop: backdrop, Width: min(m.width-6, 82), ScreenWidth: m.width,
 		Height: m.height, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
 		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, Pill: c.active, Divider: c.divider,
 		RestoreResets: restoreResets,
