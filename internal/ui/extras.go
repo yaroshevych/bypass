@@ -147,7 +147,7 @@ func (m *Model) updateExtras(msg tea.Msg) (tea.Cmd, bool) {
 		state.totpExpires = m.now().Add(time.Duration(remaining) * time.Second)
 		return nil, true
 	case extrasExportMsg:
-		if m.extras != msg.state || m.gate.Protected() {
+		if m.extras != msg.state {
 			return nil, true
 		}
 		state := m.extras

@@ -16,4 +16,27 @@ check:
     go test -race ./...
 
 eval:
-    go test -tags=integration -count=1 -timeout=120s -v ./evals
+    go test -race -tags=integration -count=1 -timeout=180s -v ./evals
+
+# Strict local release check: native tests must not silently skip prerequisites.
+verify:
+    @command -v tmux >/dev/null
+    @command -v keepassxc-cli >/dev/null
+    @test -z "$(gofmt -l cmd internal evals)"
+    go vet ./...
+    go test -race -tags=integration -count=1 -timeout=300s ./...
+
+# Repeat terminal journeys to expose synchronization failures.
+eval-repeat:
+    @command -v tmux >/dev/null
+    @command -v keepassxc-cli >/dev/null
+    go test -race -tags=integration -count=2 -timeout=300s ./evals
+
+mutations:
+    go run ./evals/mutations
+
+# Coverage of application packages; tmux drives a separate application process.
+coverage:
+    mkdir -p evals/artifacts
+    go test -race -coverprofile=evals/artifacts/coverage.out ./cmd/keepassui ./internal/...
+    go tool cover -func=evals/artifacts/coverage.out

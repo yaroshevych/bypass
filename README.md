@@ -30,3 +30,7 @@ Grand View alternates character backgrounds in groups of two. Set
 read-only entry history, database info/settings, and password/key-file changes.
 Existing cipher/KDF settings are read only in the native CLI; new vaults support
 a target unlock delay. Compare/merge is deferred.
+
+Before release: `just verify` (race, native CLI, tmux), `just eval-repeat`, and
+`just mutations`. See [test coverage](evals/COVERAGE.md) for the behavior matrix
+and remaining platform checks. Tests use temporary vaults and an isolated clipboard.

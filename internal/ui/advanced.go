@@ -67,8 +67,6 @@ func (m *Model) configurePIN(protectAfter bool) {
 	}
 }
 func (m *Model) protectScreen() tea.Cmd {
-	m.clearExtras()
-	m.clearLifecycle()
 	if !m.anyUnlocked() {
 		m.setNotice("Unlock a vault first.", true)
 		return nil
@@ -79,8 +77,7 @@ func (m *Model) protectScreen() tea.Cmd {
 		m.configurePIN(true)
 		return nil
 	}
-	m.hideReveal()
-	m.dragging = 0
+	m.concealForPIN()
 	m.pinInput.clear()
 	m.pinError = ""
 	m.pinFullLock = false
@@ -359,6 +356,9 @@ func (m *Model) advancedScreen() ([]string, bool) {
 	if m.gate.Protected() {
 		return m.pinLines(), true
 	}
+	if m.dialog != nil {
+		return m.dialogLines(), true
+	}
 	if m.lifecycle != nil {
 		return m.lifecycleLines(), true
 	}
@@ -462,4 +462,18 @@ func (m *Model) footerText() string {
 		text = "  " + m.searchError
 	}
 	return text
+}
+
+// PIN protection conceals secrets without canceling authenticated work or
+// discarding drafts. Full vault locking performs cancellation and cleanup.
+func (m *Model) concealForPIN() {
+	m.hideReveal()
+	m.dragging = 0
+	if m.extras != nil {
+		if m.extras.mode == extraTOTP {
+			m.clearExtras()
+		} else {
+			m.clearHistoryReveal(m.extras)
+		}
+	}
 }

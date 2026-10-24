@@ -28,6 +28,8 @@ func TestMilestone4EntryExtrasNativeTmux(t *testing.T) {
 	defer e.close()
 	const seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
 	const historySecret = "HISTORICAL-SECRET-SYNTHETIC"
+	e.registerSecret(seed)
+	e.registerSecret(historySecret)
 	sourceVault := filepath.Join(e.root, "extras-source.kdbx")
 	runCLI(e, backend, fixturePassword+"\n"+fixturePassword+"\n", "db-create", "-q", "--set-password", "--decryption-time", "100", sourceVault)
 	runCLI(e, backend, fixturePassword+"\n"+historySecret+"\n", "add", "-q", "--password-prompt", "--username", "old-user", "--notes", "Earlier notes\nSecond note line", sourceVault, "Earlier Entry")

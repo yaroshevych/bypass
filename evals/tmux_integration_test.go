@@ -504,14 +504,17 @@ func runCLI(e *evalSession, backend, stdin string, args ...string) {
 }
 
 type evalSession struct {
-	t          *testing.T
-	root       string
-	pickerRoot string
-	label      string
-	db1        string
-	db2        string
-	realDB     string
-	closed     bool
+	t             *testing.T
+	root          string
+	pickerRoot    string
+	label         string
+	db1           string
+	db2           string
+	realDB        string
+	closed        bool
+	clipboardPath string
+	clipboardBin  string
+	secrets       []string
 }
 
 func newEval(t *testing.T) *evalSession {
@@ -550,6 +553,7 @@ func newEval(t *testing.T) *evalSession {
 	if err := os.WriteFile(backend, []byte(fakeBackend), 0700); err != nil {
 		t.Fatal("create fake backend:", err)
 	}
+	e.initClipboard()
 	return e
 }
 
@@ -571,6 +575,8 @@ func (e *evalSession) startWith(backend string, appArgs ...string) {
 		" XDG_STATE_HOME=" + shellQuote(filepath.Join(e.root, "xdg-state")) +
 		" XDG_CACHE_HOME=" + shellQuote(filepath.Join(e.root, "xdg-cache")) +
 		" XDG_RUNTIME_DIR=" + shellQuote(filepath.Join(e.root, "xdg-runtime")) +
+		" PATH=" + shellQuote(e.clipboardBin+string(os.PathListSeparator)+os.Getenv("PATH")) +
+		" KEEPASSUI_EVAL_CLIPBOARD=" + shellQuote(e.clipboardPath) +
 		" NO_COLOR= CLICOLOR_FORCE=1 TERM=xterm-256color LC_ALL=C.UTF-8 " + command + "\n"
 	if err := os.WriteFile(launcher, []byte(script), 0700); err != nil {
 		e.t.Fatal("write application launcher:", err)
@@ -818,7 +824,18 @@ func (e *evalSession) close() {
 	_ = os.RemoveAll(e.root)
 }
 
+var displayedCodePattern = regexp.MustCompile(`(?m)(Code[ \t]+)[A-Za-z0-9]{4,32}\b`)
+
 func (e *evalSession) redact(s string) string {
+	if strings.Contains(s, "\n") && strings.Contains(s, "Grand View") {
+		return "[Grand View screen withheld: explicit secret display was active]"
+	}
+	s = displayedCodePattern.ReplaceAllString(s, "${1}[REDACTED]")
+	for _, secret := range e.secrets {
+		if secret != "" {
+			s = strings.ReplaceAll(s, secret, "[REDACTED]")
+		}
+	}
 	return strings.NewReplacer(
 		secretSentinel, "[REDACTED]",
 		fixturePassword, "[REDACTED]",

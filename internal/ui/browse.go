@@ -13,6 +13,13 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	if m.gate.Protected() {
 		return nil
 	}
+	if m.dialog != nil {
+		m.dragging = 0
+		if m.dialog.kind == "destination" && !m.writing && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			m.destinationPointer(msg)
+		}
+		return nil
+	}
 	if m.lifecycle != nil {
 		return m.lifecyclePointer(msg)
 	}
@@ -29,13 +36,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	m.hideReveal()
-	if m.dialog != nil {
-		m.dragging = 0
-		if m.dialog.kind == "destination" && !m.writing && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
-			m.destinationPointer(msg)
-		}
-		return nil
-	}
+
 	if m.writing {
 		return nil
 	}

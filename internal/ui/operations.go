@@ -777,6 +777,14 @@ func (m *Model) setNotice(text string, persistent bool) {
 
 func (m *Model) lockCurrent(all bool) tea.Cmd {
 	if all {
+		m.cancelPendingOpen()
+		m.clearLifecycle()
+		m.clearExtras()
+		m.cancelOperation()
+		m.clearDialog()
+		m.closePalette(false)
+		m.hideReveal()
+		m.jump = false
 		for id := range m.ws.Sessions {
 			m.lockSession(id)
 		}
@@ -816,7 +824,13 @@ func (m *Model) lockSession(id string) {
 		m.searchOrigin = nil
 		m.help = false
 	}
-	m.ws.LockSession(id)
+	if m.ws.LockSession(id) && !m.anyUnlocked() {
+		m.cancelPendingOpen()
+		m.clearLifecycle()
+		m.clearExtras()
+		m.cancelOperation()
+		m.syncPrivacyState()
+	}
 	delete(m.changeDismissed, id)
 	delete(m.checking, id)
 }
@@ -873,10 +887,7 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 		}
 	}
 	if configuredPIN && hasUnlocked && allUnlockedIdle && !m.gate.Protected() {
-		m.hideReveal()
-		m.clearExtras()
-		m.clearLifecycle()
-		m.dragging = 0
+		m.concealForPIN()
 		m.pinInput.clear()
 		m.pinError = ""
 		m.pinFullLock = false
@@ -944,4 +955,22 @@ func (m *Model) clipboardStatus() string {
 		remaining = 0
 	}
 	return fmt.Sprintf("Clipboard clears in %ds", remaining)
+}
+
+// Invalidate authentication work as well as its cancellation context: a CLI
+// result may already be queued when the user locks the workspace.
+func (m *Model) cancelPendingOpen() {
+	m.request++
+	if m.cancel != nil {
+		m.cancel()
+		m.cancel = nil
+	}
+	m.busy = false
+	for i := range m.inputs {
+		m.inputs[i].clear()
+	}
+	m.noPassword = false
+	m.path = ""
+	m.err = ""
+	m.screen = browse
 }

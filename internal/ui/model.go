@@ -408,6 +408,16 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if m.gate.Protected() {
 		return m.pinKey(k)
 	}
+	if key == "ctrl+k" {
+		return m.protectScreen()
+	}
+	if key == "ctrl+l" && m.screen == unlock {
+		m.cancelPendingOpen()
+		return m.lockCurrent(false)
+	}
+	if m.dialog != nil {
+		return m.dialogKey(k)
+	}
 	if m.lifecycle != nil {
 		return m.lifecycleKey(k)
 	}
