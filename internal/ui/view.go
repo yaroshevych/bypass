@@ -1150,23 +1150,28 @@ func (m *Model) pickerLines() []string {
 }
 
 func (m *Model) helpLines() []string {
-	muted := m.colors().muted
 	title := "Keyboard Shortcuts"
-	divider := "│"
-	if m.settings.ASCII {
-		divider = "|"
+	actions := m.helpActionLines()
+	count := fmt.Sprintf("%d shortcuts", len(actions))
+	body := append([]string{""}, actions...)
+	if m.helpQuery.value() == "" {
+		body = append(body, "", m.colors().muted.Render("Encrypted backup before every write"))
+		if m.backendVersion != "" {
+			body = append(body, m.colors().muted.Render("Backend: "+m.backendVersion))
+		}
 	}
-	header := dialogrender.Header{
-		Content: "  " + m.colors().accent.Render(strings.ToUpper(title)) + " " + m.colors().lineStyle.Render(divider),
-		Divider: lipgloss.Width(strings.ToUpper(title)) + 3,
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	if compact {
+		count = fmt.Sprintf("%d", len(m.helpActionLines()))
 	}
-	body := m.helpActionLines()
-	body = append(body, "", muted.Render("Encrypted backup before every write"))
-	if m.backendVersion != "" {
-		body = append(body, muted.Render("Backend: "+m.backendVersion))
+	width := min(86, m.width-4)
+	if compact {
+		width = min(86, m.width-2)
 	}
+	filterWidth := max(1, width-4)
+	header := dialogrender.FilterHeader(title, safe(m.helpQuery.value()), m.helpQuery.cursor, "type to filter", count, filterWidth, compact, m.settings.ASCII, filterDialogStyles(m.colors()))
 	capacity := max(1, m.height-8)
 	start := min(m.helpOffset, max(0, len(body)-capacity))
 	end := min(len(body), start+capacity)
-	return m.box(title, body[start:end], "", header)
+	return m.overlay(title, body[start:end], "", width, -1, -1, header)
 }

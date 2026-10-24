@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	dialogrender "bypass/internal/ui/dialog"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -59,9 +60,10 @@ func TestPaletteFilterPlaceholderHasStableHighlightedWidthAndRightAlignedCount(t
 	longInput := input{}
 	longInput.set("a significantly longer filter query")
 
-	placeholder := paletteFilterInput(placeholderInput, &styles)
-	short := paletteFilterInput(shortInput, &styles)
-	long := paletteFilterInput(longInput, &styles)
+	filterStyles := filterDialogStyles(&styles)
+	placeholder := dialogrender.FilterInput(placeholderInput.value(), placeholderInput.cursor, "type to filter", 0, false, filterStyles)
+	short := dialogrender.FilterInput(shortInput.value(), shortInput.cursor, "type to filter", 0, false, filterStyles)
+	long := dialogrender.FilterInput(longInput.value(), longInput.cursor, "type to filter", 0, false, filterStyles)
 	if lipgloss.Width(placeholder) != lipgloss.Width(short) {
 		t.Fatalf("short active filter width %d differs from placeholder width %d", lipgloss.Width(short), lipgloss.Width(placeholder))
 	}
@@ -72,7 +74,7 @@ func TestPaletteFilterPlaceholderHasStableHighlightedWidthAndRightAlignedCount(t
 		t.Fatalf("empty palette filter placeholder missing: %q", ansi.Strip(placeholder))
 	}
 	for _, query := range []input{placeholderInput, shortInput, longInput} {
-		row := ansi.Strip(paletteFilterRow(query, "12 results", 60, &styles))
+		row := ansi.Strip(dialogrender.FilterRow(dialogrender.FilterInput(query.value(), query.cursor, "type to filter", 0, false, filterStyles), styles.muted.Render("12 results"), 60, styles.base))
 		if lipgloss.Width(row) != 60 || !strings.HasSuffix(row, "12 results") {
 			t.Fatalf("filter count is not right-aligned in a fixed-width row: width=%d row=%q", lipgloss.Width(row), row)
 		}
@@ -81,8 +83,8 @@ func TestPaletteFilterPlaceholderHasStableHighlightedWidthAndRightAlignedCount(t
 
 func TestClassicPaletteSharesHeaderRowWithFilterAndCount(t *testing.T) {
 	styles := stylesForTheme("macchiato")
-	header := paletteClassicHeader("Commands", input{}, "18 commands", 82, false, &styles)
-	stripped := ansi.Strip(header)
+	header := dialogrender.FilterHeader("Commands", "", 0, "type to filter", "18 commands", 82, false, false, filterDialogStyles(&styles))
+	stripped := ansi.Strip(header.Content)
 	if lipgloss.Width(stripped) != 82 {
 		t.Fatalf("classic palette header width = %d, want 82", lipgloss.Width(stripped))
 	}
@@ -122,19 +124,61 @@ func TestCompactPaletteHeaderShowsSecondaryFilterPillAndPlainCount(t *testing.T)
 		}
 	}
 	styles := m.colors()
-	empty := paletteCompactFilterInput(input{}, styles)
+	filterStyles := filterDialogStyles(styles)
+	empty := dialogrender.FilterInput("", 0, "type to filter", 29, true, filterStyles)
 	short := input{}
 	short.set("x")
 	long := input{}
 	long.set(strings.Repeat("x", 40))
-	if lipgloss.Width(empty) != lipgloss.Width(paletteCompactFilterInput(short, styles)) {
+	if lipgloss.Width(empty) != lipgloss.Width(dialogrender.FilterInput(short.value(), short.cursor, "type to filter", 29, true, filterStyles)) {
 		t.Fatal("short compact filter changed the placeholder pill width")
 	}
-	if got := lipgloss.Width(paletteCompactFilterInput(long, styles)) + 1; got != 30 {
+	if got := lipgloss.Width(dialogrender.FilterInput(long.value(), long.cursor, "type to filter", 29, true, filterStyles)) + 1; got != 30 {
 		t.Fatalf("compact filter pill width = %d, want 30", got)
 	}
 	if long.value() != strings.Repeat("x", 40) {
 		t.Fatal("display width cap changed the actual filter query")
+	}
+}
+
+func TestShortcutHelpUsesReusableFilteredDialogHeader(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		t.Run(appearance, func(t *testing.T) {
+			m := New(Options{})
+			t.Cleanup(m.Close)
+			m.width, m.height = 100, 30
+			m.settings.Appearance = appearance
+			lines := m.helpLines()
+			var emptyHeader string
+			for _, line := range lines {
+				row := ansi.Strip(line)
+				if strings.Contains(row, "KEYBOARD SHORTCUTS") {
+					emptyHeader = row
+					break
+				}
+			}
+			if !strings.Contains(emptyHeader, "type to filter") || !strings.Contains(emptyHeader, "shortcuts") && appearance == "classic" {
+				t.Fatalf("%s shortcuts header missing its filter/count: %q", appearance, emptyHeader)
+			}
+			m.helpQuery.set("lock")
+			lines = m.helpLines()
+			var filteredHeader string
+			for _, line := range lines {
+				row := ansi.Strip(line)
+				if strings.Contains(row, "KEYBOARD SHORTCUTS") {
+					filteredHeader = row
+					break
+				}
+			}
+			if !strings.Contains(filteredHeader, "lock") || strings.Contains(filteredHeader, "type to filter") {
+				t.Fatalf("%s shortcuts filter did not become active: %q", appearance, filteredHeader)
+			}
+			for _, line := range lines {
+				if strings.Contains(ansi.Strip(line), "Search shortcuts:") {
+					t.Fatal("legacy shortcuts search row remained in dialog body")
+				}
+			}
+		})
 	}
 }
 

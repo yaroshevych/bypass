@@ -10,8 +10,6 @@ import (
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
 )
 
 type paletteFrame struct {
@@ -601,63 +599,17 @@ func (m *Model) paletteBody() (string, []string, string) {
 	return title, body, footer
 }
 
-func paletteFilterRow(query input, count string, width int, c *styleSet) string {
-	field := paletteFilterInput(query, c)
-	fieldWidth := lipgloss.Width(field)
-	count = c.muted.Render(count)
-	countWidth := lipgloss.Width(count)
-	if width <= 0 {
-		return ""
-	}
-	fieldBudget := max(1, width-countWidth-1)
-	if fieldWidth > fieldBudget {
-		field = ansi.Truncate(field, fieldBudget, "…")
-		fieldWidth = lipgloss.Width(field)
-	}
-	gap := max(1, width-fieldWidth-countWidth)
-	return field + c.base.Render(strings.Repeat(" ", gap)) + count
-}
-
-func paletteFilterInput(query input, c *styleSet) string {
-	placeholder := "type to filter"
-	var field string
-	if query.value() == "" {
-		field = c.base.Render(" ") + c.active.Render("t") + c.muted.Render(placeholder[1:]+" ")
-	} else {
-		runes := []rune(safe(query.value()))
-		cursor := min(query.cursor, len(runes))
-		prefix, suffix := string(runes[:cursor]), string(runes[cursor:])
-		caret := " "
-		if suffix != "" {
-			caret = string([]rune(suffix)[0])
-			suffix = string([]rune(suffix)[1:])
-		}
-		field = c.base.Render(" "+prefix) + c.active.Render(caret) + c.base.Render(suffix+" ")
-	}
-	minimum := lipgloss.Width(c.base.Render(" " + placeholder + " "))
-	fieldWidth := lipgloss.Width(field)
-	if fieldWidth < minimum {
-		field += c.base.Render(strings.Repeat(" ", minimum-fieldWidth))
-	}
-	return field
-}
-
 func (m *Model) paletteLines() []string {
 	title, body, footer := m.paletteBody()
+	choices := m.paletteChoices()
+	count := paletteCountLabel(m.palette.scope, len(choices))
+	styles := m.colors()
 	if !strings.EqualFold(m.settings.Appearance, "compact") {
-		choices := m.paletteChoices()
-		count := paletteCountLabel(m.palette.scope, len(choices))
 		width := max(1, min(86, m.width-4)-4)
-		header := paletteClassicHeader(title, m.palette.query, count, width, m.settings.ASCII, m.colors())
-		divider := lipgloss.Width(strings.ToUpper(title)) + 3
-		return m.overlay(title, body, footer, min(86, m.width-4), m.palette.x, m.palette.y, dialogrender.Header{Content: header, Divider: divider})
+		header := dialogrender.FilterHeader(title, safe(m.palette.query.value()), m.palette.query.cursor, "type to filter", count, width, false, m.settings.ASCII, filterDialogStyles(styles))
+		return m.overlay(title, body, footer, min(86, m.width-4), m.palette.x, m.palette.y, header)
 	}
-	count := paletteCountLabel(m.palette.scope, len(m.paletteChoices()))
-	header := dialogrender.Header{
-		Accessory:      paletteCompactFilterInput(m.palette.query, m.colors()),
-		AccessoryStyle: m.colors().inactive,
-		Count:          m.colors().muted.Render(count),
-	}
+	header := dialogrender.FilterHeader(title, safe(m.palette.query.value()), m.palette.query.cursor, "type to filter", count, 0, true, m.settings.ASCII, filterDialogStyles(styles))
 	return m.overlay(title, body, footer, min(86, m.width-2), m.palette.x, m.palette.y, header)
 }
 
@@ -680,44 +632,11 @@ func paletteCountLabel(scope string, count int) string {
 	return fmt.Sprintf("%d %s", count, label)
 }
 
-func paletteClassicHeader(title string, query input, count string, width int, ascii bool, c *styleSet) string {
-	label := c.accent.Render(strings.ToUpper(title))
-	dividerText := " │"
-	if ascii {
-		dividerText = " |"
+func filterDialogStyles(c *styleSet) dialogrender.FilterStyles {
+	return dialogrender.FilterStyles{
+		Text: c.base, Placeholder: c.muted, Fill: c.inactive, Caret: c.active,
+		Count: c.muted, Accent: c.accent, Divider: c.lineStyle, Base: c.base,
 	}
-	divider := c.lineStyle.Render(dividerText)
-	filterWidth := max(1, width-lipgloss.Width(label)-lipgloss.Width(divider))
-	return label + divider + paletteFilterRow(query, count, filterWidth, c)
-}
-
-func paletteCompactFilterInput(query input, c *styleSet) string {
-	const maxWidth = 30
-	const maxContentWidth = maxWidth - 1
-	placeholder := "type to filter"
-	var field string
-	if query.value() == "" {
-		field = c.inactive.Render(" ") + c.active.Render("t") + c.inactive.Render(placeholder[1:]+" ")
-	} else {
-		runes := []rune(safe(query.value()))
-		if len(runes) > maxContentWidth-3 {
-			runes = append(append([]rune(nil), runes[:maxContentWidth-4]...), '…')
-		}
-		cursor := min(query.cursor, len(runes))
-		prefix, suffix := string(runes[:cursor]), string(runes[cursor:])
-		caret := " "
-		if suffix != "" {
-			caret = string([]rune(suffix)[0])
-			suffix = string([]rune(suffix)[1:])
-		}
-		field = c.inactive.Render(" "+prefix) + c.active.Render(caret) + c.inactive.Render(suffix+" ")
-	}
-	minimum := lipgloss.Width(c.inactive.Render(" " + placeholder + " "))
-	fieldWidth := lipgloss.Width(field)
-	if fieldWidth < minimum {
-		field += c.inactive.Render(strings.Repeat(" ", minimum-fieldWidth))
-	}
-	return ansi.Truncate(field, maxContentWidth, "…")
 }
 func (m *Model) palettePointer(msg tea.MouseMsg) tea.Cmd {
 	p := m.palette
@@ -784,7 +703,7 @@ func (m *Model) helpActionLines() []string {
 			lines = append(lines, line)
 		}
 	}
-	return append([]string{m.colors().accent.Render("Search shortcuts: " + m.helpQuery.display(false) + "▏"), ""}, lines...)
+	return lines
 }
 
 // Recent destinations precede the remaining hierarchy; deleted and recycled groups are omitted.
