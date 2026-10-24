@@ -60,8 +60,8 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 	wantSections := []string{"VAULTS", "VIEW", "ENTRIES", "SECRETS", "SETTINGS"}
 	var sections []string
 	for _, row := range rows {
-		if row.choice < 0 {
-			sections = append(sections, ansi.Strip(row.text))
+		if row.choice == -1 {
+			sections = append(sections, strings.TrimSpace(strings.TrimRight(ansi.Strip(row.text), "─- ")))
 		}
 	}
 	if !reflect.DeepEqual(sections, wantSections) {
@@ -166,14 +166,41 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 
 	section := ""
 	for _, row := range rows {
-		if row.choice < 0 {
-			section = ansi.Strip(row.text)
+		if row.choice == -2 {
+			continue
+		}
+		if row.choice == -1 {
+			section = strings.TrimSpace(strings.TrimRight(ansi.Strip(row.text), "─- "))
 			continue
 		}
 		choice := choices[row.choice]
 		if got, want := commandSection(choice.group), section; got != want {
 			t.Errorf("command %q is under %q, want %q", choice.label, section, got)
 		}
+	}
+}
+
+func TestPaletteDisabledReasonIsRightAlignedAndFirstGroupHasNoLeadingBlank(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 72, 24
+	m.settings.Appearance = "classic"
+	m.palette = &paletteState{scope: "actions", selected: 1}
+	choices := []command{
+		{group: "Vault", label: "Lock with PIN", reason: "Set a session PIN first"},
+		{group: "Vault", label: "Open Vault", key: "ctrl+o"},
+	}
+	rows, _ := m.paletteRows(choices)
+	for _, row := range rows {
+		if row.choice == 0 {
+			line := ansi.Strip(row.text)
+			if lipgloss.Width(line) != m.paletteListWidth(choices) || !strings.HasSuffix(line, "Set a session PIN first") {
+				t.Fatalf("disabled reason is not right-aligned: %q", line)
+			}
+		}
+	}
+	_, body, _ := m.paletteBody()
+	if len(body) == 0 || strings.TrimSpace(ansi.Strip(body[0])) == "" {
+		t.Fatalf("first command group has an unexpected leading blank: %#v", body)
 	}
 }
 

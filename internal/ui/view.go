@@ -744,32 +744,19 @@ func (m *Model) tabSpans() []tabSpan {
 
 func (m *Model) navLines(width, height int, focused bool) []string {
 	styles := m.colors()
-	secondary, active, inactive := styles.secondary, styles.active, styles.inactive
-	var lines []string
 	v := m.ws.ActiveView()
 	items := m.navigation()
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	rows, start := m.sidebarViewport(height)
-	for r := start; r < len(rows) && len(lines) < height; r++ {
+	componentRows := make([]listComponentRow, 0, min(height, len(rows)-start))
+	for r := start; r < len(rows) && len(componentRows) < height; r++ {
 		row := rows[r]
 		if row.index < 0 {
 			if row.label == "" {
-				lines = append(lines, "")
+				componentRows = append(componentRows, listComponentRow{kind: listComponentSpacer, item: -1})
 			} else {
 				label := "  " + strings.ToUpper(row.label) + " "
-				rule := "─"
-				if m.settings.ASCII {
-					rule = "-"
-				}
-				endPadding := 0
-				if compact {
-					endPadding = 2
-				}
-				line := secondary.Render(label)
-				if row.label != "Views" || compact {
-					line += styles.divider.Render(strings.Repeat(rule, max(0, width-lipgloss.Width(label)-endPadding)))
-				}
-				lines = append(lines, fit(line, width))
+				componentRows = append(componentRows, listComponentRow{kind: listComponentHeader, item: -1, text: label, divider: row.label != "Views" || compact})
 			}
 			continue
 		}
@@ -782,59 +769,29 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 		}
 		indent := strings.Repeat("  ", min(item.depth, 5))
 		text := indent + itemLabel
-		label := fit("  "+text, width)
 		if compact {
-			count := fmt.Sprintf("%d", countValue)
-			countStyle := secondary
-			if i == v.NavIndex {
-				selection := inactive
-				if focused {
-					selection = active
-				}
-				countStyle = secondary.Foreground(selection.GetForeground()).Background(selection.GetBackground()).Faint(true).Bold(false)
-			}
-			inner := max(0, width-4)
-			labelWidth := max(0, inner-lipgloss.Width(count)-1)
-			body := fit(ansi.Truncate(text, labelWidth, "…"), labelWidth) + " " + countStyle.Render(count)
-			if i == v.NavIndex {
-				if !m.settings.ASCII {
-					label = m.pill(body, width, focused)
-				} else {
-					style := inactive
-					if focused {
-						style = active
-					}
-					label = style.Render("[ " + body + " ]")
-				}
-			} else {
-				label = fit("  "+body+"  ", width)
-			}
-			lines = append(lines, label)
+			selectedText := text
+			componentRows = append(componentRows, listComponentRow{kind: listComponentItem, item: i, text: text, selectedText: selectedText, count: fmt.Sprintf("%d", countValue), selected: i == v.NavIndex})
 			continue
 		}
 		if row.count {
-			label = fit("  "+indent+fmt.Sprintf("%d entries", countValue), width)
+			text = "  " + indent + fmt.Sprintf("%d entries", countValue)
+			componentRows = append(componentRows, listComponentRow{kind: listComponentItem, item: i, text: text, countLine: true, selected: i == v.NavIndex})
+			continue
 		}
-		style := styles.primary
-		if i == v.NavIndex {
-			if focused {
-				style = active
-			} else {
-				style = inactive
-			}
-		} else if row.count {
-			style = secondary
+		plain := styles.primary.Bold(true).Render(fit("  "+text, width))
+		selectedText := styles.inactive.Bold(true).Render(fit("  "+text, width))
+		if focused {
+			selectedText = styles.active.Bold(true).Render(fit("  "+text, width))
 		}
-		if !row.count {
-			style = style.Bold(true)
-		}
-		if row.count {
-			style = style.Bold(false)
-		}
-		label = style.Render(label)
-		lines = append(lines, label)
+		componentRows = append(componentRows, listComponentRow{kind: listComponentItem, item: i, text: plain, selectedText: selectedText, selected: i == v.NavIndex})
 	}
-	return padLines(lines, height)
+	component := m.renderListComponent(componentRows, listComponentOptions{width: width, height: height, compact: compact, ascii: m.settings.ASCII, focused: focused, sidebar: true})
+	lines := make([]string, len(component))
+	for i, row := range component {
+		lines[i] = row.text
+	}
+	return lines
 }
 
 func (m *Model) entryLines(width, height int, focused bool) []string {

@@ -11,6 +11,7 @@ import (
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type paletteFrame struct {
@@ -382,8 +383,7 @@ func (m *Model) paletteChoices() []command {
 func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 	p := m.palette
 	c := m.colors()
-	var rows []paletteRow
-	selectedRow := 0
+	var source []listComponentRow
 	group := ""
 	for i, choice := range choices {
 		section := choice.group
@@ -391,26 +391,91 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 			section = commandSection(choice.group)
 		}
 		if section != group {
-			rows = append(rows, paletteRow{text: c.secondary.Bold(true).Render(section), choice: -1})
+			if group != "" {
+				source = append(source, listComponentRow{kind: listComponentSpacer, item: -1})
+			}
+			source = append(source, listComponentRow{kind: listComponentHeader, item: -1, text: "  " + section + " ", divider: true})
 			group = section
 		}
-		text := "  " + m.highlightText(choice.label, p.query.value(), "title")
-		if choice.key != "" {
-			text += "  " + c.secondary.Render(choice.key)
+		compact := strings.EqualFold(m.settings.Appearance, "compact")
+		text := m.highlightText(choice.label, p.query.value(), "title")
+		if !compact {
+			text = "  " + text
 		}
+		right := choice.key
 		if choice.reason != "" {
-			text = c.secondary.Render("  " + safe(choice.label) + " · " + safe(choice.reason))
+			label := safe(choice.label)
+			if !compact {
+				label = "  " + label
+			}
+			text = c.secondary.Render(label)
+			right = choice.reason
 		}
 		if i == p.selected {
-			text = c.active.Render("› " + safe(choice.label))
-			if choice.reason != "" {
-				text += " " + c.secondary.Render(choice.reason)
+			text = safe(choice.label)
+			if !compact {
+				text = "  " + text
 			}
-			selectedRow = len(rows)
+			if choice.reason != "" {
+				right = choice.reason
+			}
 		}
-		rows = append(rows, paletteRow{text: text, choice: i})
+		source = append(source, listComponentRow{kind: listComponentItem, item: i, text: text, right: right, selected: i == p.selected, activeFill: true, pillSelected: true})
+	}
+	component := m.renderListComponent(source, listComponentOptions{width: m.paletteListWidth(choices), compact: strings.EqualFold(m.settings.Appearance, "compact"), focused: true, sidebar: true})
+	rows := make([]paletteRow, 0, len(component))
+	selectedRow := 0
+	for _, row := range component {
+		rows = append(rows, paletteRow{text: row.text, choice: row.item})
+		if row.item == p.selected {
+			selectedRow = len(rows) - 1
+		}
 	}
 	return rows, selectedRow
+}
+
+func (m *Model) paletteTitle() string {
+	title := map[string]string{"actions": "Commands", "themes": "Theme", "appearance": "Choose Appearance", "files": "Open Vault", "destination": "Move / Restore Entry"}[m.palette.scope]
+	if m.palette.context {
+		title = "Item Actions"
+	}
+	if len(m.palette.stack) > 0 && m.palette.scope != "themes" {
+		title = "Commands › " + title
+	}
+	return title
+}
+
+func (m *Model) paletteDialogWidth(choices []command) int {
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	available := m.width - 4
+	if compact {
+		available = m.width - 2
+	}
+	available = max(1, available)
+	contentWidth := lipgloss.Width(strings.ToUpper(m.paletteTitle())) + 2 + lipgloss.Width(" type to filter ") + 1 + lipgloss.Width(paletteCountLabel(m.palette.scope, len(choices)))
+	for _, choice := range choices {
+		left := lipgloss.Width(safe(choice.label))
+		right := choice.key
+		if choice.reason != "" {
+			right = choice.reason
+		}
+		rowWidth := left + lipgloss.Width(right)
+		if right != "" {
+			rowWidth++
+		}
+		if compact {
+			rowWidth += 4 // pill caps and internal padding
+		} else {
+			rowWidth += 2 // sidebar-style item inset
+		}
+		contentWidth = max(contentWidth, rowWidth)
+	}
+	desired := min(72, max(48, contentWidth+4))
+	return min(available, desired)
+}
+
+func (m *Model) paletteListWidth(choices []command) int {
+	return max(1, m.paletteDialogWidth(choices)-4)
 }
 
 func orderCommandChoices(choices []command) []command {
@@ -571,14 +636,11 @@ func (m *Model) paletteBody() (string, []string, string) {
 	p := m.palette
 	choices := m.paletteChoices()
 	rows, _ := m.paletteRows(choices)
-	title := map[string]string{"actions": "Commands", "themes": "Theme", "appearance": "Choose Appearance", "files": "Open Vault", "destination": "Move / Restore Entry"}[p.scope]
-	if p.context {
-		title = "Item Actions"
+	title := m.paletteTitle()
+	var body []string
+	if strings.EqualFold(m.settings.Appearance, "compact") {
+		body = append(body, "")
 	}
-	if len(p.stack) > 0 && p.scope != "themes" {
-		title = "Commands › " + title
-	}
-	body := []string{""}
 	capacity := max(1, m.height-12)
 	start := min(p.offset, max(0, len(rows)-1))
 	for i := start; i < len(rows) && i < start+capacity; i++ {
@@ -599,13 +661,13 @@ func (m *Model) paletteLines() []string {
 	choices := m.paletteChoices()
 	count := paletteCountLabel(m.palette.scope, len(choices))
 	styles := m.colors()
+	width := m.paletteDialogWidth(choices)
 	if !strings.EqualFold(m.settings.Appearance, "compact") {
-		width := max(1, min(86, m.width-4)-4)
-		header := dialogrender.FilterHeader(title, safe(m.palette.query.value()), m.palette.query.cursor, "type to filter", count, width, false, m.settings.ASCII, filterDialogStyles(styles))
-		return m.overlay(title, body, footer, min(86, m.width-4), m.palette.x, m.palette.y, header)
+		header := dialogrender.FilterHeader(title, safe(m.palette.query.value()), m.palette.query.cursor, "type to filter", count, width-4, false, m.settings.ASCII, filterDialogStyles(styles))
+		return m.overlay(title, body, footer, width, m.palette.x, m.palette.y, header)
 	}
 	header := dialogrender.FilterHeader(title, safe(m.palette.query.value()), m.palette.query.cursor, "type to filter", count, 0, true, m.settings.ASCII, filterDialogStyles(styles))
-	return m.overlay(title, body, footer, min(86, m.width-2), m.palette.x, m.palette.y, header)
+	return m.overlay(title, body, footer, width, m.palette.x, m.palette.y, header)
 }
 
 func paletteCountLabel(scope string, count int) string {
@@ -652,7 +714,7 @@ func (m *Model) palettePointer(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	_, body, _ := m.paletteBody()
-	width := min(86, m.width-4)
+	width := m.paletteDialogWidth(m.paletteChoices())
 	height := min(len(body), max(1, m.height-8)) + 5
 	x, y := p.x, p.y
 	if x < 0 {
