@@ -8,20 +8,27 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-func TestModalBackdropPreservesTabPillBackground(t *testing.T) {
+func TestModalBackdropDimsTabPillBackground(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 120, 35
 	m.settings.Appearance = "compact"
 	m.ws.Open(fixture("/tmp/modal-pill.kdbx"))
 	m.normalize()
-	activeCell := m.colors().active.Render(" ")
 	tabLine := m.workspaceLines()[1]
-	if !strings.Contains(tabLine, activeCell) {
-		t.Fatal("test setup did not render the active tab's pill background")
+	if !strings.Contains(tabLine, "\ue0b6") || !strings.Contains(tabLine, "Alpha") {
+		t.Fatal("test setup did not render an active tab pill")
 	}
 	backdropLine := m.modalBackdrop()[1]
-	if !strings.Contains(backdropLine, activeCell) {
-		t.Fatal("modal backdrop erased the active tab's pill background")
+	if !strings.Contains(backdropLine, "\ue0b6") || !strings.Contains(ansi.Strip(backdropLine), "Alpha") {
+		t.Fatal("modal backdrop erased the tab text")
+	}
+}
+
+func TestDimANSIColorsScalesForegroundAndBackground(t *testing.T) {
+	got := dimANSIColors("\x1b[38;2;100;200;50;48;2;220;180;90mX\x1b[0m", .6, .5)
+	want := "\x1b[38;2;60;120;30;48;2;110;90;45mX\x1b[0m"
+	if got != want {
+		t.Fatalf("dimmed ANSI colors = %q, want %q", got, want)
 	}
 }
 

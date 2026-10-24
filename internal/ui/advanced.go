@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"bypass/internal/privacy"
@@ -419,9 +420,52 @@ func (m *Model) modalBackdrop() []string {
 	}
 	background = padLines(background, m.height)
 	for i := range background {
-		background[i] = scrim.Render(fit(background[i], m.width))
+		background[i] = scrim.Render(dimANSIColors(fit(background[i], m.width), .60, .58))
 	}
 	return background
+}
+
+func dimANSIColors(text string, foreground, background float64) string {
+	var out strings.Builder
+	for i := 0; i < len(text); {
+		if text[i] != '\x1b' || i+1 >= len(text) || text[i+1] != '[' {
+			out.WriteByte(text[i])
+			i++
+			continue
+		}
+		end := strings.IndexByte(text[i+2:], 'm')
+		if end < 0 {
+			out.WriteByte(text[i])
+			i++
+			continue
+		}
+		end += i + 2
+		params := strings.Split(text[i+2:end], ";")
+		for j := 0; j+4 < len(params); j++ {
+			factor := 0.0
+			switch params[j] {
+			case "38":
+				factor = foreground
+			case "48":
+				factor = background
+			}
+			if factor == 0 || params[j+1] != "2" {
+				continue
+			}
+			for channel := 0; channel < 3; channel++ {
+				value, err := strconv.Atoi(params[j+2+channel])
+				if err == nil {
+					params[j+2+channel] = strconv.Itoa(int(float64(value) * factor))
+				}
+			}
+			j += 4
+		}
+		out.WriteString("\x1b[")
+		out.WriteString(strings.Join(params, ";"))
+		out.WriteByte('m')
+		i = end + 1
+	}
+	return out.String()
 }
 
 func (m *Model) footerText() string {
