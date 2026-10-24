@@ -4,6 +4,10 @@ default:
 run *args:
     go run ./cmd/keepassui {{args}}
 
+# Open and unlock the local development vault; excluded from normal builds.
+debug:
+    @go run -tags debug ./cmd/keepassui --debug-env .env
+
 build:
     go build -trimpath -o bin/keepassui ./cmd/keepassui
 

@@ -34,6 +34,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	readOnly := flags.Bool("read-only", false, "open vaults read only")
 	idle := flags.Duration("idle-timeout", 0, "idle protection timeout (default 15m or config)")
 	clipTimeout := flags.Duration("clipboard-timeout", 0, "clipboard timeout (default 10s or config)")
+	debugStartup := configureDebug(flags)
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "Usage: keepassui [options] [vault.kdbx]\n\nKeePass vault workspace; encrypted backups before writes.")
 		flags.PrintDefaults()
@@ -97,7 +98,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 			fmt.Fprintln(stderr, "Clipboard could not be cleared; clear it manually.")
 		}
 	}()
-	p := tea.NewProgram(m, tea.WithContext(ctx), tea.WithOutput(stdout), tea.WithAltScreen(), tea.WithMouseCellMotion())
+	model, err := debugStartup(m)
+	if err != nil {
+		return err
+	}
+	p := tea.NewProgram(model, tea.WithContext(ctx), tea.WithOutput(stdout), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		if ctx.Err() != nil {
 			return nil
