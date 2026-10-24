@@ -1,13 +1,13 @@
 package ui
 
 import (
+	"bypass/internal/vault"
+	"bypass/internal/workspace"
 	"context"
 	"errors"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
 	"io"
-	"keepassui/internal/vault"
-	"keepassui/internal/workspace"
 	"os"
 	"path/filepath"
 	"strings"

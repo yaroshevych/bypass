@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"keepassui/internal/vault"
+	"bypass/internal/vault"
 )
 
 const secondVaultPassword = "workspace-second-vault-password"
@@ -34,7 +34,7 @@ func TestWorkspaceNativeViewsDraftsAndSessionLocks(t *testing.T) {
 	createWorkspaceVault(e, backend, secondDB, secondVaultPassword, "Second Native Entry", "second-user", fixtureWrongPassword)
 
 	e.startWith(backend)
-	e.mustShow("KeePassUI", "Open Vault")
+	e.mustShow("Bypass", "Open Vault")
 	openWorkspaceVault(e, firstDB, fixturePassword)
 	e.mustShow("First Native Entry")
 	e.mustNotShow(secretSentinel)
@@ -180,7 +180,7 @@ func TestWorkspaceNativeViewsDraftsAndSessionLocks(t *testing.T) {
 	e.key("C-w")
 	e.key("C-w")
 	e.key("C-w")
-	e.mustShow("KeePassUI", "Open Vault")
+	e.mustShow("Bypass", "Open Vault")
 	e.key("q")
 	e.waitForCleanQuit()
 }
@@ -266,7 +266,7 @@ func createWorkspaceVault(e *evalSession, backend, path, masterPassword, title, 
 func openWorkspaceVault(e *evalSession, path, password string) {
 	e.t.Helper()
 	screen := e.capture()
-	if strings.Contains(screen, "KeePassUI") && strings.Contains(screen, "Open Vault") {
+	if strings.Contains(screen, "Bypass") && strings.Contains(screen, "Open Vault") {
 		e.key("o")
 	} else {
 		e.key("C-o")

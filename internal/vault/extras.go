@@ -99,7 +99,7 @@ func (c *CLI) ExportAttachment(ctx context.Context, db *Database, creds Credenti
 	if err := validateCredentials(creds); err != nil {
 		return nil, err
 	}
-	tempDir, err := os.MkdirTemp("", "keepassui-attachment-export-")
+	tempDir, err := os.MkdirTemp("", "bypass-attachment-export-")
 	if err != nil {
 		return nil, ErrWrite
 	}

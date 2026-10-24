@@ -4,9 +4,9 @@ import (
 	"sort"
 	"strings"
 
+	"bypass/internal/search"
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
-	"keepassui/internal/search"
-	"keepassui/internal/vault"
 )
 
 type entrySearchCache struct {

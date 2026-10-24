@@ -1,4 +1,4 @@
-module keepassui
+module bypass
 
 go 1.24.0
 

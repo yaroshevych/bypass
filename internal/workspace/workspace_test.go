@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"keepassui/internal/vault"
+	"bypass/internal/vault"
 )
 
 func TestNineTabLimitAllowsExistingVaultAndRejectsNewVault(t *testing.T) {

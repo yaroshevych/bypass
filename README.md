@@ -1,4 +1,4 @@
-# KeePassUI
+# Bypass Secrets Manager
 
 Go terminal workspace for KeePass-compatible vaults. Native edits use encrypted
 staging files, backups and external-change checks.
@@ -7,7 +7,7 @@ Requires Go 1.24+ and `keepassxc-cli` on PATH.
 ```sh
 just run
 # Browse without writes: just run --read-only
-# or: go run ./cmd/keepassui [vault.kdbx]
+# or: go run ./cmd/bypass [vault.kdbx]
 just check
 just eval # deterministic terminal integration tests; requires tmux
 ```

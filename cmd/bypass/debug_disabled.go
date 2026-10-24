@@ -3,9 +3,9 @@
 package main
 
 import (
+	"bypass/internal/ui"
 	"flag"
 	tea "github.com/charmbracelet/bubbletea"
-	"keepassui/internal/ui"
 )
 
 func configureDebug(_ *flag.FlagSet) func(*ui.Model) (tea.Model, error) {

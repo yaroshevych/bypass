@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"keepassui/internal/vault"
+	"bypass/internal/vault"
 )
 
 func TestMilestone4VaultLifecycleTmux(t *testing.T) {
@@ -26,7 +26,7 @@ func TestMilestone4VaultLifecycleTmux(t *testing.T) {
 	e := newEval(t)
 	defer e.close()
 	e.startWith(backend)
-	e.mustShow("KeePassUI", "Open Vault", "New Vault")
+	e.mustShow("Bypass", "Open Vault", "New Vault")
 
 	// Create a synthetic vault from the welcome screen, with a modest KDF target.
 	e.key("N")
@@ -124,7 +124,7 @@ func TestMilestone4VaultLifecycleTmux(t *testing.T) {
 	if !found {
 		t.Fatal("independent CLI open did not retain the seeded entry")
 	}
-	backupDir := filepath.Join(e.root, "xdg-state", "keepassui", "backups")
+	backupDir := filepath.Join(e.root, "xdg-state", "bypass", "backups")
 	backups, err := os.ReadDir(backupDir)
 	if err != nil || len(backups) < 2 {
 		t.Fatalf("expected encrypted write and credential backups, got %d, %v", len(backups), err)

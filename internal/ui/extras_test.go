@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
-	"keepassui/internal/vault"
 )
 
 type extrasTestBackend struct {

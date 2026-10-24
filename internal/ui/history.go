@@ -1,10 +1,10 @@
 package ui
 
 import (
+	"bypass/internal/vault"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
-	"keepassui/internal/vault"
 	"sort"
 	"strings"
 	"time"

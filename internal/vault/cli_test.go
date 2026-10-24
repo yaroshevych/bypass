@@ -146,9 +146,9 @@ func TestCLIOpenEnforcesStdoutLimit(t *testing.T) {
 }
 
 func TestOpenRealVaultOptIn(t *testing.T) {
-	path, password := os.Getenv("KEEPASSUI_TEST_VAULT"), os.Getenv("KEEPASSUI_TEST_PASSWORD")
+	path, password := os.Getenv("BYPASS_TEST_VAULT"), os.Getenv("BYPASS_TEST_PASSWORD")
 	if path == "" || password == "" {
-		t.Skip("set KEEPASSUI_TEST_VAULT and KEEPASSUI_TEST_PASSWORD to run integration check")
+		t.Skip("set BYPASS_TEST_VAULT and BYPASS_TEST_PASSWORD to run integration check")
 	}
 	beforeBytes, err := os.ReadFile(path)
 	if err != nil {

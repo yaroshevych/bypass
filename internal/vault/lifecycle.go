@@ -86,7 +86,7 @@ func (c *CLI) CreateWithOptions(ctx context.Context, path string, creds Credenti
 		return nil, ErrInvalidPath
 	}
 	parent := filepath.Dir(target)
-	stageDir, err := os.MkdirTemp(parent, ".keepassui-create-*")
+	stageDir, err := os.MkdirTemp(parent, ".bypass-create-*")
 	if err != nil {
 		return nil, ErrWrite
 	}
@@ -225,7 +225,7 @@ func (c *CLI) ChangeCredentials(ctx context.Context, db *Database, oldCreds, new
 	}
 	ctx, cancel := boundedContext(ctx)
 	defer cancel()
-	stage, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".keepassui-*.kdbx")
+	stage, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".bypass-*.kdbx")
 	if err != nil {
 		return nil, ErrWrite
 	}

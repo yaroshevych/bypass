@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
-	"keepassui/internal/vault"
 )
 
 type actionDialog struct {

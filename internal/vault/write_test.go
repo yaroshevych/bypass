@@ -228,10 +228,10 @@ func TestRunChangeSkipsUnchangedNonPasswordFields(t *testing.T) {
 }
 
 func TestApplyRealVaultCopyOptIn(t *testing.T) {
-	original := os.Getenv("KEEPASSUI_TEST_VAULT")
-	password := os.Getenv("KEEPASSUI_TEST_PASSWORD")
+	original := os.Getenv("BYPASS_TEST_VAULT")
+	password := os.Getenv("BYPASS_TEST_PASSWORD")
 	if original == "" || password == "" {
-		t.Skip("set KEEPASSUI_TEST_VAULT and KEEPASSUI_TEST_PASSWORD to run mutation integration check")
+		t.Skip("set BYPASS_TEST_VAULT and BYPASS_TEST_PASSWORD to run mutation integration check")
 	}
 	originalRevision, err := Revision(original)
 	if err != nil {
@@ -384,7 +384,7 @@ func TestApplyRealVaultCopyOptIn(t *testing.T) {
 		t.Fatal("original working copy changed after backup failure")
 	}
 	for _, item := range mustReadDir(t, tmp) {
-		if strings.Contains(item.Name(), ".keepassui-") {
+		if strings.Contains(item.Name(), ".bypass-") {
 			t.Fatal("staging file was not cleaned after backup failure")
 		}
 	}

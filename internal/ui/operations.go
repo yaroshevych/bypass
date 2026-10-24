@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
-	"keepassui/internal/vault"
 )
 
 type appliedMsg struct {

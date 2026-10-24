@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
+	"bypass/internal/vault"
+	"bypass/internal/workspace"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
-	"keepassui/internal/vault"
-	"keepassui/internal/workspace"
 )
 
 type lifecycleState struct {

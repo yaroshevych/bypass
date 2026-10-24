@@ -6,9 +6,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
-	"keepassui/internal/vault"
 )
 
 const (

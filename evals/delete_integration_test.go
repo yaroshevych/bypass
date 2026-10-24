@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"keepassui/internal/vault"
+	"bypass/internal/vault"
 )
 
 func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {

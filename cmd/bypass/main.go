@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
+	"bypass/internal/clipboard"
+	"bypass/internal/platform"
+	"bypass/internal/ui"
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
-	"keepassui/internal/clipboard"
-	"keepassui/internal/platform"
-	"keepassui/internal/ui"
-	"keepassui/internal/vault"
 )
 
 var version = "dev"
@@ -27,7 +27,7 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer) error {
-	flags := flag.NewFlagSet("keepassui", flag.ContinueOnError)
+	flags := flag.NewFlagSet("bypass", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	backend := flags.String("backend", "keepassxc-cli", "KeePassXC CLI executable")
 	showVersion := flags.Bool("version", false, "print version and exit")
@@ -36,7 +36,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	clipTimeout := flags.Duration("clipboard-timeout", 0, "clipboard timeout (default 10s or config)")
 	debugStartup := configureDebug(flags)
 	flags.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: keepassui [options] [vault.kdbx]\n\nKeePass vault workspace; encrypted backups before writes.")
+		fmt.Fprintln(stderr, "Usage: bypass [options] [vault.kdbx]\n\nBypass Secrets Manager — KeePass-compatible vault workspace.")
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(args); err != nil {
@@ -46,7 +46,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	if *showVersion {
-		_, err := fmt.Fprintln(stdout, "KeePassUI", version)
+		_, err := fmt.Fprintln(stdout, "Bypass Secrets Manager", version)
 		return err
 	}
 	if flags.NArg() > 1 {

@@ -10,7 +10,7 @@ just screenshot-check
 ```
 
 Requires Python/Pillow, tmux, keepassxc-cli, Go, just, and Menlo on macOS.
-Set `KEEPASSUI_SCREENSHOT_FONT` to another monospace font on other systems.
+Set `BYPASS_SCREENSHOT_FONT` to another monospace font on other systems.
 Artifacts: `evals/artifacts/screenshots/index.html`, PNGs, ANSI captures, plain text, metadata.
 
 These are real keyboard journeys against disposable native demo vaults, rasterized

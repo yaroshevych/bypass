@@ -30,7 +30,7 @@ func run() error {
 		return err
 	}
 	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
-		return fmt.Errorf("run from the KeepassUI Go module root")
+		return fmt.Errorf("run from the Bypass Go module root")
 	}
 	if _, err := exec.LookPath("keepassxc-cli"); err != nil {
 		return fmt.Errorf("mutation checks require keepassxc-cli, including the native backup-failure check")
@@ -42,7 +42,7 @@ func run() error {
 		{name: "late authentication after lock", file: "internal/ui/operations.go", before: "func (m *Model) cancelPendingOpen() {\n\tm.request++", after: "func (m *Model) cancelPendingOpen() {\n\t// intentionally omit request invalidation", pkg: "./internal/ui", test: "^TestPublicFullLockDropsPendingSecondaryOpen$", failure: "TestPublicFullLockDropsPendingSecondaryOpen"},
 		{name: "backup required before credential commit", file: "internal/vault/lifecycle.go", before: "if err := createBackup(backupDir, path, initialRevision); err != nil {\n\t\treturn nil, ErrBackup\n\t}", after: "if err := createBackup(backupDir, path, initialRevision); err != nil {\n\t\t// intentionally ignore backup failure\n\t}", pkg: "./internal/vault", test: "^TestCredentialChangeFailurePathsPreserveOriginalVault$/^backup_failure$", failure: "TestCredentialChangeFailurePathsPreserveOriginalVault/backup_failure"},
 	}
-	dir, err := os.MkdirTemp("", "keepassui-mutations-")
+	dir, err := os.MkdirTemp("", "bypass-mutations-")
 	if err != nil {
 		return err
 	}

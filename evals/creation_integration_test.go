@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"keepassui/internal/vault"
+	"bypass/internal/vault"
 )
 
 func TestKeyFileOnlyCreationUnlockAndPasswordAdditionTmux(t *testing.T) {

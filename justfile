@@ -2,14 +2,14 @@ default:
     @just --list
 
 run *args:
-    go run ./cmd/keepassui {{args}}
+    go run ./cmd/bypass {{args}}
 
 # Open and unlock the local development vault; excluded from normal builds.
 debug:
-    @go run -tags debug ./cmd/keepassui --debug-env .env
+    @go run -tags debug ./cmd/bypass --debug-env .env
 
 build:
-    go build -trimpath -o bin/keepassui ./cmd/keepassui
+    go build -trimpath -o bin/bypass ./cmd/bypass
 
 test:
     go test -race ./...
@@ -42,7 +42,7 @@ mutations:
 # Coverage of application packages; tmux drives a separate application process.
 coverage:
     mkdir -p evals/artifacts
-    go test -race -coverprofile=evals/artifacts/coverage.out ./cmd/keepassui ./internal/...
+    go test -race -coverprofile=evals/artifacts/coverage.out ./cmd/bypass ./internal/...
     go tool cover -func=evals/artifacts/coverage.out
 
 # Synthetic native vault + real tmux journey; PNG, ANSI, text and metadata.

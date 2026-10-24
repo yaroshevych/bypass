@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
-	"keepassui/internal/vault"
 )
 
 func TestEntryEditorDirtyValuesAndPasswordSeparation(t *testing.T) {

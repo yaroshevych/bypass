@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"keepassui/internal/vault"
+	"bypass/internal/vault"
 )
 
 func TestFailedWritesKeepVaultAndDraftAndAllowRetryTmux(t *testing.T) {

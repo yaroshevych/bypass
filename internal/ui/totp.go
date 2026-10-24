@@ -1,10 +1,10 @@
 package ui
 
 import (
+	"bypass/internal/vault"
 	"context"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
-	"keepassui/internal/vault"
 )
 
 func (m *Model) openTOTP() tea.Cmd {

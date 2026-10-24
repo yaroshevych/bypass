@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
+	"bypass/internal/privacy"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-	"keepassui/internal/privacy"
 )
 
 type appearanceSavedMsg struct{ err error }

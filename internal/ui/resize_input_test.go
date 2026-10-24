@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
-	"keepassui/internal/vault"
 )
 
 func TestRightClickOpensContextPaletteForClickedEntry(t *testing.T) {

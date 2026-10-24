@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"bypass/internal/platform"
+	"bypass/internal/search"
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
-	"keepassui/internal/platform"
-	"keepassui/internal/search"
-	"keepassui/internal/vault"
 )
 
 type paletteFrame struct {
@@ -95,7 +95,7 @@ func (m *Model) commands() []command {
 	}
 	add("new-vault", "File", "New Vault…", "N", createReason, "", func() tea.Cmd { return m.leaveEditor(m.openCreateVault) })
 	add("open", "File", "Open Vault…", "Ctrl+O", "", "files", nil)
-	add("quit", "App", "Quit KeePassUI", "q", "", "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }) })
+	add("quit", "App", "Quit Bypass", "q", "", "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }) })
 	closeReason := ""
 	if v == nil {
 		closeReason = "No open view"

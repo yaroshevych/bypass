@@ -21,17 +21,17 @@ func (e *evalSession) initClipboard() {
 	e.replaceClipboard(nil)
 	write := `#!/bin/sh
 set -eu
-: "${KEEPASSUI_EVAL_CLIPBOARD:?missing isolated clipboard path}"
+: "${BYPASS_EVAL_CLIPBOARD:?missing isolated clipboard path}"
 umask 077
-tmp="${KEEPASSUI_EVAL_CLIPBOARD}.$$"
+tmp="${BYPASS_EVAL_CLIPBOARD}.$$"
 trap 'rm -f "$tmp"' EXIT HUP INT TERM
 cat > "$tmp"
-mv -f "$tmp" "$KEEPASSUI_EVAL_CLIPBOARD"
+mv -f "$tmp" "$BYPASS_EVAL_CLIPBOARD"
 `
 	read := `#!/bin/sh
 set -eu
-: "${KEEPASSUI_EVAL_CLIPBOARD:?missing isolated clipboard path}"
-cat "$KEEPASSUI_EVAL_CLIPBOARD"
+: "${BYPASS_EVAL_CLIPBOARD:?missing isolated clipboard path}"
+cat "$BYPASS_EVAL_CLIPBOARD"
 `
 	for _, name := range []string{"pbcopy", "wl-copy"} {
 		if err := os.WriteFile(filepath.Join(e.clipboardBin, name), []byte(write), 0o700); err != nil {
@@ -79,7 +79,7 @@ func (e *evalSession) registerSecret(value string) {
 
 func (e *evalSession) writeConfig(settings map[string]any) {
 	e.t.Helper()
-	dir := filepath.Join(e.root, "xdg-config", "keepassui")
+	dir := filepath.Join(e.root, "xdg-config", "bypass")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		e.t.Fatal(err)
 	}

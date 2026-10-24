@@ -13,7 +13,7 @@ func TestNoninteractiveFlags(t *testing.T) {
 		want    string
 		failure bool
 	}{
-		{"version", []string{"--version"}, "KeePassUI", false},
+		{"version", []string{"--version"}, "Bypass", false},
 		{"help", []string{"--help"}, "Usage:", false},
 		{"unknown", []string{"--bad-option"}, "flag provided but not defined", true},
 		{"too many paths", []string{"one", "two"}, "", true},

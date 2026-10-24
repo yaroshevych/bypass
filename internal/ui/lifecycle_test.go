@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"bypass/internal/platform"
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
-	"keepassui/internal/platform"
-	"keepassui/internal/vault"
 )
 
 type lifecycleBackend struct {

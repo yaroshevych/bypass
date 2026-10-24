@@ -154,7 +154,7 @@ func TestNavigationActionsAndSessionCleanupTmux(t *testing.T) {
 	e.key("C-t")
 	e.mustShow("2 Eval Entry")
 	palette("Close Current Vault")
-	e.mustShow("KeePassUI", "Open Vault", "Recent Vaults", "first.kdbx")
+	e.mustShow("Bypass", "Open Vault", "Recent Vaults", "first.kdbx")
 	e.key("Enter")
 	e.mustShow("Unlock Vault")
 	e.typeText(fixturePassword)

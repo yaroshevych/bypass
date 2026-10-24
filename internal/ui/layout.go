@@ -3,7 +3,7 @@ package ui
 import (
 	"strings"
 
-	"keepassui/internal/workspace"
+	"bypass/internal/workspace"
 )
 
 type paneRect struct {

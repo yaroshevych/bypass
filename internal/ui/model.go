@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"bypass/internal/clipboard"
+	"bypass/internal/platform"
+	"bypass/internal/privacy"
+	"bypass/internal/vault"
+	"bypass/internal/workspace"
 	tea "github.com/charmbracelet/bubbletea"
-	"keepassui/internal/clipboard"
-	"keepassui/internal/platform"
-	"keepassui/internal/privacy"
-	"keepassui/internal/vault"
-	"keepassui/internal/workspace"
 )
 
 type RecentStore interface {

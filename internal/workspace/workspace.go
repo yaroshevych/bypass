@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"keepassui/internal/vault"
+	"bypass/internal/vault"
 )
 
 type Session struct {

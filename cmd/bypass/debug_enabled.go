@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
+	"bypass/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
-	"keepassui/internal/ui"
 )
 
 type debugModel struct {
@@ -32,10 +32,10 @@ func configureDebug(flags *flag.FlagSet) func(*ui.Model) (tea.Model, error) {
 		if err != nil {
 			return nil, err
 		}
-		path := values["KEEPASSUI_DEBUG_VAULT"]
-		password, hasPassword := values["KEEPASSUI_DEBUG_PASSWORD"]
+		path := values["BYPASS_DEBUG_VAULT"]
+		password, hasPassword := values["BYPASS_DEBUG_PASSWORD"]
 		if path == "" || !hasPassword {
-			return nil, fmt.Errorf("debug env requires KEEPASSUI_DEBUG_VAULT and KEEPASSUI_DEBUG_PASSWORD")
+			return nil, fmt.Errorf("debug env requires BYPASS_DEBUG_VAULT and BYPASS_DEBUG_PASSWORD")
 		}
 		resolve := func(value string) string {
 			if value == "" || filepath.IsAbs(value) || strings.HasPrefix(value, "~/") {
@@ -43,7 +43,7 @@ func configureDebug(flags *flag.FlagSet) func(*ui.Model) (tea.Model, error) {
 			}
 			return filepath.Join(filepath.Dir(*envPath), value)
 		}
-		return debugModel{Model: m, open: m.DebugOpen(resolve(path), password, resolve(values["KEEPASSUI_DEBUG_KEY_FILE"]))}, nil
+		return debugModel{Model: m, open: m.DebugOpen(resolve(path), password, resolve(values["BYPASS_DEBUG_KEY_FILE"]))}, nil
 	}
 }
 

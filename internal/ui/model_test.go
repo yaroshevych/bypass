@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"keepassui/internal/vault"
 )
 
 func key(s string) tea.KeyMsg {

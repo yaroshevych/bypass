@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"bypass/internal/clipboard"
+	"bypass/internal/platform"
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
-	"keepassui/internal/clipboard"
-	"keepassui/internal/platform"
-	"keepassui/internal/vault"
 )
 
 func updateKey(m *Model, k tea.KeyMsg) tea.Cmd {

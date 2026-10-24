@@ -1,10 +1,10 @@
 package ui
 
 import (
+	"bypass/internal/vault"
+	"bypass/internal/workspace"
 	"context"
 	tea "github.com/charmbracelet/bubbletea"
-	"keepassui/internal/vault"
-	"keepassui/internal/workspace"
 	"strings"
 	"time"
 )

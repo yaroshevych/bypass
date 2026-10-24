@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// Paths contains per-user directories used by keepassui. Resolve does not
+// Paths contains per-user directories used by bypass. Resolve does not
 // create these directories; callers create them only when writing state.
 type Paths struct {
 	Config string
@@ -22,7 +22,35 @@ func Resolve() (Paths, error) {
 	if err != nil {
 		return Paths{}, err
 	}
-	return resolveFor(runtime.GOOS, home, os.Getenv, os.UserConfigDir, os.UserCacheDir)
+	paths, err := resolveFor(runtime.GOOS, home, os.Getenv, os.UserConfigDir, os.UserCacheDir)
+	if err != nil {
+		return paths, err
+	}
+	// Existing development installs retain their preferences and backups.
+	// Fresh installs use the Bypass namespace; no files are moved implicitly.
+	paths.Config = existingLegacyDir(paths.Config)
+	paths.State = existingLegacyDir(paths.State)
+	paths.Cache = existingLegacyDir(paths.Cache)
+	return paths, nil
+}
+
+func existingLegacyDir(path string) string {
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		return path
+	}
+	separator := string(filepath.Separator)
+	parts := strings.Split(path, separator)
+	for i := len(parts) - 1; i >= 0; i-- {
+		if parts[i] == "bypass" {
+			parts[i] = "keepassui"
+			legacy := strings.Join(parts, separator)
+			if info, err := os.Stat(legacy); err == nil && info.IsDir() {
+				return legacy
+			}
+			break
+		}
+	}
+	return path
 }
 
 // ResolveFor is the deterministic form of Resolve, useful to applications
@@ -53,15 +81,15 @@ func resolveFor(goos, home string, getenv func(string) string, userConfigDir, us
 			return Paths{}, err
 		}
 		return Paths{
-			Config: filepath.Join(config, "keepassui"),
-			State:  filepath.Join(config, "keepassui", "state"),
-			Cache:  filepath.Join(cache, "keepassui"),
+			Config: filepath.Join(config, "bypass"),
+			State:  filepath.Join(config, "bypass", "state"),
+			Cache:  filepath.Join(cache, "bypass"),
 		}, nil
 	}
 
 	if goos == "darwin" {
-		appSupport := filepath.Join(home, "Library", "Application Support", "keepassui")
-		cache := filepath.Join(home, "Library", "Caches", "keepassui")
+		appSupport := filepath.Join(home, "Library", "Application Support", "bypass")
+		cache := filepath.Join(home, "Library", "Caches", "bypass")
 		return Paths{
 			Config: xdgAppDir(getenv("XDG_CONFIG_HOME"), filepath.Join(appSupport, "config")),
 			State:  xdgAppDir(getenv("XDG_STATE_HOME"), filepath.Join(appSupport, "state")),
@@ -70,15 +98,15 @@ func resolveFor(goos, home string, getenv func(string) string, userConfigDir, us
 	}
 
 	return Paths{
-		Config: xdgAppDir(getenv("XDG_CONFIG_HOME"), filepath.Join(home, ".config", "keepassui")),
-		State:  xdgAppDir(getenv("XDG_STATE_HOME"), filepath.Join(home, ".local", "state", "keepassui")),
-		Cache:  xdgAppDir(getenv("XDG_CACHE_HOME"), filepath.Join(home, ".cache", "keepassui")),
+		Config: xdgAppDir(getenv("XDG_CONFIG_HOME"), filepath.Join(home, ".config", "bypass")),
+		State:  xdgAppDir(getenv("XDG_STATE_HOME"), filepath.Join(home, ".local", "state", "bypass")),
+		Cache:  xdgAppDir(getenv("XDG_CACHE_HOME"), filepath.Join(home, ".cache", "bypass")),
 	}, nil
 }
 
 func xdgAppDir(value, fallback string) string {
 	if filepath.IsAbs(value) {
-		return filepath.Join(filepath.Clean(value), "keepassui")
+		return filepath.Join(filepath.Clean(value), "bypass")
 	}
 	return fallback
 }

@@ -98,7 +98,7 @@ func (c *CLI) Apply(ctx context.Context, db *Database, creds Credentials, change
 
 	ctx, cancel := boundedContext(ctx)
 	defer cancel()
-	stage, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".keepassui-*.kdbx")
+	stage, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".bypass-*.kdbx")
 	if err != nil {
 		return nil, ErrWrite
 	}
@@ -373,7 +373,7 @@ func copyEncrypted(src string, dst *os.File, mode os.FileMode) error {
 }
 
 func stageAttachmentFile(data []byte) (string, error) {
-	file, err := os.CreateTemp("", "keepassui-attachment-*.bin")
+	file, err := os.CreateTemp("", "bypass-attachment-*.bin")
 	if err != nil {
 		return "", err
 	}

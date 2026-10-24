@@ -32,16 +32,16 @@ func TestMain(m *testing.M) {
 		fmt.Fprintln(os.Stderr, "integration evals require tmux:", err)
 		os.Exit(2)
 	}
-	root, err := os.MkdirTemp("", "keepassui-evals-build-")
+	root, err := os.MkdirTemp("", "bypass-evals-build-")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "create eval build directory:", err)
 		os.Exit(2)
 	}
-	appBinary = filepath.Join(root, "keepassui")
-	cmd := exec.Command("go", "build", "-race", "-o", appBinary, "./cmd/keepassui")
+	appBinary = filepath.Join(root, "bypass")
+	cmd := exec.Command("go", "build", "-race", "-o", appBinary, "./cmd/bypass")
 	cmd.Dir = ".."
 	if output, err := cmd.CombinedOutput(); err != nil {
-		fmt.Fprintf(os.Stderr, "build keepassui: %v\n%s", err, output)
+		fmt.Fprintf(os.Stderr, "build bypass: %v\n%s", err, output)
 		os.Exit(2)
 	}
 	code := m.Run()
@@ -57,7 +57,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	defer e.close()
 
 	e.start()
-	e.mustShow("KeePassUI", "Open Vault")
+	e.mustShow("Bypass", "Open Vault")
 
 	// Exercise an authentication failure followed by a retry. Passwords are
 	// sent as literal tmux input and are never included in diagnostics.
@@ -119,7 +119,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	e.key("C-w")
 	e.key("C-w")
 	e.key("C-w")
-	e.mustShow("KeePassUI", "Open Vault")
+	e.mustShow("Bypass", "Open Vault")
 
 	// Tiny terminals show a useful message and recover after resize.
 	e.resize(20, 5)
@@ -127,7 +127,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	e.mustShow("Terminal too small")
 	e.resize(120, 35)
 	e.mustDimensions(120, 35)
-	e.mustShow("KeePassUI", "Open Vault")
+	e.mustShow("Bypass", "Open Vault")
 
 	e.key("q")
 	e.waitForCleanQuit()
@@ -288,7 +288,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	}
 	e := newEval(t)
 	defer e.close()
-	configDir := filepath.Join(e.root, "xdg-config", "keepassui")
+	configDir := filepath.Join(e.root, "xdg-config", "bypass")
 	if err := os.MkdirAll(configDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -521,7 +521,7 @@ type evalSession struct {
 
 func newEval(t *testing.T) *evalSession {
 	t.Helper()
-	root, err := os.MkdirTemp("", "keepassui-tmux-eval-")
+	root, err := os.MkdirTemp("", "bypass-tmux-eval-")
 	if err != nil {
 		t.Fatal("create private eval directory:", err)
 	}
@@ -561,7 +561,7 @@ func newEval(t *testing.T) *evalSession {
 
 func (e *evalSession) start() {
 	e.startWith(filepath.Join(e.root, "fake-keepassxc-cli"), "--read-only")
-	e.mustShow("KeePassUI", "Open Vault")
+	e.mustShow("Bypass", "Open Vault")
 }
 
 func (e *evalSession) startWith(backend string, appArgs ...string) {
@@ -578,7 +578,7 @@ func (e *evalSession) startWith(backend string, appArgs ...string) {
 		" XDG_CACHE_HOME=" + shellQuote(filepath.Join(e.root, "xdg-cache")) +
 		" XDG_RUNTIME_DIR=" + shellQuote(filepath.Join(e.root, "xdg-runtime")) +
 		" PATH=" + shellQuote(e.clipboardBin+string(os.PathListSeparator)+os.Getenv("PATH")) +
-		" KEEPASSUI_EVAL_CLIPBOARD=" + shellQuote(e.clipboardPath) +
+		" BYPASS_EVAL_CLIPBOARD=" + shellQuote(e.clipboardPath) +
 		" NO_COLOR= CLICOLOR_FORCE=1 TERM=xterm-256color LC_ALL=C.UTF-8 " + command + "\n"
 	if err := os.WriteFile(launcher, []byte(script), 0700); err != nil {
 		e.t.Fatal("write application launcher:", err)
@@ -725,7 +725,7 @@ func (e *evalSession) mustNotShow(value string) {
 
 func (e *evalSession) mustSettingsContain(value string) {
 	e.t.Helper()
-	path := filepath.Join(e.root, "xdg-config", "keepassui", "config.json")
+	path := filepath.Join(e.root, "xdg-config", "bypass", "config.json")
 	e.waitFor("settings file to contain "+value, func() bool {
 		contents, err := os.ReadFile(path)
 		return err == nil && strings.Contains(string(contents), value)
@@ -870,9 +870,9 @@ func (e *evalSession) failWithScreen(description, screen string) {
 	e.t.Helper()
 	redacted := e.redact(screen)
 	artifact := ""
-	if dir := os.Getenv("KEEPASSUI_EVAL_ARTIFACTS"); dir != "" {
+	if dir := os.Getenv("BYPASS_EVAL_ARTIFACTS"); dir != "" {
 		if err := os.MkdirAll(dir, 0700); err == nil {
-			path := filepath.Join(dir, "keepassui-"+e.label+"-failure.txt")
+			path := filepath.Join(dir, "bypass-"+e.label+"-failure.txt")
 			if err := os.WriteFile(path, []byte(redacted), 0600); err == nil {
 				artifact = "; redacted screen saved to " + path
 			}

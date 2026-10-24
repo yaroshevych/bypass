@@ -3,7 +3,7 @@ package ui
 import (
 	"testing"
 
-	"keepassui/internal/vault"
+	"bypass/internal/vault"
 )
 
 func TestTinyTerminalKeepsDraftWithoutAcceptingHiddenInput(t *testing.T) {

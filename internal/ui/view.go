@@ -6,9 +6,9 @@ import (
 	"strings"
 	"unicode"
 
+	"bypass/internal/workspace"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-	"keepassui/internal/workspace"
 )
 
 var (
@@ -59,7 +59,7 @@ func (m *Model) View() string {
 		if m.settings.ASCII {
 			minimum = "Resize to at least 48x14"
 		}
-		lines = []string{accent.Render("KeePassUI"), "Terminal too small", muted.Render(minimum), "q quit · Ctrl+C quit"}
+		lines = []string{accent.Render("Bypass"), "Terminal too small", muted.Render(minimum), "q quit · Ctrl+C quit"}
 		if m.editor != nil && m.editor.dirty() {
 			lines[3] = "Draft kept · resize · Ctrl+C quits"
 		}
@@ -98,7 +98,7 @@ func (m *Model) welcomeLines() []string {
 	left := max(0, (w-contentW)/2)
 	pad := strings.Repeat(" ", left)
 	lines := make([]string, max(1, (m.height-18)/2))
-	lines = append(lines, pad+accent.Render("        ◇"), "", pad+accent.Render("KeePassUI"), pad+muted.Render("Your vaults. Your keys. Your terminal."), "", pad+active.Render("  Open Vault  ")+muted.Render("  o / Ctrl+O"), "", pad+muted.Render("Open an existing KeePass-compatible .kdbx file."))
+	lines = append(lines, pad+accent.Render("        ◇"), "", pad+accent.Render("Bypass Secrets Manager"), pad+muted.Render("Your vaults. Your keys. Your terminal."), "", pad+active.Render("  Open Vault  ")+muted.Render("  o / Ctrl+O"), "", pad+muted.Render("Open an existing KeePass-compatible .kdbx file."))
 	if m.canCreateVault() {
 		lines = append(lines, pad+accent.Render("New Vault")+muted.Render("  N"))
 	}
