@@ -28,6 +28,34 @@ func TestClassicBoxJoinsHeaderAndRightAlignsFooter(t *testing.T) {
 	}
 }
 
+func TestClassicDialogBodyUsesOneCellInset(t *testing.T) {
+	for _, mode := range []Mode{Box, Overlay} {
+		t.Run(map[Mode]string{Box: "box", Overlay: "overlay"}[mode], func(t *testing.T) {
+			bodyText := lipgloss.NewStyle().Foreground(lipgloss.Color("#aaaaaa")).Render("Item")
+			lines := Render(Options{
+				Mode: mode, Title: "Dialog", Body: []string{bodyText},
+				Backdrop: make([]string, 16), Width: 24, ScreenWidth: 40, Height: 16, X: -1, Y: -1,
+			})
+			for _, line := range strip(lines) {
+				runes := []rune(line)
+				index := runeIndex(line, "Item")
+				if index < 0 {
+					continue
+				}
+				border := runeIndex(string(runes[:index]), "│")
+				if border < 0 || index-border != 2 {
+					t.Fatalf("body text starts at column %d after border; want one-cell inset: %q", index-border, line)
+				}
+				if runes[index+len([]rune("Item"))] != ' ' {
+					t.Fatalf("body text has no right-side padding: %q", line)
+				}
+				return
+			}
+			t.Fatalf("body text missing from dialog: %q", strings.Join(strip(lines), "\n"))
+		})
+	}
+}
+
 func TestClassicOverlayHeaderDividerConnectsTopAndBottomRules(t *testing.T) {
 	lines := Render(Options{
 		Mode: Overlay, Title: "Commands", HeaderContent: "COMMANDS │ type to filter 18 commands", HeaderDivider: 11,

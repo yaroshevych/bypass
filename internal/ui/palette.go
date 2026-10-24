@@ -396,30 +396,30 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 			if group != "" {
 				source = append(source, listComponentRow{kind: listComponentSpacer, item: -1})
 			}
-			source = append(source, listComponentRow{kind: listComponentHeader, item: -1, text: "  " + section + " ", divider: true})
+			headerIndent := "  "
+			if !strings.EqualFold(m.settings.Appearance, "compact") {
+				headerIndent = " "
+			}
+			source = append(source, listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + section + " ", divider: true})
 			group = section
 		}
-		compact := strings.EqualFold(m.settings.Appearance, "compact")
 		text := m.highlightText(choice.label, p.query.value(), "title")
-		if !compact {
-			text = "  " + text
-		}
 		right := choice.key
 		if choice.reason != "" {
 			label := safe(choice.label)
-			if !compact {
-				label = "  " + label
-			}
 			text = c.secondary.Render(label)
 			right = choice.reason
 		}
 		if i == p.selected {
 			text = safe(choice.label)
-			if !compact {
-				text = "  " + text
-			}
 			if choice.reason != "" {
 				right = choice.reason
+			}
+		}
+		if !strings.EqualFold(m.settings.Appearance, "compact") {
+			text = " " + text
+			if right != "" {
+				right += " "
 			}
 		}
 		source = append(source, listComponentRow{kind: listComponentItem, item: i, text: text, right: right, selected: i == p.selected, activeFill: true, pillSelected: true})

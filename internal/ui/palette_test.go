@@ -71,11 +71,18 @@ func TestShiftTOpensThemePaletteWithoutCreatingTab(t *testing.T) {
 
 func TestThemesPaletteOmitsRedundantGroupHeading(t *testing.T) {
 	m, _ := operationModel(t)
+	m.settings.Appearance = "classic"
 	m.openPalette("themes", false)
 	rows, _ := m.paletteRows(m.paletteChoices())
 	for _, row := range rows {
 		if row.choice == -1 {
 			t.Fatalf("Themes picker contains a group heading: %q", ansi.Strip(row.text))
+		}
+		if row.choice >= 0 {
+			plain := ansi.Strip(row.text)
+			if !strings.HasPrefix(plain, " ") || !strings.HasSuffix(plain, " ") {
+				t.Fatalf("classic dialog item is missing one-cell side padding: %q", plain)
+			}
 		}
 	}
 }
@@ -218,13 +225,23 @@ func TestPaletteDisabledReasonIsRightAlignedAndFirstGroupHasNoLeadingBlank(t *te
 		{group: "Vault", label: "Open Vault", key: "ctrl+o"},
 	}
 	rows, _ := m.paletteRows(choices)
+	checkedHeader := false
 	for _, row := range rows {
+		if row.choice == -1 && strings.Contains(ansi.Strip(row.text), "VAULTS") {
+			checkedHeader = true
+			if !strings.HasPrefix(ansi.Strip(row.text), " VAULTS") {
+				t.Fatalf("classic group heading has incorrect left inset: %q", ansi.Strip(row.text))
+			}
+		}
 		if row.choice == 0 {
 			line := ansi.Strip(row.text)
-			if lipgloss.Width(line) != m.paletteListWidth(choices) || !strings.HasSuffix(line, "Set a session PIN first") {
+			if lipgloss.Width(line) != m.paletteListWidth(choices) || !strings.HasSuffix(strings.TrimRight(line, " "), "Set a session PIN first") {
 				t.Fatalf("disabled reason is not right-aligned: %q", line)
 			}
 		}
+	}
+	if !checkedHeader {
+		t.Fatal("classic VAULTS group heading is missing")
 	}
 	_, body, _ := m.paletteBody()
 	if len(body) == 0 || strings.TrimSpace(ansi.Strip(body[0])) == "" {
