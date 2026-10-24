@@ -21,7 +21,7 @@ type viewLayout struct {
 
 func (m *Model) layout() viewLayout {
 	w, h := max(1, m.width), max(1, m.height)
-	header, footer := 4, 2
+	header, footer := 4, 1
 	if strings.EqualFold(m.settings.Appearance, "compact") {
 		header, footer = 2, 1
 	}

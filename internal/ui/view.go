@@ -122,16 +122,9 @@ func (m *Model) welcomeLines() []string {
 	if m.backendMissing {
 		lines = append(lines, "", pad+errorStyle.Render("Install KeePassXC or set --backend executable."))
 	}
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	footerHeight := 2
-	if compact {
-		footerHeight = 1
-	}
+	footerHeight := 1
 	for len(lines) < m.height-footerHeight {
 		lines = append(lines, "")
-	}
-	if !compact {
-		lines = append(lines, m.themedRule(w))
 	}
 	lines = append(lines, m.footerLine("o open vault    ? shortcuts    q quit"))
 	return lines
@@ -232,15 +225,9 @@ func (m *Model) workspaceLines() []string {
 	}
 	if s.DB == nil {
 		lines = append(lines, "", accent.Render("  Vault locked"), muted.Render("  enter to unlock with vault credentials."), "", muted.Render("  1–9 switch vault views · ctrl+o open another vault"))
-		footerHeight := 2
-		if compact {
-			footerHeight = 1
-		}
+		footerHeight := 1
 		for len(lines) < m.height-footerHeight {
 			lines = append(lines, "")
-		}
-		if !compact {
-			lines = append(lines, m.themedRule(w))
 		}
 		return append(lines, m.footerLine("enter unlock    ctrl+w close view    q quit"))
 	}
@@ -258,9 +245,6 @@ func (m *Model) workspaceLines() []string {
 	}
 	if m.writing {
 		footer += " · Working…"
-	}
-	if !compact {
-		lines = append(lines, m.paneRule(l, false))
 	}
 	contextual := m.footerContext()
 	if m.notice != "" || m.clipboardStatus() != "" {

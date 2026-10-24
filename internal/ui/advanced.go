@@ -490,7 +490,7 @@ func (m *Model) footerContext() string {
 	}
 	switch v.Focus {
 	case 0:
-		return "↑↓ select · enter entries"
+		return ""
 	case 1:
 		return "n new · e edit"
 	case 2:

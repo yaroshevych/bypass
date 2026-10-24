@@ -73,6 +73,24 @@ func TestSelectedEntryDoesNotReceiveSearchMatchHighlight(t *testing.T) {
 	}
 }
 
+func TestClassicFooterHasNoSeparatorAndSidebarHasNoContextHint(t *testing.T) {
+	m := New(Options{})
+	m.ws.Open(fixture("/tmp/classic-footer.kdbx"))
+	m.width, m.height = 120, 35
+	m.normalize()
+	m.ws.ActiveView().Focus = 0
+	lines := m.workspaceLines()
+	if strings.Contains(ansi.Strip(lines[len(lines)-2]), "─") || strings.Contains(ansi.Strip(lines[len(lines)-2]), "┴") {
+		t.Fatal("classic footer still has a horizontal separator")
+	}
+	if got := m.footerContext(); got != "" {
+		t.Fatalf("sidebar footer context = %q, want none", got)
+	}
+	if m.layout().BodyHeight != m.height-5 {
+		t.Fatalf("classic body height = %d, want %d after removing footer rule", m.layout().BodyHeight, m.height-5)
+	}
+}
+
 func TestMinimumUnlockKeepsFilenameAndEssentialControls(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 48, 14

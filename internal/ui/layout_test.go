@@ -40,7 +40,7 @@ func TestLayoutResponsiveModesAndZoom(t *testing.T) {
 				t.Fatalf("last pane focus = %d, want %d", got.Panes[len(got.Panes)-1].Focus, tt.mainFocus)
 			}
 			for _, pane := range got.Panes {
-				if pane.Width <= 0 || pane.Height <= 0 || pane.X < 0 || pane.Y < got.BodyY || pane.X+pane.Width > tt.width || pane.Y+pane.Height > tt.height-2 {
+				if pane.Width <= 0 || pane.Height <= 0 || pane.X < 0 || pane.Y < got.BodyY || pane.X+pane.Width > tt.width || pane.Y+pane.Height > tt.height-1 {
 					t.Fatalf("invalid pane geometry: %+v", pane)
 				}
 			}
