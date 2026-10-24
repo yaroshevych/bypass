@@ -972,7 +972,7 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 
 func (m *Model) entryLines(width, height int, focused bool) []string {
 	styles := m.colors()
-	accent, secondary, active, inactive := styles.accent, styles.secondary, styles.active, styles.inactive
+	secondary, active, inactive := styles.secondary, styles.active, styles.inactive
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	contentWidth := width
 	if compact {
@@ -986,15 +986,11 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 		return fit(ansi.Truncate(text, width, "…"), width)
 	}
 	row := func(a, b, c string) string { return fit(cell(a, tw)+" "+cell(b, uw)+" "+cell(c, urlw), contentWidth) }
-	heading := row("Title", "Username", "Website")
+	heading := row("TITLE", "USERNAME", "WEBSITE")
 	if compact {
 		heading = fit("  "+heading, width)
 	}
-	if focused {
-		heading = accent.Render(heading)
-	} else {
-		heading = secondary.Render(heading)
-	}
+	heading = secondary.Render(heading)
 	lines := []string{heading}
 	entries := m.entries()
 	v := m.ws.ActiveView()
@@ -1129,9 +1125,10 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 		if name == "UserName" {
 			label = "Username"
 		}
-		labelLine := "  " + safe(label)
+		label = strings.ToUpper(safe(label))
+		labelLine := secondary.Render("  " + label)
 		if v := m.ws.ActiveView(); v != nil && v.Focus == 2 && index == v.FieldIndex {
-			labelLine = active.Render(fit("› "+safe(label), width))
+			labelLine = active.Render(fit("› "+label, width))
 		}
 		lines = append(lines, "", labelLine)
 		value := m.fieldValue(*e, name)
