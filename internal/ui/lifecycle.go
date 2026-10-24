@@ -403,7 +403,7 @@ func (m *Model) lifecycleLines() []string {
 	if s := m.ws.Sessions[l.sessionID]; s != nil {
 		body = append(body, c.muted.Render(vaultLabel(s.Path)), "")
 	}
-	footer := "Tab next · Ctrl+S submit · Esc cancel"
+	footer := "Tab next · Ctrl+S submit"
 	if l.kind == "info" || l.kind == "settings" {
 		var wrapped []string
 		for _, line := range l.lines {
@@ -412,7 +412,7 @@ func (m *Model) lifecycleLines() []string {
 		capacity := max(1, m.height-12)
 		start := min(l.offset, max(0, len(wrapped)-capacity))
 		body = append(body, wrapped[start:min(len(wrapped), start+capacity)]...)
-		footer = "↑↓ scroll · q / Esc close"
+		footer = "q close"
 	} else if l.confirm {
 		body = append(body, "Change the credentials for this vault?", "An encrypted backup will retain the old credentials.", "")
 		cancel, proceed := " Cancel ", " Change Credentials "
@@ -422,7 +422,7 @@ func (m *Model) lifecycleLines() []string {
 			cancel = c.active.Render(cancel)
 		}
 		body = append(body, cancel+"  "+proceed)
-		footer = "←→ choose · Enter confirm · Esc back"
+		footer = "←→ choose"
 	} else {
 		labels := []string{"New password (blank for key-file only)", "Confirm password", "Existing key file (optional)"}
 		secretStart := 0

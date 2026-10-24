@@ -31,7 +31,7 @@ func (m *Model) openAttachments() tea.Cmd {
 func (m *Model) attachmentLines(state *extraState) []string {
 	session, entry := m.currentExtraEntry(state)
 	if session == nil || entry == nil {
-		return m.overlay("Attachments", []string{m.colors().errorStyle.Render("Entry is no longer available.")}, "Esc close", min(72, m.width-4), -1, -1)
+		return m.overlay("Attachments", []string{m.colors().errorStyle.Render("Entry is no longer available.")}, "", min(72, m.width-4), -1, -1)
 	}
 	var body []string
 	if state.phase == "path" {
@@ -67,13 +67,13 @@ func (m *Model) attachmentLines(state *extraState) []string {
 	if state.err != "" {
 		body = append(body, "", m.colors().errorStyle.Render(state.err))
 	}
-	footer := "↑↓ select · a add · r replace · d remove · e export · Esc close"
+	footer := "a add · r replace · d remove · e export"
 	if state.phase == "path" {
-		footer = "Enter continue · Esc back"
+		footer = ""
 	} else if strings.HasPrefix(state.phase, "confirm-") {
-		footer = "←→ choose · Enter confirm · Esc cancel"
+		footer = "←→ choose"
 	} else if state.loading {
-		footer = "Working… · Esc close"
+		footer = ""
 	}
 	return m.overlay("Attachments", body, footer, min(76, m.width-4), -1, -1)
 }

@@ -575,11 +575,11 @@ func (m *Model) paletteBody() (string, []string, string) {
 	p := m.palette
 	choices := m.paletteChoices()
 	rows, _ := m.paletteRows(choices)
-	title := map[string]string{"actions": "Commands", "themes": "Choose Theme", "appearance": "Choose Appearance", "files": "Open Vault", "history": "Search History", "destination": "Move / Restore Entry"}[p.scope]
+	title := map[string]string{"actions": "Commands", "themes": "Theme", "appearance": "Choose Appearance", "files": "Open Vault", "history": "Search History", "destination": "Move / Restore Entry"}[p.scope]
 	if p.context {
 		title = "Item Actions"
 	}
-	if len(p.stack) > 0 {
+	if len(p.stack) > 0 && p.scope != "themes" {
 		title = "Commands › " + title
 	}
 	body := []string{m.colors().accent.Render("Search "+p.query.display(false)+"▏") + m.colors().muted.Render(fmt.Sprintf("   %d results", len(choices))), ""}
@@ -594,10 +594,7 @@ func (m *Model) paletteBody() (string, []string, string) {
 	if p.err != "" {
 		body = append(body, m.colors().errorStyle.Render(p.err))
 	}
-	footer := "↑↓ select · Enter run · Esc back"
-	if p.scope == "themes" || p.scope == "appearance" {
-		footer = "↑↓ preview · Enter apply · Esc revert"
-	}
+	footer := ""
 	return title, body, footer
 }
 func (m *Model) paletteLines() []string {

@@ -70,7 +70,7 @@ def capture(args, fixture, cli, output):
             while time.monotonic() < deadline:
                 value = screen()
                 stable = stable + 1 if value == previous else 0
-                if marker in ANSI.sub('', value) and stable >= 3:
+                if marker.casefold() in ANSI.sub('', value).casefold() and stable >= 3:
                     return value
                 previous = value
                 time.sleep(.04)
@@ -113,7 +113,7 @@ def capture(args, fixture, cli, output):
                             key('Right')
                             wait('c copy')
                         elif args.screen in ('tabs', 'tabs-hover'):
-                            key('C-t')
+                            key('t')
                             if args.screen == 'tabs-hover':
                                 value = wait('2 Proton Mail')
                                 row = 1 if args.appearance == 'compact' else 2

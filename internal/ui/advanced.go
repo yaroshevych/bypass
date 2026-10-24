@@ -373,7 +373,7 @@ func (m *Model) advancedScreen() ([]string, bool) {
 		return m.paletteLines(), true
 	}
 	if m.jump {
-		return m.overlay("Jump to…", []string{"g Groups   i Entries   d Details", "p Password   u Username   w URL   n Notes", "e Email (when present)"}, "Choose target · Esc cancel", min(66, m.width-4), -1, -1), true
+		return m.overlay("Jump to…", []string{"g Groups   i Entries   d Details", "p Password   u Username   w URL   n Notes", "e Email (when present)"}, "", min(66, m.width-4), -1, -1), true
 	}
 	return nil, false
 }
@@ -397,11 +397,27 @@ func (m *Model) overlay(title string, body []string, footer string, width, x, y 
 	wrap := func(text string) string {
 		return c.lineStyle.Render(border) + c.base.Render(" "+fit(text, width-4)+" ") + c.lineStyle.Render(border)
 	}
-	box := []string{c.lineStyle.Render(tl + strings.Repeat(horizontal, width-2) + tr), wrap(c.accent.Render(title)), wrap(c.muted.Render(strings.Repeat(horizontal, width-4)))}
+	wrapRight := func(text string) string {
+		return c.lineStyle.Render(border) + c.base.Render(" "+fitRight(text, width-4)+" ") + c.lineStyle.Render(border)
+	}
+	title = m.dialogTitle(title)
+	box := []string{c.lineStyle.Render(tl + strings.Repeat(horizontal, width-2) + tr), wrap(c.accent.Render(title))}
+	if strings.EqualFold(m.settings.Appearance, "compact") {
+		box = append(box, wrap(c.muted.Render(strings.Repeat(horizontal, width-4))))
+	} else {
+		leftRule, rightRule := "├", "┤"
+		if m.settings.ASCII {
+			leftRule, rightRule = "+", "+"
+		}
+		box = append(box, c.lineStyle.Render(leftRule+strings.Repeat(horizontal, width-2)+rightRule))
+	}
 	for _, line := range body {
 		box = append(box, wrap(line))
 	}
-	box = append(box, wrap(c.muted.Render(footer)), c.lineStyle.Render(bl+strings.Repeat(horizontal, width-2)+br))
+	if footer != "" {
+		box = append(box, wrapRight(c.muted.Render(footer)))
+	}
+	box = append(box, c.lineStyle.Render(bl+strings.Repeat(horizontal, width-2)+br))
 	if x < 0 {
 		x = (m.width - width) / 2
 	}

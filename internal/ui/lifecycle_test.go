@@ -10,6 +10,7 @@ import (
 	"bypass/internal/platform"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type lifecycleBackend struct {
@@ -71,6 +72,42 @@ func TestCreateVaultFormMasksInputsAndRetainsFailedDraft(t *testing.T) {
 	m.Update(cmd())
 	if m.lifecycle != nil || m.ws.ActiveSession() == nil || m.ws.ActiveSession().DB == nil || b.createOptions.DecryptionTimeMS != 100 {
 		t.Fatal("create did not open the new vault")
+	}
+}
+
+func TestVaultLifecycleDialogsUseConnectedClassicHeaders(t *testing.T) {
+	for _, tc := range []struct {
+		kind  string
+		title string
+	}{
+		{kind: "create", title: "NEW VAULT"},
+		{kind: "credentials", title: "CHANGE VAULT CREDENTIALS"},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			m := New(Options{})
+			m.width, m.height = 100, 30
+			m.settings.Appearance = "classic"
+			m.lifecycle = &lifecycleState{kind: tc.kind, inputs: make([]input, 5)}
+			lines := m.lifecycleLines()
+			var stripped []string
+			for _, line := range lines {
+				stripped = append(stripped, ansi.Strip(line))
+			}
+			titleRow := -1
+			for i, line := range stripped {
+				if strings.Contains(line, tc.title) {
+					titleRow = i
+					break
+				}
+			}
+			if titleRow < 0 || titleRow+1 >= len(stripped) {
+				t.Fatalf("%s dialog title missing or not uppercase: %q", tc.kind, strings.Join(stripped, "\n"))
+			}
+			header := []rune(strings.TrimSpace(stripped[titleRow+1]))
+			if len(header) < 2 || header[0] != '├' || header[len(header)-1] != '┤' {
+				t.Fatalf("%s dialog header rule does not join the frame: %q", tc.kind, string(header))
+			}
+		})
 	}
 }
 

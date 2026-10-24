@@ -66,13 +66,13 @@ func (m *Model) historyLines(state *extraState) []string {
 	if len(state.history) == 0 {
 		body = append(body, "No history snapshots")
 	}
-	return m.overlay("Entry History", body, "↑↓ select · Enter view · Esc close", min(78, m.width-4), -1, -1)
+	return m.overlay("History", body, "", min(78, m.width-4), -1, -1)
 }
 
 func (m *Model) historyEntryLines(state *extraState) []string {
 	entry := m.extraHistorySnapshot(state)
 	if entry == nil {
-		return m.overlay("History Snapshot", []string{m.colors().errorStyle.Render("Snapshot is no longer available.")}, "Esc back", min(78, m.width-4), -1, -1)
+		return m.overlay("History Snapshot", []string{m.colors().errorStyle.Render("Snapshot is no longer available.")}, "", min(78, m.width-4), -1, -1)
 	}
 	when := entry.Modified
 	if when.IsZero() {
@@ -92,7 +92,7 @@ func (m *Model) historyEntryLines(state *extraState) []string {
 		end := min(len(lines), start+capacity)
 		body = append(body, lines[start:end]...)
 	}
-	return m.overlay("History Snapshot", body, "↑↓ field · PgUp/PgDn value · c copy · v reveal · Esc back", min(78, m.width-4), -1, -1)
+	return m.overlay("History Snapshot", body, "PgUp/PgDn value · c copy · v reveal", min(78, m.width-4), -1, -1)
 }
 
 func (m *Model) historyValueCapacity() int {

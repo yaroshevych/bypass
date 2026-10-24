@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"bypass/internal/vault"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestModalBackdropPreservesTabPillBackground(t *testing.T) {
@@ -21,6 +22,123 @@ func TestModalBackdropPreservesTabPillBackground(t *testing.T) {
 	backdropLine := m.modalBackdrop()[1]
 	if !strings.Contains(backdropLine, activeCell) {
 		t.Fatal("modal backdrop erased the active tab's pill background")
+	}
+}
+
+func TestClassicDialogTitlesAreUppercaseAndHeaderRulesJoinFrame(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 100, 30
+	m.settings.Appearance = "classic"
+	for name, lines := range map[string][]string{
+		"box":     m.box("Change Vault Credentials", []string{"body"}, ""),
+		"overlay": m.overlay("History", []string{"body"}, "", 60, -1, -1),
+	} {
+		stripped := make([]string, len(lines))
+		for i, line := range lines {
+			stripped[i] = ansi.Strip(line)
+		}
+		joined := strings.Join(stripped, "\n")
+		var title string
+		if name == "box" {
+			title = "CHANGE VAULT CREDENTIALS"
+		} else {
+			title = "HISTORY"
+		}
+		titleRow := -1
+		for i, line := range stripped {
+			if strings.Contains(line, title) {
+				titleRow = i
+				break
+			}
+		}
+		if titleRow < 0 {
+			t.Fatalf("%s dialog title not uppercase: %q", name, joined)
+		}
+		headerLine := strings.TrimSpace(stripped[titleRow+1])
+		header := []rune(headerLine)
+		if len(header) < 2 || header[0] != '├' || header[len(header)-1] != '┤' {
+			t.Fatalf("%s header rule does not join the frame: %q", name, headerLine)
+		}
+	}
+}
+
+func TestDialogFootersAreRightAlignedWithoutSeparator(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 100, 30
+	for name, lines := range map[string][]string{
+		"box":     m.box("Test Dialog", []string{"body"}, "c copy"),
+		"overlay": m.overlay("Test Dialog", []string{"body"}, "c copy", 60, -1, -1),
+	} {
+		var stripped []string
+		for _, line := range lines {
+			stripped = append(stripped, ansi.Strip(line))
+		}
+		footerRow := -1
+		for i, line := range stripped {
+			if strings.Contains(line, "c copy") {
+				footerRow = i
+				break
+			}
+		}
+		if footerRow < 1 {
+			t.Fatalf("%s footer was not rendered: %q", name, strings.Join(stripped, "\n"))
+		}
+		line := stripped[footerRow]
+		left, right := strings.Index(line, "│"), strings.LastIndex(line, "│")
+		start := strings.Index(line, "c copy")
+		if left < 0 || right <= start || start-left <= right-(start+len("c copy")) {
+			t.Fatalf("%s footer is not right-aligned: %q", name, line)
+		}
+		previous := stripped[footerRow-1]
+		prevLeft, prevRight := strings.Index(previous, "│"), strings.LastIndex(previous, "│")
+		if prevLeft >= 0 && prevRight > prevLeft && strings.Contains(previous[prevLeft+1:prevRight], "─") {
+			t.Fatalf("%s has a horizontal separator above its footer: %q", name, previous)
+		}
+	}
+}
+
+func TestMoveDialogUsesEntryTitleAndOmitsFilterAndDuplicateTitle(t *testing.T) {
+	m, _ := operationModel(t)
+	m.chooseDestination(m.selected())
+	text := ansi.Strip(strings.Join(m.dialogLines(), "\n"))
+	if !strings.Contains(text, "MOVE ALPHA") {
+		t.Fatalf("move dialog title does not identify the entry: %q", text)
+	}
+	if strings.Contains(text, "type to filter") || len(m.dialog.message) != 0 {
+		t.Fatalf("move dialog retained a filter control or duplicate item-title body: %q", text)
+	}
+	if len(m.dialog.filteredGroups()) != len(m.dialog.groups) {
+		t.Fatal("move destination list should not be filtered")
+	}
+}
+
+func TestRestoreDialogUsesEntryTitleAndConnectedClassicHeader(t *testing.T) {
+	m, _ := operationModel(t)
+	m.settings.Appearance = "classic"
+	e := m.selected()
+	e.Recycled = true
+	m.chooseDestination(e)
+	lines := m.dialogLines()
+	var stripped []string
+	for _, line := range lines {
+		stripped = append(stripped, ansi.Strip(line))
+	}
+	joined := strings.Join(stripped, "\n")
+	if !strings.Contains(joined, "RESTORE ALPHA") {
+		t.Fatalf("restore dialog title does not identify the entry: %q", joined)
+	}
+	if len(stripped) < 2 {
+		t.Fatalf("restore dialog is missing its title header: %q", joined)
+	}
+	joinedHeader := false
+	for _, line := range stripped {
+		if strings.Contains(line, "├") && strings.Contains(line, "┤") {
+			joinedHeader = true
+			break
+		}
+	}
+	if !joinedHeader {
+		t.Fatalf("restore dialog header rule does not join the frame: %q", joined)
 	}
 }
 

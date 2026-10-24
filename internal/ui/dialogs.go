@@ -104,23 +104,20 @@ func (m *Model) confirmDelete() {
 }
 func (m *Model) chooseDestination(e *vault.Entry) {
 	s := m.ws.ActiveSession()
-	title := "Move Entry"
+	itemTitle := visibleField(*e, "Title")
+	if itemTitle == "" {
+		itemTitle = "Untitled"
+	}
+	title := "Move " + safe(itemTitle)
 	if e.Recycled {
-		title = "Restore Entry"
+		title = "Restore " + safe(itemTitle)
 	}
 	m.hideReveal()
-	m.dialog = &actionDialog{kind: "destination", title: title, sessionID: s.ID, entryUUID: e.UUID, message: []string{visibleField(*e, "Title")}}
+	m.dialog = &actionDialog{kind: "destination", title: title, sessionID: s.ID, entryUUID: e.UUID}
 	m.dialog.groups = destinationGroups(s.DB, s.Destinations)
 }
 func (d *actionDialog) filteredGroups() []vault.Group {
-	var groups []vault.Group
-	query := strings.ToLower(d.input.value())
-	for _, g := range d.groups {
-		if strings.Contains(strings.ToLower(g.Path), query) {
-			groups = append(groups, g)
-		}
-	}
-	return groups
+	return d.groups
 }
 
 func (d *actionDialog) destinationViewport(height int, groups []vault.Group) (start, capacity int) {
@@ -204,14 +201,13 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 			d.selected = min(max(0, len(groups)-1), d.selected+1)
 		case "enter":
 			if len(groups) == 0 {
-				d.err = "No matching destination."
+				d.err = "No available destinations."
 				return nil
 			}
 			group := groups[min(d.selected, len(groups)-1)]
 			return m.apply(vault.Change{Kind: vault.MoveEntry, EntryUUID: d.entryUUID, GroupUUID: group.UUID})
 		default:
-			d.input.update(k)
-			d.selected = 0
+			return nil
 		}
 		return nil
 	}
@@ -266,27 +262,26 @@ func (m *Model) dialogLines() []string {
 	accent, muted, active, errorStyle := c.accent, c.muted, c.active, c.errorStyle
 	d := m.dialog
 	body := append([]string(nil), d.message...)
-	footer := "←→ choose · Enter confirm · Esc cancel"
+	footer := ""
 	switch d.kind {
 	case "pin-setup", "pin-confirm":
 		body = append(body, muted.Render("4–12 digits · current run only"), accent.Render(d.input.display(true)+"▏"))
-		footer = "Enter continue · Esc cancel"
+		footer = ""
 	case "group":
 		body = append(body, muted.Render("Group name"), accent.Render(d.input.display(false)+"▏"))
-		footer = "Enter create · Esc cancel"
+		footer = ""
 	case "generator":
 		if len(d.secret) == 0 {
 			body = append(body, "Length (8–128)", accent.Render(d.input.display(false)+"▏"))
-			footer = "Enter generate · Esc cancel"
+			footer = ""
 		} else {
 			body = append(body, "Generated password", accent.Render("••••••••"))
-			footer = "Enter copy · c copy · g regenerate · Esc close"
+			footer = "c copy · g regenerate"
 			if m.editor != nil {
-				footer = "Enter use in draft · c copy · g regenerate · Esc cancel"
+				footer = "c copy · g regenerate"
 			}
 		}
 	case "destination":
-		body = append(body, muted.Render("Destination · type to filter"), accent.Render(d.input.display(false)+"▏"), "")
 		groups := d.filteredGroups()
 		start, capacity := d.destinationViewport(m.height, groups)
 		for i := start; i < len(groups) && i < start+capacity; i++ {
@@ -299,7 +294,7 @@ func (m *Model) dialogLines() []string {
 		if len(groups) == 0 {
 			body = append(body, "No matching groups")
 		}
-		footer = "↑↓ choose · Enter move · Esc cancel"
+		footer = ""
 	default:
 		body = append(body, "")
 		var choices []string

@@ -96,10 +96,13 @@ func TestMinimumUnlockKeepsFilenameAndEssentialControls(t *testing.T) {
 	m.width, m.height = 48, 14
 	m.path = "/a/very/long/directory/with/many/components/demo-vault.kdbx"
 	text := ansi.Strip(strings.Join(m.unlockLines(), "\n"))
-	for _, label := range []string{"demo-vault.kdbx", "Password:", "Key file:", "Hardware slot:", "Password auth:", "esc cancel"} {
+	for _, label := range []string{"demo-vault.kdbx", "Password:", "Key file:", "Hardware slot:", "Password auth:", "tab next"} {
 		if !strings.Contains(text, label) {
 			t.Fatalf("minimum-size unlock lost %q:\n%s", label, text)
 		}
+	}
+	if strings.Contains(text, "esc cancel") {
+		t.Fatalf("minimum-size unlock repeated the common Esc shortcut:\n%s", text)
 	}
 }
 

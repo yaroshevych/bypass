@@ -76,9 +76,9 @@ func (m *Model) totpLines(state *extraState) []string {
 	} else if len(state.totpCode) != 0 {
 		body = append(body, m.colors().accent.Render("Refreshing code…"))
 	}
-	footer := "c / Enter copy code · Esc close"
+	footer := "c copy code"
 	if state.err != "" {
-		footer = "r retry · Esc close"
+		footer = "r retry"
 	}
 	return m.overlay("Authenticator Code", body, footer, min(68, m.width-4), -1, -1)
 }

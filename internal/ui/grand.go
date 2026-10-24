@@ -157,9 +157,9 @@ func (m *Model) grandLines() []string {
 		}
 		body = append(body, values.String(), indexes.String(), "")
 	}
-	footer := "Esc / Enter close · ↑↓ scroll · PgUp/PgDn"
+	footer := "q close · PgUp/PgDn scroll"
 	if total > visible {
-		footer = fmt.Sprintf("rows %d–%d/%d · Esc close · ↑↓ / PgUp/PgDn", start+1, min(total, start+visible), total)
+		footer = fmt.Sprintf("rows %d–%d/%d · q close · PgUp/PgDn scroll", start+1, min(total, start+visible), total)
 	}
 	return m.grandOverlay(body, footer)
 }
@@ -202,9 +202,9 @@ func (m *Model) grandTextView() []string {
 			body = append(body, c.base.Render(row))
 		}
 	}
-	footer := "q / Esc close · ↑↓ scroll · PgUp/PgDn"
+	footer := "q close · PgUp/PgDn scroll"
 	if len(rows) > visible {
-		footer = fmt.Sprintf("lines %d–%d/%d · q / Esc close · ↑↓ scroll", start+1, min(len(rows), start+visible), len(rows))
+		footer = fmt.Sprintf("lines %d–%d/%d · q close · PgUp/PgDn scroll", start+1, min(len(rows), start+visible), len(rows))
 	}
 	return m.grandOverlay(body, footer)
 }

@@ -260,10 +260,11 @@ func (m *Model) destinationPointer(msg tea.MouseMsg) {
 	}
 	lines := m.dialogLines()
 	top := 0
-	for top < len(lines) && strings.TrimSpace(ansi.Strip(ansi.Cut(lines[top], left+2, left+boxWidth-2))) != d.title {
+	title := m.dialogTitle(d.title)
+	for top < len(lines) && strings.TrimSpace(ansi.Strip(ansi.Cut(lines[top], left+2, left+boxWidth-2))) != title {
 		top++
 	}
-	firstGroupRow := top + 2 + len(d.message) + 3
+	firstGroupRow := top + 2 + len(d.message)
 	index := msg.Y - firstGroupRow + start
 	visible := min(capacity, len(groups)-start)
 	if index >= start && index < start+visible {

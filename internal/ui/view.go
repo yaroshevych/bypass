@@ -44,6 +44,14 @@ func fit(s string, width int) string {
 	return s + strings.Repeat(" ", max(0, width-lipgloss.Width(s)))
 }
 
+func fitRight(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	s = ansi.Truncate(s, width, "…")
+	return strings.Repeat(" ", max(0, width-lipgloss.Width(s))) + s
+}
+
 func displayVaultPath(path, home string) string {
 	if path == "" || home == "" || !filepath.IsAbs(path) || !filepath.IsAbs(home) {
 		return safe(path)
@@ -1047,11 +1055,14 @@ func (m *Model) box(title string, body []string, footer string) []string {
 	if len(body) > maxBody {
 		body = body[:maxBody]
 	}
+	title = m.dialogTitle(title)
 	content := []string{accent.Render("  " + title), m.themedRule(width)}
 	for _, line := range body {
 		content = append(content, "  "+fit(line, inner))
 	}
-	content = append(content, m.themedRule(width), muted.Render("  "+footer))
+	if footer != "" {
+		content = append(content, muted.Render("  "+fitRight(footer, inner)))
+	}
 	left := max(0, (m.width-width)/2)
 	top := max(0, (m.height-len(content))/2)
 	// Keep body coordinates shared with keyboard/mouse navigation, while giving
@@ -1070,10 +1081,25 @@ func (m *Model) box(title string, body []string, footer string) []string {
 	}
 	frame(top-1, styles.lineStyle.Render(tl+strings.Repeat(horizontal, width-2)+tr))
 	for i, line := range content {
+		if i == 1 && !strings.EqualFold(m.settings.Appearance, "compact") {
+			leftRule, rightRule := "├", "┤"
+			if m.settings.ASCII {
+				leftRule, rightRule = "+", "+"
+			}
+			frame(top+i, styles.lineStyle.Render(leftRule+strings.Repeat(horizontal, width-2)+rightRule))
+			continue
+		}
 		frame(top+i, styles.lineStyle.Render(border)+styles.base.Render(" "+fit(ansi.Cut(line, 2, width-2), inner)+" ")+styles.lineStyle.Render(border))
 	}
 	frame(top+len(content), styles.lineStyle.Render(bl+strings.Repeat(horizontal, width-2)+br))
 	return background
+}
+
+func (m *Model) dialogTitle(title string) string {
+	if !strings.EqualFold(m.settings.Appearance, "compact") {
+		return strings.ToUpper(title)
+	}
+	return title
 }
 
 func (m *Model) unlockLines() []string {
@@ -1086,10 +1112,10 @@ func (m *Model) unlockLines() []string {
 	}
 	body := []string{muted.Render(path), ""}
 	labels := []string{"Password", "Key file (optional)", "Hardware slot (optional, e.g. 1)", "Password authentication"}
-	footer := "enter unlock · tab next · space toggle · esc cancel"
+	footer := "tab next · space toggle"
 	if m.width < 70 {
 		labels = []string{"Password", "Key file", "Hardware slot", "Password auth"}
-		footer = "enter unlock · tab next · esc cancel"
+		footer = "tab next"
 	}
 	for i, label := range labels {
 		prefix := "  "
@@ -1155,7 +1181,7 @@ func (m *Model) pickerLines() []string {
 	if m.err != "" {
 		body = append(body, "", errorStyle.Render(m.err))
 	}
-	return m.box("Open Vault", body, "↑↓ select · enter open · ← parent · tab path · esc cancel")
+	return m.box("Open Vault", body, "tab path")
 }
 
 func (m *Model) helpLines() []string {
@@ -1168,5 +1194,5 @@ func (m *Model) helpLines() []string {
 	capacity := max(1, m.height-8)
 	start := min(m.helpOffset, max(0, len(body)-capacity))
 	end := min(len(body), start+capacity)
-	return m.box("Keyboard Shortcuts", body[start:end], "↑↓ scroll · esc / enter close")
+	return m.box("Keyboard Shortcuts", body[start:end], "")
 }
