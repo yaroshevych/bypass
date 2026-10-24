@@ -52,6 +52,84 @@ func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	}
 }
 
+func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
+	m, _ := operationModel(t)
+	m.openPalette("actions", false)
+	choices := m.paletteChoices()
+	rows, _ := m.paletteRows(choices)
+	wantSections := []string{"VAULTS", "VIEW", "ENTRIES", "SECRETS", "SETTINGS"}
+	var sections []string
+	for _, row := range rows {
+		if row.choice < 0 {
+			sections = append(sections, ansi.Strip(row.text))
+		}
+	}
+	if !reflect.DeepEqual(sections, wantSections) {
+		t.Fatalf("command palette sections = %#v, want %#v", sections, wantSections)
+	}
+	wantStarts := map[string][]string{
+		"VAULTS":   {"open", "close-vault", "new-vault"},
+		"VIEW":     {"duplicate", "close-view", "previous-tab"},
+		"ENTRIES":  {"new", "edit", "group"},
+		"SECRETS":  {"copy:Password", "copy:UserName", "copy-focused"},
+		"SETTINGS": {"theme", "appearance", "ascii"},
+	}
+	for section, want := range wantStarts {
+		var got []string
+		for _, choice := range choices {
+			if commandSection(choice.group) == section && len(got) < len(want) {
+				got = append(got, choice.id)
+			}
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s command order starts %v, want %v", section, got, want)
+		}
+	}
+	for _, choice := range choices {
+		if strings.HasPrefix(choice.id, "tab:") || strings.HasPrefix(choice.label, "Switch to ") {
+			t.Fatalf("numbered tab-switch command remains in palette: %#v", choice)
+		}
+		if choice.id == "clear-filters" {
+			t.Fatalf("Clear All Filters command remains in palette: %#v", choice)
+		}
+	}
+	boundary := -1
+	for i := 1; i < len(choices); i++ {
+		if commandSection(choices[i-1].group) != commandSection(choices[i].group) {
+			boundary = i
+			break
+		}
+	}
+	if boundary < 1 {
+		t.Fatal("command choices have no section boundary")
+	}
+	m.palette.selected = boundary - 1
+	m.paletteKey(tea.KeyMsg{Type: tea.KeyDown})
+	choices = m.paletteChoices()
+	rows, selectedRow := m.paletteRows(choices)
+	if m.palette.selected != boundary || rows[selectedRow].choice != boundary {
+		t.Fatalf("down moved selection out of sync: selected=%d row=%#v", m.palette.selected, rows[selectedRow])
+	}
+	m.paletteKey(tea.KeyMsg{Type: tea.KeyUp})
+	choices = m.paletteChoices()
+	rows, selectedRow = m.paletteRows(choices)
+	if m.palette.selected != boundary-1 || rows[selectedRow].choice != boundary-1 {
+		t.Fatalf("up moved selection out of sync: selected=%d row=%#v", m.palette.selected, rows[selectedRow])
+	}
+
+	section := ""
+	for _, row := range rows {
+		if row.choice < 0 {
+			section = ansi.Strip(row.text)
+			continue
+		}
+		choice := choices[row.choice]
+		if got, want := commandSection(choice.group), section; got != want {
+			t.Errorf("command %q is under %q, want %q", choice.label, section, got)
+		}
+	}
+}
+
 func TestPaletteFilterPlaceholderHasStableHighlightedWidthAndRightAlignedCount(t *testing.T) {
 	styles := stylesForTheme("macchiato")
 	placeholderInput := input{}

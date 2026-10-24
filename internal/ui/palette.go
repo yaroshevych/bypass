@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"bypass/internal/platform"
@@ -222,14 +223,6 @@ func (m *Model) commands() []command {
 	}
 	add("cancel-edit", "Editor", "Cancel Editing", "Esc", cancelReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return nil }) })
 	add("search", "View", "Search All Entries", "Ctrl+F", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.beginSearch(true) }) })
-	add("clear-filters", "View", "Clear All Filters", "", needVault, "", func() tea.Cmd {
-		v.Query = ""
-		v.NavFilter = ""
-		v.DetailFilter = ""
-		m.remapNav()
-		m.normalize()
-		return nil
-	})
 	add("jump", "View", "Jump to Pane / Field", "J", needVault, "", func() tea.Cmd { m.jump = true; return nil })
 	add("zoom", "View", "Zoom / Restore Focused Pane", "z", needVault, "", func() tea.Cmd { v.Zoom = !v.Zoom; return nil })
 	add("wider", "View", "Widen Focused Pane", "", needVault, "", func() tea.Cmd { m.resizeFocused(2); return nil })
@@ -255,14 +248,6 @@ func (m *Model) commands() []command {
 			return nil
 		})
 	})
-	for position, viewIndex := range m.visibleTabIndexes() {
-		position, viewIndex := position, viewIndex
-		view := m.ws.Views[viewIndex]
-		session := m.ws.Sessions[view.SessionID]
-		add("tab:"+view.ID, "Tabs", fmt.Sprintf("Switch to %d: %s", position+1, vaultLabel(session.Path)), fmt.Sprintf("%d", position+1), "", "", func() tea.Cmd {
-			return m.leaveEditor(func() tea.Cmd { m.switchTabPosition(position); m.normalize(); return nil })
-		})
-	}
 	add("theme", "Settings", "Choose Theme…", "", "", "themes", nil)
 	add("appearance", "Settings", "Choose Compact / Classic…", "", "", "appearance", nil)
 	add("ascii", "Settings", "Toggle ASCII UI", "", "", "", func() tea.Cmd { m.settings.ASCII = !m.settings.ASCII; return m.persistPreferences() })
@@ -398,22 +383,24 @@ func (m *Model) paletteChoices() []command {
 			choices = scoped
 		}
 	}
-	if p.query.value() == "" {
-		return choices
+	if p.query.value() != "" {
+		var docs []search.Document
+		byID := map[string]command{}
+		for _, choice := range choices {
+			docs = append(docs, search.Document{ID: choice.id, Title: choice.label, Username: choice.group, Notes: choice.key})
+			byID[choice.id] = choice
+		}
+		results, err := search.Find(p.query.value(), docs)
+		if err != nil {
+			return nil
+		}
+		choices = nil
+		for _, result := range results {
+			choices = append(choices, byID[result.ID])
+		}
 	}
-	var docs []search.Document
-	byID := map[string]command{}
-	for _, choice := range choices {
-		docs = append(docs, search.Document{ID: choice.id, Title: choice.label, Username: choice.group, Notes: choice.key})
-		byID[choice.id] = choice
-	}
-	results, err := search.Find(p.query.value(), docs)
-	if err != nil {
-		return nil
-	}
-	choices = nil
-	for _, result := range results {
-		choices = append(choices, byID[result.ID])
+	if p.scope == "actions" {
+		choices = orderCommandChoices(choices)
 	}
 	return choices
 }
@@ -421,12 +408,16 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 	p := m.palette
 	c := m.colors()
 	var rows []paletteRow
-	group := ""
 	selectedRow := 0
+	group := ""
 	for i, choice := range choices {
-		if choice.group != group {
-			rows = append(rows, paletteRow{text: c.muted.Bold(true).Render(choice.group), choice: -1})
-			group = choice.group
+		section := choice.group
+		if p != nil && p.scope == "actions" {
+			section = commandSection(choice.group)
+		}
+		if section != group {
+			rows = append(rows, paletteRow{text: c.muted.Bold(true).Render(section), choice: -1})
+			group = section
 		}
 		text := "  " + m.highlightText(choice.label, p.query.value(), "title")
 		if choice.key != "" {
@@ -445,6 +436,65 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 		rows = append(rows, paletteRow{text: text, choice: i})
 	}
 	return rows, selectedRow
+}
+
+func orderCommandChoices(choices []command) []command {
+	ordered := make([]command, 0, len(choices))
+	for _, section := range []string{"VAULTS", "VIEW", "ENTRIES", "SECRETS", "SETTINGS"} {
+		var bucket []command
+		for _, choice := range choices {
+			if commandSection(choice.group) == section {
+				bucket = append(bucket, choice)
+			}
+		}
+		sort.SliceStable(bucket, func(i, j int) bool {
+			return commandPriority(bucket[i].id) < commandPriority(bucket[j].id)
+		})
+		ordered = append(ordered, bucket...)
+	}
+	return ordered
+}
+
+func commandPriority(id string) int {
+	order := []string{
+		// VAULTS: open/close first, then setup, security and maintenance.
+		"open", "close-vault", "new-vault", "lock-all", "lock", "reload",
+		"database-info", "database-settings", "credentials", "read-only", "quit",
+		// VIEW: tab lifecycle and navigation, then search and layout controls.
+		"duplicate", "close-view", "previous-tab", "next-tab",
+		"search", "jump", "zoom", "wider", "narrower",
+		// ENTRIES: create and edit first, then organize and review.
+		"new", "edit", "group", "move", "restore", "delete", "history-view",
+		"attachments", "save", "cancel-edit",
+		// SECRETS: copy common credentials first, then field tools.
+		"copy:Password", "copy:UserName", "copy-focused", "copy:Email", "copy:URL",
+		"copy:Notes", "copy:Title", "reveal", "totp", "generator", "grand-view",
+		// SETTINGS: appearance first, then privacy and help.
+		"theme", "appearance", "ascii", "set-pin", "protect", "clear-pin", "help",
+	}
+	for rank, candidate := range order {
+		if candidate == id {
+			return rank
+		}
+	}
+	return len(order)
+}
+
+func commandSection(group string) string {
+	switch group {
+	case "File", "App", "Vault":
+		return "VAULTS"
+	case "Tabs", "View":
+		return "VIEW"
+	case "Entry", "Editor":
+		return "ENTRIES"
+	case "Field":
+		return "SECRETS"
+	case "Settings", "Privacy", "Help":
+		return "SETTINGS"
+	default:
+		return group
+	}
 }
 func (m *Model) refreshPalette() {
 	p := m.palette

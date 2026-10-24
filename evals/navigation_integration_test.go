@@ -117,8 +117,6 @@ func TestNavigationActionsAndSessionCleanupTmux(t *testing.T) {
 	e.waitFor("accepted search", func() bool {
 		return !strings.Contains(e.capture(), "Enter apply") && strings.Contains(e.capture(), "Fuzzy search: Eval")
 	})
-	palette("Clear All Filters")
-	e.mustShow("Eval Entry")
 	palette("Choose Compact")
 	e.mustShow("Choose Appearance")
 	e.typeText("Compact")
