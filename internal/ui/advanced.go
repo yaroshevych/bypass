@@ -440,7 +440,7 @@ func (m *Model) modalBackdrop() []string {
 	}
 	background = padLines(background, m.height)
 	for i := range background {
-		background[i] = scrim.Render(fit(ansi.Strip(background[i]), m.width))
+		background[i] = scrim.Render(fit(background[i], m.width))
 	}
 	return background
 }

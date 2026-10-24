@@ -12,6 +12,7 @@ import (
 type Session struct {
 	ID           string
 	Path         string
+	ActiveViewID string
 	DB           *vault.Database
 	Credentials  vault.Credentials
 	ReadOnly     bool
@@ -109,8 +110,14 @@ func (w *Workspace) Open(db *vault.Database) (reused bool) {
 			db.Clear()
 		}
 		for i := range w.Views {
+			if w.Views[i].SessionID == session.ID && w.Views[i].ID == session.ActiveViewID {
+				w.setActive(i)
+				return true
+			}
+		}
+		for i := range w.Views {
 			if w.Views[i].SessionID == session.ID {
-				w.Active = i
+				w.setActive(i)
 				return true
 			}
 		}
@@ -119,7 +126,7 @@ func (w *Workspace) Open(db *vault.Database) (reused bool) {
 		w.Sessions[session.ID] = session
 	}
 	w.Views = append(w.Views, View{ID: w.id("view"), SessionID: session.ID, GroupUUID: db.RootUUID})
-	w.Active = len(w.Views) - 1
+	w.setActive(len(w.Views) - 1)
 	return reused
 }
 
@@ -146,7 +153,7 @@ func (w *Workspace) Duplicate() bool {
 	copy := *view
 	copy.ID = w.id("view")
 	w.Views = append(w.Views, copy)
-	w.Active = len(w.Views) - 1
+	w.setActive(len(w.Views) - 1)
 	return true
 }
 
@@ -154,8 +161,18 @@ func (w *Workspace) Switch(index int) bool {
 	if w == nil || index < 0 || index >= len(w.Views) {
 		return false
 	}
-	w.Active = index
+	w.setActive(index)
 	return true
+}
+
+func (w *Workspace) setActive(index int) {
+	w.Active = index
+	view := w.ActiveView()
+	if view != nil {
+		if session := w.Sessions[view.SessionID]; session != nil {
+			session.ActiveViewID = view.ID
+		}
+	}
 }
 
 func (w *Workspace) CloseView() bool {
@@ -172,6 +189,15 @@ func (w *Workspace) CloseView() bool {
 	} else if w.Active >= len(w.Views) {
 		w.Active = len(w.Views) - 1
 	}
+	if session := w.Sessions[removed.SessionID]; session != nil && session.ActiveViewID == removed.ID {
+		for _, view := range w.Views {
+			if view.SessionID == removed.SessionID {
+				session.ActiveViewID = view.ID
+				break
+			}
+		}
+	}
+	w.rememberActiveView()
 	w.cleanupSession(removed.SessionID)
 	return true
 }
@@ -363,7 +389,17 @@ func (w *Workspace) CloseVault() bool {
 		w.Active = newActive
 	}
 	delete(w.Sessions, session.ID)
+	w.rememberActiveView()
 	return true
+}
+
+func (w *Workspace) rememberActiveView() {
+	view := w.ActiveView()
+	if view != nil {
+		if session := w.Sessions[view.SessionID]; session != nil {
+			session.ActiveViewID = view.ID
+		}
+	}
 }
 
 // Close clears all open databases and drops every view and session.

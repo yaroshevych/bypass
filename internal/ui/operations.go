@@ -226,9 +226,8 @@ func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 			delta = -1
 		}
 		return m.leaveEditor(func() tea.Cmd {
-			n := len(m.ws.Views)
-			if n > 0 {
-				m.ws.Switch((m.ws.Active + n + delta) % n)
+			if m.moveTab(delta) {
+				m.normalize()
 			}
 			return nil
 		})
@@ -243,7 +242,7 @@ func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 	}
 	if key := k.String(); strings.HasPrefix(key, "alt+") && len(key) == 5 && key[4] >= '1' && key[4] <= '9' {
 		index := int(key[4] - '1')
-		return m.leaveEditor(func() tea.Cmd { m.ws.Switch(index); return nil })
+		return m.leaveEditor(func() tea.Cmd { m.switchTabPosition(index); m.normalize(); return nil })
 	}
 	switch m.editor.key(k) {
 	case editorSave:

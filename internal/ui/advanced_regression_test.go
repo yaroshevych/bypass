@@ -1,10 +1,28 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	"bypass/internal/vault"
 )
+
+func TestModalBackdropPreservesTabPillBackground(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 120, 35
+	m.settings.Appearance = "compact"
+	m.ws.Open(fixture("/tmp/modal-pill.kdbx"))
+	m.normalize()
+	activeCell := m.colors().active.Render(" ")
+	tabLine := m.workspaceLines()[1]
+	if !strings.Contains(tabLine, activeCell) {
+		t.Fatal("test setup did not render the active tab's pill background")
+	}
+	backdropLine := m.modalBackdrop()[1]
+	if !strings.Contains(backdropLine, activeCell) {
+		t.Fatal("modal backdrop erased the active tab's pill background")
+	}
+}
 
 func TestTinyTerminalKeepsDraftWithoutAcceptingHiddenInput(t *testing.T) {
 	m, _ := operationModel(t)

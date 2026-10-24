@@ -28,8 +28,8 @@ func TestNineTabLimitAllowsExistingVaultAndRejectsNewVault(t *testing.T) {
 	if len(w.Views) != MaxTabs || len(w.Sessions) != 1 {
 		t.Fatal("rejected vault changed workspace")
 	}
-	if !w.Open(database(path, "existing", "root")) || w.Active != 0 {
-		t.Fatal("existing vault did not activate at capacity")
+	if !w.Open(database(path, "existing", "root")) || w.Active != MaxTabs-1 {
+		t.Fatal("existing vault did not restore its last active view at capacity")
 	}
 }
 
@@ -101,7 +101,7 @@ func TestOpenLockedSessionRefreshesAndDuplicateCopiesView(t *testing.T) {
 	if len(w.Views) != 2 || w.Views[0].ID == w.Views[1].ID || w.Views[0].Query != w.Views[1].Query {
 		t.Fatalf("duplicate did not copy view state with new identity: %#v", w.Views)
 	}
-	if !w.Open(db) || len(w.Views) != 2 || w.Active != 0 || w.ActiveSession().DB != db {
+	if !w.Open(db) || len(w.Views) != 2 || w.Active != 1 || w.ActiveSession().DB != db {
 		t.Fatal("reopening the same DB did not switch views without clearing the shared pointer")
 	}
 	if !w.LockActive() {

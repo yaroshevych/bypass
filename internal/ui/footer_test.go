@@ -1,12 +1,28 @@
 package ui
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
+
+func TestDisplayVaultPathUsesTildeOnlyWithinHome(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "home")
+	path := filepath.Join(home, "vaults", "personal.kdbx")
+	if got, want := displayVaultPath(path, home), filepath.Join("~", "vaults", "personal.kdbx"); got != want {
+		t.Fatalf("home path = %q, want %q", got, want)
+	}
+	if got := displayVaultPath(home, home); got != "~" {
+		t.Fatalf("home directory path = %q, want ~", got)
+	}
+	outside := home + "-other" + string(filepath.Separator) + "vault.kdbx"
+	if got := displayVaultPath(outside, home); got != outside {
+		t.Fatalf("path outside home was rewritten: %q", got)
+	}
+}
 
 func TestFooterKeepsGlobalActionsLeftAndContextAtRight(t *testing.T) {
 	for _, mode := range []string{"classic", "compact"} {
@@ -39,6 +55,47 @@ func TestDefaultFooterPadsSlashAfterBadge(t *testing.T) {
 	line := ansi.Strip(m.footerLine(m.footerText()))
 	if !strings.Contains(line, "bypass  / filter · ctrl+p commands") {
 		t.Fatalf("default footer is missing its slash inset: %q", line)
+	}
+}
+
+func TestLockedVaultFooterRightAlignsTabAndQuitActions(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 120, 35
+	m.ws.Open(fixture("/tmp/footer-locked.kdbx"))
+	m.lockCurrent(false)
+	rows := m.workspaceLines()
+	view := strings.Join(rows, "\n")
+	if !strings.Contains(view, "Vault locked") || !strings.Contains(view, "/tmp/footer-locked.kdbx") || strings.Contains(view, "1–9 switch vault views") {
+		t.Fatalf("locked view should show its full path without the tab-switch hint: %q", view)
+	}
+	pathRow := -1
+	unlockInstruction := false
+	for i, row := range rows {
+		stripped := ansi.Strip(row)
+		if strings.Contains(stripped, "/tmp/footer-locked.kdbx") {
+			pathRow = i
+		}
+		if stripped == "  enter to unlock" {
+			unlockInstruction = true
+		}
+	}
+	if !unlockInstruction {
+		t.Fatal("locked view should show the concise 'enter to unlock' instruction")
+	}
+	if pathRow < 0 || pathRow+1 >= len(rows) || strings.TrimSpace(ansi.Strip(rows[pathRow+1])) != "" {
+		t.Fatal("locked view should leave one blank row after the vault path")
+	}
+	for i, row := range rows {
+		if strings.Contains(ansi.Strip(row), "enter to unlock") && (i+1 >= len(rows) || !strings.Contains(ansi.Strip(rows[i+1]), "ctrl+o open another vault")) {
+			t.Fatal("locked view should not leave a blank row before the Ctrl+O hint")
+		}
+	}
+	line := ansi.Strip(rows[m.height-1])
+	if !strings.HasSuffix(line, "enter unlock · ctrl+w close tab · q quit") {
+		t.Fatalf("locked footer actions are not placed as expected: %q", line)
+	}
+	if ansi.StringWidth(line) != m.width {
+		t.Fatalf("locked footer width = %d, want %d", ansi.StringWidth(line), m.width)
 	}
 }
 

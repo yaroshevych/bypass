@@ -244,11 +244,14 @@ func (m *Model) commands() []command {
 	add("zoom", "View", "Zoom / Restore Focused Pane", "z", needVault, "", func() tea.Cmd { v.Zoom = !v.Zoom; return nil })
 	add("wider", "View", "Widen Focused Pane", "", needVault, "", func() tea.Cmd { m.resizeFocused(2); return nil })
 	add("narrower", "View", "Narrow Focused Pane", "", needVault, "", func() tea.Cmd { m.resizeFocused(-2); return nil })
-	add("duplicate", "Tabs", "New Tab", "t", closeReason, "", func() tea.Cmd { return m.leaveEditor(m.duplicateTab) })
+	newTabReason := closeReason
+	if s == nil || s.DB == nil {
+		newTabReason = needVault
+	}
+	add("duplicate", "Tabs", "New Tab", "t", newTabReason, "", func() tea.Cmd { return m.leaveEditor(m.duplicateTab) })
 	add("previous-tab", "Tabs", "Previous Tab", "[", closeReason, "", func() tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd {
-			if len(m.ws.Views) > 0 {
-				m.ws.Switch((m.ws.Active + len(m.ws.Views) - 1) % len(m.ws.Views))
+			if m.moveTab(-1) {
 				m.normalize()
 			}
 			return nil
@@ -256,17 +259,19 @@ func (m *Model) commands() []command {
 	})
 	add("next-tab", "Tabs", "Next Tab", "]", closeReason, "", func() tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd {
-			if len(m.ws.Views) > 0 {
-				m.ws.Switch((m.ws.Active + 1) % len(m.ws.Views))
+			if m.moveTab(1) {
 				m.normalize()
 			}
 			return nil
 		})
 	})
-	for index, view := range m.ws.Views {
-		index, view := index, view
+	for position, viewIndex := range m.visibleTabIndexes() {
+		position, viewIndex := position, viewIndex
+		view := m.ws.Views[viewIndex]
 		session := m.ws.Sessions[view.SessionID]
-		add("tab:"+view.ID, "Tabs", fmt.Sprintf("Switch to %d: %s", index+1, vaultLabel(session.Path)), fmt.Sprintf("%d", index+1), "", "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.ws.Switch(index); m.normalize(); return nil }) })
+		add("tab:"+view.ID, "Tabs", fmt.Sprintf("Switch to %d: %s", position+1, vaultLabel(session.Path)), fmt.Sprintf("%d", position+1), "", "", func() tea.Cmd {
+			return m.leaveEditor(func() tea.Cmd { m.switchTabPosition(position); m.normalize(); return nil })
+		})
 	}
 	add("theme", "Settings", "Choose Theme…", "", "", "themes", nil)
 	add("appearance", "Settings", "Choose Compact / Classic…", "", "", "appearance", nil)

@@ -125,6 +125,75 @@ func TestNewTabUsesTShortcutAndPaletteLabel(t *testing.T) {
 	}
 }
 
+func TestNewTabIsUnavailableWhileVaultIsLocked(t *testing.T) {
+	m, _ := operationModel(t)
+	m.duplicateTab()
+	m.lockCurrent(false)
+	before := len(m.ws.Views)
+	m.key(key("t"))
+	if len(m.ws.Views) != before {
+		t.Fatal("t created a tab while the active vault was locked")
+	}
+	for _, span := range m.tabSpans() {
+		if span.Index == len(m.ws.Views) {
+			t.Fatal("+ tab was visible while the active vault was locked")
+		}
+	}
+	var disabled bool
+	for _, command := range m.commands() {
+		if command.id == "duplicate" {
+			disabled = command.reason != ""
+		}
+	}
+	if !disabled {
+		t.Fatal("New Tab remained enabled in the command palette while locked")
+	}
+	m.key(key("ctrl+w"))
+	if len(m.ws.Views) != before-1 {
+		t.Fatal("Ctrl+W could not close a tab while the vault was locked")
+	}
+}
+
+func TestLockedVaultTabsCollapseAndRestorePerVaultViewSelection(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 120, 35
+	pathA, pathB := "/tmp/vault-a.kdbx", "/tmp/vault-b.kdbx"
+	m.ws.Open(fixture(pathA))
+	m.normalize()
+	m.duplicateTab()
+	m.ws.Views[1].SelectedUUID = "b"
+	m.ws.Switch(1) // Remember Beta as the active view in vault A.
+	m.ws.Open(fixture(pathB))
+	m.normalize()
+	m.duplicateTab()
+	m.duplicateTab()
+	m.ws.Switch(4)
+	m.normalize()
+	if len(m.ws.Views) != 5 {
+		t.Fatalf("setup created %d underlying views, want 5", len(m.ws.Views))
+	}
+	m.lockCurrent(true)
+	if got := len(m.tabLabels()); got != 2 {
+		t.Fatalf("locked tabs = %d, want one per vault", got)
+	}
+	lockedLabels := strings.Join(m.tabLabels(), "")
+	if !strings.Contains(lockedLabels, "vault-a.kdbx") || !strings.Contains(lockedLabels, "vault-b.kdbx") {
+		t.Fatalf("locked tabs should show vault names: %q", lockedLabels)
+	}
+	if !m.ws.Open(fixture(pathA)) {
+		t.Fatal("unlock refresh did not reuse vault A's locked session")
+	}
+	if m.ws.Active != 1 {
+		t.Fatalf("unlock restored active view %d, want the previously active vault A view 1", m.ws.Active)
+	}
+	if got := len(m.tabLabels()); got != 3 {
+		t.Fatalf("unlocking vault A should restore its two tabs while vault B stays collapsed: got %d", got)
+	}
+	if !strings.Contains(strings.Join(m.tabLabels(), ""), "Beta") {
+		t.Fatal("unlock did not restore the previously active item tab title")
+	}
+}
+
 func TestTabCreationStopsAtNineAndResumesAfterClose(t *testing.T) {
 	m := New(Options{})
 	m.ws.Open(fixture("/tmp/limit.kdbx"))

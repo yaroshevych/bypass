@@ -48,10 +48,10 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	if !m.help && !m.writing && m.screen == browse && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
 		if index, hit := m.tabAt(msg.X, msg.Y); hit {
 			return m.leaveEditor(func() tea.Cmd {
-				if index == len(m.ws.Views) {
+				if index == len(m.visibleTabIndexes()) {
 					return m.duplicateTab()
 				} else {
-					m.ws.Switch(index)
+					m.switchTabPosition(index)
 				}
 				m.normalize()
 				return nil
@@ -182,7 +182,39 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	return nil
 }
 
+func (m *Model) canAddTab() bool {
+	s := m.ws.ActiveSession()
+	return s != nil && s.DB != nil && len(m.ws.Views) < workspace.MaxTabs
+}
+
+func (m *Model) switchTabPosition(position int) bool {
+	indexes := m.visibleTabIndexes()
+	if position < 0 || position >= len(indexes) {
+		return false
+	}
+	return m.ws.Switch(indexes[position])
+}
+
+func (m *Model) moveTab(delta int) bool {
+	indexes := m.visibleTabIndexes()
+	if len(indexes) == 0 {
+		return false
+	}
+	position := 0
+	for i, viewIndex := range indexes {
+		if viewIndex == m.ws.Active {
+			position = i
+			break
+		}
+	}
+	return m.switchTabPosition((position + len(indexes) + delta%len(indexes)) % len(indexes))
+}
+
 func (m *Model) duplicateTab() tea.Cmd {
+	s := m.ws.ActiveSession()
+	if s == nil || s.DB == nil {
+		return nil
+	}
 	if !m.ws.Duplicate() && len(m.ws.Views) >= workspace.MaxTabs {
 		m.setNotice("Maximum 9 tabs. Close a tab to add another.", false)
 	}

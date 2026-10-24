@@ -522,26 +522,22 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	case "t":
 		return m.duplicateTab()
 	case "ctrl+pgup":
-		if n := len(m.ws.Views); n > 0 {
-			m.ws.Switch((m.ws.Active + n - 1) % n)
+		if m.moveTab(-1) {
 			m.normalize()
 		}
 		return nil
 	case "ctrl+pgdown":
-		if n := len(m.ws.Views); n > 0 {
-			m.ws.Switch((m.ws.Active + 1) % n)
+		if m.moveTab(1) {
 			m.normalize()
 		}
 		return nil
 	case "[":
-		if n := len(m.ws.Views); n > 0 {
-			m.ws.Switch((m.ws.Active + n - 1) % n)
+		if m.moveTab(-1) {
 			m.normalize()
 		}
 		return nil
 	case "]":
-		if n := len(m.ws.Views); n > 0 {
-			m.ws.Switch((m.ws.Active + 1) % n)
+		if m.moveTab(1) {
 			m.normalize()
 		}
 		return nil
@@ -558,9 +554,10 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	tabKey := strings.TrimPrefix(key, "alt+")
 	if len(tabKey) == 1 && tabKey[0] >= '1' && tabKey[0] <= '9' {
-		m.ws.Switch(int(tabKey[0] - '1'))
-		m.normalize()
-		m.err = ""
+		if m.switchTabPosition(int(tabKey[0] - '1')) {
+			m.normalize()
+			m.err = ""
+		}
 		return nil
 	}
 	session := m.ws.ActiveSession()
@@ -693,6 +690,14 @@ func (m *Model) beginUnlock(path string) {
 		for _, session := range m.ws.Sessions {
 			if session.Path != canonical || session.DB == nil {
 				continue
+			}
+			for i, v := range m.ws.Views {
+				if v.SessionID == session.ID && v.ID == session.ActiveViewID {
+					m.ws.Switch(i)
+					m.screen = browse
+					m.err = ""
+					return
+				}
 			}
 			for i, v := range m.ws.Views {
 				if v.SessionID == session.ID {

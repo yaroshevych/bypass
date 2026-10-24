@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -42,6 +43,21 @@ func fit(s string, width int) string {
 	s = ansi.Truncate(s, width, "")
 	return s + strings.Repeat(" ", max(0, width-lipgloss.Width(s)))
 }
+
+func displayVaultPath(path, home string) string {
+	if path == "" || home == "" || !filepath.IsAbs(path) || !filepath.IsAbs(home) {
+		return safe(path)
+	}
+	rel, err := filepath.Rel(filepath.Clean(home), filepath.Clean(path))
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return safe(path)
+	}
+	if rel == "." {
+		return "~"
+	}
+	return safe(filepath.Join("~", rel))
+}
+
 func rule(w int) string { return lineStyle.Render(strings.Repeat("─", max(0, w))) }
 
 func (m *Model) View() string {
@@ -164,17 +180,25 @@ func (m *Model) workspaceLines() []string {
 		lines = append(lines, m.tabRule(w, true))
 	}
 	var tabs []string
+	viewIndexes := m.visibleTabIndexes()
+	activeTabIndex := 0
+	for i, viewIndex := range viewIndexes {
+		if viewIndex == m.ws.Active {
+			activeTabIndex = i
+			break
+		}
+	}
 	labels := m.tabLabels()
-	if len(m.ws.Views) < workspace.MaxTabs {
+	if m.canAddTab() {
 		labels = append(labels, "+")
 	}
 	for _, span := range m.tabSpans() {
 		label := labels[span.Index]
-		if !compact && span.Index == len(m.ws.Views) {
+		if !compact && span.Index == len(viewIndexes) {
 			label = " + "
 		}
 		if compact {
-			if span.Index == m.ws.Active {
+			if span.Index == activeTabIndex {
 				if m.settings.ASCII {
 					label = "[ " + label + " ]"
 				} else {
@@ -187,7 +211,7 @@ func (m *Model) workspaceLines() []string {
 			label = strings.ToUpper(label)
 		}
 		label = fit(label, span.End-span.Start)
-		if span.Index == m.ws.Active {
+		if span.Index == activeTabIndex {
 			if compact {
 				style := active
 				if m.tabHovered && m.hoverTab == span.Index {
@@ -223,7 +247,7 @@ func (m *Model) workspaceLines() []string {
 		separator = styles.inactive.Render(" ")
 	}
 	tabLine := strings.Join(tabs, separator)
-	if !compact && len(m.ws.Views) >= workspace.MaxTabs && len(tabs) > 0 {
+	if !compact && !m.canAddTab() && len(tabs) > 0 {
 		tabLine += separator
 	}
 	if compact && !m.settings.ASCII {
@@ -235,12 +259,13 @@ func (m *Model) workspaceLines() []string {
 		lines = append(lines, m.tabRule(w, false))
 	}
 	if s.DB == nil {
-		lines = append(lines, "", accent.Render("  Vault locked"), muted.Render("  enter to unlock with vault credentials."), "", muted.Render("  1–9 switch vault views · ctrl+o open another vault"))
+		home, _ := os.UserHomeDir()
+		lines = append(lines, "", accent.Render("  Vault locked"), muted.Render("  "+displayVaultPath(s.Path, home)), "", muted.Render("  enter to unlock"), muted.Render("  ctrl+o open another vault"))
 		footerHeight := 1
 		for len(lines) < m.height-footerHeight {
 			lines = append(lines, "")
 		}
-		return append(lines, m.footerLine("enter unlock    ctrl+w close view    q quit"))
+		return append(lines, m.footerLine("", "enter unlock · ctrl+w close tab · q quit"))
 	}
 	l := m.layout()
 	if !compact {
@@ -310,7 +335,7 @@ func (m *Model) tabRule(width int, top bool) string {
 	line := []rune(strings.Repeat(string(horizontal), max(0, width)))
 	spans := m.tabSpans()
 	lastDivider := len(spans) - 1
-	if len(m.ws.Views) < workspace.MaxTabs {
+	if m.canAddTab() {
 		lastDivider-- // The final visible span is the + tab, which has no trailing divider.
 	}
 	for i := 0; i <= lastDivider; i++ {
@@ -325,7 +350,7 @@ func (m *Model) workspaceTopRule(layout viewLayout) string {
 	line := []rune(ansi.Strip(m.paneRule(layout, true)))
 	spans := m.tabSpans()
 	lastDivider := len(spans) - 1
-	if len(m.ws.Views) < workspace.MaxTabs {
+	if m.canAddTab() {
 		lastDivider-- // The final visible span is the + tab, which has no trailing divider.
 	}
 	for i := 0; i <= lastDivider; i++ {
@@ -540,36 +565,81 @@ func (m *Model) layoutBreadcrumb(layout viewLayout) string {
 	return "  " + back + " " + location + "  ·  Tab next pane"
 }
 
-func (m *Model) tabLabels() []string {
+func (m *Model) visibleTabIndexes() []int {
 	if m.ws == nil {
+		return nil
+	}
+	firstBySession := make(map[string]int)
+	for i, view := range m.ws.Views {
+		if s := m.ws.Sessions[view.SessionID]; s != nil && s.DB == nil {
+			if _, ok := firstBySession[view.SessionID]; !ok {
+				firstBySession[view.SessionID] = i
+			}
+		}
+	}
+	representative := make(map[string]int, len(firstBySession))
+	for id, first := range firstBySession {
+		representative[id] = first
+		if session := m.ws.Sessions[id]; session != nil && session.ActiveViewID != "" {
+			for i, view := range m.ws.Views {
+				if view.SessionID == id && view.ID == session.ActiveViewID {
+					representative[id] = i
+					break
+				}
+			}
+		}
+	}
+	if active := m.ws.ActiveView(); active != nil {
+		if s := m.ws.Sessions[active.SessionID]; s != nil && s.DB == nil {
+			representative[active.SessionID] = m.ws.Active
+		}
+	}
+	indexes := make([]int, 0, len(m.ws.Views))
+	for i, view := range m.ws.Views {
+		if s := m.ws.Sessions[view.SessionID]; s != nil && s.DB == nil && firstBySession[view.SessionID] != i {
+			continue
+		}
+		if s := m.ws.Sessions[view.SessionID]; s != nil && s.DB == nil {
+			indexes = append(indexes, representative[view.SessionID])
+		} else {
+			indexes = append(indexes, i)
+		}
+	}
+	return indexes
+}
+
+func (m *Model) tabLabels() []string {
+	indexes := m.visibleTabIndexes()
+	if len(indexes) == 0 {
 		return nil
 	}
 	var labels []string
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	for i, view := range m.ws.Views {
+	for position, viewIndex := range indexes {
+		view := m.ws.Views[viewIndex]
 		s := m.ws.Sessions[view.SessionID]
 		if s == nil {
-			label := fmt.Sprintf("%d (unavailable)", i+1)
+			label := fmt.Sprintf("%d (unavailable)", position+1)
 			if !compact {
 				label = " " + label + " "
 			}
 			labels = append(labels, label)
 			continue
 		}
-		label := fmt.Sprintf("%d %s", i+1, safe(filepath.Base(s.Path)))
+		label := fmt.Sprintf("%d %s", position+1, safe(filepath.Base(s.Path)))
 		for _, other := range m.ws.Sessions {
 			if other.ID != s.ID && filepath.Base(other.Path) == filepath.Base(s.Path) {
-				label = fmt.Sprintf("%d %s (%s)", i+1, safe(filepath.Base(s.Path)), safe(filepath.Dir(s.Path)))
+				label = fmt.Sprintf("%d %s (%s)", position+1, safe(filepath.Base(s.Path)), safe(filepath.Dir(s.Path)))
 				break
 			}
 		}
 		if s.DB == nil {
-			label += " [locked]"
+			// A single vault tab represents every preserved view while locked.
 		} else {
 			for _, entry := range s.DB.Entries {
 				if entry.UUID == view.SelectedUUID {
 					if title := visibleField(entry, "Title"); title != "" {
-						label = fmt.Sprintf("%d %s", i+1, title)
+						label = fmt.Sprintf("%d %s", position+1, title)
 					}
 					break
 				}
@@ -586,13 +656,20 @@ func (m *Model) tabLabels() []string {
 type tabSpan struct{ Index, Start, End int }
 
 func (m *Model) tabSpans() []tabSpan {
+	viewIndexes := m.visibleTabIndexes()
 	labels := m.tabLabels()
 	if len(labels) == 0 || m.width <= 0 {
 		return nil
 	}
-	activeIndex := min(len(labels)-1, max(0, m.ws.Active))
+	activeIndex := 0
+	for i, viewIndex := range viewIndexes {
+		if viewIndex == m.ws.Active {
+			activeIndex = i
+			break
+		}
+	}
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	hasAddTab := len(m.ws.Views) < workspace.MaxTabs
+	hasAddTab := m.canAddTab()
 	capacity := m.width
 	if hasAddTab {
 		capacity = max(1, m.width-4) // Reserve a gap and the rightmost + tab.
@@ -662,7 +739,7 @@ func (m *Model) tabSpans() []tabSpan {
 		spans = append(spans, tabSpan{Index: i, Start: x, End: x + width})
 		x += width
 	}
-	if len(m.ws.Views) < workspace.MaxTabs {
+	if m.canAddTab() {
 		spans = append(spans, tabSpan{Index: len(labels), Start: x + 1, End: x + 4})
 	}
 	return spans
