@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -67,6 +68,7 @@ func (m *Model) View() string {
 	primary, accent := styles.primary, styles.accent
 	secondary := styles.secondary
 	var lines []string
+	modal := false
 	if m.layout().Mode == "tiny" {
 		minimum := "Resize to at least 48 × 14"
 		if m.settings.ASCII {
@@ -78,14 +80,19 @@ func (m *Model) View() string {
 		}
 	} else if advanced, ok := m.advancedScreen(); ok {
 		lines = advanced
+		modal = true
 	} else if m.dialog != nil {
 		lines = m.dialogLines()
+		modal = true
 	} else if m.help {
 		lines = m.helpLines()
+		modal = true
 	} else if m.screen == chooseFile {
 		lines = m.pickerLines()
+		modal = true
 	} else if m.screen == unlock {
 		lines = m.unlockLines()
+		modal = true
 	} else if m.ws.ActiveSession() == nil {
 		lines = m.welcomeLines()
 	} else {
@@ -100,7 +107,87 @@ func (m *Model) View() string {
 	for i := range lines {
 		lines[i] = fit(lines[i], w)
 	}
-	return primary.Render(strings.Join(lines, "\n"))
+	view := primary.Render(strings.Join(lines, "\n"))
+	if !modal {
+		colors := colorsForTheme(m.settings.Theme)
+		view = restoreThemeResets(view, colors.primary, colors.background)
+	}
+	return view
+}
+
+func restoreThemeResets(text, foreground, background string) string {
+	parse := func(hex string) []string {
+		value := strings.TrimPrefix(hex, "#")
+		if len(value) != 6 {
+			return []string{"0", "0", "0"}
+		}
+		channels := make([]string, 3)
+		for i := range channels {
+			v, err := strconv.ParseInt(value[i*2:i*2+2], 16, 32)
+			if err != nil {
+				return []string{"0", "0", "0"}
+			}
+			channels[i] = strconv.FormatInt(v, 10)
+		}
+		return channels
+	}
+	fg, bg := parse(foreground), parse(background)
+	restoreFG := []string{"38", "2", fg[0], fg[1], fg[2]}
+	restoreBG := []string{"48", "2", bg[0], bg[1], bg[2]}
+	var out strings.Builder
+	for i := 0; i < len(text); {
+		if text[i] != '\x1b' || i+1 >= len(text) || text[i+1] != '[' {
+			out.WriteByte(text[i])
+			i++
+			continue
+		}
+		end := strings.IndexByte(text[i+2:], 'm')
+		if end < 0 {
+			out.WriteByte(text[i])
+			i++
+			continue
+		}
+		end += i + 2
+		params := strings.Split(text[i+2:end], ";")
+		if len(params) == 1 && params[0] == "" {
+			params[0] = "0"
+		}
+		var repaired []string
+		for i := 0; i < len(params); i++ {
+			param := params[i]
+			if (param == "38" || param == "48") && i+1 < len(params) {
+				componentCount := 0
+				switch params[i+1] {
+				case "2":
+					componentCount = 3
+				case "5":
+					componentCount = 1
+				}
+				if componentCount > 0 && i+1+componentCount < len(params) {
+					repaired = append(repaired, params[i:i+2+componentCount]...)
+					i += 1 + componentCount
+					continue
+				}
+			}
+			switch param {
+			case "0":
+				repaired = append(repaired, "0")
+				repaired = append(repaired, restoreFG...)
+				repaired = append(repaired, restoreBG...)
+			case "39":
+				repaired = append(repaired, restoreFG...)
+			case "49":
+				repaired = append(repaired, restoreBG...)
+			default:
+				repaired = append(repaired, param)
+			}
+		}
+		out.WriteString("\x1b[")
+		out.WriteString(strings.Join(repaired, ";"))
+		out.WriteByte('m')
+		i = end + 1
+	}
+	return out.String()
 }
 
 func (m *Model) welcomeLines() []string {
@@ -993,6 +1080,8 @@ func padLines(lines []string, height int) []string {
 
 func (m *Model) box(title string, body []string, footer string, header ...dialogrender.Header) []string {
 	c := m.colors()
+	theme := colorsForTheme(m.settings.Theme)
+	restoreResets := func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) }
 	headerContent, headerDivider := "", 0
 	if len(header) > 0 {
 		headerContent, headerDivider = header[0].Content, header[0].Divider
@@ -1002,6 +1091,7 @@ func (m *Model) box(title string, body []string, footer string, header ...dialog
 		Backdrop: m.modalBackdrop(), Width: min(m.width-6, 82), ScreenWidth: m.width,
 		Height: m.height, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
 		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, Pill: c.active, Divider: c.divider,
+		RestoreResets: restoreResets,
 	})
 }
 

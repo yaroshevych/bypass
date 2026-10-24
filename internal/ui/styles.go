@@ -38,12 +38,13 @@ func themeNames() []string {
 
 func stylesForTheme(name string) styleSet {
 	c := colorsForTheme(name)
+	background := lipgloss.Color(c.background)
 	return styleSet{
-		primary:   lipgloss.NewStyle().Foreground(lipgloss.Color(c.primary)).Background(lipgloss.Color(c.background)),
-		secondary: lipgloss.NewStyle().Foreground(lipgloss.Color(c.secondary)),
-		accent:    lipgloss.NewStyle().Foreground(lipgloss.Color(c.accent)).Bold(true),
-		error:     lipgloss.NewStyle().Foreground(lipgloss.Color(c.error)),
-		divider:   lipgloss.NewStyle().Foreground(lipgloss.Color(c.divider)),
+		primary:   lipgloss.NewStyle().Foreground(lipgloss.Color(c.primary)).Background(background),
+		secondary: lipgloss.NewStyle().Foreground(lipgloss.Color(c.secondary)).Background(background),
+		accent:    lipgloss.NewStyle().Foreground(lipgloss.Color(c.accent)).Background(background).Bold(true),
+		error:     lipgloss.NewStyle().Foreground(lipgloss.Color(c.error)).Background(background),
+		divider:   lipgloss.NewStyle().Foreground(lipgloss.Color(c.divider)).Background(background),
 		active:    lipgloss.NewStyle().Foreground(lipgloss.Color(c.selectedForeground)).Background(lipgloss.Color(c.selectedBackground)).Bold(true),
 		inactive:  lipgloss.NewStyle().Foreground(lipgloss.Color(c.primary)).Background(lipgloss.Color(c.inactiveBackground)),
 	}

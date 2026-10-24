@@ -520,6 +520,9 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		return nil
 	case "t":
 		return m.duplicateTab()
+	case "T":
+		m.openPalette("themes", false)
+		return nil
 	case "ctrl+pgup":
 		if m.moveTab(-1) {
 			m.normalize()

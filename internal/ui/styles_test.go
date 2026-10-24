@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -21,6 +22,33 @@ func TestThemeCatalogAndFallback(t *testing.T) {
 	}
 	if ansi.Strip(defaultStyles.rule(4)) != "────" {
 		t.Fatal("default fallback rule width changed")
+	}
+}
+
+func TestSemanticTextAndDividerStylesUseThemeSurface(t *testing.T) {
+	styles := stylesForTheme("Latte")
+	for name, style := range map[string]lipgloss.Style{
+		"primary": styles.primary, "secondary": styles.secondary, "accent": styles.accent,
+		"error": styles.error, "divider": styles.divider,
+	} {
+		if style.GetBackground() == nil {
+			t.Errorf("%s style has no theme background", name)
+		}
+	}
+}
+
+func TestRestoreThemeResetsKeepsSurfaceAfterNestedStyles(t *testing.T) {
+	input := "\x1b[38;2;1;2;3mX\x1b[39mY\x1b[49mZ\x1b[0m"
+	want := "\x1b[38;2;1;2;3mX\x1b[38;2;248;248;242mY\x1b[48;2;40;42;54mZ\x1b[0;38;2;248;248;242;48;2;40;42;54m"
+	if got := restoreThemeResets(input, "#f8f8f2", "#282a36"); got != want {
+		t.Fatalf("theme resets were not restored: %q", got)
+	}
+}
+
+func TestRestoreThemeResetsLeavesRGBChannelsUntouched(t *testing.T) {
+	input := "\x1b[38;2;49;0;54;48;2;40;49;54mX"
+	if got := restoreThemeResets(input, "#f8f8f2", "#282a36"); got != input {
+		t.Fatalf("RGB channels mistaken for SGR resets: %q", got)
 	}
 }
 

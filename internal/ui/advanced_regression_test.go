@@ -25,10 +25,26 @@ func TestModalBackdropDimsTabPillBackground(t *testing.T) {
 }
 
 func TestDimANSIColorsScalesForegroundAndBackground(t *testing.T) {
-	got := dimANSIColors("\x1b[38;2;100;200;50;48;2;220;180;90mX\x1b[0m", .6, .5)
+	got := dimANSIColors("\x1b[38;2;100;200;50;48;2;220;180;90mX\x1b[0m", .6, .5, "")
 	want := "\x1b[38;2;60;120;30;48;2;110;90;45mX\x1b[0m"
 	if got != want {
 		t.Fatalf("dimmed ANSI colors = %q, want %q", got, want)
+	}
+}
+
+func TestModalSurfaceAndScrimUseSameBackgroundFactor(t *testing.T) {
+	got := dimANSIColors("\x1b[48;2;40;42;54mX", .60, .58, "#282a36")
+	want := "\x1b[48;2;31;32;42mX"
+	if got != want {
+		t.Fatalf("modal surface dim = %q, want it to match scrim %q", got, want)
+	}
+}
+
+func TestModalDimsColoredPillsMoreThanSurface(t *testing.T) {
+	got := dimANSIColors("\x1b[48;2;250;189;47mPill", .60, .58, "#282a36")
+	want := "\x1b[48;2;145;109;27mPill"
+	if got != want {
+		t.Fatalf("colored modal pill shade = %q, want %q", got, want)
 	}
 }
 

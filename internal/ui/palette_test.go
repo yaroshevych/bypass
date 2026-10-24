@@ -52,6 +52,34 @@ func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	}
 }
 
+func TestShiftTOpensThemePaletteWithoutCreatingTab(t *testing.T) {
+	m, _ := operationModel(t)
+	viewCount := len(m.ws.Views)
+	m.key(key("T"))
+	if m.palette == nil || m.palette.scope != "themes" {
+		t.Fatal("Shift+T did not open the Themes dialog")
+	}
+	if len(m.ws.Views) != viewCount {
+		t.Fatal("Shift+T created a tab")
+	}
+	for _, command := range m.commands() {
+		if command.id == "theme" && command.key != "Shift+T" {
+			t.Fatalf("Theme shortcut = %q, want Shift+T", command.key)
+		}
+	}
+}
+
+func TestThemesPaletteOmitsRedundantGroupHeading(t *testing.T) {
+	m, _ := operationModel(t)
+	m.openPalette("themes", false)
+	rows, _ := m.paletteRows(m.paletteChoices())
+	for _, row := range rows {
+		if row.choice == -1 {
+			t.Fatalf("Themes picker contains a group heading: %q", ansi.Strip(row.text))
+		}
+	}
+}
+
 func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 	m, _ := operationModel(t)
 	m.openPalette("actions", false)

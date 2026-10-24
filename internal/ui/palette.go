@@ -229,7 +229,7 @@ func (m *Model) commands() []command {
 			return nil
 		})
 	})
-	add("theme", "Settings", "Theme", "", "", "themes", nil)
+	add("theme", "Settings", "Theme", "Shift+T", "", "themes", nil)
 	add("appearance", "Settings", "Layout", "", "", "appearance", nil)
 	add("ascii", "Settings", "Toggle ASCII UI", "", "", "", func() tea.Cmd { m.settings.ASCII = !m.settings.ASCII; return m.persistPreferences() })
 	add("set-pin", "Privacy", "Change PIN", "", allReason, "", func() tea.Cmd { m.configurePIN(false); return nil })
@@ -389,6 +389,8 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 		section := choice.group
 		if p != nil && p.scope == "actions" {
 			section = commandSection(choice.group)
+		} else if p != nil && p.scope == "themes" {
+			section = ""
 		}
 		if section != group {
 			if group != "" {

@@ -16,9 +16,20 @@ from fixture import build, MASTER
 from render import render, ANSI
 
 PROJECT = Path(__file__).resolve().parents[2]
-SCREENS = ('welcome', 'unlock', 'workspace', 'details', 'tabs', 'tabs-hover', 'palette', 'shortcuts',
+SCREENS = ('welcome', 'unlock', 'workspace', 'details', 'tabs', 'tabs-hover', 'palette', 'theme', 'shortcuts',
            'editor', 'generator', 'delete', 'grand-password', 'grand-notes',
            'attachments', 'history', 'file-picker', 'pin')
+THEME_COLORS = {
+    'macchiato': ((202, 211, 245), (36, 39, 58)),
+    'mocha': ((205, 214, 244), (30, 30, 46)),
+    'frappe': ((198, 208, 245), (48, 52, 70)),
+    'latte': ((76, 79, 105), (239, 241, 245)),
+    'tokyo night': ((192, 202, 245), (26, 27, 38)),
+    'gruvbox': ((235, 219, 178), (40, 40, 40)),
+    'dracula': ((248, 248, 242), (40, 42, 54)),
+    'nord': ((236, 239, 244), (46, 52, 64)),
+    'vesper': ((213, 209, 201), (16, 16, 16)),
+}
 
 
 def capture(args, fixture, cli, output):
@@ -122,6 +133,9 @@ def capture(args, fixture, cli, output):
                         elif args.screen == 'palette':
                             key('C-p')
                             wait('Commands')
+                        elif args.screen == 'theme':
+                            key('T')
+                            wait('Themes')
                         elif args.screen == 'shortcuts':
                             key('?')
                             wait('Keyboard')
@@ -157,8 +171,10 @@ def capture(args, fixture, cli, output):
             value = wait('')
             (output / (name + '.ansi')).write_text(value)
             (output / (name + '.txt')).write_text(ANSI.sub('', value))
-            fg, bg = ((76, 79, 105), (239, 241, 245)) if args.theme == 'latte' else ((202, 211, 245), (36, 39, 58))
-            render(value, output / (name + '.png'), args.width, args.height, args.font, 20, fg, bg)
+            fg, bg = THEME_COLORS[args.theme]
+            # Deliberately contrast the terminal default with the selected theme
+            # surface so leaked SGR background resets are visible in captures.
+            render(value, output / (name + '.png'), args.width, args.height, args.font, 20, fg, (17, 19, 23))
             metadata = vars(args).copy()
             metadata.update(font_sha256=hashlib.sha256(Path(args.font).read_bytes()).hexdigest(),
                             pillow=PIL.__version__, capture='tmux SGR rasterization',
@@ -173,7 +189,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('screen', nargs='?', choices=SCREENS, default='workspace')
     parser.add_argument('--appearance', choices=('classic', 'compact'), default='classic')
-    parser.add_argument('--theme', choices=('macchiato', 'latte'), default='macchiato')
+    parser.add_argument('--theme', choices=tuple(THEME_COLORS), default='macchiato')
     parser.add_argument('--width', type=int, default=120)
     parser.add_argument('--height', type=int, default=35)
     parser.add_argument('--font', default=os.environ.get('BYPASS_SCREENSHOT_FONT', '/System/Library/Fonts/Menlo.ttc'))
@@ -192,7 +208,7 @@ def main():
         fixture, cli = build(Path(directory))
         if args.all:
             matrix = [(s, 'classic', 'macchiato', 120, 35) for s in SCREENS]
-            matrix += [(s, 'compact', 'macchiato', 120, 35) for s in ('workspace', 'tabs', 'palette')]
+            matrix += [(s, 'compact', 'macchiato', 120, 35) for s in ('workspace', 'tabs', 'palette', 'theme')]
             matrix += [(s, 'compact', 'latte', 120, 35) for s in ('workspace', 'palette')]
             matrix += [('workspace', 'compact', 'macchiato', 90, 25),
                        ('workspace', 'compact', 'macchiato', 60, 20),

@@ -386,6 +386,8 @@ func (m *Model) advancedScreen() ([]string, bool) {
 
 func (m *Model) overlay(title string, body []string, footer string, width, x, y int, header ...dialogrender.Header) []string {
 	c := m.colors()
+	theme := colorsForTheme(m.settings.Theme)
+	restoreResets := func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) }
 	headerContent, headerDivider, compactAccessory, compactCount := "", 0, "", ""
 	compactAccessoryStyle := lipgloss.NewStyle()
 	if len(header) > 0 {
@@ -399,6 +401,7 @@ func (m *Model) overlay(title string, body []string, footer string, width, x, y 
 		Backdrop: m.modalBackdrop(), Width: width, ScreenWidth: m.width,
 		Height: m.height, X: x, Y: y, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
 		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, Pill: c.active, Divider: c.divider,
+		RestoreResets: restoreResets,
 	})
 }
 
@@ -411,7 +414,9 @@ func (m *Model) modalBackdrop() []string {
 		fmt.Sscanf(value, "#%02x%02x%02x", &r, &g, &b)
 		return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", int(float64(r)*factor), int(float64(g)*factor), int(float64(b)*factor)))
 	}
-	scrim := lipgloss.NewStyle().Foreground(shade(c.secondary, .60)).Background(shade(c.background, .78))
+	scrimForeground := shade(c.secondary, .60)
+	scrimBackground := shade(c.background, .78)
+	scrim := lipgloss.NewStyle().Foreground(scrimForeground).Background(scrimBackground)
 	var background []string
 	if m.ws.ActiveSession() == nil {
 		background = m.welcomeLines()
@@ -420,12 +425,13 @@ func (m *Model) modalBackdrop() []string {
 	}
 	background = padLines(background, m.height)
 	for i := range background {
-		background[i] = scrim.Render(dimANSIColors(fit(background[i], m.width), .60, .58))
+		line := scrim.Render(dimANSIColors(fit(background[i], m.width), .60, .58, c.background))
+		background[i] = restoreThemeResets(line, string(scrimForeground), string(scrimBackground))
 	}
 	return background
 }
 
-func dimANSIColors(text string, foreground, background float64) string {
+func dimANSIColors(text string, foreground, background float64, surfaceColor string) string {
 	var out strings.Builder
 	for i := 0; i < len(text); {
 		if text[i] != '\x1b' || i+1 >= len(text) || text[i+1] != '[' {
@@ -448,6 +454,16 @@ func dimANSIColors(text string, foreground, background float64) string {
 				factor = foreground
 			case "48":
 				factor = background
+				if params[j+1] == "2" && surfaceColor != "" {
+					var r, g, b int
+					fmt.Sscanf(surfaceColor, "#%02x%02x%02x", &r, &g, &b)
+					red, redErr := strconv.Atoi(params[j+2])
+					green, greenErr := strconv.Atoi(params[j+3])
+					blue, blueErr := strconv.Atoi(params[j+4])
+					if redErr == nil && greenErr == nil && blueErr == nil && red == r && green == g && blue == b {
+						factor = .78 // Match the scrim's surface shade; dim colored pills more.
+					}
+				}
 			}
 			if factor == 0 || params[j+1] != "2" {
 				continue

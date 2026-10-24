@@ -41,6 +41,7 @@ type Options struct {
 	Surface, Accent, Secondary lipgloss.Style
 	Pill                       lipgloss.Style
 	Divider                    lipgloss.Style
+	RestoreResets              func(string) string
 }
 
 // Render places a framed dialog over a pre-rendered, already shaded backdrop.
@@ -123,6 +124,11 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 		box = append(box, wrap(o.Secondary.Render(footer), true))
 	}
 	box = append(box, o.Divider.Render(bl+strings.Repeat(horizontal, width-2)+br))
+	for i := range box {
+		if o.RestoreResets != nil {
+			box[i] = o.RestoreResets(box[i])
+		}
+	}
 	x := o.X
 	if x < 0 {
 		x = (o.ScreenWidth - width) / 2
@@ -166,6 +172,11 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 	}
 	if footer != "" {
 		content = append(content, o.Secondary.Render("  "+fitRight(footer, inner)))
+	}
+	for i := range content {
+		if o.RestoreResets != nil {
+			content[i] = o.RestoreResets(content[i])
+		}
 	}
 	left := max(0, (o.ScreenWidth-width)/2)
 	top := max(0, (o.Height-len(content))/2)
