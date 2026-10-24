@@ -138,13 +138,12 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	case chooseFile:
 		start, capacity := m.fileViewport()
 		visible := min(len(m.files)-start, capacity)
-		bodyLen := 3 + max(1, visible)
-		if m.err != "" {
-			bodyLen += 2
-		}
+		bodyLen := m.pickerFixedRows() + capacity + 1
 		top := max(0, (m.height-(min(bodyLen, max(1, m.height-8))+4))/2)
-		if msg.Y == top+3 {
+		pathY := top + 2 + m.pickerPathRow()
+		if msg.Y == pathY {
 			m.pickerEditing = true
+			m.pickerRecent = false
 			return nil
 		}
 		boxWidth := min(m.width-6, 82)
@@ -152,10 +151,25 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		if msg.X < left || msg.X >= left+boxWidth {
 			return nil
 		}
-		index := msg.Y - top - 5 + start
+		recentCount := m.pickerRecentCount()
+		if recentCount > 0 {
+			recentStartY := top + 3
+			if msg.Y >= recentStartY && msg.Y < recentStartY+recentCount {
+				m.pickerEditing = false
+				m.pickerRecent = true
+				m.pickerRecentIndex = msg.Y - recentStartY
+				return nil
+			}
+		}
+		fileStartY := top + 2 + m.pickerFixedRows()
+		if msg.Y < fileStartY {
+			return nil
+		}
+		index := msg.Y - fileStartY + start
 		if index >= start && index < len(m.files) && index < start+visible {
 			m.fileIndex = index
 			m.pickerEditing = false
+			m.pickerRecent = false
 		}
 		return nil
 	}
@@ -238,9 +252,31 @@ func (m *Model) tabAt(x, y int) (int, bool) {
 }
 
 func (m *Model) fileViewport() (start, capacity int) {
-	capacity = max(1, m.height-16)
+	capacity = min(15, max(1, max(1, m.height-8)-m.pickerFixedRows()-1))
 	start = viewportOffset(m.fileIndex, len(m.files), capacity, m.fileOffset)
 	return start, capacity
+}
+
+func (m *Model) pickerRecentCount() int {
+	limit := 5
+	if m.height > 0 {
+		limit = min(limit, max(0, m.height-16))
+	}
+	return min(limit, len(m.recent))
+}
+
+func (m *Model) pickerFixedRows() int {
+	if count := m.pickerRecentCount(); count > 0 {
+		return count + 6
+	}
+	return 4
+}
+
+func (m *Model) pickerPathRow() int {
+	if m.pickerRecentCount() > 0 {
+		return m.pickerRecentCount() + 3
+	}
+	return 1
 }
 
 func (m *Model) destinationPointer(msg tea.MouseMsg) {

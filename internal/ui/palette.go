@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -97,7 +96,7 @@ func (m *Model) commands() []command {
 		createReason = reason
 	}
 	add("new-vault", "File", "New Vault…", "N", createReason, "", func() tea.Cmd { return m.leaveEditor(m.openCreateVault) })
-	add("open", "File", "Open Vault…", "Ctrl+O", "", "files", nil)
+	add("open", "File", "Open Vault…", "Ctrl+O", "", "", func() tea.Cmd { return m.leaveEditor(m.openPicker) })
 	add("quit", "App", "Quit bypass", "q", "", "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }) })
 	closeReason := ""
 	if v == nil {
@@ -322,12 +321,6 @@ func (m *Model) paletteChoices() []command {
 		}
 	case "appearance":
 		choices = []command{{id: "compact", group: "Appearance", label: "Compact — pills, tighter rows", value: "compact"}, {id: "classic", group: "Appearance", label: "Classic — dividers, roomier rows", value: "classic"}}
-	case "files":
-		choices = append(choices, command{id: "browse", group: "Files", label: "Browse Files…", run: func() tea.Cmd { return m.leaveEditor(m.openPicker) }})
-		for _, path := range m.recent {
-			path := path
-			choices = append(choices, command{id: path, group: "Recent Vaults", label: vaultLabel(path) + " · " + safe(filepath.Dir(path)), run: func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.beginUnlock(path); return nil }) }})
-		}
 	case "destination":
 		if s := m.ws.ActiveSession(); s != nil && s.DB != nil {
 			for _, g := range destinationGroups(s.DB, s.Destinations) {
@@ -437,7 +430,7 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 }
 
 func (m *Model) paletteTitle() string {
-	title := map[string]string{"actions": "Commands", "themes": "Theme", "appearance": "Choose Appearance", "files": "Open Vault", "destination": "Move / Restore Entry"}[m.palette.scope]
+	title := map[string]string{"actions": "Commands", "themes": "Theme", "appearance": "Choose Appearance", "destination": "Move / Restore Entry"}[m.palette.scope]
 	if m.palette.context {
 		title = "Item Actions"
 	}
@@ -587,17 +580,10 @@ func (m *Model) executePalette() tea.Cmd {
 		m.closePalette(true)
 		return m.persistPreferences()
 	}
-	var origin *paletteState
-	if p.scope == "files" {
-		origin = p
-	}
 	m.closePalette(false)
 	var cmd tea.Cmd
 	if choice.run != nil {
 		cmd = choice.run()
-	}
-	if origin != nil && m.screen == chooseFile {
-		m.pickerReturn = &paletteState{scope: "files", original: m.settings, originalStyles: m.styles, x: -1, y: -1}
 	}
 	return cmd
 }
@@ -680,8 +666,6 @@ func paletteCountLabel(scope string, count int) string {
 		label, singular = "themes", "theme"
 	case "appearance":
 		label, singular = "appearances", "appearance"
-	case "files":
-		label, singular = "files", "file"
 	}
 	if count == 1 {
 		label = singular

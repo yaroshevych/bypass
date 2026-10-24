@@ -215,6 +215,30 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 	}
 }
 
+func TestOpenVaultCommandUsesCtrlOPicker(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 100, 30
+	m.openPalette("actions", false)
+	choices := m.paletteChoices()
+	openIndex := -1
+	for i, choice := range choices {
+		if choice.id == "open" {
+			openIndex = i
+			if choice.next != "" || choice.run == nil {
+				t.Fatalf("Open Vault still opens a nested palette: %#v", choice)
+			}
+		}
+	}
+	if openIndex < 0 {
+		t.Fatal("Open Vault command is missing")
+	}
+	m.palette.selected = openIndex
+	cmd := m.executePalette()
+	if m.palette != nil || m.screen != chooseFile || cmd == nil {
+		t.Fatalf("Open Vault did not open the Ctrl+O picker: palette=%v screen=%v cmd=%v", m.palette, m.screen, cmd != nil)
+	}
+}
+
 func TestPaletteDisabledReasonIsRightAlignedAndFirstGroupHasNoLeadingBlank(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 72, 24

@@ -1163,38 +1163,84 @@ func (m *Model) unlockLines() []string {
 
 func (m *Model) pickerLines() []string {
 	styles := m.colors()
-	accent, secondary, active, inactive, error := styles.accent, styles.secondary, styles.active, styles.inactive, styles.error
-	pathLine := secondary.Render(m.inputs[0].display(false))
-	if m.pickerEditing {
-		pathLine = accent.Render(m.inputs[0].display(false) + "▏")
+	secondary, error := styles.secondary, styles.error
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	listWidth := max(1, min(m.width-6, 82)-4)
+	pathIndent := " "
+	if compact {
+		pathIndent = "  "
 	}
-	body := []string{secondary.Render("Path · Tab to edit, or type/paste a new path"), pathLine, ""}
+	pathText := pathIndent + m.inputs[0].display(false)
+	pathLine := secondary.Render(pathText)
+	if m.pickerEditing {
+		if compact {
+			pathLine = renderPillWithCaret(m.inputs[0].display(false), "▏", listWidth, styles.inactive, styles.active, styles.primary)
+		} else {
+			caret := styles.active.Render("▏")
+			visible := ansi.Truncate(pathText, max(0, listWidth-2), "…")
+			padding := max(0, listWidth-lipgloss.Width(visible)-2)
+			pathLine = styles.inactive.Render(visible) + caret + styles.inactive.Render(strings.Repeat(" ", padding+1))
+		}
+	}
+	headerIndent := "  "
+	if !compact {
+		headerIndent = " "
+	}
+	rows := make([]listComponentRow, 0, m.pickerFixedRows())
+	recentCount := m.pickerRecentCount()
+	if recentCount > 0 {
+		rows = append(rows, listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "RECENT ", divider: true})
+		for i := 0; i < recentCount; i++ {
+			path := m.recent[i]
+			name := safe(vaultLabel(path)) + " · " + safe(filepath.Dir(path))
+			if !compact {
+				name = " " + name
+			}
+			rows = append(rows, listComponentRow{kind: listComponentItem, item: -1, text: name, selected: m.pickerRecent && i == m.pickerRecentIndex, activeFill: true, pillSelected: true})
+		}
+		rows = append(rows, listComponentRow{kind: listComponentSpacer, item: -1})
+	}
+	rows = append(rows,
+		listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "PATH ", divider: true},
+		listComponentRow{kind: listComponentItem, item: -1, text: pathLine},
+		listComponentRow{kind: listComponentSpacer, item: -1},
+	)
+	rows = append(rows, listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "BROWSE ", divider: true})
 	start, capacity := m.fileViewport()
+	browseRows := 0
 	for i := start; i < len(m.files) && i < start+capacity; i++ {
 		f := m.files[i]
 		name := safe(f.name)
 		if f.dir {
 			name += "/"
 		}
-		if i == m.fileIndex {
-			name = fit("› "+name, min(m.width-14, 72))
-			if m.pickerEditing {
-				name = inactive.Render(name)
-			} else {
-				name = active.Render(name)
-			}
-		} else {
-			name = "  " + name
+		if !compact {
+			name = " " + name
 		}
-		body = append(body, name)
+		rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: name, selected: !m.pickerEditing && !m.pickerRecent && i == m.fileIndex, activeFill: true, pillSelected: true})
+		browseRows++
 	}
 	if len(m.files) == 0 {
-		body = append(body, secondary.Render("No vault files here. Enter another path."))
+		rows = append(rows, listComponentRow{kind: listComponentItem, item: -1, text: secondary.Render("No vault files here. Enter another path.")})
+		browseRows++
+	}
+	for browseRows < capacity {
+		rows = append(rows, listComponentRow{kind: listComponentSpacer, item: -1})
+		browseRows++
+	}
+	component := m.renderListComponent(rows, listComponentOptions{
+		width: listWidth, compact: compact, ascii: m.settings.ASCII, focused: !m.pickerEditing, sidebar: true,
+	})
+	body := make([]string, 0, len(component)+2)
+	for _, row := range component {
+		body = append(body, row.text)
 	}
 	if m.err != "" {
-		body = append(body, "", error.Render(m.err))
+		body = append(body, error.Render(m.err))
+	} else {
+		body = append(body, "")
 	}
-	return m.box("Open Vault", body, "tab path")
+	return m.box("Open Vault", body, "")
 }
 
 func (m *Model) helpLines() []string {

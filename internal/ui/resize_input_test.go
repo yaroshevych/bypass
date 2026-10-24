@@ -38,8 +38,8 @@ func TestFilePickerViewportKeepsTwoContextRows(t *testing.T) {
 	m.files = make([]fileItem, 40)
 	m.fileIndex = 12
 	start, capacity := m.fileViewport()
-	if capacity != 14 || start != 1 {
-		t.Fatalf("file viewport = start %d, capacity %d; want 1, 14", start, capacity)
+	if capacity != 15 || start != 0 {
+		t.Fatalf("file viewport = start %d, capacity %d; want 0, 15", start, capacity)
 	}
 	if m.fileIndex-start != capacity-3 {
 		t.Fatalf("selected file row %d, want two rows after it", m.fileIndex-start)
@@ -108,15 +108,45 @@ func TestFilePickerMouseUsesScrolledViewport(t *testing.T) {
 	m.adjustViewport()
 	start, capacity := m.fileViewport()
 	target := start + 4
-	visible := min(len(m.files)-start, capacity)
-	bodyLen := 3 + max(1, visible)
+	bodyLen := m.pickerFixedRows() + capacity + 1
 	top := max(0, (m.height-(min(bodyLen, max(1, m.height-8))+4))/2)
 	boxWidth := min(m.width-6, 82)
 	left := max(0, (m.width-boxWidth)/2)
-	msg := tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: left + 4, Y: top + 5 + target - start}
+	msg := tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: left + 4, Y: top + 6 + target - start}
 	m.pointer(msg)
 	if m.fileIndex != target {
 		t.Fatalf("mouse selected file %d, want %d", m.fileIndex, target)
+	}
+}
+
+func TestFilePickerMouseSelectsRecentAndBrowseRows(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 100, 30
+	m.screen = chooseFile
+	m.recent = []string{"/recent/one.kdbx", "/recent/two.kdbx"}
+	m.files = []fileItem{{name: "folder", path: "/folder", dir: true}, {name: "vault.kdbx", path: "/vault.kdbx"}}
+	m.pickerRecent = true
+	m.directory = "/"
+	m.inputs[0].set("/")
+	_, capacity := m.fileViewport()
+	bodyLen := m.pickerFixedRows() + capacity + 1
+	top := max(0, (m.height-(min(bodyLen, max(1, m.height-8))+4))/2)
+	boxWidth := min(m.width-6, 82)
+	left := max(0, (m.width-boxWidth)/2)
+
+	m.pointer(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: left + 4, Y: top + 4})
+	if !m.pickerRecent || m.pickerRecentIndex != 1 {
+		t.Fatalf("mouse did not select second recent vault: recent=%v index=%d", m.pickerRecent, m.pickerRecentIndex)
+	}
+	fileStartY := top + 2 + m.pickerFixedRows()
+	m.pointer(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: left + 4, Y: fileStartY + 1})
+	if m.pickerRecent || m.pickerEditing || m.fileIndex != 1 {
+		t.Fatalf("mouse did not select second Browse item: recent=%v path=%v index=%d", m.pickerRecent, m.pickerEditing, m.fileIndex)
+	}
+	pathY := top + 2 + m.pickerPathRow()
+	m.pointer(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: left + 4, Y: pathY})
+	if !m.pickerEditing || m.pickerRecent {
+		t.Fatal("mouse did not focus PATH in the reordered picker")
 	}
 }
 

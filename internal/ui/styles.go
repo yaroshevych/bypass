@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 var shortcutLabelCaser = strings.NewReplacer(
@@ -100,6 +101,18 @@ func renderPillWithRightSurface(text string, width int, style, leftSurface, righ
 	leftEdge := leftSurface.Foreground(style.GetBackground())
 	rightEdge := rightSurface.Foreground(style.GetBackground())
 	return fit(leftEdge.Render("\ue0b6")+center+rightEdge.Render("\ue0b4"), width)
+}
+
+func renderPillWithCaret(text, caret string, width int, style, caretStyle, surface lipgloss.Style) string {
+	if width < 4 {
+		return style.Render(fit(text+caret, width))
+	}
+	contentWidth := max(0, width-4)
+	text = ansi.Truncate(text, max(0, contentWidth-lipgloss.Width(caret)), "…")
+	padding := max(0, contentWidth-lipgloss.Width(text)-lipgloss.Width(caret))
+	center := style.Render(" ") + style.Render(text) + caretStyle.Render(caret) + style.Render(strings.Repeat(" ", padding)) + style.Render(" ")
+	edge := surface.Foreground(style.GetBackground())
+	return fit(edge.Render("\ue0b6")+center+edge.Render("\ue0b4"), width)
 }
 
 func (m *Model) themedRule(width int) string {

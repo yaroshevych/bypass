@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,6 +13,7 @@ import (
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func key(s string) tea.KeyMsg {
@@ -303,6 +305,269 @@ func TestFilePickerEnterOpensHighlightedParent(t *testing.T) {
 	}
 }
 
+func TestOpenVaultPickerUsesPathAndBrowseGroups(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		t.Run(appearance, func(t *testing.T) {
+			m := New(Options{})
+			m.width, m.height = 100, 30
+			m.settings.Appearance = appearance
+			m.screen = chooseFile
+			m.inputs[0].set("/tmp/vaults/")
+			m.files = []fileItem{{name: "..", path: "/tmp", dir: true}, {name: "Personal", path: "/tmp/vaults/Personal", dir: true}}
+			rows := m.pickerLines()
+			pathHeader, pathValue, browseHeader, firstItem := -1, -1, -1, -1
+			for i, row := range rows {
+				plain := ansi.Strip(row)
+				switch {
+				case strings.Contains(plain, "PATH"):
+					pathHeader = i
+					if appearance == "compact" && !strings.Contains(plain, "│   PATH") {
+						t.Fatalf("compact group heading indentation changed: %q", plain)
+					}
+					if appearance == "classic" && !strings.Contains(plain, "│  PATH") {
+						t.Fatalf("classic group heading should have one fewer cell of indentation: %q", plain)
+					}
+				case strings.Contains(plain, "/tmp/vaults/"):
+					pathValue = i
+					wantPath := "│  /tmp/vaults/"
+					if appearance == "compact" {
+						wantPath = "│   /tmp/vaults/"
+					}
+					if !strings.Contains(plain, wantPath) {
+						t.Fatalf("%s path has incorrect left padding; want %q: %q", appearance, wantPath, plain)
+					}
+				case strings.Contains(plain, "BROWSE"):
+					browseHeader = i
+				case strings.Contains(plain, "../"):
+					firstItem = i
+				}
+			}
+			if pathHeader < 0 || pathValue != pathHeader+1 || browseHeader != pathValue+2 || firstItem != browseHeader+1 {
+				plainRows := make([]string, len(rows))
+				for i, row := range rows {
+					plainRows[i] = ansi.Strip(row)
+				}
+				t.Fatalf("Open Vault picker groups are missing or out of order: PATH=%d path=%d BROWSE=%d first item=%d\n%s", pathHeader, pathValue, browseHeader, firstItem, strings.Join(plainRows, "\n"))
+			}
+			if appearance == "compact" && !strings.Contains(rows[firstItem], "") {
+				t.Fatalf("compact picker selection did not use the shared pill list style: %q", rows[firstItem])
+			}
+		})
+	}
+}
+
+func TestFilePickerArrowNavigationEntersPathAndHasNoTabShortcut(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 100, 30
+	m.screen = chooseFile
+	m.files = []fileItem{{name: "..", path: "/tmp", dir: true}, {name: "Vaults", path: "/tmp/Vaults", dir: true}}
+	m.fileIndex = 1
+
+	m.key(tea.KeyMsg{Type: tea.KeyUp})
+	if m.fileIndex != 0 || m.pickerEditing {
+		t.Fatalf("Up moved focus out of Browse: index=%d pathEditing=%v", m.fileIndex, m.pickerEditing)
+	}
+	m.key(tea.KeyMsg{Type: tea.KeyUp})
+	if !m.pickerEditing {
+		t.Fatal("Up from the first Browse item did not focus PATH")
+	}
+	m.key(tea.KeyMsg{Type: tea.KeyTab})
+	if !m.pickerEditing {
+		t.Fatal("Tab unexpectedly moved focus out of PATH")
+	}
+	m.key(tea.KeyMsg{Type: tea.KeyDown})
+	if m.pickerEditing || m.fileIndex != 0 {
+		t.Fatalf("Down from PATH did not return to the first Browse item: index=%d pathEditing=%v", m.fileIndex, m.pickerEditing)
+	}
+	for _, row := range m.pickerLines() {
+		if strings.Contains(ansi.Strip(row), "tab path") {
+			t.Fatal("Open Vault footer still advertises the removed Tab shortcut")
+		}
+	}
+}
+
+func TestOpenVaultPickerShowsAndNavigatesRecentVaults(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 100, 30
+	m.recent = []string{
+		"/recent/vault-1.kdbx", "/recent/vault-2.kdbx", "/recent/vault-3.kdbx",
+		"/recent/vault-4.kdbx", "/recent/vault-5.kdbx", "/recent/vault-6.kdbx",
+	}
+	m.openPicker()
+	m.files = []fileItem{{name: "folder", path: "/folder", dir: true}}
+	if !m.pickerRecent || m.pickerRecentIndex != 0 || m.pickerRecentCount() != 5 {
+		t.Fatalf("picker did not focus the first of up to five recent vaults: focus=%v index=%d count=%d", m.pickerRecent, m.pickerRecentIndex, m.pickerRecentCount())
+	}
+	rows := m.pickerLines()
+	recentHeader, pathHeader, browseHeader := -1, -1, -1
+	for i, row := range rows {
+		plain := ansi.Strip(row)
+		if strings.Contains(plain, "RECENT") {
+			recentHeader = i
+		}
+		if strings.Contains(plain, "PATH") {
+			pathHeader = i
+		}
+		if strings.Contains(plain, "BROWSE") {
+			browseHeader = i
+		}
+	}
+	if recentHeader < 0 || pathHeader <= recentHeader || browseHeader <= pathHeader {
+		t.Fatalf("picker groups are not ordered RECENT, PATH, BROWSE: recent=%d path=%d browse=%d", recentHeader, pathHeader, browseHeader)
+	}
+	for i := 1; i <= 5; i++ {
+		if !strings.Contains(ansi.Strip(strings.Join(rows, "\n")), fmt.Sprintf("vault-%d.kdbx", i)) {
+			t.Fatalf("recent vault %d is missing from picker", i)
+		}
+	}
+	if strings.Contains(ansi.Strip(strings.Join(rows, "\n")), "vault-6.kdbx") {
+		t.Fatal("picker rendered more than five recent vaults")
+	}
+
+	m.key(tea.KeyMsg{Type: tea.KeyUp})
+	if !m.pickerRecent || m.pickerRecentIndex != 0 {
+		t.Fatal("Up moved above the first recent vault")
+	}
+	for i := 0; i < 4; i++ {
+		m.key(tea.KeyMsg{Type: tea.KeyDown})
+	}
+	if !m.pickerRecent || m.pickerRecentIndex != 4 {
+		t.Fatal("Down did not move through the recent vaults")
+	}
+	m.key(tea.KeyMsg{Type: tea.KeyUp})
+	if !m.pickerRecent || m.pickerRecentIndex != 3 {
+		t.Fatal("Up did not move to the previous recent vault")
+	}
+	m.key(tea.KeyMsg{Type: tea.KeyDown})
+	if !m.pickerRecent || m.pickerRecentIndex != 4 {
+		t.Fatal("Down did not return to the final recent vault")
+	}
+	m.key(tea.KeyMsg{Type: tea.KeyDown})
+	if !m.pickerEditing || m.pickerRecent {
+		t.Fatal("Down from the last recent vault did not focus PATH")
+	}
+	m.key(tea.KeyMsg{Type: tea.KeyDown})
+	if m.pickerEditing || m.pickerRecent || m.fileIndex != 0 {
+		t.Fatal("Down from PATH did not enter Browse")
+	}
+	m.key(tea.KeyMsg{Type: tea.KeyUp})
+	if !m.pickerEditing {
+		t.Fatal("Up from Browse did not focus PATH")
+	}
+	m.key(tea.KeyMsg{Type: tea.KeyUp})
+	if !m.pickerRecent || m.pickerRecentIndex != 4 {
+		t.Fatal("Up from PATH did not focus the last recent vault")
+	}
+	for i := 0; i < 4; i++ {
+		m.key(tea.KeyMsg{Type: tea.KeyUp})
+	}
+	if !m.pickerRecent || m.pickerRecentIndex != 0 {
+		t.Fatal("Up did not return to the first recent vault")
+	}
+	m.key(key("enter"))
+	if m.screen != unlock || m.path != m.recent[0] {
+		t.Fatalf("Enter did not open the focused recent vault: screen=%v path=%q", m.screen, m.path)
+	}
+}
+
+func TestOpenVaultPickerKeepsDialogPositionAcrossDirectorySizes(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 100, 35
+	m.settings.Appearance = "classic"
+	m.screen = chooseFile
+	m.recent = []string{"/recent/one.kdbx", "/recent/two.kdbx", "/recent/three.kdbx", "/recent/four.kdbx", "/recent/five.kdbx"}
+	m.directory = "/first"
+	m.inputs[0].set("/first/")
+	m.files = []fileItem{{name: "only.kdbx", path: "/first/only.kdbx"}}
+	_, capacity := m.fileViewport()
+	if capacity != 15 {
+		t.Fatalf("browse viewport capacity = %d, want 15", capacity)
+	}
+	first := m.pickerLines()
+	m.directory = "/second"
+	m.inputs[0].set("/second/")
+	m.files = make([]fileItem, 12)
+	for i := range m.files {
+		m.files[i] = fileItem{name: fmt.Sprintf("folder-%02d", i), path: fmt.Sprintf("/second/folder-%02d", i), dir: true}
+	}
+	second := m.pickerLines()
+	if len(first) != len(second) {
+		t.Fatalf("picker screen height changed: %d -> %d", len(first), len(second))
+	}
+	for _, marker := range []string{"OPEN VAULT", "PATH", "BROWSE", "└"} {
+		findRow := func(rows []string) int {
+			for i, row := range rows {
+				if strings.Contains(ansi.Strip(row), marker) {
+					return i
+				}
+			}
+			return -1
+		}
+		if a, b := findRow(first), findRow(second); a < 0 || a != b {
+			t.Fatalf("picker %q position changed between directories: %d -> %d", marker, a, b)
+		}
+	}
+}
+
+func TestFocusedCompactPickerPathMatchesBrowseItemPillBounds(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 100, 30
+	m.settings.Appearance = "compact"
+	m.screen = chooseFile
+	m.inputs[0].set("/tmp/vaults/")
+	m.files = []fileItem{{name: "Vault", path: "/tmp/vaults/Vault", dir: true}}
+	m.pickerEditing = true
+	pathRow := ""
+	for _, row := range m.pickerLines() {
+		if strings.Contains(ansi.Strip(row), "/tmp/vaults/") {
+			pathRow = ansi.Strip(row)
+			break
+		}
+	}
+	pathLeftByte, pathRightByte := strings.Index(pathRow, ""), strings.Index(pathRow, "")
+	if pathLeftByte < 0 || pathRightByte < 0 {
+		t.Fatalf("focused compact path is missing its pill background: %q", pathRow)
+	}
+	pathLeft := ansi.StringWidth(pathRow[:pathLeftByte])
+	pathRight := ansi.StringWidth(pathRow[:pathRightByte])
+	pathTextByte := strings.Index(pathRow, "/tmp/vaults/")
+	if pathTextByte < 0 || ansi.StringWidth(pathRow[pathLeftByte:pathTextByte]) != 2 {
+		t.Fatalf("focused compact path has unexpected left padding: %q", pathRow)
+	}
+
+	m.pickerEditing = false
+	browseRow := ""
+	for _, row := range m.pickerLines() {
+		if strings.Contains(ansi.Strip(row), "Vault/") {
+			browseRow = ansi.Strip(row)
+			break
+		}
+	}
+	browseLeftByte, browseRightByte := strings.Index(browseRow, ""), strings.Index(browseRow, "")
+	if browseLeftByte < 0 || browseRightByte < 0 || ansi.StringWidth(browseRow[:browseLeftByte]) != pathLeft || ansi.StringWidth(browseRow[:browseRightByte]) != pathRight {
+		t.Fatalf("focused path pill bounds differ from a Browse item: path=%q browse=%q", pathRow, browseRow)
+	}
+}
+
+func TestFocusedClassicPickerCaretFollowsPathText(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 100, 30
+	m.settings.Appearance = "classic"
+	m.screen = chooseFile
+	m.inputs[0].set("/tmp/vaults/")
+	m.pickerEditing = true
+	for _, row := range m.pickerLines() {
+		plain := ansi.Strip(row)
+		if strings.Contains(plain, "/tmp/vaults/") {
+			if !strings.Contains(plain, "/tmp/vaults/▏ ") {
+				t.Fatalf("classic path caret is not adjacent to the path with fill to its right: %q", plain)
+			}
+			return
+		}
+	}
+	t.Fatal("focused classic path row was not rendered")
+}
+
 func TestFilePickerArrowEnterOpensDirectoryThenVault(t *testing.T) {
 	parent := t.TempDir()
 	child := filepath.Join(parent, "child")
@@ -344,12 +609,12 @@ func TestFilePickerBackspaceRespectsFocus(t *testing.T) {
 	m.screen = chooseFile
 	m.directory = child
 	m.inputs[0].set(child + string(os.PathSeparator))
-	m.key(key("tab"))
+	m.key(key("ctrl+u"))
 	m.key(tea.KeyMsg{Type: tea.KeyBackspace})
 	if m.directory != child {
 		t.Fatal("editing path navigated directory")
 	}
-	m.key(key("tab"))
+	m.key(tea.KeyMsg{Type: tea.KeyDown})
 	cmd := m.key(tea.KeyMsg{Type: tea.KeyBackspace})
 	if cmd == nil {
 		t.Fatal("list Backspace didn't navigate parent")

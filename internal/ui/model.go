@@ -64,7 +64,6 @@ type Model struct {
 	searchError                             string
 	dragging                                int
 	dragStartX                              int
-	pickerReturn                            *paletteState
 	searchCache                             *entrySearchCache
 	searchOrigin                            *workspace.View
 	backend                                 vault.Backend
@@ -79,7 +78,8 @@ type Model struct {
 	path, directory                         string
 	files                                   []fileItem
 	fileIndex, fileOffset                   int
-	pickerEditing                           bool
+	pickerEditing, pickerRecent             bool
+	pickerRecentIndex                       int
 	recent                                  []string
 	recentIndex                             int
 	err, notice                             string
@@ -232,7 +232,6 @@ func (m *Model) Close() {
 	m.helpQuery.clear()
 	m.searchCache = nil
 	m.searchOrigin = nil
-	m.pickerReturn = nil
 	m.cancelOperation()
 	m.clearEditor()
 	m.clearDialog()
@@ -835,6 +834,8 @@ func (m *Model) openPicker() tea.Cmd {
 	m.files = nil
 	m.fileIndex, m.fileOffset = 0, 0
 	m.pickerEditing = false
+	m.pickerRecentIndex = 0
+	m.pickerRecent = m.pickerRecentCount() > 0
 	return listDirectory(dir)
 }
 
@@ -874,32 +875,67 @@ func (m *Model) fileKey(k tea.KeyMsg) tea.Cmd {
 		m.err = ""
 		return nil
 	case "up":
-		m.pickerEditing = false
-		m.fileIndex = max(0, m.fileIndex-1)
+		if m.pickerEditing {
+			if m.pickerRecentCount() > 0 {
+				m.pickerEditing = false
+				m.pickerRecent = true
+				m.pickerRecentIndex = m.pickerRecentCount() - 1
+			}
+			return nil
+		}
+		if m.pickerRecent {
+			if m.pickerRecentIndex > 0 {
+				m.pickerRecentIndex--
+			}
+			return nil
+		}
+		if m.fileIndex == 0 {
+			m.pickerEditing = true
+			return nil
+		}
+		m.fileIndex--
 		return nil
 	case "down":
-		m.pickerEditing = false
+		if m.pickerEditing {
+			m.pickerEditing = false
+			m.pickerRecent = false
+			m.fileIndex = 0
+			return nil
+		}
+		if m.pickerRecent {
+			if m.pickerRecentIndex < m.pickerRecentCount()-1 {
+				m.pickerRecentIndex++
+			} else {
+				m.pickerRecent = false
+				m.pickerEditing = true
+			}
+			return nil
+		}
 		m.fileIndex = min(max(0, len(m.files)-1), m.fileIndex+1)
-		return nil
-	case "tab":
-		m.pickerEditing = !m.pickerEditing
 		return nil
 	case "ctrl+u":
 		m.pickerEditing = true
+		m.pickerRecent = false
 		m.inputs[0].clear()
 		m.err = ""
 		return nil
 	case "left", "backspace":
-		if !m.pickerEditing {
+		if !m.pickerEditing && !m.pickerRecent {
 			return m.changeDirectory(filepath.Dir(m.directory))
+		}
+		if m.pickerRecent {
+			return nil
 		}
 		m.inputs[0].update(k)
 		return nil
 	case "right":
-		if !m.pickerEditing {
+		if !m.pickerEditing && !m.pickerRecent {
 			if len(m.files) > 0 && m.files[m.fileIndex].dir {
 				return m.changeDirectory(m.files[m.fileIndex].path)
 			}
+			return nil
+		}
+		if m.pickerRecent {
 			return nil
 		}
 		m.inputs[0].update(k)
@@ -915,6 +951,12 @@ func (m *Model) fileKey(k tea.KeyMsg) tea.Cmd {
 			if !filepath.IsAbs(path) {
 				path = filepath.Join(m.directory, path)
 			}
+		} else if m.pickerRecent {
+			if m.pickerRecentIndex < 0 || m.pickerRecentIndex >= m.pickerRecentCount() {
+				return nil
+			}
+			m.beginUnlock(m.recent[m.pickerRecentIndex])
+			return nil
 		} else if len(m.files) > 0 {
 			path = m.files[m.fileIndex].path
 		}
@@ -933,6 +975,7 @@ func (m *Model) fileKey(k tea.KeyMsg) tea.Cmd {
 			if k.Type != tea.KeyRunes {
 				return nil
 			}
+			m.pickerRecent = false
 			m.pickerEditing = true
 			m.inputs[0].clear()
 		}
@@ -947,6 +990,7 @@ func (m *Model) changeDirectory(path string) tea.Cmd {
 	m.files = nil
 	m.fileIndex, m.fileOffset = 0, 0
 	m.pickerEditing = false
+	m.pickerRecent = false
 	m.err = ""
 	m.inputs[0].set(path + string(os.PathSeparator))
 	return listDirectory(path)
