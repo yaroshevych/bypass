@@ -155,6 +155,11 @@ func (m *Model) commands() []command {
 		}
 		add("copy:"+name, "Field", "Copy "+label, "", reason, "", func() tea.Cmd { return m.copyField(name) })
 	}
+	grandReason := needEntry
+	if m.editor != nil {
+		grandReason = "Finish editing before viewing stored fields"
+	}
+	add("grand-view", "Field", "Grand View — Indexed Field", "G", grandReason, "", m.openGrandView)
 	add("reveal", "Field", "Reveal / Hide Focused Field", "v", needEntry, "", func() tea.Cmd { return m.toggleReveal() })
 	add("generator", "Field", "Password Generator", "Ctrl+G", "", "", func() tea.Cmd { m.openGenerator(); return nil })
 	saveReason := writeReason

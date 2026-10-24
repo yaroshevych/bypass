@@ -48,6 +48,8 @@ type Model struct {
 	styles                                  styleSet
 	palette                                 *paletteState
 	jump                                    bool
+	grand                                   bool
+	grandOffset                             int
 	gate                                    *privacy.Gate
 	pinInput                                input
 	pinError                                string
@@ -158,6 +160,9 @@ func New(opts Options) *Model {
 		m.now = time.Now
 	}
 	m.settings = opts.Settings
+	if m.settings.GrandViewGroupSize <= 0 {
+		m.settings.GrandViewGroupSize = 2
+	}
 	if m.settings.Theme == "" {
 		m.settings.Theme = "macchiato"
 	}
@@ -373,6 +378,9 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if m.gate.Protected() {
 		return m.pinKey(k)
 	}
+	if m.grand {
+		return m.grandKey(k)
+	}
 	if m.palette != nil {
 		return m.paletteKey(k)
 	}
@@ -586,6 +594,8 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 			v.Focus--
 		}
 		m.normalize()
+	case "G":
+		return m.openGrandView()
 	case "J":
 		m.jump = true
 		m.hideReveal()

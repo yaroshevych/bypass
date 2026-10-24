@@ -19,16 +19,18 @@ const (
 )
 
 type Settings struct {
-	IdleTimeout      time.Duration
-	ClipboardTimeout time.Duration
-	BackupDir        string
-	Theme            string
-	Appearance       string
-	ASCII            bool
-	FullLockTimeout  time.Duration
+	IdleTimeout        time.Duration
+	ClipboardTimeout   time.Duration
+	BackupDir          string
+	Theme              string
+	Appearance         string
+	ASCII              bool
+	FullLockTimeout    time.Duration
+	GrandViewGroupSize int
 }
 
 type settingsFile struct {
+	GrandViewGroupSize      *int    `json:"grand_view_group_size"`
 	IdleTimeoutSeconds      *int64  `json:"idle_timeout_seconds"`
 	ClipboardTimeoutSeconds *int64  `json:"clipboard_timeout_seconds"`
 	FullLockTimeoutSeconds  *int64  `json:"full_lock_timeout_seconds"`
@@ -46,11 +48,12 @@ func DefaultSettings(paths Paths) Settings {
 		}
 	}
 	return Settings{
-		IdleTimeout:      defaultIdleTimeout,
-		ClipboardTimeout: defaultClipboardTimeout,
-		BackupDir:        filepath.Clean(backupDir),
-		Theme:            "macchiato",
-		Appearance:       "classic",
+		IdleTimeout:        defaultIdleTimeout,
+		ClipboardTimeout:   defaultClipboardTimeout,
+		BackupDir:          filepath.Clean(backupDir),
+		Theme:              "macchiato",
+		Appearance:         "classic",
+		GrandViewGroupSize: 2,
 	}
 }
 
@@ -118,6 +121,9 @@ func LoadSettings(paths Paths) (Settings, error) {
 	if file.Appearance != nil {
 		settings.Appearance = *file.Appearance
 	}
+	if file.GrandViewGroupSize != nil {
+		settings.GrandViewGroupSize = *file.GrandViewGroupSize
+	}
 	if file.ASCII != nil {
 		settings.ASCII = *file.ASCII
 	}
@@ -135,6 +141,9 @@ func durationSeconds(seconds int64, maximum time.Duration) (time.Duration, error
 }
 
 func validateSettings(settings Settings) error {
+	if settings.GrandViewGroupSize < 1 {
+		return errors.New("grand view group size must be a positive integer")
+	}
 	if settings.IdleTimeout < time.Second || settings.IdleTimeout > maxIdleTimeout {
 		return fmt.Errorf("idle timeout must be between 1 second and %s", maxIdleTimeout)
 	}
@@ -197,6 +206,7 @@ func SaveSettings(paths Paths, settings Settings) error {
 		return err
 	}
 	values := map[string]any{
+		"grand_view_group_size":     settings.GrandViewGroupSize,
 		"idle_timeout_seconds":      int64(settings.IdleTimeout / time.Second),
 		"clipboard_timeout_seconds": int64(settings.ClipboardTimeout / time.Second),
 		"full_lock_timeout_seconds": int64(settings.FullLockTimeout / time.Second),

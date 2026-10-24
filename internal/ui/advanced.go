@@ -357,6 +357,9 @@ func (m *Model) advancedScreen() ([]string, bool) {
 	if m.gate.Protected() {
 		return m.pinLines(), true
 	}
+	if m.grand {
+		return m.grandLines(), true
+	}
 	if m.palette != nil {
 		return m.paletteLines(), true
 	}

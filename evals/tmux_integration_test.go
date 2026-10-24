@@ -286,6 +286,13 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	}
 	e := newEval(t)
 	defer e.close()
+	configDir := filepath.Join(e.root, "xdg-config", "keepassui")
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.json"), []byte(`{"grand_view_group_size":3}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	e.start()
 	e.openPathBySelection()
 	e.typeText(fixturePassword)
@@ -319,6 +326,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.key("Enter")
 	e.mustShow("Preferences saved.")
 	e.mustSettingsContain("\"theme\": \"nord\"")
+	e.mustSettingsContain("\"grand_view_group_size\": 3")
 
 	e.key("C-p")
 	e.typeText("Compact")
@@ -334,6 +342,11 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.key("J")
 	e.key("p")
 	e.mustShow("Eval Entry", "Password", "••••••••")
+	e.mustNotShow(secretSentinel)
+	e.key("G")
+	e.mustShow("Grand View", "Password", "positions start at 1", "Esc / Enter close")
+	e.key("Escape")
+	e.mustShow("Eval Entry", "••••••••")
 	e.mustNotShow(secretSentinel)
 	e.key("n")
 	e.mustShow("Read only: enable writes with R first.")

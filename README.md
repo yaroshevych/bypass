@@ -14,6 +14,7 @@ just eval # deterministic terminal integration tests; requires tmux
 
 `Ctrl+P` opens commands; `?` lists controls. `1`–`9` switch tabs outside text inputs.
 `n`/`e` create/edit; `Ctrl+S` saves; `c` copies;
+`G` opens Grand View with numbered characters for the focused field.
 `v` briefly reveals; `Ctrl+L` locks the current vault; `L` locks all vaults.
 `/` filters the focused pane; `Ctrl+F` searches all entries. `J` starts jump mode;
 `z` zooms a pane; `[`/`]` resize it. Choose themes and Compact/Classic in commands.
@@ -21,3 +22,6 @@ just eval # deterministic terminal integration tests; requires tmux
 Clipboard defaults to 10s; idle protection to 15m (PIN when set, otherwise full lock).
 Secrets stay in memory; backups remain encrypted. Config uses platform/XDG
 config storage (`config.json`); recent paths and backups use state storage.
+
+Grand View alternates character backgrounds in groups of two. Set
+`"grand_view_group_size": 2` in `config.json` to change the group size (positive integer).

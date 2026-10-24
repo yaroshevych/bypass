@@ -13,11 +13,12 @@ func TestDefaultSettingsAndMissingFileDoNotWrite(t *testing.T) {
 	root := t.TempDir()
 	paths := Paths{Config: filepath.Join(root, "config"), State: filepath.Join(root, "state")}
 	want := Settings{
-		IdleTimeout:      15 * time.Minute,
-		ClipboardTimeout: 10 * time.Second,
-		BackupDir:        filepath.Join(paths.State, "backups"),
-		Theme:            "macchiato",
-		Appearance:       "classic",
+		IdleTimeout:        15 * time.Minute,
+		ClipboardTimeout:   10 * time.Second,
+		BackupDir:          filepath.Join(paths.State, "backups"),
+		Theme:              "macchiato",
+		Appearance:         "classic",
+		GrandViewGroupSize: 2,
 	}
 	if got := DefaultSettings(paths); got != want {
 		t.Fatalf("DefaultSettings() = %#v, want %#v", got, want)
@@ -38,7 +39,7 @@ func TestLoadSettingsValidConfigAndUnknownFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	backup := filepath.Join(root, "backup")
-	data := []byte(`{"idle_timeout_seconds":900,"clipboard_timeout_seconds":20,"backup_dir":"` + backup + `","theme":"nord","appearance":"compact","ascii":true,"full_lock_timeout_seconds":3600,"future_setting":"ignored"}`)
+	data := []byte(`{"idle_timeout_seconds":900,"clipboard_timeout_seconds":20,"backup_dir":"` + backup + `","theme":"nord","appearance":"compact","ascii":true,"full_lock_timeout_seconds":3600,"grand_view_group_size":3,"future_setting":"ignored"}`)
 	if err := os.WriteFile(filepath.Join(config, "config.json"), data, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +47,7 @@ func TestLoadSettingsValidConfigAndUnknownFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Settings{IdleTimeout: 15 * time.Minute, ClipboardTimeout: 20 * time.Second, BackupDir: backup, Theme: "nord", Appearance: "compact", ASCII: true, FullLockTimeout: time.Hour}
+	want := Settings{IdleTimeout: 15 * time.Minute, ClipboardTimeout: 20 * time.Second, BackupDir: backup, Theme: "nord", Appearance: "compact", ASCII: true, FullLockTimeout: time.Hour, GrandViewGroupSize: 3}
 	if got != want {
 		t.Fatalf("LoadSettings() = %#v, want %#v", got, want)
 	}
@@ -72,6 +73,10 @@ func TestInvalidSettingsReturnDefaultsWithError(t *testing.T) {
 		`{"backup_dir":""}`,
 		`{"theme":"unknown"}`,
 		`{"appearance":"wide"}`,
+		`{"grand_view_group_size":0}`,
+		`{"grand_view_group_size":-1}`,
+		`{"grand_view_group_size":2.5}`,
+		`{"grand_view_group_size":"2"}`,
 		`{`,
 	} {
 		if err := os.WriteFile(filepath.Join(config, "config.json"), []byte(contents), 0o600); err != nil {
@@ -101,6 +106,7 @@ func TestSaveSettingsPreservesUnknownKeysAndWritesPrivately(t *testing.T) {
 	settings.Theme = "dracula"
 	settings.Appearance = "compact"
 	settings.ASCII = true
+	settings.GrandViewGroupSize = 4
 	if err := SaveSettings(paths, settings); err != nil {
 		t.Fatal(err)
 	}

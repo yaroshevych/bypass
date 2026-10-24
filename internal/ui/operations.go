@@ -725,6 +725,8 @@ func (m *Model) toggleReveal() tea.Cmd {
 	return nil
 }
 func (m *Model) hideReveal() {
+	m.grand = false
+	m.grandOffset = 0
 	if m.revealCancel != nil {
 		m.revealCancel()
 		m.revealCancel = nil
@@ -746,7 +748,7 @@ func (m *Model) fieldValue(e vault.Entry, name string) string {
 
 func (m *Model) revealed(uuid, name string) bool {
 	s := m.ws.ActiveSession()
-	return s != nil && s.ID == m.revealSession && m.revealEntry == uuid && m.revealField == name && m.now().Before(m.revealUntil)
+	return !m.grand && s != nil && s.ID == m.revealSession && m.revealEntry == uuid && m.revealField == name && m.now().Before(m.revealUntil)
 }
 
 func (m *Model) requestReload(id string) tea.Cmd {
@@ -812,7 +814,7 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 		m.notice = ""
 		m.noticeExpires = time.Time{}
 	}
-	if !m.revealUntil.IsZero() && !now.Before(m.revealUntil) {
+	if !m.grand && !m.revealUntil.IsZero() && !now.Before(m.revealUntil) {
 		m.hideReveal()
 	}
 	configuredPIN := m.gate.Configured()

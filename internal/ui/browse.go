@@ -13,6 +13,9 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	if m.gate.Protected() {
 		return nil
 	}
+	if m.grand {
+		return m.grandPointer(msg)
+	}
 	if m.palette != nil {
 		return m.palettePointer(msg)
 	}
