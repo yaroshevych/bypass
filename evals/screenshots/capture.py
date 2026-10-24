@@ -16,7 +16,7 @@ from fixture import build, MASTER
 from render import render, ANSI
 
 PROJECT = Path(__file__).resolve().parents[2]
-SCREENS = ('welcome', 'unlock', 'workspace', 'tabs', 'tabs-hover', 'palette', 'shortcuts',
+SCREENS = ('welcome', 'unlock', 'workspace', 'details', 'tabs', 'tabs-hover', 'palette', 'shortcuts',
            'editor', 'generator', 'delete', 'grand-password', 'grand-notes',
            'attachments', 'history', 'file-picker', 'pin')
 
@@ -108,8 +108,11 @@ def capture(args, fixture, cli, output):
                         key('Enter')
                         wait('Proton Mail')
                         key('Right')
-                        wait('n new')
-                        if args.screen in ('tabs', 'tabs-hover'):
+                        wait('/ filter')
+                        if args.screen == 'details':
+                            key('Right')
+                            wait('c copy')
+                        elif args.screen in ('tabs', 'tabs-hover'):
                             key('C-t')
                             if args.screen == 'tabs-hover':
                                 value = wait('2 Proton Mail')

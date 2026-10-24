@@ -446,37 +446,54 @@ func (m *Model) modalBackdrop() []string {
 
 func (m *Model) footerText() string {
 	v := m.ws.ActiveView()
-	text := "  Ctrl+P commands · o open · ? help"
+	text := "/ filter · Ctrl+P commands"
 	if v != nil {
-		switch v.Focus {
-		case 0:
-			text = "  ↑↓ views · Enter entries · / filter · Ctrl+P commands"
-		case 1:
-			text = "  n new · e edit · / filter · Ctrl+P commands"
-		case 2:
-			text = "  Tab fields · c copy · v reveal · e edit · Ctrl+P commands"
-		}
-		if len(m.ws.Views) > 1 {
-			text += " · 1–9 tabs"
-		}
 		if v.Query != "" {
-			text = "  Fuzzy search: " + safe(v.Query) + " · Esc clear · Ctrl+P commands"
+			text += " · Fuzzy search: " + safe(v.Query)
 		}
 		if v.NavFilter != "" {
-			text = "  Views filter: " + safe(v.NavFilter) + " · Esc clear"
+			text += " · Views filter: " + safe(v.NavFilter)
 		}
 		if v.DetailFilter != "" {
-			text = "  Fields filter: " + safe(v.DetailFilter) + " · Esc clear"
+			text += " · Fields filter: " + safe(v.DetailFilter)
 		}
 	}
 	if m.searching {
 		label := []string{"Views", "Entries", "Fields"}[min(max(0, m.searchColumn), 2)]
-		text = "  " + label + " search: " + safe(m.query.value()) + "▏ · Enter apply · Esc cancel"
+		text += " · " + label + " search: " + safe(m.query.value()) + "▏"
 	}
 	if m.searchError != "" {
-		text = "  " + m.searchError
+		text += " · " + m.searchError
 	}
 	return text
+}
+
+func (m *Model) footerContext() string {
+	if m.writing {
+		return ""
+	}
+	if m.editor != nil {
+		return "Ctrl+S save · Esc cancel · Ctrl+G generator"
+	}
+	if m.searching {
+		return "Enter apply · Esc cancel"
+	}
+	v := m.ws.ActiveView()
+	if v == nil {
+		return ""
+	}
+	if v.Query != "" || v.NavFilter != "" || v.DetailFilter != "" {
+		return "Esc clear"
+	}
+	switch v.Focus {
+	case 0:
+		return "↑↓ select · Enter entries"
+	case 1:
+		return "n new · e edit"
+	case 2:
+		return "c copy · v reveal · e edit"
+	}
+	return ""
 }
 
 // PIN protection conceals secrets without canceling authenticated work or

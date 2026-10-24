@@ -250,27 +250,35 @@ func (m *Model) workspaceLines() []string {
 	}
 	lines = append(lines, m.layoutBody(l)...)
 	footer := m.footerText()
-	if m.notice != "" {
-		v := m.ws.ActiveView()
-		if m.searching || (v != nil && (v.Query != "" || v.NavFilter != "" || v.DetailFilter != "")) {
-			footer += " · " + m.notice
-		} else {
-			footer = "  " + m.notice
-		}
-	}
-	if m.editor != nil {
-		footer = "  Tab fields · Ctrl+S save · Esc cancel · Ctrl+G generator"
-	}
-	if m.writing {
-		footer = "  Working…"
-	}
 	if status := m.clipboardStatus(); status != "" {
 		footer += " · " + status
+	}
+	if m.notice != "" {
+		footer += " · " + m.notice
+	}
+	if m.writing {
+		footer += " · Working…"
 	}
 	if !compact {
 		lines = append(lines, m.paneRule(l, false))
 	}
-	return append(lines, m.footerLine(footer))
+	contextual := m.footerContext()
+	if m.notice != "" || m.clipboardStatus() != "" {
+		available := m.width - lipgloss.Width(m.footerBadge()) - 1 - lipgloss.Width(strings.TrimSpace(footer)) - 2
+		if lipgloss.Width(contextual) > available {
+			var keys []string
+			for _, hint := range strings.Split(contextual, " · ") {
+				if words := strings.Fields(hint); len(words) > 0 {
+					keys = append(keys, words[0])
+				}
+			}
+			contextual = strings.Join(keys, " · ")
+			if lipgloss.Width(contextual) > available {
+				contextual = ""
+			}
+		}
+	}
+	return append(lines, m.footerLine(footer, contextual))
 }
 
 func (m *Model) paneRule(layout viewLayout, top bool) string {
@@ -290,7 +298,7 @@ func (m *Model) paneRule(layout viewLayout, top bool) string {
 	return m.colors().lineStyle.Render(string(line))
 }
 
-func (m *Model) footerLine(text string) string {
+func (m *Model) footerBadge() string {
 	c := m.colors()
 	style := c.active.Foreground(c.base.GetBackground()).Background(c.accent.GetForeground())
 	badge := style.Render(" bypass ")
@@ -301,7 +309,28 @@ func (m *Model) footerLine(text string) string {
 			badge = renderPill("bypass", 10, style, c.base)
 		}
 	}
-	return fit(badge+" "+c.muted.Render(strings.TrimSpace(text)), m.width)
+	return badge
+}
+
+func (m *Model) footerLine(text string, contextual ...string) string {
+	c := m.colors()
+	badge := m.footerBadge()
+	left := badge + " " + c.muted.Render(strings.TrimSpace(text))
+	if len(contextual) > 0 && contextual[0] != "" {
+		right := c.muted.Render(contextual[0])
+		minimumLeft := lipgloss.Width(badge) + 1 + lipgloss.Width("/ filter · Ctrl+P commands")
+		if status := m.clipboardStatus(); status != "" {
+			minimumLeft += 3 + lipgloss.Width(status)
+		}
+		if m.width >= minimumLeft+lipgloss.Width(right)+2 {
+			left = ansi.Truncate(left, m.width-lipgloss.Width(right)-2, "…")
+		}
+		gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
+		if gap >= 2 {
+			return left + strings.Repeat(" ", gap) + right
+		}
+	}
+	return fit(left, m.width)
 }
 
 func (m *Model) layoutBody(layout viewLayout) []string {
