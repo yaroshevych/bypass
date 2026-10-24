@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode"
 
+	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/workspace"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -1046,53 +1047,13 @@ func padLines(lines []string, height int) []string {
 }
 
 func (m *Model) box(title string, body []string, footer string) []string {
-	footer = lowercaseShortcutLabels(footer)
-	styles := m.colors()
-	accent, muted := styles.accent, styles.muted
-	width := min(m.width-6, 82)
-	inner := width - 4
-	maxBody := max(1, m.height-8)
-	if len(body) > maxBody {
-		body = body[:maxBody]
-	}
-	title = m.dialogTitle(title)
-	content := []string{accent.Render("  " + title), m.themedRule(width)}
-	for _, line := range body {
-		content = append(content, "  "+fit(line, inner))
-	}
-	if footer != "" {
-		content = append(content, muted.Render("  "+fitRight(footer, inner)))
-	}
-	left := max(0, (m.width-width)/2)
-	top := max(0, (m.height-len(content))/2)
-	// Keep body coordinates shared with keyboard/mouse navigation, while giving
-	// every dialog an opaque surface, frame, and the same shaded workspace.
-	background := m.modalBackdrop()
-	border, tl, tr, bl, br, horizontal := "│", "┌", "┐", "└", "┘", "─"
-	if m.settings.ASCII {
-		border, tl, tr, bl, br, horizontal = "|", "+", "+", "+", "+", "-"
-	}
-	frame := func(row int, text string) {
-		if row < 0 || row >= len(background) {
-			return
-		}
-		original := background[row]
-		background[row] = ansi.Cut(original, 0, left) + text + ansi.Cut(original, left+width, m.width)
-	}
-	frame(top-1, styles.lineStyle.Render(tl+strings.Repeat(horizontal, width-2)+tr))
-	for i, line := range content {
-		if i == 1 && !strings.EqualFold(m.settings.Appearance, "compact") {
-			leftRule, rightRule := "├", "┤"
-			if m.settings.ASCII {
-				leftRule, rightRule = "+", "+"
-			}
-			frame(top+i, styles.lineStyle.Render(leftRule+strings.Repeat(horizontal, width-2)+rightRule))
-			continue
-		}
-		frame(top+i, styles.lineStyle.Render(border)+styles.base.Render(" "+fit(ansi.Cut(line, 2, width-2), inner)+" ")+styles.lineStyle.Render(border))
-	}
-	frame(top+len(content), styles.lineStyle.Render(bl+strings.Repeat(horizontal, width-2)+br))
-	return background
+	c := m.colors()
+	return dialogrender.Render(dialogrender.Options{
+		Mode: dialogrender.Box, Title: title, Body: body, Footer: footer,
+		Backdrop: m.modalBackdrop(), Width: min(m.width-6, 82), ScreenWidth: m.width,
+		Height: m.height, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
+		Base: c.base, Accent: c.accent, Muted: c.muted, Line: c.lineStyle,
+	})
 }
 
 func (m *Model) dialogTitle(title string) string {

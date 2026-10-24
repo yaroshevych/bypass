@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"bypass/internal/privacy"
+	dialogrender "bypass/internal/ui/dialog"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
 )
 
 type appearanceSavedMsg struct{ err error }
@@ -379,63 +379,13 @@ func (m *Model) advancedScreen() ([]string, bool) {
 }
 
 func (m *Model) overlay(title string, body []string, footer string, width, x, y int) []string {
-	footer = lowercaseShortcutLabels(footer)
 	c := m.colors()
-	width = min(max(20, width), max(20, m.width-2))
-	maxBody := max(1, m.height-8)
-	if len(body) > maxBody {
-		body = body[:maxBody]
-	}
-	border := "│"
-	horizontal := "─"
-	tl, tr, bl, br := "┌", "┐", "└", "┘"
-	if m.settings.ASCII {
-		border = "|"
-		horizontal = "-"
-		tl, tr, bl, br = "+", "+", "+", "+"
-	}
-	wrap := func(text string) string {
-		return c.lineStyle.Render(border) + c.base.Render(" "+fit(text, width-4)+" ") + c.lineStyle.Render(border)
-	}
-	wrapRight := func(text string) string {
-		return c.lineStyle.Render(border) + c.base.Render(" "+fitRight(text, width-4)+" ") + c.lineStyle.Render(border)
-	}
-	title = m.dialogTitle(title)
-	box := []string{c.lineStyle.Render(tl + strings.Repeat(horizontal, width-2) + tr), wrap(c.accent.Render(title))}
-	if strings.EqualFold(m.settings.Appearance, "compact") {
-		box = append(box, wrap(c.muted.Render(strings.Repeat(horizontal, width-4))))
-	} else {
-		leftRule, rightRule := "├", "┤"
-		if m.settings.ASCII {
-			leftRule, rightRule = "+", "+"
-		}
-		box = append(box, c.lineStyle.Render(leftRule+strings.Repeat(horizontal, width-2)+rightRule))
-	}
-	for _, line := range body {
-		box = append(box, wrap(line))
-	}
-	if footer != "" {
-		box = append(box, wrapRight(c.muted.Render(footer)))
-	}
-	box = append(box, c.lineStyle.Render(bl+strings.Repeat(horizontal, width-2)+br))
-	if x < 0 {
-		x = (m.width - width) / 2
-	}
-	x = min(max(0, x), max(0, m.width-width))
-	if y < 0 {
-		y = (m.height - len(box)) / 2
-	}
-	y = min(max(0, y), max(0, m.height-len(box)))
-	background := m.modalBackdrop()
-	for i, line := range box {
-		row := y + i
-		if row >= m.height {
-			break
-		}
-		original := fit(background[row], m.width)
-		background[row] = ansi.Cut(original, 0, x) + line + ansi.Cut(original, x+width, m.width)
-	}
-	return background
+	return dialogrender.Render(dialogrender.Options{
+		Mode: dialogrender.Overlay, Title: title, Body: body, Footer: footer,
+		Backdrop: m.modalBackdrop(), Width: width, ScreenWidth: m.width,
+		Height: m.height, X: x, Y: y, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
+		Base: c.base, Accent: c.accent, Muted: c.muted, Line: c.lineStyle,
+	})
 }
 
 func (m *Model) modalBackdrop() []string {
