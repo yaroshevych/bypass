@@ -19,20 +19,12 @@ type Session struct {
 	Stale        bool
 	LastActivity time.Time
 	Usage        map[string]Access
-	Searches     []SearchRecord
 	Destinations []string
 }
 
 type Access struct {
 	Count int
 	Last  time.Time
-}
-
-type SearchRecord struct {
-	ID        string
-	Query     string
-	NavKey    string
-	GroupUUID string
 }
 
 type View struct {
@@ -265,60 +257,6 @@ func (w *Workspace) RecordAccess(sessionID, entryUUID string, now time.Time) boo
 	return true
 }
 
-func (w *Workspace) RecordSearch(sessionID, query, navKey, groupUUID string) string {
-	session := w.Sessions[sessionID]
-	if session == nil || query == "" {
-		return ""
-	}
-	for i := range session.Searches {
-		record := session.Searches[i]
-		if record.Query == query && record.NavKey == navKey && record.GroupUUID == groupUUID {
-			copy(session.Searches[1:i+1], session.Searches[0:i])
-			session.Searches[0] = record
-			return record.ID
-		}
-	}
-	record := SearchRecord{ID: w.id("search"), Query: query, NavKey: navKey, GroupUUID: groupUUID}
-	if len(session.Searches) < 20 {
-		session.Searches = append(session.Searches, SearchRecord{})
-	}
-	if len(session.Searches) > 0 {
-		copy(session.Searches[1:], session.Searches[:len(session.Searches)-1])
-		session.Searches[0] = record
-	}
-	return record.ID
-}
-
-func (w *Workspace) RemoveSearch(sessionID, recordID string) bool {
-	session := w.Sessions[sessionID]
-	if session == nil || recordID == "" {
-		return false
-	}
-	for i := range session.Searches {
-		if session.Searches[i].ID != recordID {
-			continue
-		}
-		last := len(session.Searches) - 1
-		copy(session.Searches[i:], session.Searches[i+1:])
-		session.Searches[last] = SearchRecord{}
-		session.Searches = session.Searches[:last]
-		return true
-	}
-	return false
-}
-
-func (w *Workspace) ClearSearches(sessionID string) bool {
-	session := w.Sessions[sessionID]
-	if session == nil {
-		return false
-	}
-	for i := range session.Searches {
-		session.Searches[i] = SearchRecord{}
-	}
-	session.Searches = nil
-	return true
-}
-
 func (w *Workspace) LockSession(sessionID string) bool {
 	session := w.Sessions[sessionID]
 	if session == nil {
@@ -449,10 +387,6 @@ func clearSessionMemory(session *Session) {
 	clear(session.Usage)
 	session.Destinations = nil
 	session.Usage = nil
-	for i := range session.Searches {
-		session.Searches[i] = SearchRecord{}
-	}
-	session.Searches = nil
 }
 
 func (w *Workspace) id(kind string) string {

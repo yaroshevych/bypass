@@ -179,9 +179,6 @@ func (m *Model) selectNav(index int) {
 	item := items[v.NavIndex]
 	v.NavKey = item.key
 	v.GroupUUID = item.group
-	if item.kind == "history" && item.record != nil {
-		v.Query = item.record.Query
-	}
 	v.SelectedUUID = ""
 	v.EntryOffset = 0
 	v.DetailOffset = 0
@@ -218,14 +215,8 @@ func (m *Model) filterEntries(nav navItem, query string) []vault.Entry {
 	if s == nil || s.DB == nil {
 		return nil
 	}
-	if nav.kind == "none" || nav.kind == "history-list" {
+	if nav.kind == "none" {
 		return nil
-	}
-	if nav.kind == "history" && nav.record != nil {
-		if query == "" {
-			query = nav.record.Query
-		}
-		nav = m.navByKey(nav.record.NavKey)
 	}
 	cacheKey := nav.key + "\x00" + query
 	if query != "" && m.searchCache != nil && m.searchCache.db == s.DB && m.searchCache.key == cacheKey {
@@ -396,15 +387,6 @@ func (m *Model) searchKey(k tea.KeyMsg) tea.Cmd {
 		if _, err := search.Find(m.query.value(), nil); err != nil {
 			m.searchError = "Invalid search. Check fields and quotes."
 			return nil
-		}
-		if m.searchColumn == 1 && strings.TrimSpace(v.Query) != "" {
-			nav := m.currentNav()
-			if nav.kind == "history" && nav.record != nil {
-				nav = m.navByKey(nav.record.NavKey)
-			}
-			if s := m.ws.ActiveSession(); s != nil {
-				m.ws.RecordSearch(s.ID, v.Query, nav.key, nav.group)
-			}
 		}
 		m.endSearch()
 		m.remapNav()

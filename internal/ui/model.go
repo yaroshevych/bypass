@@ -155,7 +155,6 @@ type navItem struct {
 	kind         string
 	value        string
 	key          string
-	record       *workspace.SearchRecord
 }
 
 func New(opts Options) *Model {

@@ -222,17 +222,6 @@ func (m *Model) commands() []command {
 	}
 	add("cancel-edit", "Editor", "Cancel Editing", "Esc", cancelReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return nil }) })
 	add("search", "View", "Search All Entries", "Ctrl+F", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.beginSearch(true) }) })
-	add("history", "View", "Search History…", "", needVault, "history", nil)
-	add("clear-history", "View", "Clear Search History", "", needVault, "", func() tea.Cmd {
-		m.ws.ClearSearches(s.ID)
-		if strings.HasPrefix(m.currentNav().key, "history:") {
-			v.NavKey = "history-list"
-			v.Query = ""
-		}
-		m.remapNav()
-		m.normalize()
-		return nil
-	})
 	add("clear-filters", "View", "Clear All Filters", "", needVault, "", func() tea.Cmd {
 		v.Query = ""
 		v.NavFilter = ""
@@ -377,24 +366,6 @@ func (m *Model) paletteChoices() []command {
 		for _, path := range m.recent {
 			path := path
 			choices = append(choices, command{id: path, group: "Recent Vaults", label: vaultLabel(path) + " · " + safe(filepath.Dir(path)), run: func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.beginUnlock(path); return nil }) }})
-		}
-	case "history":
-		if s := m.ws.ActiveSession(); s != nil {
-			for _, record := range s.Searches {
-				record := record
-				choices = append(choices, command{id: record.ID, group: "Recent Searches", label: record.Query + " · " + record.NavKey, run: func() tea.Cmd {
-					v := m.ws.ActiveView()
-					v.NavFilter = ""
-					v.NavKey = record.NavKey
-					v.GroupUUID = record.GroupUUID
-					v.Query = record.Query
-					v.Focus = 1
-					m.ws.RecordSearch(s.ID, record.Query, record.NavKey, record.GroupUUID)
-					m.remapNav()
-					m.normalize()
-					return nil
-				}})
-			}
 		}
 	case "destination":
 		if s := m.ws.ActiveSession(); s != nil && s.DB != nil {
@@ -576,7 +547,7 @@ func (m *Model) paletteBody() (string, []string, string) {
 	p := m.palette
 	choices := m.paletteChoices()
 	rows, _ := m.paletteRows(choices)
-	title := map[string]string{"actions": "Commands", "themes": "Theme", "appearance": "Choose Appearance", "files": "Open Vault", "history": "Search History", "destination": "Move / Restore Entry"}[p.scope]
+	title := map[string]string{"actions": "Commands", "themes": "Theme", "appearance": "Choose Appearance", "files": "Open Vault", "destination": "Move / Restore Entry"}[p.scope]
 	if p.context {
 		title = "Item Actions"
 	}
@@ -623,8 +594,6 @@ func paletteCountLabel(scope string, count int) string {
 		label, singular = "appearances", "appearance"
 	case "files":
 		label, singular = "files", "file"
-	case "history":
-		label, singular = "searches", "search"
 	}
 	if count == 1 {
 		label = singular

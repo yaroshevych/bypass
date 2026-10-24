@@ -3,7 +3,6 @@ package workspace
 import (
 	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
@@ -355,7 +354,7 @@ func TestPreviewSettingsDuplicateIndependently(t *testing.T) {
 	}
 }
 
-func TestUsageSearchHistoryDedupLimitRemovalAndLockCleanup(t *testing.T) {
+func TestUsageAndLockCleanup(t *testing.T) {
 	w := New()
 	db := database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root")
 	db.Entries = append(db.Entries, vault.Entry{UUID: "entry-two"})
@@ -375,51 +374,25 @@ func TestUsageSearchHistoryDedupLimitRemovalAndLockCleanup(t *testing.T) {
 	if len(session.Usage) != 1 {
 		t.Fatalf("nonexistent entry created access state: %#v", session.Usage)
 	}
-	ids := make(map[string]string)
-	for i := 0; i < 21; i++ {
-		query := "query-" + strconv.Itoa(i)
-		ids[query] = w.RecordSearch(session.ID, query, "all", "")
-	}
-	if len(session.Searches) != 20 || session.Searches[0].Query != "query-20" || session.Searches[19].Query != "query-1" {
-		t.Fatalf("search history size/order = %d, %#v", len(session.Searches), session.Searches)
-	}
-	if got := w.RecordSearch(session.ID, "query-10", "all", ""); got != ids["query-10"] || session.Searches[0].Query != "query-10" || len(session.Searches) != 20 {
-		t.Fatal("duplicate search was not moved to newest position")
-	}
-	if !w.RemoveSearch(session.ID, ids["query-10"]) || w.RemoveSearch(session.ID, "missing") {
-		t.Fatal("RemoveSearch returned wrong result")
-	}
-	backing := session.Searches
-	if !w.ClearSearches(session.ID) || len(session.Searches) != 0 {
-		t.Fatal("ClearSearches failed")
-	}
-	for _, record := range backing {
-		if record != (SearchRecord{}) {
-			t.Fatalf("search backing slot retained data: %#v", record)
-		}
-	}
-
 	view := w.ActiveView()
 	view.NavFilter, view.DetailFilter = "nav secret", "detail secret"
-	w.RecordSearch(session.ID, "remembered query", "all", "")
 	if !w.LockSession(session.ID) {
 		t.Fatal("LockSession failed")
 	}
-	if len(session.Usage) != 0 || len(session.Searches) != 0 || view.NavFilter != "" || view.DetailFilter != "" {
-		t.Fatal("full session lock retained usage/search/filter state")
+	if len(session.Usage) != 0 || view.NavFilter != "" || view.DetailFilter != "" {
+		t.Fatal("full session lock retained usage/filter state")
 	}
 }
 
-func TestRefreshPreservesUsageAndSearchHistory(t *testing.T) {
+func TestRefreshPreservesUsage(t *testing.T) {
 	w := New()
 	db := database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root")
 	w.Open(db)
 	session := w.ActiveSession()
 	w.RecordAccess(session.ID, "entry", time.Now())
-	w.RecordSearch(session.ID, "query", "all", "")
 	updated := database(db.Path, "updated", "root")
-	if !w.ReplaceDatabase(session.ID, updated) || session.Usage["entry"].Count != 1 || len(session.Searches) != 1 {
-		t.Fatal("database replacement lost session usage/history")
+	if !w.ReplaceDatabase(session.ID, updated) || session.Usage["entry"].Count != 1 {
+		t.Fatal("database replacement lost session usage")
 	}
 }
 

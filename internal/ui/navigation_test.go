@@ -7,7 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func TestSearchHistoryRepeatApplyAndRemove(t *testing.T) {
+func TestAcceptedSearchFiltersWithoutSearchHistory(t *testing.T) {
 	m, _ := operationModel(t)
 	v := m.ws.ActiveView()
 	v.Focus = 1
@@ -19,39 +19,19 @@ func TestSearchHistoryRepeatApplyAndRemove(t *testing.T) {
 		m.key(key("enter"))
 	}
 	enterGlobalSearch()
-	session := m.ws.ActiveSession()
-	if len(session.Searches) != 1 || session.Searches[0].Query != "Alpha" {
-		t.Fatalf("first accepted query was not recorded: %#v", session.Searches)
-	}
-	searchID := session.Searches[0].ID
 	enterGlobalSearch()
-	if len(session.Searches) != 1 || session.Searches[0].ID != searchID {
-		t.Fatalf("repeated query created a duplicate history record: %#v", session.Searches)
-	}
-
-	v.Query = ""
-	v.Focus = 0
-	m.openPalette("history", false)
-	if got := m.paletteChoices(); len(got) != 1 || got[0].id != searchID {
-		t.Fatalf("history palette choices = %#v", got)
-	}
-	m.executePalette()
 	if v.Query != "Alpha" || v.Focus != 1 || v.NavKey != "all" {
-		t.Fatalf("replaying search did not restore its query and view: %#v", *v)
+		t.Fatalf("accepted search did not leave its filter applied: %#v", *v)
 	}
-	if len(session.Searches) != 1 || session.Searches[0].ID != searchID {
-		t.Fatalf("replaying search duplicated history: %#v", session.Searches)
-	}
-
-	v.Focus = 0
 	for _, cmd := range m.commands() {
-		if cmd.id == "clear-history" {
-			cmd.run()
-			break
+		if strings.Contains(strings.ToLower(cmd.label), "search history") {
+			t.Fatalf("search-history command remains: %#v", cmd)
 		}
 	}
-	if len(session.Searches) != 0 {
-		t.Fatalf("removing history did not return to the history list: searches=%#v view=%#v", session.Searches, *v)
+	for _, cmd := range m.commands() {
+		if cmd.id == "history" || cmd.id == "clear-history" {
+			t.Fatalf("search-history command remains: %#v", cmd)
+		}
 	}
 }
 

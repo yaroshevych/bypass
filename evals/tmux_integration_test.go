@@ -355,7 +355,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.mustNotShow("New Entry")
 
 	// Ctrl+F searches all entries even when details have focus. Fuzzy matches
-	// are underlined, and an accepted query is recorded in Recent Searches.
+	// are underlined, and the accepted query remains as the active filter.
 	e.key("C-f")
 	e.typeText("evl")
 	e.key("Enter")
@@ -367,12 +367,6 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.mustShow("No matches")
 	e.key("Escape")
 	e.mustShow("Eval Entry", "evl")
-	e.key("Left") // sidebar
-	e.key("C-p")
-	e.typeText("Search History")
-	e.key("Enter")
-	e.mustShow("Recent Searches", "evl")
-	e.key("Escape")
 	e.key("Escape")
 	e.mustShow("All Entries", "Eval Entry")
 

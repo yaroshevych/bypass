@@ -128,17 +128,6 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		m.dialog = &actionDialog{kind: "group", title: "New Group", sessionID: s.ID, groupUUID: group}
 		return nil, true
 	case "d", "delete":
-		if v := m.ws.ActiveView(); v != nil && v.Focus == 0 {
-			nav := m.currentNav()
-			if nav.kind == "history" && nav.record != nil {
-				m.ws.RemoveSearch(s.ID, nav.record.ID)
-				v.NavKey = "history-list"
-				v.Query = ""
-				m.remapNav()
-				m.normalize()
-				return nil, true
-			}
-		}
 		if !m.writable() {
 			return nil, true
 		}
