@@ -70,6 +70,61 @@ func TestClassicTabDividersJoinHorizontalRules(t *testing.T) {
 	}
 }
 
+func TestClassicTabsUseUppercaseBoldTextWithoutSelectionPill(t *testing.T) {
+	m := New(Options{})
+	m.ws.Open(fixture("/tmp/classic-tabs-uppercase.kdbx"))
+	m.width, m.height = 120, 35
+	m.normalize()
+	m.duplicateTab()
+	m.ws.Views[0].SelectedUUID = "a"
+	m.ws.Views[1].SelectedUUID = "b"
+	rendered := m.workspaceLines()[2]
+	line := ansi.Strip(rendered)
+	if !strings.Contains(line, "ALPHA") || !strings.Contains(line, "BETA") {
+		t.Fatalf("classic tabs should render uppercase item titles: %q", line)
+	}
+	runes := []rune(line)
+	for _, span := range m.tabSpans()[:len(m.ws.Views)] {
+		if runes[span.Start] != ' ' || runes[span.End-1] != ' ' {
+			t.Fatalf("classic tab %d should have one balanced outer space: %q", span.Index, string(runes[span.Start:span.End]))
+		}
+	}
+}
+
+func TestNewTabUsesTShortcutAndPaletteLabel(t *testing.T) {
+	m, _ := operationModel(t)
+	var foundNew, foundClose, foundPrevious, foundNext bool
+	for _, command := range m.commands() {
+		if command.id == "duplicate" {
+			foundNew = command.label == "New Tab" && command.key == "t"
+		}
+		if command.id == "close-view" {
+			foundClose = command.label == "Close Tab" && command.key == "Ctrl+W"
+		}
+		if command.id == "previous-tab" {
+			foundPrevious = command.key == "["
+		}
+		if command.id == "next-tab" {
+			foundNext = command.key == "]"
+		}
+	}
+	if !foundNew || !foundClose || !foundPrevious || !foundNext {
+		t.Fatalf("tab palette commands have incorrect names or shortcuts: New Tab=%v, Close Tab=%v, previous=%v, next=%v", foundNew, foundClose, foundPrevious, foundNext)
+	}
+	m.key(key("t"))
+	if len(m.ws.Views) != 2 || m.ws.Active != 1 {
+		t.Fatal("t did not create and activate a new tab")
+	}
+	m.key(key("["))
+	if m.ws.Active != 0 {
+		t.Fatal("[ did not switch to the previous tab")
+	}
+	m.key(key("]"))
+	if m.ws.Active != 1 {
+		t.Fatal("] did not switch to the next tab")
+	}
+}
+
 func TestTabCreationStopsAtNineAndResumesAfterClose(t *testing.T) {
 	m := New(Options{})
 	m.ws.Open(fixture("/tmp/limit.kdbx"))
@@ -82,7 +137,28 @@ func TestTabCreationStopsAtNineAndResumesAfterClose(t *testing.T) {
 	if len(m.ws.Views) != 9 || m.ws.ActiveSession() == nil || !strings.Contains(m.notice, "Maximum 9 tabs") {
 		t.Fatal("tab limit did not preserve the active workspace")
 	}
+	for _, span := range m.tabSpans() {
+		if span.Index == len(m.ws.Views) {
+			t.Fatal("+ tab should be hidden at the nine-tab limit")
+		}
+	}
+	spans := m.tabSpans()
+	lastTab := spans[len(spans)-1]
+	tabLine := []rune(ansi.Strip(m.workspaceLines()[2]))
+	if lastTab.End >= len(tabLine) || tabLine[lastTab.End] != '│' {
+		t.Fatalf("last tab should have a right divider: tab=%+v line=%q", lastTab, string(tabLine))
+	}
+	lines := m.workspaceLines()
+	topRule := []rune(ansi.Strip(lines[1]))
+	bottomRule := []rune(ansi.Strip(lines[3]))
+	if topRule[lastTab.End] != '┬' || bottomRule[lastTab.End] != '┴' {
+		t.Fatalf("right divider should join both horizontal rules: top=%q bottom=%q", topRule[lastTab.End], bottomRule[lastTab.End])
+	}
 	m.ws.CloseView()
+	spans = m.tabSpans()
+	if spans[len(spans)-1].Index != len(m.ws.Views) {
+		t.Fatal("+ tab should return after closing a tab")
+	}
 	m.duplicateTab()
 	if len(m.ws.Views) != 9 {
 		t.Fatal("closing a tab did not release capacity")

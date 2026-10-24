@@ -100,7 +100,7 @@ func (m *Model) commands() []command {
 	if v == nil {
 		closeReason = "No open view"
 	}
-	add("close-view", "File", "Close Current View", "Ctrl+W", closeReason, "", func() tea.Cmd {
+	add("close-view", "Tabs", "Close Tab", "Ctrl+W", closeReason, "", func() tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd { m.ws.CloseView(); m.normalize(); m.syncPrivacyState(); return m.clearClipboard() })
 	})
 	add("close-vault", "File", "Close Current Vault", "", closeReason, "", func() tea.Cmd {
@@ -242,9 +242,27 @@ func (m *Model) commands() []command {
 	})
 	add("jump", "View", "Jump to Pane / Field", "J", needVault, "", func() tea.Cmd { m.jump = true; return nil })
 	add("zoom", "View", "Zoom / Restore Focused Pane", "z", needVault, "", func() tea.Cmd { v.Zoom = !v.Zoom; return nil })
-	add("wider", "View", "Widen Focused Pane", "]", needVault, "", func() tea.Cmd { m.resizeFocused(2); return nil })
-	add("narrower", "View", "Narrow Focused Pane", "[", needVault, "", func() tea.Cmd { m.resizeFocused(-2); return nil })
-	add("duplicate", "Tabs", "Duplicate Current View", "Ctrl+T", closeReason, "", func() tea.Cmd { return m.leaveEditor(m.duplicateTab) })
+	add("wider", "View", "Widen Focused Pane", "", needVault, "", func() tea.Cmd { m.resizeFocused(2); return nil })
+	add("narrower", "View", "Narrow Focused Pane", "", needVault, "", func() tea.Cmd { m.resizeFocused(-2); return nil })
+	add("duplicate", "Tabs", "New Tab", "t", closeReason, "", func() tea.Cmd { return m.leaveEditor(m.duplicateTab) })
+	add("previous-tab", "Tabs", "Previous Tab", "[", closeReason, "", func() tea.Cmd {
+		return m.leaveEditor(func() tea.Cmd {
+			if len(m.ws.Views) > 0 {
+				m.ws.Switch((m.ws.Active + len(m.ws.Views) - 1) % len(m.ws.Views))
+				m.normalize()
+			}
+			return nil
+		})
+	})
+	add("next-tab", "Tabs", "Next Tab", "]", closeReason, "", func() tea.Cmd {
+		return m.leaveEditor(func() tea.Cmd {
+			if len(m.ws.Views) > 0 {
+				m.ws.Switch((m.ws.Active + 1) % len(m.ws.Views))
+				m.normalize()
+			}
+			return nil
+		})
+	})
 	for index, view := range m.ws.Views {
 		index, view := index, view
 		session := m.ws.Sessions[view.SessionID]

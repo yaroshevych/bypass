@@ -93,7 +93,16 @@ func TestTabSpansKeepActiveTabVisibleAndWithinWidth(t *testing.T) {
 	m.width, m.height = 48, 18
 	m.ws.Active = 8
 	spans := m.tabSpans()
-	if len(spans) < 2 || spans[len(spans)-2].Index != 8 || spans[len(spans)-1].Index != 9 {
+	activeVisible := false
+	for _, span := range spans {
+		if span.Index == 8 {
+			activeVisible = true
+		}
+		if span.Index == 9 {
+			t.Fatal("+ tab should be hidden at the nine-tab limit")
+		}
+	}
+	if !activeVisible {
 		t.Fatalf("active tab not visible: %+v", spans)
 	}
 	for _, span := range spans {

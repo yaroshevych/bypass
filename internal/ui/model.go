@@ -519,7 +519,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		m.helpOffset = 0
 		m.helpQuery.clear()
 		return nil
-	case "ctrl+t":
+	case "t":
 		return m.duplicateTab()
 	case "ctrl+pgup":
 		if n := len(m.ws.Views); n > 0 {
@@ -528,6 +528,18 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	case "ctrl+pgdown":
+		if n := len(m.ws.Views); n > 0 {
+			m.ws.Switch((m.ws.Active + 1) % n)
+			m.normalize()
+		}
+		return nil
+	case "[":
+		if n := len(m.ws.Views); n > 0 {
+			m.ws.Switch((m.ws.Active + n - 1) % n)
+			m.normalize()
+		}
+		return nil
+	case "]":
 		if n := len(m.ws.Views); n > 0 {
 			m.ws.Switch((m.ws.Active + 1) % n)
 			m.normalize()
@@ -661,10 +673,6 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		m.hideReveal()
 	case "z":
 		v.Zoom = !v.Zoom
-	case "[":
-		m.resizeFocused(-2)
-	case "]":
-		m.resizeFocused(2)
 	case "a":
 		m.openPalette("actions", true)
 	}

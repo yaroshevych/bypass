@@ -165,7 +165,9 @@ func (m *Model) workspaceLines() []string {
 	}
 	var tabs []string
 	labels := m.tabLabels()
-	labels = append(labels, "+")
+	if len(m.ws.Views) < workspace.MaxTabs {
+		labels = append(labels, "+")
+	}
 	for _, span := range m.tabSpans() {
 		label := labels[span.Index]
 		if !compact && span.Index == len(m.ws.Views) {
@@ -181,17 +183,23 @@ func (m *Model) workspaceLines() []string {
 			} else {
 				label = " " + label + " "
 			}
+		} else {
+			label = strings.ToUpper(label)
 		}
 		label = fit(label, span.End-span.Start)
 		if span.Index == m.ws.Active {
-			style := active
-			if m.tabHovered && m.hoverTab == span.Index {
-				style = style.Foreground(styles.accent.GetForeground())
-			}
-			if compact && !m.settings.ASCII {
-				label = renderPill(labels[span.Index], span.End-span.Start, style, styles.inactive)
+			if compact {
+				style := active
+				if m.tabHovered && m.hoverTab == span.Index {
+					style = style.Foreground(styles.accent.GetForeground())
+				}
+				if !m.settings.ASCII {
+					label = renderPill(labels[span.Index], span.End-span.Start, style, styles.inactive)
+				} else {
+					label = style.Render(label)
+				}
 			} else {
-				label = style.Render(label)
+				label = styles.accent.Render(label)
 			}
 		} else {
 			if compact {
@@ -201,9 +209,9 @@ func (m *Model) workspaceLines() []string {
 				}
 				label = style.Render(label)
 			} else {
-				style := muted
+				style := styles.base.Bold(true)
 				if m.tabHovered && m.hoverTab == span.Index {
-					style = styles.inactive.Foreground(styles.accent.GetForeground()).Bold(true)
+					style = style.Foreground(styles.accent.GetForeground())
 				}
 				label = style.Render(label)
 			}
@@ -215,6 +223,9 @@ func (m *Model) workspaceLines() []string {
 		separator = styles.inactive.Render(" ")
 	}
 	tabLine := strings.Join(tabs, separator)
+	if !compact && len(m.ws.Views) >= workspace.MaxTabs && len(tabs) > 0 {
+		tabLine += separator
+	}
 	if compact && !m.settings.ASCII {
 		edge := styles.base.Foreground(styles.inactive.GetBackground())
 		tabLine = edge.Render("\ue0b6") + tabLine + edge.Render("\ue0b4")
@@ -298,7 +309,11 @@ func (m *Model) tabRule(width int, top bool) string {
 	}
 	line := []rune(strings.Repeat(string(horizontal), max(0, width)))
 	spans := m.tabSpans()
-	for i := 0; i+1 < len(spans); i++ {
+	lastDivider := len(spans) - 1
+	if len(m.ws.Views) < workspace.MaxTabs {
+		lastDivider-- // The final visible span is the + tab, which has no trailing divider.
+	}
+	for i := 0; i <= lastDivider; i++ {
 		if x := spans[i].End; x >= 0 && x < len(line) {
 			line[x] = junction
 		}
@@ -309,10 +324,12 @@ func (m *Model) tabRule(width int, top bool) string {
 func (m *Model) workspaceTopRule(layout viewLayout) string {
 	line := []rune(ansi.Strip(m.paneRule(layout, true)))
 	spans := m.tabSpans()
-	for i, span := range spans {
-		if i+1 >= len(spans) {
-			break
-		}
+	lastDivider := len(spans) - 1
+	if len(m.ws.Views) < workspace.MaxTabs {
+		lastDivider-- // The final visible span is the + tab, which has no trailing divider.
+	}
+	for i := 0; i <= lastDivider; i++ {
+		span := spans[i]
 		if x := span.End; x >= 0 && x < len(line) {
 			if line[x] == '┬' {
 				line[x] = '┼'
@@ -575,11 +592,19 @@ func (m *Model) tabSpans() []tabSpan {
 	}
 	activeIndex := min(len(labels)-1, max(0, m.ws.Active))
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	capacity := max(1, m.width-4) // Reserve a gap and the rightmost + tab.
+	hasAddTab := len(m.ws.Views) < workspace.MaxTabs
+	capacity := m.width
+	if hasAddTab {
+		capacity = max(1, m.width-4) // Reserve a gap and the rightmost + tab.
+	}
 	startX := 0
 	if compact && !m.settings.ASCII {
-		capacity = max(1, m.width-6)
 		startX = 1
+		if hasAddTab {
+			capacity = max(1, m.width-6)
+		} else {
+			capacity = max(1, m.width-2) // Keep only the outer Powerline caps.
+		}
 	}
 	visible := map[int]string{}
 	display := func(i int) string {
@@ -637,7 +662,9 @@ func (m *Model) tabSpans() []tabSpan {
 		spans = append(spans, tabSpan{Index: i, Start: x, End: x + width})
 		x += width
 	}
-	spans = append(spans, tabSpan{Index: len(labels), Start: x + 1, End: x + 4})
+	if len(m.ws.Views) < workspace.MaxTabs {
+		spans = append(spans, tabSpan{Index: len(labels), Start: x + 1, End: x + 4})
+	}
 	return spans
 }
 
