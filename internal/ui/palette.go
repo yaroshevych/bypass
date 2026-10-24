@@ -128,8 +128,7 @@ func (m *Model) commands() []command {
 	if reason := m.nativeReason("db-info"); reason != "" {
 		infoReason = reason
 	}
-	add("database-info", "Vault", "Database Info", "", infoReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.openDatabaseInfo(false) }) })
-	add("database-settings", "Vault", "Database Settings", "", infoReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.openDatabaseInfo(true) }) })
+	add("database-info", "Vault", "Database Info", "", infoReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.openDatabaseInfo() }) })
 	credentialsReason := writeReason
 	if _, ok := m.backend.(credentialChanger); !ok {
 		credentialsReason = "Credential changes unavailable from this backend"
@@ -435,7 +434,7 @@ func commandPriority(id string) int {
 	order := []string{
 		// VAULTS: open/close first, then setup, security and maintenance.
 		"protect", "open", "close-vault", "new-vault", "lock-all", "lock", "reload",
-		"database-info", "database-settings", "credentials", "read-only", "quit",
+		"database-info", "credentials", "read-only", "quit",
 		// VIEW: tab lifecycle and navigation, then search and layout controls.
 		"duplicate", "close-view", "previous-tab", "next-tab",
 		"search", "zoom",

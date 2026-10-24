@@ -61,10 +61,6 @@ func TestLifecycleCreateIsEncryptedAndNeverClobbers(t *testing.T) {
 	if info.UUID == "" || info.Cipher == "" || info.KDF == "" {
 		t.Fatalf("info omitted expected safe fields: %#v", info)
 	}
-	settings, err := cli.Settings(context.Background(), path, Credentials{Password: password})
-	if err != nil || settings.Cipher != info.Cipher || settings.KDF != info.KDF {
-		t.Fatalf("settings = %#v, %v", settings, err)
-	}
 }
 
 func TestLifecycleChangeCredentialsBacksUpAndVerifiesNewKey(t *testing.T) {

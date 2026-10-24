@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -38,10 +39,6 @@ func (b *lifecycleBackend) ChangeCredentials(_ context.Context, db *vault.Databa
 func (b *lifecycleBackend) Info(context.Context, string, vault.Credentials) (vault.DatabaseInfo, error) {
 	return vault.DatabaseInfo{Name: "Test Vault", Cipher: "AES", KDF: "Argon2", EntryCount: 2}, nil
 }
-func (b *lifecycleBackend) Settings(context.Context, string, vault.Credentials) (vault.DatabaseSettings, error) {
-	return vault.DatabaseSettings{Cipher: "AES", KDF: "Argon2"}, nil
-}
-
 func TestCreateVaultFormMasksInputsAndRetainsFailedDraft(t *testing.T) {
 	b := &lifecycleBackend{fail: true}
 	m := New(Options{Backend: b, Settings: platform.Settings{BackupDir: t.TempDir()}})
@@ -174,22 +171,28 @@ func TestLockDiscardsLateCredentialResult(t *testing.T) {
 	}
 }
 
-func TestDatabaseInfoAndSettingsHaveKeyboardExit(t *testing.T) {
-	for _, settings := range []bool{false, true} {
-		m, _ := operationModel(t)
-		m.backend = &lifecycleBackend{}
-		cmd := m.openDatabaseInfo(settings)
-		if cmd == nil {
-			t.Fatal("info request not started")
-		}
-		m.Update(cmd())
-		if !strings.Contains(m.View(), "Argon2") || m.writing {
-			t.Fatal("info did not render or retained busy state")
-		}
-		m.lifecycleKey(key("q"))
-		if m.lifecycle != nil || m.ws.ActiveSession().DB == nil {
-			t.Fatal("info exit closed vault")
-		}
+func TestDatabaseInfoHasKeyboardExit(t *testing.T) {
+	m, _ := operationModel(t)
+	m.backend = &lifecycleBackend{}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ws.ActiveSession().Path = filepath.Join(home, "vaults", "info.kdbx")
+	cmd := m.openDatabaseInfo()
+	if cmd == nil {
+		t.Fatal("info request not started")
+	}
+	m.Update(cmd())
+	view := ansi.Strip(m.View())
+	if !strings.Contains(view, "Argon2") || !strings.Contains(view, filepath.Join("~", "vaults", "info.kdbx")) ||
+		!strings.Contains(view, "Groups: 0") || !strings.Contains(view, "Entries: 2") || !strings.Contains(view, "Expired: 0") ||
+		strings.Contains(view, "q close") || m.writing {
+		t.Fatal("info did not render correctly or retained busy state / obvious footer hint")
+	}
+	m.lifecycleKey(key("esc"))
+	if m.lifecycle != nil || m.ws.ActiveSession().DB == nil {
+		t.Fatal("Escape did not close info without closing vault")
 	}
 }
 
@@ -202,7 +205,7 @@ func TestNativeCapabilitiesGateDirectActionsAndPalette(t *testing.T) {
 		t.Fatal("New Vault shortcut bypassed native capability checks")
 	}
 	m.openCredentials()
-	m.openDatabaseInfo(false)
+	m.openDatabaseInfo()
 	if m.lifecycle != nil {
 		t.Fatal("unsupported native action opened a form")
 	}

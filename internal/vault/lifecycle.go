@@ -46,14 +46,6 @@ type DatabaseInfo struct {
 	ExpiredEntryCount int
 }
 
-// DatabaseSettings exposes database properties the CLI can report. The
-// current CLI can read these values but cannot edit them on an existing vault.
-type DatabaseSettings struct {
-	Cipher            string
-	KDF               string
-	RecycleBinEnabled bool
-}
-
 // Create creates an encrypted vault at path without replacing an existing
 // file. Passwords are passed to the native CLI over stdin, never argv.
 func (c *CLI) Create(ctx context.Context, path string, creds Credentials) (*Database, error) {
@@ -383,16 +375,6 @@ func (c *CLI) Info(ctx context.Context, path string, creds Credentials) (Databas
 		return DatabaseInfo{}, ErrExternalChanged
 	}
 	return parseDatabaseInfo(out.Bytes())
-}
-
-// Settings returns the settings the native CLI can report. There are no
-// writable settings for existing databases in the supported CLI interface.
-func (c *CLI) Settings(ctx context.Context, path string, creds Credentials) (DatabaseSettings, error) {
-	info, err := c.Info(ctx, path, creds)
-	if err != nil {
-		return DatabaseSettings{}, err
-	}
-	return DatabaseSettings{Cipher: info.Cipher, KDF: info.KDF, RecycleBinEnabled: info.RecycleBinEnabled}, nil
 }
 
 func validateNewCredentials(creds Credentials) error {

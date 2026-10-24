@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -30,7 +32,6 @@ type lifecycleMsg struct {
 	db              *vault.Database
 	credentials     vault.Credentials
 	info            vault.DatabaseInfo
-	settings        vault.DatabaseSettings
 	err             error
 }
 
@@ -42,7 +43,6 @@ type credentialChanger interface {
 }
 type databaseInspector interface {
 	Info(context.Context, string, vault.Credentials) (vault.DatabaseInfo, error)
-	Settings(context.Context, string, vault.Credentials) (vault.DatabaseSettings, error)
 }
 
 func (m *Model) clearLifecycle() {
@@ -108,7 +108,7 @@ func (m *Model) openCredentials() tea.Cmd {
 	return nil
 }
 
-func (m *Model) openDatabaseInfo(settings bool) tea.Cmd {
+func (m *Model) openDatabaseInfo() tea.Cmd {
 	if reason := m.nativeReason("db-info"); reason != "" {
 		m.setNotice(reason, true)
 		return nil
@@ -125,23 +125,15 @@ func (m *Model) openDatabaseInfo(settings bool) tea.Cmd {
 	m.hideReveal()
 	m.clearExtras()
 	m.clearLifecycle()
-	kind := "info"
-	if settings {
-		kind = "settings"
-	}
-	m.lifecycle = &lifecycleState{kind: kind, sessionID: s.ID, busy: true}
+	m.lifecycle = &lifecycleState{kind: "info", sessionID: s.ID, busy: true}
 	id := m.beginOperation(s.ID)
 	m.lifecycle.request = id
 	ctx := m.operationContext()
 	creds, path := s.Credentials.Clone(), s.Path
 	return func() tea.Msg {
 		defer creds.Clear()
-		msg := lifecycleMsg{id: id, kind: kind, sessionID: s.ID}
-		if settings {
-			msg.settings, msg.err = backend.Settings(ctx, path, creds)
-		} else {
-			msg.info, msg.err = backend.Info(ctx, path, creds)
-		}
+		msg := lifecycleMsg{id: id, kind: "info", sessionID: s.ID}
+		msg.info, msg.err = backend.Info(ctx, path, creds)
 		return msg
 	}
 }
@@ -273,12 +265,12 @@ func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
 	}
 	if result.kind == "info" {
 		i := result.info
-		l.lines = []string{"Name: " + safe(i.Name), "UUID: " + safe(i.UUID), "Cipher: " + safe(i.Cipher), "KDF: " + safe(i.KDF), fmt.Sprintf("Recycle bin: %t", i.RecycleBinEnabled), fmt.Sprintf("Groups: %d · Entries: %d · Expired: %d", i.GroupCount, i.EntryCount, i.ExpiredEntryCount)}
-		return nil, true
-	}
-	if result.kind == "settings" {
-		s := result.settings
-		l.lines = []string{"Cipher: " + safe(s.Cipher), "KDF: " + safe(s.KDF), fmt.Sprintf("Recycle bin: %t", s.RecycleBinEnabled), "", "These settings are read only in keepassxc-cli.", "Unlock time can be chosen when creating a vault.", "Use Change Vault Credentials for password/key-file changes."}
+		l.lines = []string{
+			"Name: " + safe(i.Name), "UUID: " + safe(i.UUID), "Cipher: " + safe(i.Cipher),
+			"KDF: " + safe(i.KDF), fmt.Sprintf("Recycle bin: %t", i.RecycleBinEnabled),
+			fmt.Sprintf("Groups: %d", i.GroupCount), fmt.Sprintf("Entries: %d", i.EntryCount),
+			fmt.Sprintf("Expired: %d", i.ExpiredEntryCount),
+		}
 		return nil, true
 	}
 	if result.db == nil {
@@ -335,7 +327,7 @@ func (m *Model) lifecycleKey(k tea.KeyMsg) tea.Cmd {
 		m.Close()
 		return tea.Quit
 	}
-	if key == "ctrl+l" || key == "L" && (l.kind == "info" || l.kind == "settings") {
+	if key == "ctrl+l" || key == "L" && l.kind == "info" {
 		m.clearLifecycle()
 		return m.lockCurrent(true)
 	}
@@ -350,7 +342,7 @@ func (m *Model) lifecycleKey(k tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	}
-	if l.kind == "info" || l.kind == "settings" {
+	if l.kind == "info" {
 		switch key {
 		case "q", "enter":
 			m.clearLifecycle()
@@ -398,13 +390,14 @@ func (m *Model) lifecycleKey(k tea.KeyMsg) tea.Cmd {
 
 func (m *Model) lifecycleLines() []string {
 	l, c := m.lifecycle, m.colors()
-	title := map[string]string{"create": "New Vault", "credentials": "Change Vault Credentials", "info": "Database Info", "settings": "Database Settings"}[l.kind]
+	title := map[string]string{"create": "New Vault", "credentials": "Change Vault Credentials", "info": "Database Info"}[l.kind]
 	var body []string
 	if s := m.ws.Sessions[l.sessionID]; s != nil {
-		body = append(body, c.muted.Render(vaultLabel(s.Path)), "")
+		home, _ := os.UserHomeDir()
+		body = append(body, renderVaultPath(s.Path, home, c.base), "")
 	}
 	footer := "Tab next · Ctrl+S submit"
-	if l.kind == "info" || l.kind == "settings" {
+	if l.kind == "info" {
 		var wrapped []string
 		for _, line := range l.lines {
 			wrapped = append(wrapped, strings.Split(ansi.Wrap(safe(line), max(1, min(76, m.width-8)), ""), "\n")...)
@@ -412,7 +405,7 @@ func (m *Model) lifecycleLines() []string {
 		capacity := max(1, m.height-12)
 		start := min(l.offset, max(0, len(wrapped)-capacity))
 		body = append(body, wrapped[start:min(len(wrapped), start+capacity)]...)
-		footer = "q close"
+		footer = ""
 	} else if l.confirm {
 		body = append(body, "Change the credentials for this vault?", "An encrypted backup will retain the old credentials.", "")
 		cancel, proceed := " Cancel ", " Change Credentials "
@@ -455,8 +448,24 @@ func (m *Model) lifecycleLines() []string {
 	return m.overlay(title, body, footer, min(84, m.width-4), -1, -1)
 }
 
+func renderVaultPath(path, home string, style lipgloss.Style) string {
+	displayPath := displayVaultPath(path, home)
+	directory, filename := filepath.Split(displayPath)
+	if filename == "" {
+		return style.Render(displayPath)
+	}
+	directory = strings.TrimSuffix(directory, string(filepath.Separator))
+	if directory == "" && filepath.IsAbs(displayPath) {
+		directory = string(filepath.Separator)
+	}
+	if directory != "" && !strings.HasSuffix(directory, string(filepath.Separator)) {
+		directory += string(filepath.Separator)
+	}
+	return style.Render(directory) + style.Bold(true).Render(filename)
+}
+
 func (m *Model) lifecyclePointer(msg tea.MouseMsg) tea.Cmd {
-	if msg.Action == tea.MouseActionPress && (m.lifecycle.kind == "info" || m.lifecycle.kind == "settings") {
+	if msg.Action == tea.MouseActionPress && m.lifecycle.kind == "info" {
 		if msg.Button == tea.MouseButtonWheelDown {
 			m.lifecycle.offset++
 		}

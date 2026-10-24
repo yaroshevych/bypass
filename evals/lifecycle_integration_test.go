@@ -64,11 +64,6 @@ func TestMilestone4VaultLifecycleTmux(t *testing.T) {
 	e.typeText("Database Info")
 	e.key("Enter")
 	e.mustShowWrite("Database Info", "Cipher:", "KDF:")
-	e.key("q")
-	e.key("C-p")
-	e.typeText("Database Settings")
-	e.key("Enter")
-	e.mustShowWrite("Database Settings", "Cipher:", "KDF:", "read only in keepassxc-cli")
 	e.key("Escape")
 
 	// Cancel is the default selection in the credential confirmation dialog.
