@@ -3,6 +3,7 @@ package ui
 import (
 	"sort"
 	"strings"
+	"time"
 
 	"bypass/internal/search"
 	"bypass/internal/vault"
@@ -15,8 +16,66 @@ type entrySearchCache struct {
 	entries []vault.Entry
 }
 
+type sidebarRow struct {
+	index int // -1: a non-selectable section header or spacer
+	label string
+	count bool
+}
+
+func (m *Model) recordItemUse() {
+	if e := m.selected(); e != nil {
+		if s := m.ws.ActiveSession(); s != nil {
+			m.ws.RecordAccess(s.ID, e.UUID, m.now())
+			m.searchCache = nil
+		}
+	}
+}
+
+func (m *Model) sidebarRows() []sidebarRow {
+	items := m.navigation()
+	var rows []sidebarRow
+	for _, section := range []string{"Views", "Tags", "Groups"} {
+		if section != "Views" {
+			rows = append(rows, sidebarRow{index: -1})
+		}
+		rows = append(rows, sidebarRow{index: -1, label: section})
+		for i, item := range items {
+			category := "Views"
+			if item.kind == "tag" {
+				category = "Tags"
+			}
+			if item.kind == "group" {
+				category = "Groups"
+			}
+			if category == section {
+				rows = append(rows, sidebarRow{index: i})
+				if m.navRowHeight() == 2 {
+					rows = append(rows, sidebarRow{index: i, count: true})
+				}
+			}
+		}
+	}
+	return rows
+}
+
+func (m *Model) sidebarViewport(height int) ([]sidebarRow, int) {
+	rows := m.sidebarRows()
+	v := m.ws.ActiveView()
+	if v == nil {
+		return rows, 0
+	}
+	selected := 0
+	for i, row := range rows {
+		if row.index == v.NavIndex {
+			selected = i
+			break
+		}
+	}
+	return rows, viewportOffset(selected, len(rows), max(1, height), v.NavOffset)
+}
+
 func (m *Model) allNavigation() []navItem {
-	items := []navItem{{label: "All Entries", kind: "all", key: "all"}, {label: "Favorites", kind: "favorites", key: "favorites"}, {label: "Recently Modified", kind: "recent", key: "recent"}, {label: "Recycle Bin", kind: "trash", key: "trash"}, {label: "Recently Accessed", kind: "accessed", key: "accessed"}, {label: "Frequently Accessed", kind: "frequent", key: "frequent"}, {label: "Tags", kind: "tags", key: "tags"}, {label: "Recent Searches", kind: "history-list", key: "history-list"}}
+	items := []navItem{{label: "All Entries", kind: "all", key: "all"}, {label: "Favourites", kind: "favorites", key: "favorites"}, {label: "Recent", kind: "recent", key: "recent"}, {label: "Bin", kind: "trash", key: "trash"}}
 	s := m.ws.ActiveSession()
 	if s == nil || s.DB == nil {
 		return items
@@ -35,16 +94,33 @@ func (m *Model) allNavigation() []navItem {
 	}
 	sort.Strings(tagNames)
 	for _, tag := range tagNames {
-		items = append(items, navItem{label: "Tag · " + tag, kind: "tag", value: tag, key: "tag:" + tag, depth: 1})
+		items = append(items, navItem{label: tag, kind: "tag", value: tag, key: "tag:" + tag})
 	}
-	for i := range s.Searches {
-		record := &s.Searches[i]
-		items = append(items, navItem{label: "Search · " + record.Query, kind: "history", key: "history:" + record.ID, value: record.Query, group: record.GroupUUID, record: record, depth: 1})
+	byID := make(map[string]vault.Group)
+	children := make(map[string][]vault.Group)
+	for _, g := range s.DB.Groups {
+		byID[g.UUID] = g
+		children[g.ParentUUID] = append(children[g.ParentUUID], g)
+	}
+	visited := make(map[string]bool)
+	var visit func(vault.Group, int)
+	visit = func(g vault.Group, depth int) {
+		if visited[g.UUID] || g.Recycled {
+			return
+		}
+		visited[g.UUID] = true
+		items = append(items, navItem{label: g.Name, kind: "group", group: g.UUID, key: "group:" + g.UUID, depth: depth})
+		for _, child := range children[g.UUID] {
+			visit(child, depth+1)
+		}
 	}
 	for _, g := range s.DB.Groups {
-		if !g.Recycled {
-			items = append(items, navItem{label: g.Name, kind: "group", group: g.UUID, key: "group:" + g.UUID, depth: strings.Count(g.Path, "/")})
+		if _, hasParent := byID[g.ParentUUID]; !hasParent {
+			visit(g, 0)
 		}
+	}
+	for _, g := range s.DB.Groups {
+		visit(g, 0)
 	}
 	return items
 }
@@ -205,7 +281,13 @@ func (m *Model) filterEntries(nav navItem, query string) []vault.Entry {
 	}
 	switch nav.kind {
 	case "recent":
-		sort.SliceStable(entries, func(i, j int) bool { return entries[i].Modified.After(entries[j].Modified) })
+		last := func(e vault.Entry) time.Time {
+			if used := s.Usage[e.UUID].Last; used.After(e.Modified) {
+				return used
+			}
+			return e.Modified
+		}
+		sort.SliceStable(entries, func(i, j int) bool { return last(entries[i]).After(last(entries[j])) })
 	case "accessed":
 		sort.SliceStable(entries, func(i, j int) bool { return s.Usage[entries[i].UUID].Last.After(s.Usage[entries[j].UUID].Last) })
 	case "frequent":

@@ -245,10 +245,18 @@ func (m *Model) workspaceLines() []string {
 		return append(lines, m.footerLine("Enter unlock    Ctrl+W close view    q quit"))
 	}
 	l := m.layout()
+	if !compact {
+		lines[l.BodyY-1] = m.paneRule(l, true)
+	}
 	lines = append(lines, m.layoutBody(l)...)
 	footer := m.footerText()
 	if m.notice != "" {
-		footer = "  " + m.notice
+		v := m.ws.ActiveView()
+		if m.searching || (v != nil && (v.Query != "" || v.NavFilter != "" || v.DetailFilter != "")) {
+			footer += " · " + m.notice
+		} else {
+			footer = "  " + m.notice
+		}
 	}
 	if m.editor != nil {
 		footer = "  Tab fields · Ctrl+S save · Esc cancel · Ctrl+G generator"
@@ -260,9 +268,26 @@ func (m *Model) workspaceLines() []string {
 		footer += " · " + status
 	}
 	if !compact {
-		lines = append(lines, m.themedRule(w))
+		lines = append(lines, m.paneRule(l, false))
 	}
 	return append(lines, m.footerLine(footer))
+}
+
+func (m *Model) paneRule(layout viewLayout, top bool) string {
+	horizontal, junction := '─', '┴'
+	if top {
+		junction = '┬'
+	}
+	if m.settings.ASCII {
+		horizontal, junction = '-', '+'
+	}
+	line := []rune(strings.Repeat(string(horizontal), max(0, m.width)))
+	for i, pane := range layout.Panes {
+		if x := pane.X + pane.Width; i < len(layout.Panes)-1 && x >= 0 && x < len(line) {
+			line[x] = junction
+		}
+	}
+	return m.colors().lineStyle.Render(string(line))
 }
 
 func (m *Model) footerLine(text string) string {
@@ -333,8 +358,17 @@ func (m *Model) layoutBody(layout viewLayout) []string {
 			if i > 0 {
 				junction := sep
 				right := ansi.Strip(part)
-				if strings.TrimSpace(right) != "" && strings.Trim(right, "─") == "" {
+				leftRule := strings.HasSuffix(ansi.Strip(parts[i-1]), "─")
+				rightRule := strings.TrimSpace(right) != "" && strings.Trim(right, "─") == ""
+				if leftRule && rightRule {
+					junction = styles.lineStyle.Render("┼")
+				} else if leftRule {
+					junction = styles.lineStyle.Render("┤")
+				} else if rightRule {
 					junction = styles.lineStyle.Render("├")
+				}
+				if m.settings.ASCII && (strings.HasSuffix(ansi.Strip(parts[i-1]), "-") || rightRule) {
+					junction = styles.lineStyle.Render("+")
 				}
 				joined.WriteString(junction)
 			}
@@ -497,69 +531,95 @@ func (m *Model) tabSpans() []tabSpan {
 
 func (m *Model) navLines(width, height int, focused bool) []string {
 	styles := m.colors()
-	accent, muted, active, inactive := styles.accent, styles.muted, styles.active, styles.inactive
-	title := "  Views"
-	if focused {
-		title = accent.Render(title)
-	} else {
-		title = muted.Render(title)
-	}
-	lines := []string{title}
+	muted, active, inactive := styles.muted, styles.active, styles.inactive
+	var lines []string
 	v := m.ws.ActiveView()
 	items := m.navigation()
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	rowHeight := m.navRowHeight()
-	capacity := max(0, (height-1)/rowHeight)
-	start := viewportOffset(v.NavIndex, len(items), capacity, v.NavOffset)
-	for i := start; i < len(items) && len(lines) < height; i++ {
+	rows, start := m.sidebarViewport(height)
+	for r := start; r < len(rows) && len(lines) < height; r++ {
+		row := rows[r]
+		if row.index < 0 {
+			if row.label == "" {
+				lines = append(lines, "")
+			} else {
+				label := "  " + strings.ToUpper(row.label) + " "
+				rule := "─"
+				if m.settings.ASCII {
+					rule = "-"
+				}
+				endPadding := 0
+				if compact {
+					endPadding = 2
+				}
+				line := muted.Render(label)
+				if row.label != "Views" || compact {
+					line += styles.lineStyle.Render(strings.Repeat(rule, max(0, width-lipgloss.Width(label)-endPadding)))
+				}
+				lines = append(lines, fit(line, width))
+			}
+			continue
+		}
+		i := row.index
 		item := items[i]
 		countValue := len(m.entriesFor(item, ""))
 		itemLabel := safe(item.label)
 		if v.NavFilter != "" {
 			itemLabel = m.highlightText(item.label, v.NavFilter, "Title")
 		}
-		text := "  " + strings.Repeat("  ", min(item.depth, 5)) + itemLabel
-		label := fit(text, width)
-		count := fmt.Sprintf("  %d entries", countValue)
+		indent := strings.Repeat("  ", min(item.depth, 5))
+		text := indent + itemLabel
+		label := fit("  "+text, width)
 		if compact {
-			text := strings.Repeat("  ", min(item.depth, 3)) + itemLabel + fmt.Sprintf("  %d", countValue)
+			count := fmt.Sprintf("%d", countValue)
+			countStyle := muted
 			if i == v.NavIndex {
-				if m.settings.ASCII {
-					text = "[ " + text + " ]"
-				} else {
-					text = " " + text + " "
+				selection := inactive
+				if focused {
+					selection = active
 				}
+				countStyle = muted.Foreground(selection.GetForeground()).Background(selection.GetBackground()).Faint(true).Bold(false)
 			}
-			label = fit(text, width)
+			inner := max(0, width-4)
+			labelWidth := max(0, inner-lipgloss.Width(count)-1)
+			body := fit(ansi.Truncate(text, labelWidth, "…"), labelWidth) + " " + countStyle.Render(count)
 			if i == v.NavIndex {
 				if !m.settings.ASCII {
-					label = m.pill(strings.Repeat("  ", min(item.depth, 3))+itemLabel+fmt.Sprintf("  %d", countValue), width, focused)
-				} else if focused {
-					label = active.Render(label)
+					label = m.pill(body, width, focused)
 				} else {
-					label = inactive.Render(label)
+					style := inactive
+					if focused {
+						style = active
+					}
+					label = style.Render("[ " + body + " ]")
 				}
 			} else {
-				label = muted.Render(fit("  "+strings.Repeat("  ", min(item.depth, 3))+itemLabel+fmt.Sprintf("  %d", countValue), width))
+				label = fit("  "+body+"  ", width)
 			}
 			lines = append(lines, label)
 			continue
 		}
+		if row.count {
+			label = fit("  "+indent+fmt.Sprintf("%d entries", countValue), width)
+		}
+		style := styles.base
 		if i == v.NavIndex {
 			if focused {
-				label = active.Render(label)
-				count = active.Render(fit(count, width))
+				style = active
 			} else {
-				label = inactive.Render(label)
-				count = inactive.Render(fit(count, width))
+				style = inactive
 			}
-		} else {
-			count = muted.Render(count)
+		} else if row.count {
+			style = muted
 		}
+		if !row.count {
+			style = style.Bold(true)
+		}
+		if row.count {
+			style = style.Bold(false)
+		}
+		label = style.Render(label)
 		lines = append(lines, label)
-		if len(lines) < height {
-			lines = append(lines, count)
-		}
 	}
 	return padLines(lines, height)
 }

@@ -8,6 +8,7 @@ import (
 )
 
 func (m *Model) openTOTP() tea.Cmd {
+	m.recordItemUse()
 	m.hideReveal()
 	session, entry := m.extraTarget()
 	if session == nil || entry == nil {

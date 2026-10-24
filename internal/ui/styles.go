@@ -75,9 +75,9 @@ func renderPill(text string, width int, style, surface lipgloss.Style) string {
 	if width < 4 {
 		return style.Render(fit(text, width))
 	}
-	center := " " + fit(text, max(0, width-4)) + " "
+	center := style.Render(" ") + style.Render(fit(text, max(0, width-4))) + style.Render(" ")
 	edge := surface.Foreground(style.GetBackground())
-	return fit(edge.Render("\ue0b6")+style.Render(center)+edge.Render("\ue0b4"), width)
+	return fit(edge.Render("\ue0b6")+center+edge.Render("\ue0b4"), width)
 }
 
 func (m *Model) themedRule(width int) string {

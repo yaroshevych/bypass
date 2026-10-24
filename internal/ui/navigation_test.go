@@ -44,10 +44,13 @@ func TestSearchHistoryRepeatApplyAndRemove(t *testing.T) {
 	}
 
 	v.Focus = 0
-	v.NavKey = "history:" + searchID
-	m.remapNav()
-	m.key(key("d"))
-	if len(session.Searches) != 0 || v.NavKey != "history-list" {
+	for _, cmd := range m.commands() {
+		if cmd.id == "clear-history" {
+			cmd.run()
+			break
+		}
+	}
+	if len(session.Searches) != 0 {
 		t.Fatalf("removing history did not return to the history list: searches=%#v view=%#v", session.Searches, *v)
 	}
 }

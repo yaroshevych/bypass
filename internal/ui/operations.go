@@ -180,6 +180,9 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 }
 
 func (m *Model) startEditor(e *vault.Entry, group string) {
+	if e != nil {
+		m.recordItemUse()
+	}
 	m.hideReveal()
 	m.clearEditor()
 	m.editor = newEntryEditor(e, group)
@@ -607,10 +610,7 @@ func (m *Model) copyField(name string) tea.Cmd {
 	if name == "" {
 		name = m.focusedField()
 	}
-	if s := m.ws.ActiveSession(); s != nil {
-		m.ws.RecordAccess(s.ID, e.UUID, m.now())
-		m.searchCache = nil
-	}
+	m.recordItemUse()
 	label := name
 	if label == "UserName" {
 		label = "Username"
@@ -701,6 +701,7 @@ func (m *Model) toggleReveal() tea.Cmd {
 		m.hideReveal()
 		return nil
 	}
+	m.recordItemUse()
 	m.revealEntry = e.UUID
 	m.revealField = name
 	m.revealSession = s.ID

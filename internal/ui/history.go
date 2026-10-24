@@ -11,6 +11,7 @@ import (
 )
 
 func (m *Model) openHistory() tea.Cmd {
+	m.recordItemUse()
 	m.hideReveal()
 	session, entry := m.extraTarget()
 	if session == nil || entry == nil {

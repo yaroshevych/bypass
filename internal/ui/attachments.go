@@ -16,6 +16,7 @@ import (
 const attachmentInputLimit = 32 << 20
 
 func (m *Model) openAttachments() tea.Cmd {
+	m.recordItemUse()
 	m.hideReveal()
 	session, entry := m.extraTarget()
 	if session == nil || entry == nil {

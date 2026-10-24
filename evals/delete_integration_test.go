@@ -50,13 +50,13 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 		e.key("Down")
 	}
 	e.key("Right")
-	e.mustShow("Recycle Bin", "Seed Entry")
+	e.mustShow("Bin", "Seed Entry")
 	recycledHash := vaultFileHash(t, e.realDB)
 	e.key("d")
 	e.mustShow("Delete Permanently", "Cancel", "Recovery requires a backup")
 	e.key("Enter")
 	e.waitFor("permanent-delete cancel closes dialog", func() bool { return !strings.Contains(e.capture(), "Delete Permanently") })
-	e.mustShow("Recycle Bin", "Seed Entry")
+	e.mustShow("Bin", "Seed Entry")
 	if vaultFileHash(t, e.realDB) != recycledHash {
 		t.Fatal("default permanent-delete confirmation mutated the vault")
 	}

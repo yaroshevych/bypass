@@ -244,7 +244,7 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		e.key("Down")
 	}
-	e.mustShow("Recycle Bin", "Eval Created Edited")
+	e.mustShow("Bin", "Eval Created Edited")
 	e.key("r")
 	e.mustShow("Restore Entry")
 	e.typeText("Passwords")
@@ -368,13 +368,12 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.key("Escape")
 	e.mustShow("Eval Entry", "evl")
 	e.key("Left") // sidebar
-	for i := 0; i < 7; i++ {
-		e.key("Down")
-	}
+	e.key("C-p")
+	e.typeText("Search History")
+	e.key("Enter")
 	e.mustShow("Recent Searches", "evl")
-	for i := 0; i < 7; i++ {
-		e.key("Up")
-	}
+	e.key("Escape")
+	e.key("Escape")
 	e.mustShow("All Entries", "Eval Entry")
 
 	// The same entry remains reachable in wide, medium, and narrow layouts.

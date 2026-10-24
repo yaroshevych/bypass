@@ -356,11 +356,11 @@ func (m *Model) mouse(msg tea.MouseMsg) {
 	v.Focus = pane.Focus
 	switch pane.Focus {
 	case 0:
-		row := msg.Y - pane.Y - 1
-		if row < 0 {
-			return
+		row := msg.Y - pane.Y
+		rows, start := m.sidebarViewport(pane.Height)
+		if index := start + row; index >= 0 && index < len(rows) && rows[index].index >= 0 {
+			m.selectNav(rows[index].index)
 		}
-		m.selectNav(v.NavOffset + row/m.navRowHeight())
 	case 1:
 		index := msg.Y - pane.Y - 1 + v.EntryOffset
 		entries := m.entries()
@@ -432,8 +432,7 @@ func (m *Model) adjustViewport() {
 			detailWidth = pane.Width
 		}
 	}
-	navCapacity := max(1, (navHeight-1)/m.navRowHeight())
-	v.NavOffset = viewportOffset(v.NavIndex, len(m.navigation()), navCapacity, v.NavOffset)
+	_, v.NavOffset = m.sidebarViewport(navHeight)
 	entries := m.entries()
 	index := 0
 	for i, e := range entries {
