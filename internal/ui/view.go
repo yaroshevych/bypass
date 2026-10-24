@@ -466,6 +466,15 @@ func (m *Model) footerBadge() string {
 	return badge
 }
 
+func (m *Model) footerBadgeJoinedTo(surface lipgloss.Style) string {
+	c := m.colors()
+	style := c.active.Foreground(c.primary.GetBackground()).Background(c.accent.GetForeground())
+	if m.settings.ASCII {
+		return m.footerBadge()
+	}
+	return renderPillWithRightSurface("bypass", 10, style, c.primary, surface)
+}
+
 func (m *Model) footerLine(text string, contextual ...string) string {
 	return m.footerLineWithLeftStyle(text, m.colors().secondary, contextual...)
 }
@@ -490,10 +499,14 @@ func (m *Model) searchFooterLine(text, contextual string, applied bool) string {
 		width := lipgloss.Width(content) + 2 // one cell of inner padding per side plus caps
 		edge := c.primary.Foreground(style.GetBackground())
 		control := fit(edge.Render("\ue0b6")+content+edge.Render("\ue0b4"), width)
+		badge := m.footerBadge() + " "
 		if m.settings.ASCII {
 			control = fit(style.Render("[")+content+style.Render("]"), width)
+		} else {
+			badge = m.footerBadgeJoinedTo(c.inactive) + c.inactive.Render(" ")
+			control = fit(c.inactive.Render(" ")+content+edge.Render("\ue0b4"), width)
 		}
-		left := m.footerBadge() + " " + control
+		left := badge + control
 		if contextual != "" {
 			left += " " + c.secondary.Render(lowercaseShortcutLabels(contextual))
 		}

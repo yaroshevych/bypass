@@ -89,12 +89,17 @@ func (m *Model) pillOn(text string, width int, focused bool, surface lipgloss.St
 }
 
 func renderPill(text string, width int, style, surface lipgloss.Style) string {
+	return renderPillWithRightSurface(text, width, style, surface, surface)
+}
+
+func renderPillWithRightSurface(text string, width int, style, leftSurface, rightSurface lipgloss.Style) string {
 	if width < 4 {
 		return style.Render(fit(text, width))
 	}
 	center := style.Render(" ") + style.Render(fit(text, max(0, width-4))) + style.Render(" ")
-	edge := surface.Foreground(style.GetBackground())
-	return fit(edge.Render("\ue0b6")+center+edge.Render("\ue0b4"), width)
+	leftEdge := leftSurface.Foreground(style.GetBackground())
+	rightEdge := rightSurface.Foreground(style.GetBackground())
+	return fit(leftEdge.Render("\ue0b6")+center+rightEdge.Render("\ue0b4"), width)
 }
 
 func (m *Model) themedRule(width int) string {

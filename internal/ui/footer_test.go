@@ -158,8 +158,11 @@ func TestCompactSearchFooterKeepsItsOuterGap(t *testing.T) {
 	m.searching = true
 	m.query.set("term")
 	line := ansi.Strip(m.searchFooterLine(m.footerText(), m.footerContext(), false))
-	if !strings.Contains(line, "\ue0b4 \ue0b6/ term") || !strings.Contains(line, " \ue0b4 enter apply") {
-		t.Fatalf("compact search field shifted left of its outer gap: %q", line)
+	if !strings.Contains(line, "\ue0b4  / term") || strings.Contains(line, "\ue0b4  \ue0b6") || !strings.Contains(line, " \ue0b4 enter apply") {
+		t.Fatalf("compact search field is not joined to the app pill without shifting its text: %q", line)
+	}
+	if got := ansi.StringWidth(line[:strings.Index(line, "/ term")]); got != 12 {
+		t.Fatalf("compact search text moved to column %d; want its existing column 12", got)
 	}
 }
 
@@ -171,7 +174,7 @@ func TestCompactFilterPlaceholderOmitsLeftAndKeepsRightPadding(t *testing.T) {
 	m.normalize()
 	m.searching = true
 	line := ansi.Strip(m.searchFooterLine(m.footerText(), m.footerContext(), false))
-	if !strings.Contains(line, "\ue0b6/ filter \ue0b4") {
+	if !strings.Contains(line, "/ filter \ue0b4") {
 		t.Fatalf("compact placeholder lost its right-side padding: %q", line)
 	}
 }
