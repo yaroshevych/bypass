@@ -157,10 +157,13 @@ func (m *Model) workspaceLines() []string {
 			right = "Changed externally · Ctrl+R reload"
 		}
 	}
-	lines := []string{accent.Render(fit("  "+name, max(0, w-lipgloss.Width(right)-2))) + muted.Render(right), m.themedRule(w)}
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	lines := []string{accent.Render(fit("  "+name, max(0, w-lipgloss.Width(right)-2))) + muted.Render(right)}
+	if !compact {
+		lines = append(lines, m.themedRule(w))
+	}
 	var tabs []string
 	labels := m.tabLabels()
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	for _, span := range m.tabSpans() {
 		label := labels[span.Index]
 		if compact {
@@ -168,7 +171,7 @@ func (m *Model) workspaceLines() []string {
 				if m.settings.ASCII {
 					label = "[ " + label + " ]"
 				} else {
-					label = "◖ " + label + " ◗"
+					label = " " + label + " "
 				}
 			} else {
 				label = " " + label + " "
@@ -177,26 +180,45 @@ func (m *Model) workspaceLines() []string {
 		label = fit(label, span.End-span.Start)
 		if span.Index == m.ws.Active {
 			if compact && !m.settings.ASCII {
-				label = m.pill(labels[span.Index], span.End-span.Start, true)
+				label = m.pillOn(labels[span.Index], span.End-span.Start, true, styles.inactive)
 			} else {
 				label = active.Render(label)
 			}
 		} else {
-			label = muted.Render(label)
+			if compact {
+				label = styles.inactive.Render(label)
+			} else {
+				label = muted.Render(label)
+			}
 		}
 		tabs = append(tabs, label)
 	}
 	separator := styles.lineStyle.Render("│")
-	if compact && m.settings.ASCII {
-		separator = styles.lineStyle.Render("|")
+	if compact {
+		separator = styles.inactive.Render(" ")
 	}
-	lines = append(lines, fit(strings.Join(tabs, separator), w), m.themedRule(w))
+	tabLine := strings.Join(tabs, separator)
+	if compact && !m.settings.ASCII {
+		edge := styles.base.Foreground(styles.inactive.GetBackground())
+		tabLine = edge.Render("\ue0b6") + tabLine + edge.Render("\ue0b4")
+	}
+	lines = append(lines, fit(tabLine, w))
+	if !compact {
+		lines = append(lines, m.themedRule(w))
+	}
 	if s.DB == nil {
 		lines = append(lines, "", accent.Render("  Vault locked"), muted.Render("  Enter to unlock with vault credentials."), "", muted.Render("  1–9 switch vault views · Ctrl+O open another vault"))
-		for len(lines) < m.height-2 {
+		footerHeight := 2
+		if compact {
+			footerHeight = 1
+		}
+		for len(lines) < m.height-footerHeight {
 			lines = append(lines, "")
 		}
-		return append(lines, m.themedRule(w), muted.Render("  Enter unlock    Ctrl+W close view    q quit"))
+		if !compact {
+			lines = append(lines, m.themedRule(w))
+		}
+		return append(lines, muted.Render("  Enter unlock    Ctrl+W close view    q quit"))
 	}
 	l := m.layout()
 	lines = append(lines, m.layoutBody(l)...)
@@ -213,7 +235,10 @@ func (m *Model) workspaceLines() []string {
 	if status := m.clipboardStatus(); status != "" {
 		footer += " · " + status
 	}
-	return append(lines, m.themedRule(w), muted.Render(fit(footer, w)))
+	if !compact {
+		lines = append(lines, m.themedRule(w))
+	}
+	return append(lines, muted.Render(fit(footer, w)))
 }
 
 func (m *Model) layoutBody(layout viewLayout) []string {
@@ -265,7 +290,19 @@ func (m *Model) layoutBody(layout viewLayout) []string {
 		if m.settings.ASCII {
 			sep = styles.lineStyle.Render("|")
 		}
-		body[row] = strings.Join(parts, sep)
+		var joined strings.Builder
+		for i, part := range parts {
+			if i > 0 {
+				junction := sep
+				right := ansi.Strip(part)
+				if strings.TrimSpace(right) != "" && strings.Trim(right, "─") == "" {
+					junction = styles.lineStyle.Render("├")
+				}
+				joined.WriteString(junction)
+			}
+			joined.WriteString(part)
+		}
+		body[row] = joined.String()
 	}
 	return body
 }
@@ -345,6 +382,12 @@ func (m *Model) tabSpans() []tabSpan {
 	}
 	activeIndex := min(len(labels)-1, max(0, m.ws.Active))
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	capacity := m.width
+	startX := 0
+	if compact && !m.settings.ASCII {
+		capacity = max(1, m.width-2)
+		startX = 1
+	}
 	visible := map[int]string{}
 	display := func(i int) string {
 		label := labels[i]
@@ -352,7 +395,7 @@ func (m *Model) tabSpans() []tabSpan {
 			if m.settings.ASCII {
 				return "[ " + label + " ]"
 			}
-			return "◖ " + label + " ◗"
+			return " " + label + " "
 		}
 		if compact {
 			return " " + label + " "
@@ -360,14 +403,14 @@ func (m *Model) tabSpans() []tabSpan {
 		return label
 	}
 	visible[activeIndex] = display(activeIndex)
-	used := min(m.width, lipgloss.Width(visible[activeIndex]))
+	used := min(capacity, lipgloss.Width(visible[activeIndex]))
 	start, end := activeIndex, activeIndex+1
 	for start > 0 || end < len(labels) {
 		added := false
 		if start > 0 {
 			candidate := display(start - 1)
 			need := lipgloss.Width(candidate) + 1
-			if used+need <= m.width {
+			if used+need <= capacity {
 				start--
 				visible[start] = candidate
 				used += need
@@ -377,7 +420,7 @@ func (m *Model) tabSpans() []tabSpan {
 		if end < len(labels) {
 			candidate := display(end)
 			need := lipgloss.Width(candidate) + 1
-			if used+need <= m.width {
+			if used+need <= capacity {
 				visible[end] = candidate
 				used += need
 				end++
@@ -389,12 +432,12 @@ func (m *Model) tabSpans() []tabSpan {
 		}
 	}
 	var spans []tabSpan
-	x := 0
+	x := startX
 	for i := start; i < end; i++ {
 		if i != start {
 			x++
 		}
-		width := min(m.width-x, lipgloss.Width(visible[i]))
+		width := min(startX+capacity-x, lipgloss.Width(visible[i]))
 		if width <= 0 {
 			break
 		}
@@ -436,7 +479,7 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 				if m.settings.ASCII {
 					text = "[ " + text + " ]"
 				} else {
-					text = "◖ " + text + " ◗"
+					text = " " + text + " "
 				}
 			}
 			label = fit(text, width)
@@ -449,7 +492,7 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 					label = inactive.Render(label)
 				}
 			} else {
-				label = muted.Render(label)
+				label = muted.Render(fit("  "+strings.Repeat("  ", min(item.depth, 3))+itemLabel+fmt.Sprintf("  %d", countValue), width))
 			}
 			lines = append(lines, label)
 			continue
@@ -476,15 +519,23 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 func (m *Model) entryLines(width, height int, focused bool) []string {
 	styles := m.colors()
 	accent, muted, active, inactive := styles.accent, styles.muted, styles.active, styles.inactive
-	available := max(0, width-2)
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	contentWidth := width
+	if compact {
+		contentWidth = max(0, width-4)
+	}
+	available := max(0, contentWidth-2)
 	tw := min(available, max(7, available*40/100))
 	uw := min(available-tw, max(5, available*27/100))
 	urlw := max(0, available-tw-uw)
 	cell := func(text string, width int) string {
 		return fit(ansi.Truncate(text, width, "…"), width)
 	}
-	row := func(a, b, c string) string { return fit(cell(a, tw)+" "+cell(b, uw)+" "+cell(c, urlw), width) }
+	row := func(a, b, c string) string { return fit(cell(a, tw)+" "+cell(b, uw)+" "+cell(c, urlw), contentWidth) }
 	heading := row("Title", "Username", "Website")
+	if compact {
+		heading = fit("  "+heading, width)
+	}
 	if focused {
 		heading = accent.Render(heading)
 	} else {
@@ -541,7 +592,19 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 			url = m.highlightText(url, v.Query, "URL")
 		}
 		text := row(title, username, url)
-		if e.UUID == v.SelectedUUID {
+		if compact {
+			if e.UUID == v.SelectedUUID && !m.settings.ASCII {
+				text = m.pill(text, width, focused)
+			} else if e.UUID == v.SelectedUUID {
+				style := inactive
+				if focused {
+					style = active
+				}
+				text = style.Render("[ " + text + " ]")
+			} else {
+				text = fit("  "+text, width)
+			}
+		} else if e.UUID == v.SelectedUUID {
 			if focused {
 				text = active.Render(text)
 			} else {

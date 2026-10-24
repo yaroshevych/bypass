@@ -59,6 +59,10 @@ func colorsForTheme(name string) themeColors {
 func (m *Model) colors() *styleSet { return &m.styles }
 
 func (m *Model) pill(text string, width int, focused bool) string {
+	return m.pillOn(text, width, focused, m.colors().base)
+}
+
+func (m *Model) pillOn(text string, width int, focused bool, surface lipgloss.Style) string {
 	c := m.colors()
 	style := c.inactive
 	if focused {
@@ -67,9 +71,9 @@ func (m *Model) pill(text string, width int, focused bool) string {
 	if width < 4 {
 		return style.Render(fit(text, width))
 	}
-	center := " " + fit(text, min(max(0, width-4), lipgloss.Width(text))) + " "
-	edge := c.base.Foreground(style.GetBackground())
-	return fit(edge.Render("◖")+style.Render(center)+edge.Render("◗"), width)
+	center := " " + fit(text, max(0, width-4)) + " "
+	edge := surface.Foreground(style.GetBackground())
+	return fit(edge.Render("\ue0b6")+style.Render(center)+edge.Render("\ue0b4"), width)
 }
 
 func (m *Model) themedRule(width int) string {

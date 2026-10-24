@@ -286,7 +286,7 @@ func (m *Model) resizePointer(msg tea.MouseMsg) bool {
 			return true
 		}
 	}
-	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && msg.Y >= l.BodyY && msg.Y < m.height-2 {
+	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && msg.Y >= l.BodyY && msg.Y < l.BodyY+l.BodyHeight {
 		for i, pane := range l.Panes {
 			if i < len(l.Panes)-1 && msg.X == pane.X+pane.Width {
 				m.dragging = i + 1
@@ -452,7 +452,7 @@ func (m *Model) footerText() string {
 		case 0:
 			text = "  ↑↓ views · Enter entries · / filter · Ctrl+P commands"
 		case 1:
-			text = "  Enter details · n new · e edit · / filter · Ctrl+P commands"
+			text = "  n new · e edit · / filter · Ctrl+P commands"
 		case 2:
 			text = "  Tab fields · c copy · v reveal · e edit · Ctrl+P commands"
 		}

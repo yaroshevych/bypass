@@ -336,7 +336,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.mustShow("Choose Appearance", "Compact")
 	e.typeText("Compact")
 	e.key("Enter")
-	e.mustShow("Eval Entry", "◖", "◗", "Preferences saved.")
+	e.mustShow("Eval Entry", "", "", "Preferences saved.")
 	e.mustSettingsContain("\"appearance\": \"compact\"")
 
 	// Jumping to Password selects its detail without revealing its protected
@@ -383,7 +383,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.mustShow("Eval Entry")
 	e.resize(60, 20)
 	e.mustDimensions(60, 20)
-	e.mustShow("Eval Entry", "All Entries")
+	e.mustShow("All Entries / Views", "All Entries")
 	e.key("Right")
 	e.mustShow("Eval Entry", "Entries")
 	e.key("Tab")
@@ -460,7 +460,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	restarted.mustShow("Unlock Vault")
 	restarted.typeText(fixturePassword)
 	restarted.key("Enter")
-	restarted.mustShow("Eval Entry", "◖", "◗", "Read only")
+	restarted.mustShow("Eval Entry", "", "", "Read only")
 	restarted.key("q")
 	restarted.waitForCleanQuit()
 	restarted.close()

@@ -108,7 +108,7 @@ def capture(args, fixture, cli, output):
                         key('Enter')
                         wait('Proton Mail')
                         key('Right')
-                        wait('Enter details')
+                        wait('n new')
                         if args.screen == 'tabs':
                             key('C-t')
                         elif args.screen == 'palette':

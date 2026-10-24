@@ -157,7 +157,11 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		}
 		return nil
 	}
-	if msg.Y == 2 {
+	tabRow := 2
+	if strings.EqualFold(m.settings.Appearance, "compact") {
+		tabRow = 1
+	}
+	if msg.Y == tabRow {
 		for _, span := range m.tabSpans() {
 			if msg.X >= span.Start && msg.X < span.End {
 				m.ws.Switch(span.Index)

@@ -35,12 +35,12 @@ func TestCompactClassicAndASCIIFallback(t *testing.T) {
 	if classic == compact {
 		t.Fatal("compact appearance did not change rendering")
 	}
-	if !strings.Contains(compact, "◖") || !strings.Contains(compact, "◗") {
+	if !strings.Contains(compact, "") || !strings.Contains(compact, "") {
 		t.Fatal("compact appearance is missing selected pills")
 	}
 	m.settings.ASCII = true
 	ascii := m.View()
-	if !strings.Contains(ascii, "[") || strings.Contains(ascii, "◖") || strings.Contains(ascii, "◗") {
+	if !strings.Contains(ascii, "[") || strings.Contains(ascii, "") || strings.Contains(ascii, "") {
 		t.Fatal("ASCII mode did not replace compact glyphs")
 	}
 }
@@ -66,5 +66,41 @@ func TestMinimumUnlockKeepsFilenameAndEssentialControls(t *testing.T) {
 		if !strings.Contains(text, label) {
 			t.Fatalf("minimum-size unlock lost %q:\n%s", label, text)
 		}
+	}
+}
+
+func TestCompactSelectionKeepsEntryAndViewTextAligned(t *testing.T) {
+	m := New(Options{})
+	m.ws.Open(fixture("/tmp/alignment.kdbx"))
+	m.width, m.height = 120, 35
+	m.settings.Appearance = "compact"
+	m.normalize()
+	before := m.entryLines(48, 10, true)
+	m.ws.ActiveView().SelectedUUID = "b"
+	after := m.entryLines(48, 10, true)
+	for i, title := range []string{"Alpha", "Beta"} {
+		a := []rune(ansi.Strip(before[i+1]))
+		b := []rune(ansi.Strip(after[i+1]))
+		if string(a[2:2+len(title)]) != title || string(b[2:2+len(title)]) != title {
+			t.Fatalf("%s moved horizontally when selection changed", title)
+		}
+	}
+	before = m.navLines(27, 20, true)
+	m.selectNav(1)
+	after = m.navLines(27, 20, true)
+	for i, title := range []string{"All Entries", "Favorites"} {
+		for _, rows := range [][]string{before, after} {
+			runes := []rune(ansi.Strip(rows[i+1]))
+			if string(runes[2:2+len(title)]) != title {
+				t.Fatalf("%s lost its fixed compact inset", title)
+			}
+		}
+	}
+	if m.layout().BodyY != 2 || m.layout().BodyHeight != 32 {
+		t.Fatal("compact panes did not reclaim header/footer separator rows")
+	}
+	m.selectNav(0)
+	if !strings.Contains(ansi.Strip(m.View()), "├") {
+		t.Fatal("details divider does not join the pane border")
 	}
 }

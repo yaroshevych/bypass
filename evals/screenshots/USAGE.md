@@ -19,3 +19,4 @@ OS terminal-window screenshots. Font/rasterizer versions are recorded. Temporary
 paths and cursor state can vary; no approved reference images or pixel comparisons
 exist yet. Add those after manual polish. The renderer covers the SGR and simple
 Unicode used in these fixtures; it does not reproduce every terminal/font engine.
+Powerline pill caps use explicit cell geometry because Menlo lacks those glyphs.

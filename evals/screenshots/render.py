@@ -103,7 +103,7 @@ def render(capture, destination, columns, rows, font_path, font_size, foreground
                 continue
             char = line[offset]
             offset += 1
-            if unicodedata.category(char).startswith('C'):
+            if unicodedata.category(char).startswith('C') and unicodedata.category(char) != 'Co':
                 continue
             if unicodedata.combining(char):
                 continue
@@ -117,7 +117,15 @@ def render(capture, destination, columns, rows, font_path, font_size, foreground
             draw.rectangle((x, y, x + cw * width - 1, y + ch - 1), fill=paper)
             baseline = y + (ch - ascent - descent) // 2 + ascent
             face = bold if weight else regular
-            draw.text((x, baseline), char, font=face, fill=ink, anchor='ls')
+            if char in ('\ue0b6', '\ue0b4'):
+                # Powerline caps are terminal cell geometry; Menlo has no PUA
+                # glyphs. Render the same full-height half circles explicitly.
+                cap = Image.new('RGB', (cw * 2, ch), paper)
+                ImageDraw.Draw(cap).ellipse((0, 0, cw * 2 - 1, ch - 1), fill=ink)
+                left = 0 if char == '\ue0b6' else cw
+                image.paste(cap.crop((left, 0, left + cw, ch)), (x, y))
+            else:
+                draw.text((x, baseline), char, font=face, fill=ink, anchor='ls')
             if underline:
                 draw.line((x, y + ch - 3, x + cw * width - 1, y + ch - 3), fill=ink)
             column += width
