@@ -384,7 +384,7 @@ func (m *Model) overlay(title string, body []string, footer string, width, x, y 
 		Mode: dialogrender.Overlay, Title: title, Body: body, Footer: footer,
 		Backdrop: m.modalBackdrop(), Width: width, ScreenWidth: m.width,
 		Height: m.height, X: x, Y: y, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
-		Base: c.base, Accent: c.accent, Muted: c.muted, Line: c.lineStyle,
+		Base: c.base, Accent: c.accent, Muted: c.muted, Pill: c.active, Line: c.lineStyle,
 	})
 }
 

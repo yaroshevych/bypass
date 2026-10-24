@@ -1052,7 +1052,7 @@ func (m *Model) box(title string, body []string, footer string) []string {
 		Mode: dialogrender.Box, Title: title, Body: body, Footer: footer,
 		Backdrop: m.modalBackdrop(), Width: min(m.width-6, 82), ScreenWidth: m.width,
 		Height: m.height, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
-		Base: c.base, Accent: c.accent, Muted: c.muted, Line: c.lineStyle,
+		Base: c.base, Accent: c.accent, Muted: c.muted, Pill: c.active, Line: c.lineStyle,
 	})
 }
 

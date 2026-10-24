@@ -26,6 +26,7 @@ type Options struct {
 	Height, X, Y        int
 	Compact, ASCII      bool
 	Base, Accent, Muted lipgloss.Style
+	Pill                lipgloss.Style
 	Line                lipgloss.Style
 }
 
@@ -54,8 +55,11 @@ func Render(o Options) []string {
 		leftRule, rightRule = "+", "+"
 	}
 	title := o.Title
-	if !o.Compact {
-		title = strings.ToUpper(title)
+	title = strings.ToUpper(title)
+	if o.Compact && o.ASCII {
+		tl, tr, bl, br = "+", "+", "+", "+"
+	} else if o.Compact {
+		tl, tr, bl, br = "╭", "╮", "╰", "╯"
 	}
 	footer := lowercaseShortcutLabels(o.Footer)
 	background := make([]string, o.Height)
@@ -79,10 +83,11 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 		}
 		return o.Line.Render(border) + o.Base.Render(" "+content+" ") + o.Line.Render(border)
 	}
-	box := []string{o.Line.Render(tl + strings.Repeat(horizontal, width-2) + tr), wrap(o.Accent.Render(title), false)}
+	var box []string
 	if o.Compact {
-		box = append(box, wrap(o.Muted.Render(strings.Repeat(horizontal, width-4)), false))
+		box = []string{compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Line, o.Pill, o.Base)}
 	} else {
+		box = []string{o.Line.Render(tl + strings.Repeat(horizontal, width-2) + tr), wrap(o.Accent.Render(title), false)}
 		box = append(box, o.Line.Render(leftRule+strings.Repeat(horizontal, width-2)+rightRule))
 	}
 	for _, line := range o.Body {
@@ -114,7 +119,10 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 
 func renderBox(o Options, background []string, width int, border, horizontal, tl, tr, bl, br, leftRule, rightRule, title, footer string) []string {
 	inner := width - 4
-	content := []string{o.Accent.Render("  " + title), o.Line.Render(strings.Repeat(horizontal, width))}
+	var content []string
+	if !o.Compact {
+		content = append(content, o.Accent.Render("  "+title), o.Line.Render(strings.Repeat(horizontal, width)))
+	}
 	for _, line := range o.Body {
 		content = append(content, "  "+fit(line, inner))
 	}
@@ -128,7 +136,11 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 			background[row] = ansi.Cut(background[row], 0, left) + text + ansi.Cut(background[row], left+width, o.ScreenWidth)
 		}
 	}
-	frame(top-1, o.Line.Render(tl+strings.Repeat(horizontal, width-2)+tr))
+	topBorder := o.Line.Render(tl + strings.Repeat(horizontal, width-2) + tr)
+	if o.Compact {
+		topBorder = compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Line, o.Pill, o.Base)
+	}
+	frame(top-1, topBorder)
 	for i, line := range content {
 		if i == 1 && !o.Compact {
 			frame(top+i, o.Line.Render(leftRule+strings.Repeat(horizontal, width-2)+rightRule))
@@ -138,6 +150,37 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 	}
 	frame(top+len(content), o.Line.Render(bl+strings.Repeat(horizontal, width-2)+br))
 	return background
+}
+
+func compactTopBorder(width int, title string, ascii bool, horizontal, leftCorner, rightCorner string, line, pillStyle, surface lipgloss.Style) string {
+	inner := max(0, width-2)
+	pill := renderTitlePill(title, inner, ascii, pillStyle, surface)
+	pillWidth := min(inner, lipgloss.Width(pill))
+	remaining := max(0, inner-pillWidth)
+	left := min(1, remaining)
+	right := remaining - left
+	return line.Render(leftCorner+strings.Repeat(horizontal, left)) + pill + line.Render(strings.Repeat(horizontal, right)+rightCorner)
+}
+
+func renderTitlePill(title string, width int, ascii bool, style, surface lipgloss.Style) string {
+	if width <= 0 {
+		return ""
+	}
+	pillWidth := min(width, lipgloss.Width(title)+4)
+	if ascii {
+		label := fit(title, max(0, pillWidth-4))
+		return style.Render("[ " + label + " ]")
+	}
+	return renderPill(title, pillWidth, style, surface)
+}
+
+func renderPill(text string, width int, style, surface lipgloss.Style) string {
+	if width < 4 {
+		return style.Render(fit(text, width))
+	}
+	center := style.Render(" ") + style.Render(fit(text, max(0, width-4))) + style.Render(" ")
+	edge := surface.Foreground(style.GetBackground())
+	return fit(edge.Render("")+center+edge.Render(""), width)
 }
 
 func lowercaseShortcutLabels(text string) string {
