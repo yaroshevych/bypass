@@ -1,28 +1,54 @@
 package ui
 
 import (
-	"sort"
-	"strings"
-
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"keepassui/internal/vault"
 )
 
 func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
+	if m.layout().Mode == "tiny" {
+		return nil
+	}
+	if m.gate.Protected() {
+		return nil
+	}
+	if m.palette != nil {
+		return m.palettePointer(msg)
+	}
+	if m.jump {
+		return nil
+	}
 	m.hideReveal()
-	if m.dialog != nil || m.writing {
+	if m.dialog != nil {
+		m.dragging = 0
+		if m.dialog.kind == "destination" && !m.writing && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			m.destinationPointer(msg)
+		}
+		return nil
+	}
+	if m.writing {
+		return nil
+	}
+	if m.resizePointer(msg) {
 		return nil
 	}
 	if m.editor != nil {
 		if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
 			return nil
 		}
-		lw, cw, rw := m.paneWidths()
-		if msg.X < lw+cw+2 || msg.Y < 4 || msg.Y >= m.height-2 {
+		var target *paneRect
+		for _, pane := range m.layout().Panes {
+			if pane.Focus == 2 {
+				copy := pane
+				target = &copy
+				break
+			}
+		}
+		if target == nil || msg.X < target.X || msg.X >= target.X+target.Width || msg.Y < target.Y || msg.Y >= target.Y+target.Height {
 			return m.leaveEditor(func() tea.Cmd { return m.pointer(msg) })
 		}
-		switch m.editor.pointer(msg.Y-4, rw, m.height-6) {
+		switch m.editor.pointer(msg.Y-target.Y, target.Width, target.Height) {
 		case editorSave:
 			return m.saveEditor()
 		case editorCancel:
@@ -30,12 +56,31 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		case editorGenerate:
 			m.openGenerator()
 		}
+
 		return nil
 	}
-	if m.help || m.width < 65 || m.height < 16 {
+	if m.help || m.width < 48 || m.height < 14 {
 		return nil
 	}
-	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+	if msg.Action != tea.MouseActionPress {
+		m.mouse(msg)
+		return nil
+	}
+	if msg.Button == tea.MouseButtonRight {
+		if m.screen != browse || m.ws.ActiveSession() == nil {
+			return nil
+		}
+		copy := msg
+		copy.Button = tea.MouseButtonLeft
+		m.mouse(copy)
+		m.openPalette("actions", true)
+		if m.palette != nil {
+			m.palette.x = msg.X
+			m.palette.y = msg.Y
+		}
+		return nil
+	}
+	if msg.Button != tea.MouseButtonLeft {
 		m.mouse(msg)
 		return nil
 	}
@@ -58,8 +103,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		}
 		return nil
 	case chooseFile:
-		capacity := max(1, m.height-16)
-		start := max(0, m.fileIndex-capacity+1)
+		start, capacity := m.fileViewport()
 		visible := min(len(m.files)-start, capacity)
 		bodyLen := 3 + max(1, visible)
 		if m.err != "" {
@@ -68,6 +112,11 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		top := max(0, (m.height-(min(bodyLen, max(1, m.height-8))+4))/2)
 		if msg.Y == top+3 {
 			m.pickerEditing = true
+			return nil
+		}
+		boxWidth := min(m.width-6, 82)
+		left := max(0, (m.width-boxWidth)/2)
+		if msg.X < left || msg.X >= left+boxWidth {
 			return nil
 		}
 		index := msg.Y - top - 5 + start
@@ -90,14 +139,12 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	if msg.Y == 2 {
-		x := 0
-		for i, label := range m.tabLabels() {
-			width := lipgloss.Width(label)
-			if msg.X >= x && msg.X < x+width {
-				m.ws.Switch(i)
+		for _, span := range m.tabSpans() {
+			if msg.X >= span.Start && msg.X < span.End {
+				m.ws.Switch(span.Index)
+				m.normalize()
 				return nil
 			}
-			x += width + 1
 		}
 		return nil
 	}
@@ -105,79 +152,44 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	return nil
 }
 
-func (m *Model) navigation() []navItem {
-	items := []navItem{{label: "All Entries", kind: "all"}, {label: "Favorites", kind: "favorites"}, {label: "Recently Modified", kind: "recent"}, {label: "Recycle Bin", kind: "trash"}}
-	s := m.ws.ActiveSession()
-	if s == nil || s.DB == nil {
-		return items
-	}
-	for _, g := range s.DB.Groups {
-		if g.Recycled {
-			continue
-		}
-		depth := strings.Count(g.Path, "/")
-		items = append(items, navItem{label: g.Name, group: g.UUID, depth: depth, kind: "group"})
-	}
-	return items
+func (m *Model) fileViewport() (start, capacity int) {
+	capacity = max(1, m.height-16)
+	start = viewportOffset(m.fileIndex, len(m.files), capacity, m.fileOffset)
+	return start, capacity
 }
 
+func (m *Model) destinationPointer(msg tea.MouseMsg) {
+	d := m.dialog
+	if d == nil || d.kind != "destination" {
+		return
+	}
+	groups := d.filteredGroups()
+	start, capacity := d.destinationViewport(m.height, groups)
+	if len(groups) == 0 {
+		return
+	}
+	boxWidth := min(m.width-6, 82)
+	left := max(0, (m.width-boxWidth)/2)
+	if msg.X < left || msg.X >= left+boxWidth {
+		return
+	}
+	lines := m.dialogLines()
+	top := 0
+	for top < len(lines) && ansi.Strip(lines[top]) == "" {
+		top++
+	}
+	firstGroupRow := top + 2 + len(d.message) + 3
+	index := msg.Y - firstGroupRow + start
+	visible := min(capacity, len(groups)-start)
+	if index >= start && index < start+visible {
+		d.selected = index
+	}
+}
+
+func (m *Model) navigation() []navItem { return m.buildNavigation() }
+
 func (m *Model) entriesFor(nav navItem, query string) []vault.Entry {
-	s := m.ws.ActiveSession()
-	if s == nil || s.DB == nil {
-		return nil
-	}
-	var entries []vault.Entry
-	query = strings.ToLower(query)
-	for _, e := range s.DB.Entries {
-		if (nav.kind == "trash") != e.Recycled {
-			continue
-		}
-		if nav.kind == "group" && e.GroupUUID != nav.group {
-			continue
-		}
-		if nav.kind == "favorites" {
-			found := false
-			for _, tag := range e.Tags {
-				if strings.EqualFold(tag, "Favorite") {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
-		if query != "" {
-			searchable := true
-			for _, g := range s.DB.Groups {
-				if g.UUID == e.GroupUUID {
-					searchable = g.SearchEnabled
-					break
-				}
-			}
-			if !searchable {
-				continue
-			}
-			matched := false
-			for _, name := range []string{"Title", "UserName", "URL", "Notes"} {
-				if !e.IsProtected(name) && strings.Contains(strings.ToLower(e.Get(name)), query) {
-					matched = true
-					break
-				}
-			}
-			if strings.Contains(strings.ToLower(strings.Join(e.Tags, " ")), query) {
-				matched = true
-			}
-			if !matched {
-				continue
-			}
-		}
-		entries = append(entries, e)
-	}
-	if nav.kind == "recent" {
-		sort.SliceStable(entries, func(i, j int) bool { return entries[i].Modified.After(entries[j].Modified) })
-	}
-	return entries
+	return m.filterEntries(nav, query)
 }
 
 func (m *Model) entries() []vault.Entry {
@@ -185,9 +197,7 @@ func (m *Model) entries() []vault.Entry {
 	if v == nil {
 		return nil
 	}
-	items := m.navigation()
-	index := min(max(0, v.NavIndex), len(items)-1)
-	return m.entriesFor(items[index], v.Query)
+	return m.entriesFor(m.currentNav(), v.Query)
 }
 
 func (m *Model) selected() *vault.Entry {
@@ -205,9 +215,10 @@ func (m *Model) selected() *vault.Entry {
 
 func (m *Model) normalize() {
 	v := m.ws.ActiveView()
-	if v == nil {
+	if v == nil || m.ws.ActiveSession() == nil || m.ws.ActiveSession().DB == nil {
 		return
 	}
+	m.remapNav()
 	entries := m.entries()
 	for _, e := range entries {
 		if e.UUID == v.SelectedUUID {
@@ -229,12 +240,7 @@ func (m *Model) move(delta int) {
 	}
 	switch v.Focus {
 	case 0:
-		v.NavIndex = min(max(0, v.NavIndex+delta), len(m.navigation())-1)
-		v.GroupUUID = m.navigation()[v.NavIndex].group
-		v.SelectedUUID = ""
-		v.EntryOffset = 0
-		v.DetailOffset = 0
-		m.normalize()
+		m.selectNav(v.NavIndex + delta)
 	case 1:
 		entries := m.entries()
 		if len(entries) == 0 {
@@ -257,68 +263,64 @@ func (m *Model) move(delta int) {
 }
 
 func (m *Model) mouse(msg tea.MouseMsg) {
-	if m.screen != browse || m.searching || m.help || m.width < 65 || m.height < 16 {
+	if m.screen != browse || m.searching || m.help || m.gate.Protected() {
 		return
 	}
 	v := m.ws.ActiveView()
-	s := m.ws.ActiveSession()
-	if v == nil || s == nil || s.DB == nil {
+	session := m.ws.ActiveSession()
+	if v == nil || session == nil || session.DB == nil {
 		return
 	}
-	lw, mw, _ := m.paneWidths()
-	if msg.Action == tea.MouseActionPress && (msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown) {
-		if msg.X > lw+mw+1 {
-			v.Focus = 2
-			v.DetailManual = true
-			delta := 3
-			if msg.Button == tea.MouseButtonWheelUp {
-				delta = -3
-			}
-			v.DetailOffset = max(0, v.DetailOffset+delta)
-			return
+	var target *paneRect
+	for _, pane := range m.layout().Panes {
+		if msg.X >= pane.X && msg.X < pane.X+pane.Width && msg.Y >= pane.Y && msg.Y < pane.Y+pane.Height {
+			copy := pane
+			target = &copy
+			break
 		}
+	}
+	if target == nil {
+		return
+	}
+	pane := *target
+	if msg.Action == tea.MouseActionPress && (msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown) {
+		v.Focus = pane.Focus
+		delta := 1
 		if msg.Button == tea.MouseButtonWheelUp {
-			m.move(-1)
+			delta = -1
+		}
+		if pane.Focus == 2 {
+			v.DetailManual = true
+			v.DetailOffset = max(0, v.DetailOffset+delta*3)
 		} else {
-			m.move(1)
+			m.move(delta)
 		}
 		return
 	}
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
 		return
 	}
-	if msg.Y < 5 || msg.Y >= m.height-2 {
-		return
-	}
-	switch {
-	case msg.X < lw:
-		v.Focus = 0
-		index := (msg.Y - 5) / 2
-		// Sidebar viewport is derived from current selection, matching renderer.
-		visible := max(1, (m.height-8)/2)
-		start := max(0, v.NavIndex-visible+1)
-		index += start
-		if index < len(m.navigation()) {
-			v.NavIndex = index
-			v.GroupUUID = m.navigation()[index].group
-			v.SelectedUUID = ""
-			v.DetailOffset = 0
-			m.normalize()
+	v.Focus = pane.Focus
+	switch pane.Focus {
+	case 0:
+		row := msg.Y - pane.Y - 1
+		if row < 0 {
+			return
 		}
-	case msg.X < lw+mw+1:
-		v.Focus = 1
-		index := msg.Y - 5 + v.EntryOffset
+		m.selectNav(v.NavOffset + row/m.navRowHeight())
+	case 1:
+		index := msg.Y - pane.Y - 1 + v.EntryOffset
 		entries := m.entries()
 		if index >= 0 && index < len(entries) {
 			v.SelectedUUID = entries[index].UUID
 			v.DetailOffset = 0
+			v.FieldIndex = 0
+			v.DetailManual = false
 		}
-	default:
-		v.Focus = 2
+	case 2:
 		v.DetailManual = false
-		_, _, rw := m.paneWidths()
-		_, positions := m.detailLayout(rw)
-		row := msg.Y - 4 + v.DetailOffset
+		_, positions := m.detailLayout(pane.Width)
+		row := msg.Y - pane.Y + v.DetailOffset
 		for i, start := range positions {
 			if row >= start {
 				v.FieldIndex = i
@@ -332,61 +334,74 @@ func (m *Model) restoreGroup() {
 	if s == nil || s.DB == nil {
 		return
 	}
-	items := m.navigation()
 	for i := range m.ws.Views {
 		v := &m.ws.Views[i]
 		if v.SessionID != s.ID {
 			continue
 		}
-		if v.NavIndex < 4 {
-			continue
-		}
-		v.NavIndex = 0
-		for j, item := range items {
-			if item.kind == "group" && item.group == v.GroupUUID {
-				v.NavIndex = j
-				break
-			}
+		if v.NavKey == "" && v.NavIndex >= 4 && v.GroupUUID != "" {
+			v.NavKey = "group:" + v.GroupUUID
 		}
 	}
+	m.remapNav()
 }
 
 func (m *Model) adjustViewport() {
+	if m.screen == chooseFile {
+		start, _ := m.fileViewport()
+		m.fileOffset = start
+	}
+	if d := m.dialog; d != nil && d.kind == "destination" {
+		groups := d.filteredGroups()
+		start, _ := d.destinationViewport(m.height, groups)
+		d.offset = start
+	}
 	v := m.ws.ActiveView()
-	s := m.ws.ActiveSession()
-	if v == nil || s == nil || s.DB == nil {
+	session := m.ws.ActiveSession()
+	if v == nil || session == nil || session.DB == nil {
 		return
 	}
+	m.remapNav()
+	layout := m.layout()
+	height := max(1, layout.BodyHeight)
+	if layout.Breadcrumb {
+		height--
+	}
+	navHeight, listHeight, detailHeight, detailWidth := height, height, height, m.width
+	for _, pane := range layout.Panes {
+		switch pane.Focus {
+		case 0:
+			navHeight = pane.Height
+		case 1:
+			listHeight = pane.Height
+		case 2:
+			detailHeight = pane.Height
+			detailWidth = pane.Width
+		}
+	}
+	navCapacity := max(1, (navHeight-1)/m.navRowHeight())
+	v.NavOffset = viewportOffset(v.NavIndex, len(m.navigation()), navCapacity, v.NavOffset)
 	entries := m.entries()
-	selected := 0
+	index := 0
 	for i, e := range entries {
 		if e.UUID == v.SelectedUUID {
-			selected = i
+			index = i
 			break
 		}
 	}
-	capacity := max(1, m.height-7)
-	if selected < v.EntryOffset {
-		v.EntryOffset = selected
-	}
-	if selected >= v.EntryOffset+capacity {
-		v.EntryOffset = selected - capacity + 1
-	}
-	v.EntryOffset = min(v.EntryOffset, max(0, len(entries)-capacity))
-	_, _, rw := m.paneWidths()
-	lines, positions := m.detailLayout(rw)
-	bodyH := max(1, m.height-6)
+	v.EntryOffset = viewportOffset(index, len(entries), max(1, listHeight-1), v.EntryOffset)
+	lines, positions := m.detailLayout(detailWidth)
 	if v.Focus == 2 && len(positions) > 0 && !v.DetailManual {
 		v.FieldIndex = min(max(0, v.FieldIndex), len(positions)-1)
 		row := positions[v.FieldIndex]
 		if row < v.DetailOffset {
 			v.DetailOffset = row
 		}
-		if row+1 >= v.DetailOffset+bodyH {
-			v.DetailOffset = max(0, row+2-bodyH)
+		if row+1 >= v.DetailOffset+detailHeight {
+			v.DetailOffset = max(0, row+2-detailHeight)
 		}
 	}
-	v.DetailOffset = min(max(0, v.DetailOffset), max(0, len(lines)-bodyH))
+	v.DetailOffset = min(max(0, v.DetailOffset), max(0, len(lines)-detailHeight))
 }
 
 func visibleField(e vault.Entry, name string) string {

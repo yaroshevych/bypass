@@ -383,6 +383,22 @@ func TestEntryEditorShowsUnsupportedFieldsReadOnlyAndMasked(t *testing.T) {
 	}
 }
 
+func TestEntryEditorUsesInjectedThemeStylesAndDefaultFallback(t *testing.T) {
+	e := newEntryEditor(nil, "root")
+	if got := e.styleSet(); got != &defaultStyles {
+		t.Fatal("editor did not use immutable default styles when no theme is injected")
+	}
+	theme := stylesForTheme("Mocha")
+	e.styles = &theme
+	if got := e.styleSet(); got != &theme {
+		t.Fatal("editor copied or replaced the injected theme style pointer")
+	}
+	lines := e.layoutLines(40, 20)
+	if lines[1].text != theme.rule(40) {
+		t.Fatalf("editor divider ignored injected theme styles: %q", lines[1].text)
+	}
+}
+
 func editorTeaKey(s string) tea.KeyMsg {
 	switch s {
 	case "tab":

@@ -12,8 +12,12 @@ just check
 just eval # deterministic terminal integration tests; requires tmux
 ```
 
-`?` lists controls. `1`–`9` switch tabs outside text inputs.
+`Ctrl+P` opens commands; `?` lists controls. `1`–`9` switch tabs outside text inputs.
 `n`/`e` create/edit; `Ctrl+S` saves; `c` copies;
-`v` briefly reveals; `Ctrl+L` locks. Clipboard defaults to 10s, idle lock to 15m.
+`v` briefly reveals; `Ctrl+L` locks the current vault; `L` locks all vaults.
+`/` filters the focused pane; `Ctrl+F` searches all entries. `J` starts jump mode;
+`z` zooms a pane; `[`/`]` resize it. Choose themes and Compact/Classic in commands.
+`Ctrl+K` protects the screen with a session PIN after vault authentication.
+Clipboard defaults to 10s; idle protection to 15m (PIN when set, otherwise full lock).
 Secrets stay in memory; backups remain encrypted. Config uses platform/XDG
 config storage (`config.json`); recent paths and backups use state storage.

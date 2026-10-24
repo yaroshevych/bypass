@@ -57,7 +57,7 @@ func TestSearchExcludesSecretsAndFiltersLive(t *testing.T) {
 	m := New(Options{})
 	m.ws.Open(fixture("/tmp/fixture.kdbx"))
 	m.normalize()
-	m.key(key("/"))
+	m.key(key("ctrl+f"))
 	m.key(key("alice"))
 	if got := m.entries(); len(got) != 1 || got[0].UUID != "a" {
 		t.Fatal("search didn't filter")
@@ -66,7 +66,7 @@ func TestSearchExcludesSecretsAndFiltersLive(t *testing.T) {
 	if len(m.entries()) != 2 {
 		t.Fatal("cancel didn't restore query")
 	}
-	m.key(key("/"))
+	m.key(key("ctrl+f"))
 	m.key(key("PASSWORD-DO-NOT-RENDER"))
 	m.key(key("enter"))
 	if len(m.entries()) != 0 {

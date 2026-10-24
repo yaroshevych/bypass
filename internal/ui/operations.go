@@ -121,13 +121,24 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		group := s.DB.RootUUID
-		if v := m.ws.ActiveView(); v != nil && v.NavIndex >= 4 {
-			group = m.navigation()[v.NavIndex].group
+		if nav := m.currentNav(); nav.kind == "group" {
+			group = nav.group
 		}
 		m.hideReveal()
 		m.dialog = &actionDialog{kind: "group", title: "New Group", sessionID: s.ID, groupUUID: group}
 		return nil, true
 	case "d", "delete":
+		if v := m.ws.ActiveView(); v != nil && v.Focus == 0 {
+			nav := m.currentNav()
+			if nav.kind == "history" && nav.record != nil {
+				m.ws.RemoveSearch(s.ID, nav.record.ID)
+				v.NavKey = "history-list"
+				v.Query = ""
+				m.remapNav()
+				m.normalize()
+				return nil, true
+			}
+		}
 		if !m.writable() {
 			return nil, true
 		}
@@ -172,6 +183,7 @@ func (m *Model) startEditor(e *vault.Entry, group string) {
 	m.hideReveal()
 	m.clearEditor()
 	m.editor = newEntryEditor(e, group)
+	m.editor.styles = &m.styles
 	m.editorSession = m.ws.ActiveSession().ID
 	m.ws.ActiveView().Focus = 2
 	m.ws.ActiveView().DetailOffset = 0
@@ -362,6 +374,16 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		m.ws.Sessions[msg.sessionID].LastActivity = m.now()
+		if msg.change.Kind == vault.MoveEntry {
+			s := m.ws.Sessions[msg.sessionID]
+			destinations := []string{msg.change.GroupUUID}
+			for _, id := range s.Destinations {
+				if id != msg.change.GroupUUID && len(destinations) < 5 {
+					destinations = append(destinations, id)
+				}
+			}
+			s.Destinations = destinations
+		}
 		after := m.afterSave
 		m.clearEditor()
 		m.clearDialog()
@@ -519,7 +541,7 @@ func (m *Model) selectResult(change vault.Change) {
 		for _, g := range s.DB.Groups {
 			if g.ParentUUID == change.GroupUUID && g.Name == change.NewName {
 				v.GroupUUID = g.UUID
-				v.NavIndex = 4
+				v.NavKey = "group:" + g.UUID
 				m.restoreGroup()
 				m.normalize()
 				return
@@ -528,6 +550,7 @@ func (m *Model) selectResult(change vault.Change) {
 	}
 	if change.Kind == vault.MoveEntry || change.Kind == vault.AddEntry {
 		v.NavIndex = 0
+		v.NavKey = "all"
 		v.GroupUUID = ""
 		v.Query = ""
 		for _, e := range s.DB.Entries {
@@ -552,6 +575,9 @@ func (m *Model) fieldNames() []string {
 			seen[f.Name] = true
 		}
 	}
+	if v := m.ws.ActiveView(); v != nil && v.DetailFilter != "" {
+		names = m.filteredFieldNames(names, v.DetailFilter)
+	}
 	return names
 }
 func (m *Model) focusedField() string {
@@ -572,6 +598,10 @@ func (m *Model) copyField(name string) tea.Cmd {
 	}
 	if name == "" {
 		name = m.focusedField()
+	}
+	if s := m.ws.ActiveSession(); s != nil {
+		m.ws.RecordAccess(s.ID, e.UUID, m.now())
+		m.searchCache = nil
 	}
 	label := name
 	if label == "UserName" {
@@ -649,6 +679,16 @@ func (m *Model) toggleReveal() tea.Cmd {
 		return nil
 	}
 	name := m.focusedField()
+	if v := m.ws.ActiveView(); v != nil {
+		v.Focus = 2
+		for i, field := range m.fieldNames() {
+			if field == name {
+				v.FieldIndex = i
+				break
+			}
+		}
+		v.DetailManual = false
+	}
 	if m.revealEntry == e.UUID && m.revealField == name {
 		m.hideReveal()
 		return nil
@@ -757,6 +797,7 @@ func (m *Model) lockSession(id string) {
 		m.searching = false
 		m.query.clear()
 		m.previousQuery = ""
+		m.searchOrigin = nil
 		m.help = false
 	}
 	m.ws.LockSession(id)
@@ -774,12 +815,29 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 	if !m.revealUntil.IsZero() && !now.Before(m.revealUntil) {
 		m.hideReveal()
 	}
+	configuredPIN := m.gate.Configured()
+	allUnlockedIdle := true
+	hasUnlocked := false
 	locked := false
 	for id, s := range m.ws.Sessions {
 		if s.DB == nil {
 			continue
 		}
-		if !s.LastActivity.IsZero() && now.Sub(s.LastActivity) >= m.settings.IdleTimeout {
+		hasUnlocked = true
+		idleFor := time.Duration(0)
+		if !s.LastActivity.IsZero() && !now.Before(s.LastActivity) {
+			idleFor = now.Sub(s.LastActivity)
+		}
+		if configuredPIN {
+			if idleFor < m.settings.IdleTimeout {
+				allUnlockedIdle = false
+			}
+			if m.settings.FullLockTimeout > 0 && idleFor >= m.settings.FullLockTimeout {
+				m.lockSession(id)
+				locked = true
+				continue
+			}
+		} else if idleFor >= m.settings.IdleTimeout {
 			m.lockSession(id)
 			locked = true
 			continue
@@ -798,8 +856,20 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 			m.showExternal(id)
 		}
 	}
+	if configuredPIN && hasUnlocked && allUnlockedIdle && !m.gate.Protected() {
+		m.hideReveal()
+		m.dragging = 0
+		m.pinInput.clear()
+		m.pinError = ""
+		m.pinFullLock = false
+		m.gate.Protect()
+		locked = true // Protecting the screen also clears an owned clipboard value.
+	}
 	if locked {
 		cmds = append(cmds, m.clearClipboard())
+	}
+	if locked {
+		m.syncPrivacyState()
 	}
 	if !m.clipboardExpires.IsZero() && !now.Before(m.clipboardExpires) {
 		m.clipboardExpires = time.Time{}

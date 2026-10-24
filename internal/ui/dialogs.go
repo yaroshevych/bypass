@@ -12,7 +12,7 @@ type actionDialog struct {
 	kind, title                     string
 	message                         []string
 	options                         []string
-	selected                        int
+	selected, offset                int
 	input                           input
 	err                             string
 	sessionID, entryUUID, groupUUID string
@@ -48,15 +48,15 @@ func (m *Model) confirmDelete() {
 	if s == nil || s.DB == nil || v == nil {
 		return
 	}
-	if v.Focus == 0 && v.NavIndex < 4 {
+	if v.Focus == 0 && m.currentNav().kind != "group" {
 		m.setNotice("Focus an entry or a real group before deleting.", true)
 		return
 	}
 	change := vault.Change{Kind: vault.DeleteEntry}
 	name := ""
 	permanent := !s.DB.RecycleBinEnabled
-	if v.Focus == 0 && v.NavIndex >= 4 {
-		groupID := m.navigation()[v.NavIndex].group
+	if v.Focus == 0 && m.currentNav().kind == "group" {
+		groupID := m.currentNav().group
 		if groupID == s.DB.RootUUID || groupID == s.DB.RecycleBinUUID {
 			m.setNotice("Root and recycle-bin groups cannot be deleted here.", true)
 			return
@@ -110,11 +110,7 @@ func (m *Model) chooseDestination(e *vault.Entry) {
 	}
 	m.hideReveal()
 	m.dialog = &actionDialog{kind: "destination", title: title, sessionID: s.ID, entryUUID: e.UUID, message: []string{visibleField(*e, "Title")}}
-	for _, g := range s.DB.Groups {
-		if !g.Recycled {
-			m.dialog.groups = append(m.dialog.groups, g)
-		}
-	}
+	m.dialog.groups = destinationGroups(s.DB, s.Destinations)
 }
 func (d *actionDialog) filteredGroups() []vault.Group {
 	var groups []vault.Group
@@ -127,6 +123,12 @@ func (d *actionDialog) filteredGroups() []vault.Group {
 	return groups
 }
 
+func (d *actionDialog) destinationViewport(height int, groups []vault.Group) (start, capacity int) {
+	capacity = max(1, height-15)
+	start = viewportOffset(d.selected, len(groups), capacity, d.offset)
+	return start, capacity
+}
+
 func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 	d := m.dialog
 	key := k.String()
@@ -137,6 +139,9 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 	if key == "ctrl+l" {
 		m.clearDialog()
 		return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(false) })
+	}
+	if strings.HasPrefix(d.kind, "pin-") {
+		return m.pinSetupKey(k)
 	}
 	if m.writing {
 		if key == "esc" && d.kind == "generator" {
@@ -257,10 +262,15 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 }
 
 func (m *Model) dialogLines() []string {
+	c := m.colors()
+	accent, muted, active, errorStyle := c.accent, c.muted, c.active, c.errorStyle
 	d := m.dialog
 	body := append([]string(nil), d.message...)
 	footer := "←→ choose · Enter confirm · Esc cancel"
 	switch d.kind {
+	case "pin-setup", "pin-confirm":
+		body = append(body, muted.Render("4–12 digits · current run only"), accent.Render(d.input.display(true)+"▏"))
+		footer = "Enter continue · Esc cancel"
 	case "group":
 		body = append(body, muted.Render("Group name"), accent.Render(d.input.display(false)+"▏"))
 		footer = "Enter create · Esc cancel"
@@ -278,8 +288,7 @@ func (m *Model) dialogLines() []string {
 	case "destination":
 		body = append(body, muted.Render("Destination · type to filter"), accent.Render(d.input.display(false)+"▏"), "")
 		groups := d.filteredGroups()
-		capacity := max(1, m.height-15)
-		start := max(0, d.selected-capacity+1)
+		start, capacity := d.destinationViewport(m.height, groups)
 		for i := start; i < len(groups) && i < start+capacity; i++ {
 			label := "  " + groupLabel(groups[i].Path)
 			if i == d.selected {

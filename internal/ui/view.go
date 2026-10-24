@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"keepassui/internal/workspace"
 )
 
 var (
@@ -44,10 +45,26 @@ func fit(s string, width int) string {
 func rule(w int) string { return lineStyle.Render(strings.Repeat("─", max(0, w))) }
 
 func (m *Model) View() string {
+	// Rendering may ask the browser for filtered entries. Keep that read path
+	// from populating its optional cache so View remains side-effect free.
+	searchCache := m.searchCache
+	defer func() { m.searchCache = searchCache }()
 	w, h := max(1, m.width), max(1, m.height)
+	styles := m.colors()
+	base, accent := styles.base, styles.accent
+	muted := styles.muted
 	var lines []string
-	if w < 65 || h < 16 {
-		lines = []string{accent.Render("KeePassUI"), "Terminal too small", muted.Render("Resize to at least 65 × 16"), "Ctrl+C quit"}
+	if m.layout().Mode == "tiny" {
+		minimum := "Resize to at least 48 × 14"
+		if m.settings.ASCII {
+			minimum = "Resize to at least 48x14"
+		}
+		lines = []string{accent.Render("KeePassUI"), "Terminal too small", muted.Render(minimum), "q quit · Ctrl+C quit"}
+		if m.editor != nil && m.editor.dirty() {
+			lines[3] = "Draft kept · resize · Ctrl+C quits"
+		}
+	} else if advanced, ok := m.advancedScreen(); ok {
+		lines = advanced
 	} else if m.dialog != nil {
 		lines = m.dialogLines()
 	} else if m.help {
@@ -74,6 +91,8 @@ func (m *Model) View() string {
 }
 
 func (m *Model) welcomeLines() []string {
+	styles := m.colors()
+	accent, muted, active, inactive, errorStyle := styles.accent, styles.muted, styles.active, styles.inactive, styles.errorStyle
 	w := m.width
 	contentW := min(62, w-8)
 	left := max(0, (w-contentW)/2)
@@ -103,20 +122,22 @@ func (m *Model) welcomeLines() []string {
 	for len(lines) < m.height-2 {
 		lines = append(lines, "")
 	}
-	lines = append(lines, rule(w), muted.Render("  o open vault    ? shortcuts    q quit"))
+	lines = append(lines, m.themedRule(w), muted.Render("  o open vault    ? shortcuts    q quit"))
 	return lines
 }
 
 func (m *Model) paneWidths() (int, int, int) {
-	l := min(30, max(18, m.width*23/100))
-	r := max(23, m.width*38/100)
-	c := m.width - l - r - 2
-	return l, c, r
+	var v *workspace.View
+	if m.ws != nil {
+		v = m.ws.ActiveView()
+	}
+	return m.widePaneWidths(max(120, m.width), v)
 }
 
 func (m *Model) workspaceLines() []string {
+	styles := m.colors()
+	accent, muted, active := styles.accent, styles.muted, styles.active
 	s := m.ws.ActiveSession()
-	v := m.ws.ActiveView()
 	w := m.width
 	name := safe(filepath.Base(s.Path))
 	status := "Read only"
@@ -133,42 +154,46 @@ func (m *Model) workspaceLines() []string {
 			right = "Changed externally · Ctrl+R reload"
 		}
 	}
-	lines := []string{accent.Render(fit("  "+name, max(0, w-lipgloss.Width(right)-2))) + muted.Render(right), rule(w)}
+	lines := []string{accent.Render(fit("  "+name, max(0, w-lipgloss.Width(right)-2))) + muted.Render(right), m.themedRule(w)}
 	var tabs []string
-	for i, label := range m.tabLabels() {
-		if i == m.ws.Active {
+	labels := m.tabLabels()
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	for _, span := range m.tabSpans() {
+		label := labels[span.Index]
+		if compact {
+			if span.Index == m.ws.Active {
+				if m.settings.ASCII {
+					label = "[ " + label + " ]"
+				} else {
+					label = "◖ " + label + " ◗"
+				}
+			} else {
+				label = " " + label + " "
+			}
+		}
+		label = fit(label, span.End-span.Start)
+		if span.Index == m.ws.Active {
 			label = active.Render(label)
 		} else {
 			label = muted.Render(label)
 		}
 		tabs = append(tabs, label)
 	}
-	lines = append(lines, fit(strings.Join(tabs, lineStyle.Render("│")), w), rule(w))
+	separator := styles.lineStyle.Render("│")
+	if compact && m.settings.ASCII {
+		separator = styles.lineStyle.Render("|")
+	}
+	lines = append(lines, fit(strings.Join(tabs, separator), w), m.themedRule(w))
 	if s.DB == nil {
 		lines = append(lines, "", accent.Render("  Vault locked"), muted.Render("  Enter to unlock with vault credentials."), "", muted.Render("  1–9 switch vault views · Ctrl+O open another vault"))
 		for len(lines) < m.height-2 {
 			lines = append(lines, "")
 		}
-		return append(lines, rule(w), muted.Render("  Enter unlock    Ctrl+W close view    q quit"))
+		return append(lines, m.themedRule(w), muted.Render("  Enter unlock    Ctrl+W close view    q quit"))
 	}
-	lw, cw, rw := m.paneWidths()
-	bodyH := m.height - 6
-	left := m.navLines(lw, bodyH, v.Focus == 0)
-	center := m.entryLines(cw, bodyH, v.Focus == 1)
-	rightLines := m.detailLines(rw, bodyH, v.Focus == 2)
-	if m.editor != nil {
-		rightLines = m.editor.render(rw, bodyH)
-	}
-	for i := 0; i < bodyH; i++ {
-		lines = append(lines, fit(left[i], lw)+lineStyle.Render("│")+fit(center[i], cw)+lineStyle.Render("│")+fit(rightLines[i], rw))
-	}
-	footer := "  1–9 tabs  n new  e edit  c copy  v reveal  / search  ? help"
-	if v.Query != "" {
-		footer = "  Filter: " + safe(v.Query) + " · Esc clear"
-	}
-	if m.searching {
-		footer = "  Search entries: " + safe(m.query.value()) + "▏  Enter apply · Esc cancel"
-	}
+	l := m.layout()
+	lines = append(lines, m.layoutBody(l)...)
+	footer := m.footerText()
 	if m.notice != "" {
 		footer = "  " + m.notice
 	}
@@ -181,29 +206,200 @@ func (m *Model) workspaceLines() []string {
 	if status := m.clipboardStatus(); status != "" {
 		footer += " · " + status
 	}
-	return append(lines, rule(w), muted.Render(fit(footer, w)))
+	return append(lines, m.themedRule(w), muted.Render(fit(footer, w)))
+}
+
+func (m *Model) layoutBody(layout viewLayout) []string {
+	body := make([]string, max(0, layout.BodyHeight))
+	if len(body) == 0 {
+		return body
+	}
+	if layout.Mode == "tiny" || len(layout.Panes) == 0 {
+		return body
+	}
+	styles := m.colors()
+	if layout.Breadcrumb {
+		body[0] = styles.muted.Render(fit(m.layoutBreadcrumb(layout), m.width))
+	}
+	contents := make([][]string, len(layout.Panes))
+	for i, pane := range layout.Panes {
+		focused := false
+		if view := m.ws.ActiveView(); view != nil {
+			focused = view.Focus == pane.Focus
+		}
+		switch pane.Focus {
+		case 0:
+			contents[i] = m.navLines(pane.Width, pane.Height, focused)
+		case 1:
+			contents[i] = m.entryLines(pane.Width, pane.Height, focused)
+		case 2:
+			if m.editor != nil {
+				contents[i] = m.editor.render(pane.Width, pane.Height)
+			} else {
+				contents[i] = m.detailLines(pane.Width, pane.Height, focused)
+			}
+		}
+	}
+	startRow := 0
+	if layout.Breadcrumb {
+		startRow = 1
+	}
+	for row := startRow; row < len(body); row++ {
+		contentRow := row - startRow
+		var parts []string
+		for i, pane := range layout.Panes {
+			line := ""
+			if contentRow < len(contents[i]) {
+				line = contents[i][contentRow]
+			}
+			parts = append(parts, fit(line, pane.Width))
+		}
+		sep := styles.lineStyle.Render("│")
+		if m.settings.ASCII {
+			sep = styles.lineStyle.Render("|")
+		}
+		body[row] = strings.Join(parts, sep)
+	}
+	return body
+}
+
+func (m *Model) layoutBreadcrumb(layout viewLayout) string {
+	view := m.ws.ActiveView()
+	focus := 1
+	if view != nil {
+		focus = min(2, max(0, view.Focus))
+	}
+	if m.editor != nil {
+		focus = 2
+	}
+	names := []string{"Views", "Entries", "Details"}
+	location := names[focus]
+	if view != nil {
+		items := m.navigation()
+		if view.NavIndex >= 0 && view.NavIndex < len(items) {
+			location = safe(items[view.NavIndex].label) + " / " + location
+		}
+	}
+	if focus == 2 {
+		if entry := m.selected(); entry != nil {
+			location = safe(entry.Get("Title")) + " / " + location
+		}
+	}
+	back := "←"
+	if m.settings.ASCII {
+		back = "<"
+	}
+	if layout.Zoomed {
+		return "  " + location + "  ·  Zoomed  ·  Esc restore layout"
+	}
+	return "  " + back + " " + location + "  ·  Tab next pane"
 }
 
 func (m *Model) tabLabels() []string {
+	if m.ws == nil {
+		return nil
+	}
 	var labels []string
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	for i, view := range m.ws.Views {
 		s := m.ws.Sessions[view.SessionID]
-		label := fmt.Sprintf(" %d %s ", i+1, safe(filepath.Base(s.Path)))
+		if s == nil {
+			label := fmt.Sprintf("%d (unavailable)", i+1)
+			if !compact {
+				label = " " + label + " "
+			}
+			labels = append(labels, label)
+			continue
+		}
+		label := fmt.Sprintf("%d %s", i+1, safe(filepath.Base(s.Path)))
 		for _, other := range m.ws.Sessions {
 			if other.ID != s.ID && filepath.Base(other.Path) == filepath.Base(s.Path) {
-				label = fmt.Sprintf(" %d %s (%s) ", i+1, safe(filepath.Base(s.Path)), safe(filepath.Dir(s.Path)))
+				label = fmt.Sprintf("%d %s (%s)", i+1, safe(filepath.Base(s.Path)), safe(filepath.Dir(s.Path)))
 				break
 			}
 		}
 		if s.DB == nil {
-			label += "[locked] "
+			label += " [locked]"
+		}
+		if !compact {
+			label = " " + label + " "
 		}
 		labels = append(labels, label)
 	}
 	return labels
 }
 
+type tabSpan struct{ Index, Start, End int }
+
+func (m *Model) tabSpans() []tabSpan {
+	labels := m.tabLabels()
+	if len(labels) == 0 || m.width <= 0 {
+		return nil
+	}
+	activeIndex := min(len(labels)-1, max(0, m.ws.Active))
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	visible := map[int]string{}
+	display := func(i int) string {
+		label := labels[i]
+		if compact && i == activeIndex {
+			if m.settings.ASCII {
+				return "[ " + label + " ]"
+			}
+			return "◖ " + label + " ◗"
+		}
+		if compact {
+			return " " + label + " "
+		}
+		return label
+	}
+	visible[activeIndex] = display(activeIndex)
+	used := min(m.width, lipgloss.Width(visible[activeIndex]))
+	start, end := activeIndex, activeIndex+1
+	for start > 0 || end < len(labels) {
+		added := false
+		if start > 0 {
+			candidate := display(start - 1)
+			need := lipgloss.Width(candidate) + 1
+			if used+need <= m.width {
+				start--
+				visible[start] = candidate
+				used += need
+				added = true
+			}
+		}
+		if end < len(labels) {
+			candidate := display(end)
+			need := lipgloss.Width(candidate) + 1
+			if used+need <= m.width {
+				visible[end] = candidate
+				used += need
+				end++
+				added = true
+			}
+		}
+		if !added {
+			break
+		}
+	}
+	var spans []tabSpan
+	x := 0
+	for i := start; i < end; i++ {
+		if i != start {
+			x++
+		}
+		width := min(m.width-x, lipgloss.Width(visible[i]))
+		if width <= 0 {
+			break
+		}
+		spans = append(spans, tabSpan{Index: i, Start: x, End: x + width})
+		x += width
+	}
+	return spans
+}
+
 func (m *Model) navLines(width, height int, focused bool) []string {
+	styles := m.colors()
+	accent, muted, active, inactive := styles.accent, styles.muted, styles.active, styles.inactive
 	title := "  Views"
 	if focused {
 		title = accent.Render(title)
@@ -213,12 +409,42 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 	lines := []string{title}
 	v := m.ws.ActiveView()
 	items := m.navigation()
-	visible := max(1, (height-1)/2)
-	start := max(0, v.NavIndex-visible+1)
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	rowHeight := m.navRowHeight()
+	capacity := max(0, (height-1)/rowHeight)
+	start := viewportOffset(v.NavIndex, len(items), capacity, v.NavOffset)
 	for i := start; i < len(items) && len(lines) < height; i++ {
 		item := items[i]
-		label := fit("  "+strings.Repeat("  ", min(item.depth, 5))+safe(item.label), width)
-		count := fmt.Sprintf("  %d entries", len(m.entriesFor(item, "")))
+		countValue := len(m.entriesFor(item, ""))
+		itemLabel := safe(item.label)
+		if v.NavFilter != "" {
+			itemLabel = m.highlightText(item.label, v.NavFilter, "Title")
+		}
+		text := "  " + strings.Repeat("  ", min(item.depth, 5)) + itemLabel
+		label := fit(text, width)
+		count := fmt.Sprintf("  %d entries", countValue)
+		if compact {
+			text := strings.Repeat("  ", min(item.depth, 3)) + itemLabel + fmt.Sprintf("  %d", countValue)
+			if i == v.NavIndex {
+				if m.settings.ASCII {
+					text = "[ " + text + " ]"
+				} else {
+					text = "◖ " + text + " ◗"
+				}
+			}
+			label = fit(text, width)
+			if i == v.NavIndex {
+				if focused {
+					label = active.Render(label)
+				} else {
+					label = inactive.Render(label)
+				}
+			} else {
+				label = muted.Render(label)
+			}
+			lines = append(lines, label)
+			continue
+		}
 		if i == v.NavIndex {
 			if focused {
 				label = active.Render(label)
@@ -239,6 +465,8 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 }
 
 func (m *Model) entryLines(width, height int, focused bool) []string {
+	styles := m.colors()
+	accent, muted, active, inactive := styles.accent, styles.muted, styles.active, styles.inactive
 	tw := max(7, width*40/100)
 	uw := max(5, width*27/100)
 	urlw := max(0, width-tw-uw)
@@ -269,10 +497,28 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 		}
 		return padLines(lines, height)
 	}
-	for i := v.EntryOffset; i < len(entries) && len(lines) < height; i++ {
+	selectedIndex := -1
+	for i := range entries {
+		if entries[i].UUID == v.SelectedUUID {
+			selectedIndex = i
+			break
+		}
+	}
+	capacity := max(1, height-1)
+	start := v.EntryOffset
+	if selectedIndex >= 0 {
+		start = viewportOffset(selectedIndex, len(entries), capacity, v.EntryOffset)
+	}
+	for i := start; i < len(entries) && len(lines) < height; i++ {
 		e := entries[i]
 		url := strings.TrimPrefix(strings.TrimPrefix(visibleField(e, "URL"), "https://"), "http://")
-		text := row(visibleField(e, "Title"), visibleField(e, "UserName"), url)
+		title, username := visibleField(e, "Title"), visibleField(e, "UserName")
+		if v.Query != "" {
+			title = m.highlightText(title, v.Query, "Title")
+			username = m.highlightText(username, v.Query, "UserName")
+			url = m.highlightText(url, v.Query, "URL")
+		}
+		text := row(title, username, url)
 		if e.UUID == v.SelectedUUID {
 			if focused {
 				text = active.Render(text)
@@ -286,6 +532,7 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 }
 
 func (m *Model) detailLines(width, height int, focused bool) []string {
+	accent := m.colors().accent
 	lines := m.detailContent(width)
 	if focused && len(lines) > 0 {
 		lines[0] = accent.Render(ansi.Strip(lines[0]))
@@ -304,6 +551,8 @@ func (m *Model) detailContent(width int) []string {
 }
 
 func (m *Model) detailLayout(width int) ([]string, []int) {
+	styles := m.colors()
+	muted, active := styles.muted, styles.active
 	e := m.selected()
 	if e == nil {
 		return []string{muted.Render("  Select an entry")}, nil
@@ -314,7 +563,7 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 	if !e.Modified.IsZero() {
 		lines = append(lines, muted.Render("  Modified "+e.Modified.Local().Format("2006-01-02")))
 	}
-	lines = append(lines, muted.Render("  "+safe(e.GroupPath)), rule(width))
+	lines = append(lines, muted.Render("  "+safe(e.GroupPath)), m.themedRule(width))
 	names := m.fieldNames()
 	var positions []int
 	for index, name := range names {
@@ -362,17 +611,19 @@ func padLines(lines []string, height int) []string {
 }
 
 func (m *Model) box(title string, body []string, footer string) []string {
+	styles := m.colors()
+	accent, muted := styles.accent, styles.muted
 	width := min(m.width-6, 82)
 	inner := width - 4
 	maxBody := max(1, m.height-8)
 	if len(body) > maxBody {
 		body = body[:maxBody]
 	}
-	content := []string{accent.Render("  " + title), rule(width)}
+	content := []string{accent.Render("  " + title), m.themedRule(width)}
 	for _, line := range body {
 		content = append(content, "  "+fit(line, inner))
 	}
-	content = append(content, rule(width), muted.Render("  "+footer))
+	content = append(content, m.themedRule(width), muted.Render("  "+footer))
 	left := max(0, (m.width-width)/2)
 	top := max(0, (m.height-len(content))/2)
 	lines := make([]string, top)
@@ -383,6 +634,8 @@ func (m *Model) box(title string, body []string, footer string) []string {
 }
 
 func (m *Model) unlockLines() []string {
+	styles := m.colors()
+	accent, muted, errorStyle := styles.accent, styles.muted, styles.errorStyle
 	body := []string{muted.Render(safe(m.path)), ""}
 	labels := []string{"Password", "Key file (optional)", "Hardware slot (optional, e.g. 1)", "Password authentication"}
 	for i, label := range labels {
@@ -417,13 +670,14 @@ func (m *Model) unlockLines() []string {
 }
 
 func (m *Model) pickerLines() []string {
+	styles := m.colors()
+	accent, muted, active, inactive, errorStyle := styles.accent, styles.muted, styles.active, styles.inactive, styles.errorStyle
 	pathLine := muted.Render(m.inputs[0].display(false))
 	if m.pickerEditing {
 		pathLine = accent.Render(m.inputs[0].display(false) + "▏")
 	}
 	body := []string{muted.Render("Path · Tab to edit, or type/paste a new path"), pathLine, ""}
-	capacity := max(1, m.height-16)
-	start := max(0, m.fileIndex-capacity+1)
+	start, capacity := m.fileViewport()
 	for i := start; i < len(m.files) && i < start+capacity; i++ {
 		f := m.files[i]
 		name := safe(f.name)
@@ -452,9 +706,9 @@ func (m *Model) pickerLines() []string {
 }
 
 func (m *Model) helpLines() []string {
-	body := []string{
-		"Ctrl+O          Open another vault", "Ctrl+T          Duplicate current view", "1–9 / Alt+1–9   Switch view (outside text input)", "Ctrl+W          Close current view", "Ctrl+L / L      Lock current / all vaults", "Tab / Shift+Tab Next / previous pane or field", "↑↓ / j k        Select row / field", "←→ / h l        Focus pane", "/ or Ctrl+F     Search entry fields", "n / e           New / edit entry", "g               New group", "m / r           Move / restore entry", "d               Delete entry/group", "c / v           Copy / timed reveal field", "Ctrl+G          Password generator", "Ctrl+S          Save entry draft", "Ctrl+R / R      Reload / toggle read only", "Esc             Clear filter / cancel / go back", "q / Ctrl+C      Quit (letters type normally in inputs)", "", muted.Render("Encrypted backup before every write"),
-	}
+	muted := m.colors().muted
+	body := m.helpActionLines()
+	body = append(body, "", muted.Render("Encrypted backup before every write"))
 	if m.backendVersion != "" {
 		body = append(body, muted.Render("Backend: "+m.backendVersion))
 	}

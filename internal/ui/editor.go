@@ -38,6 +38,7 @@ var editorFields = [...]string{"Title", "UserName", "Password", "URL", "Notes"}
 // an entry. The password is kept in its own rune buffer and never enters the
 // values map.
 type entryEditor struct {
+	styles           *styleSet
 	inputs           [5]input
 	original         map[string]string
 	originalPassword []rune
@@ -309,7 +310,7 @@ func (e *entryEditor) render(width, height int) []string {
 		return nil
 	}
 	if e == nil {
-		return padLines([]string{muted.Render("Editor unavailable")}, height)
+		return padLines([]string{defaultStyles.muted.Render("Editor unavailable")}, height)
 	}
 	lines := e.layoutLines(width, height)
 	out := make([]string, len(lines))
@@ -340,34 +341,35 @@ func (e *entryEditor) layoutLines(width, height int) []editorLine {
 }
 
 func (e *entryEditor) renderLines(title string, width, height int) []editorLine {
-	lines := []editorLine{{text: accent.Render(title), focus: -1}, {text: rule(width), focus: -1}}
+	styles := e.styleSet()
+	lines := []editorLine{{text: styles.accent.Render(title), focus: -1}, {text: styles.rule(width), focus: -1}}
 	for i, name := range editorFields {
 		label := editorLabel(name)
 		if e.fieldDirty(i) {
 			label += " *"
 		}
 		if i == e.focus {
-			label = accent.Render(label)
+			label = styles.accent.Render(label)
 		} else {
-			label = muted.Render(label)
+			label = styles.muted.Render(label)
 		}
 		lines = append(lines, editorLine{text: label, focus: i})
 		valueLines, cursorLine := e.renderValue(i, max(1, width-2))
 		for j, value := range valueLines {
 			if i == e.focus && j == cursorLine {
-				value = accent.Render("› " + value)
+				value = styles.accent.Render("› " + value)
 			} else {
 				value = "  " + value
 			}
 			lines = append(lines, editorLine{text: value, focus: i})
 		}
 		if e.validation != "" && e.validationFocus == i {
-			lines = append(lines, editorLine{text: errorStyle.Render(e.validation), focus: i})
+			lines = append(lines, editorLine{text: styles.errorStyle.Render(e.validation), focus: i})
 		}
 	}
 	for _, field := range e.readonlyFields {
 		label := safe(field.Name) + " (read only)"
-		lines = append(lines, editorLine{text: muted.Render(label), focus: -1})
+		lines = append(lines, editorLine{text: styles.muted.Render(label), focus: -1})
 		value := field.Value
 		if field.Protected {
 			value = strings.Repeat("•", len([]rune(value)))
@@ -386,16 +388,16 @@ func (e *entryEditor) renderLines(title string, width, height int) []editorLine 
 		label string
 		index int
 	}{{"Generate password", editGenerate}, {"Save", editSave}, {"Cancel", editCancel}} {
-		text := muted.Render("  " + action.label)
+		text := styles.muted.Render("  " + action.label)
 		if action.index == e.focus {
-			text = active.Render("› " + action.label)
+			text = styles.active.Render("› " + action.label)
 		}
 		lines = append(lines, editorLine{text: text, focus: action.index})
 	}
 	if e.err != "" && e.validation == "" {
-		lines = append(lines, editorLine{text: errorStyle.Render(e.err), focus: -1})
+		lines = append(lines, editorLine{text: styles.errorStyle.Render(e.err), focus: -1})
 	}
-	lines = append(lines, editorLine{text: rule(width), focus: -1}, editorLine{text: muted.Render(editorFooter(width)), focus: -1})
+	lines = append(lines, editorLine{text: styles.rule(width), focus: -1}, editorLine{text: styles.muted.Render(editorFooter(width)), focus: -1})
 
 	focusedLine := 0
 	for i, line := range lines {
@@ -414,6 +416,13 @@ func (e *entryEditor) renderLines(title string, width, height int) []editorLine 
 		lines = append(lines, editorLine{focus: -1})
 	}
 	return lines
+}
+
+func (e *entryEditor) styleSet() *styleSet {
+	if e != nil && e.styles != nil {
+		return e.styles
+	}
+	return &defaultStyles
 }
 
 func renderEditorViewport(lines []editorLine, focusedLine, focus, height int) []editorLine {

@@ -17,6 +17,21 @@ type Session struct {
 	ReadOnly     bool
 	Stale        bool
 	LastActivity time.Time
+	Usage        map[string]Access
+	Searches     []SearchRecord
+	Destinations []string
+}
+
+type Access struct {
+	Count int
+	Last  time.Time
+}
+
+type SearchRecord struct {
+	ID        string
+	Query     string
+	NavKey    string
+	GroupUUID string
 }
 
 type View struct {
@@ -31,6 +46,14 @@ type View struct {
 	DetailOffset int
 	DetailManual bool
 	FieldIndex   int
+	NavKey       string
+	NavFilter    string
+	DetailFilter string
+	NavOffset    int
+	NavWidth     int
+	DetailWidth  int
+	Zoom         bool
+	QueryScope   string
 }
 
 type Workspace struct {
@@ -73,7 +96,7 @@ func (w *Workspace) Open(db *vault.Database) (reused bool) {
 			}
 		}
 	} else {
-		session = &Session{ID: w.id("session"), Path: path, DB: db, ReadOnly: true, LastActivity: time.Now()}
+		session = &Session{ID: w.id("session"), Path: path, DB: db, ReadOnly: true, LastActivity: time.Now(), Usage: make(map[string]Access)}
 		w.Sessions[session.ID] = session
 	}
 	w.Views = append(w.Views, View{ID: w.id("view"), SessionID: session.ID, GroupUUID: db.RootUUID})
@@ -170,6 +193,87 @@ func (w *Workspace) SetCredentials(sessionID string, credentials vault.Credentia
 	return true
 }
 
+func (w *Workspace) RecordAccess(sessionID, entryUUID string, now time.Time) bool {
+	session := w.Sessions[sessionID]
+	if session == nil || session.DB == nil || entryUUID == "" {
+		return false
+	}
+	found := false
+	for _, entry := range session.DB.Entries {
+		if entry.UUID == entryUUID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return false
+	}
+	if session.Usage == nil {
+		session.Usage = make(map[string]Access)
+	}
+	access := session.Usage[entryUUID]
+	if access.Count < int(^uint(0)>>1) {
+		access.Count++
+	}
+	access.Last = now
+	session.Usage[entryUUID] = access
+	return true
+}
+
+func (w *Workspace) RecordSearch(sessionID, query, navKey, groupUUID string) string {
+	session := w.Sessions[sessionID]
+	if session == nil || query == "" {
+		return ""
+	}
+	for i := range session.Searches {
+		record := session.Searches[i]
+		if record.Query == query && record.NavKey == navKey && record.GroupUUID == groupUUID {
+			copy(session.Searches[1:i+1], session.Searches[0:i])
+			session.Searches[0] = record
+			return record.ID
+		}
+	}
+	record := SearchRecord{ID: w.id("search"), Query: query, NavKey: navKey, GroupUUID: groupUUID}
+	if len(session.Searches) < 20 {
+		session.Searches = append(session.Searches, SearchRecord{})
+	}
+	if len(session.Searches) > 0 {
+		copy(session.Searches[1:], session.Searches[:len(session.Searches)-1])
+		session.Searches[0] = record
+	}
+	return record.ID
+}
+
+func (w *Workspace) RemoveSearch(sessionID, recordID string) bool {
+	session := w.Sessions[sessionID]
+	if session == nil || recordID == "" {
+		return false
+	}
+	for i := range session.Searches {
+		if session.Searches[i].ID != recordID {
+			continue
+		}
+		last := len(session.Searches) - 1
+		copy(session.Searches[i:], session.Searches[i+1:])
+		session.Searches[last] = SearchRecord{}
+		session.Searches = session.Searches[:last]
+		return true
+	}
+	return false
+}
+
+func (w *Workspace) ClearSearches(sessionID string) bool {
+	session := w.Sessions[sessionID]
+	if session == nil {
+		return false
+	}
+	for i := range session.Searches {
+		session.Searches[i] = SearchRecord{}
+	}
+	session.Searches = nil
+	return true
+}
+
 func (w *Workspace) LockSession(sessionID string) bool {
 	session := w.Sessions[sessionID]
 	if session == nil {
@@ -183,11 +287,15 @@ func (w *Workspace) LockSession(sessionID string) bool {
 	for i := range w.Views {
 		if w.Views[i].SessionID == sessionID {
 			w.Views[i].Query = ""
+			w.Views[i].QueryScope = ""
+			w.Views[i].NavFilter = ""
+			w.Views[i].DetailFilter = ""
 			w.Views[i].DetailOffset = 0
 			w.Views[i].DetailManual = false
 			w.Views[i].FieldIndex = 0
 		}
 	}
+	clearSessionMemory(session)
 	return true
 }
 
@@ -211,6 +319,7 @@ func (w *Workspace) CloseVault() bool {
 		session.DB = nil
 	}
 	session.Credentials.Clear()
+	clearSessionMemory(session)
 	oldLen := len(w.Views)
 	kept := w.Views[:0]
 	newActive := 0
@@ -253,6 +362,7 @@ func (w *Workspace) Close() {
 				session.DB = nil
 			}
 			session.Credentials.Clear()
+			clearSessionMemory(session)
 		}
 	}
 	w.Views = nil
@@ -272,8 +382,22 @@ func (w *Workspace) cleanupSession(id string) {
 			session.DB = nil
 		}
 		session.Credentials.Clear()
+		clearSessionMemory(session)
 		delete(w.Sessions, id)
 	}
+}
+
+func clearSessionMemory(session *Session) {
+	if session == nil {
+		return
+	}
+	clear(session.Usage)
+	session.Destinations = nil
+	session.Usage = nil
+	for i := range session.Searches {
+		session.Searches[i] = SearchRecord{}
+	}
+	session.Searches = nil
 }
 
 func (w *Workspace) id(kind string) string {

@@ -32,7 +32,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	backend := flags.String("backend", "keepassxc-cli", "KeePassXC CLI executable")
 	showVersion := flags.Bool("version", false, "print version and exit")
 	readOnly := flags.Bool("read-only", false, "open vaults read only")
-	idle := flags.Duration("idle-timeout", 0, "full-lock idle timeout (default 15m or config)")
+	idle := flags.Duration("idle-timeout", 0, "idle protection timeout (default 15m or config)")
 	clipTimeout := flags.Duration("clipboard-timeout", 0, "clipboard timeout (default 10s or config)")
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "Usage: keepassui [options] [vault.kdbx]\n\nKeePass vault workspace; encrypted backups before writes.")
@@ -52,6 +52,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return fmt.Errorf("expected at most one vault path")
 	}
 	var store ui.RecentStore
+	var saveSettings func(platform.Settings) error
 	settings := platform.Settings{IdleTimeout: 15 * time.Minute, ClipboardTimeout: 10 * time.Second}
 	warning := ""
 	if paths, err := platform.Resolve(); err == nil {
@@ -60,6 +61,12 @@ func run(args []string, stdout, stderr io.Writer) error {
 		settings, err = platform.LoadSettings(paths)
 		if err != nil {
 			warning = "Invalid settings; using defaults."
+		}
+		persisted := settings
+		saveSettings = func(value platform.Settings) error {
+			preferences := persisted
+			preferences.Theme, preferences.Appearance, preferences.ASCII = value.Theme, value.Appearance, value.ASCII
+			return platform.SaveSettings(paths, preferences)
 		}
 	} else {
 		warning = "Local state unavailable; writes disabled until a backup location is available."
@@ -83,7 +90,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	m := ui.New(ui.Options{Backend: vault.NewCLI(*backend), Store: store, InitialPath: path, Context: ctx, Settings: settings, ReadOnly: *readOnly, Clipboard: clipboard.New(clipboard.NewSystem()), Warning: warning})
+	m := ui.New(ui.Options{Backend: vault.NewCLI(*backend), Store: store, InitialPath: path, Context: ctx, Settings: settings, ReadOnly: *readOnly, Clipboard: clipboard.New(clipboard.NewSystem()), Warning: warning, SaveSettings: saveSettings})
 	defer func() {
 		m.Close()
 		if m.CleanupError() != nil {

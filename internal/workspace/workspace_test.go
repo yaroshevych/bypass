@@ -3,6 +3,7 @@ package workspace
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -233,6 +234,7 @@ func TestLockSessionAndLockAllClearCredentialsAcrossViews(t *testing.T) {
 		w.Views[i].Query = "search term"
 		w.Views[i].DetailOffset = 3
 		w.Views[i].FieldIndex = 2
+		w.Views[i].QueryScope = "query scope secret"
 		w.Views[i].SelectedUUID = "selected-entry"
 	}
 	if !w.LockSession(firstID) {
@@ -242,7 +244,7 @@ func TestLockSessionAndLockAllClearCredentialsAcrossViews(t *testing.T) {
 		t.Fatal("LockSession did not clear DB and credential bytes")
 	}
 	for _, view := range w.Views {
-		if view.SessionID == firstID && (view.Query != "" || view.DetailOffset != 0 || view.FieldIndex != 0 || view.SelectedUUID != "selected-entry") {
+		if view.SessionID == firstID && (view.Query != "" || view.QueryScope != "" || view.DetailOffset != 0 || view.FieldIndex != 0 || view.SelectedUUID != "selected-entry") {
 			t.Fatalf("LockSession retained query/detail or erased selection UUID: %#v", view)
 		}
 	}
@@ -303,5 +305,107 @@ func TestActivityTimestampChangesOnCredentialAndDatabaseOperations(t *testing.T)
 	old := session.DB
 	if !w.ReplaceDatabase(session.ID, database(session.Path, "reloaded", "root")) || old.Entries != nil {
 		t.Fatal("database activity did not replace and clear previous database")
+	}
+}
+
+func TestPreviewSettingsDuplicateIndependently(t *testing.T) {
+	w := New()
+	w.Open(database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root"))
+	view := w.ActiveView()
+	view.NavKey = "favorites"
+	view.NavFilter = "private nav filter"
+	view.DetailFilter = "private detail filter"
+	view.NavOffset, view.NavWidth, view.DetailWidth = 7, 31, 45
+	view.Zoom = true
+	view.QueryScope = "group-only"
+	if !w.Duplicate() {
+		t.Fatal("Duplicate failed")
+	}
+	duplicate := w.ActiveView()
+	if duplicate.NavKey != view.NavKey || duplicate.NavFilter != view.NavFilter || duplicate.DetailFilter != view.DetailFilter ||
+		duplicate.NavOffset != view.NavOffset || duplicate.NavWidth != view.NavWidth || duplicate.DetailWidth != view.DetailWidth || !duplicate.Zoom || duplicate.QueryScope != view.QueryScope {
+		t.Fatalf("duplicate did not copy preview/view state: %#v", duplicate)
+	}
+	duplicate.NavFilter = "changed"
+	if view.NavFilter != "private nav filter" {
+		t.Fatalf("duplicated view state aliases original: %#v", view)
+	}
+}
+
+func TestUsageSearchHistoryDedupLimitRemovalAndLockCleanup(t *testing.T) {
+	w := New()
+	db := database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root")
+	db.Entries = append(db.Entries, vault.Entry{UUID: "entry-two"})
+	w.Open(db)
+	session := w.ActiveSession()
+	now := time.Date(2026, 6, 7, 8, 9, 10, 0, time.UTC)
+	if w.RecordAccess(session.ID, "missing", now) {
+		t.Fatal("RecordAccess accepted a nonexistent entry")
+	}
+	if !w.RecordAccess(session.ID, "entry", now) || !w.RecordAccess(session.ID, "entry", now.Add(time.Minute)) {
+		t.Fatal("RecordAccess failed for an existing entry")
+	}
+	access := session.Usage["entry"]
+	if access.Count != 2 || !access.Last.Equal(now.Add(time.Minute)) {
+		t.Fatalf("access stats = %#v", access)
+	}
+	if len(session.Usage) != 1 {
+		t.Fatalf("nonexistent entry created access state: %#v", session.Usage)
+	}
+	ids := make(map[string]string)
+	for i := 0; i < 21; i++ {
+		query := "query-" + strconv.Itoa(i)
+		ids[query] = w.RecordSearch(session.ID, query, "all", "")
+	}
+	if len(session.Searches) != 20 || session.Searches[0].Query != "query-20" || session.Searches[19].Query != "query-1" {
+		t.Fatalf("search history size/order = %d, %#v", len(session.Searches), session.Searches)
+	}
+	if got := w.RecordSearch(session.ID, "query-10", "all", ""); got != ids["query-10"] || session.Searches[0].Query != "query-10" || len(session.Searches) != 20 {
+		t.Fatal("duplicate search was not moved to newest position")
+	}
+	if !w.RemoveSearch(session.ID, ids["query-10"]) || w.RemoveSearch(session.ID, "missing") {
+		t.Fatal("RemoveSearch returned wrong result")
+	}
+	backing := session.Searches
+	if !w.ClearSearches(session.ID) || len(session.Searches) != 0 {
+		t.Fatal("ClearSearches failed")
+	}
+	for _, record := range backing {
+		if record != (SearchRecord{}) {
+			t.Fatalf("search backing slot retained data: %#v", record)
+		}
+	}
+
+	view := w.ActiveView()
+	view.NavFilter, view.DetailFilter = "nav secret", "detail secret"
+	w.RecordSearch(session.ID, "remembered query", "all", "")
+	if !w.LockSession(session.ID) {
+		t.Fatal("LockSession failed")
+	}
+	if len(session.Usage) != 0 || len(session.Searches) != 0 || view.NavFilter != "" || view.DetailFilter != "" {
+		t.Fatal("full session lock retained usage/search/filter state")
+	}
+}
+
+func TestRefreshPreservesUsageAndSearchHistory(t *testing.T) {
+	w := New()
+	db := database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root")
+	w.Open(db)
+	session := w.ActiveSession()
+	w.RecordAccess(session.ID, "entry", time.Now())
+	w.RecordSearch(session.ID, "query", "all", "")
+	updated := database(db.Path, "updated", "root")
+	if !w.ReplaceDatabase(session.ID, updated) || session.Usage["entry"].Count != 1 || len(session.Searches) != 1 {
+		t.Fatal("database replacement lost session usage/history")
+	}
+}
+
+func TestActivityCountSaturates(t *testing.T) {
+	w := New()
+	w.Open(database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root"))
+	session := w.ActiveSession()
+	session.Usage = map[string]Access{"entry": {Count: int(^uint(0) >> 1)}}
+	if !w.RecordAccess(session.ID, "entry", time.Now()) || session.Usage["entry"].Count != int(^uint(0)>>1) {
+		t.Fatal("access count overflowed")
 	}
 }

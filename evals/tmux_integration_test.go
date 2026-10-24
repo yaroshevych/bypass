@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -78,7 +79,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	e.key("S-Tab")
 
 	// Search can be cleared after an empty result without closing the vault.
-	e.key("/")
+	e.key("C-f")
 	e.typeText("query-with-no-eval-match")
 	e.key("Enter")
 	e.mustShow("No matches")
@@ -186,7 +187,10 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 	e.mustShow("Edit Entry *", "Password *")
 	e.mustNotShow(fixtureEntryPassword)
 	e.key("C-s")
-	e.mustShowWrite("n new", "Eval Created Edited")
+	e.waitForWithin(20*time.Second, "edited entry saved", func() bool {
+		screen := e.capture()
+		return strings.Contains(screen, "Eval Created Edited") && strings.Contains(screen, "Saved. Encrypted backup created.") && !strings.Contains(screen, "Edit Entry")
+	})
 
 	// Unsaved Esc defaults to Cancel. Left selects Discard; Enter removes the
 	// draft without writing it.
@@ -213,7 +217,7 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 	for i := 0; i < 8; i++ {
 		e.key("Up")
 	}
-	e.key("/")
+	e.key("C-f")
 	e.typeText("Eval Created Edited")
 	e.key("Enter")
 	e.mustShow("Eval Created Edited")
@@ -274,6 +278,177 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 
 	e.key("q")
 	e.waitForCleanQuit()
+}
+
+func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("tmux evals use Unix process and shell behavior")
+	}
+	e := newEval(t)
+	defer e.close()
+	e.start()
+	e.openPathBySelection()
+	e.typeText(fixturePassword)
+	e.key("Enter")
+	e.mustShow("Eval Entry", "Read only", "entries")
+	e.mustNotShow(secretSentinel)
+
+	// Command palette can preview a nested theme and restore the original
+	// appearance on Escape, then commit a different theme and compact layout.
+	e.key("C-p")
+	e.typeText("Choose Theme")
+	e.key("Enter")
+	e.mustShow("Choose Theme", "Macchiato")
+	e.typeText("Tokyo Night")
+	e.mustShow("Tokyo Night")
+	e.key("Escape")
+	e.waitFor("theme preview cancel to return to commands", func() bool {
+		screen := e.capture()
+		return strings.Contains(screen, "Commands") && !strings.Contains(screen, "Commands › Choose Theme")
+	})
+	e.key("Escape")
+	e.waitFor("palette cancel to close", func() bool {
+		return !strings.Contains(e.capture(), "Commands")
+	})
+	e.key("C-p")
+	e.typeText("Choose Theme")
+	e.key("Enter")
+	e.mustShow("Choose Theme")
+	e.typeText("Nord")
+	e.mustShow("Nord")
+	e.key("Enter")
+	e.mustShow("Preferences saved.")
+	e.mustSettingsContain("\"theme\": \"nord\"")
+
+	e.key("C-p")
+	e.typeText("Compact")
+	e.key("Enter")
+	e.mustShow("Choose Appearance", "Compact")
+	e.typeText("Compact")
+	e.key("Enter")
+	e.mustShow("Eval Entry", "◖", "◗", "Preferences saved.")
+	e.mustSettingsContain("\"appearance\": \"compact\"")
+
+	// Jumping to Password selects its detail without revealing its protected
+	// value. Read-only edits report a reason instead of opening an editor.
+	e.key("J")
+	e.key("p")
+	e.mustShow("Eval Entry", "Password", "••••••••")
+	e.mustNotShow(secretSentinel)
+	e.key("n")
+	e.mustShow("Read only: enable writes with R first.")
+	e.mustNotShow("New Entry")
+
+	// Ctrl+F searches all entries even when details have focus. Fuzzy matches
+	// are underlined, and an accepted query is recorded in Recent Searches.
+	e.key("C-f")
+	e.typeText("evl")
+	e.key("Enter")
+	e.mustShow("Eval Entry", "evl")
+	e.mustShowUnderline("Eval Entry")
+	e.key("C-f")
+	e.key("C-u")
+	e.typeText("query-with-no-eval-match")
+	e.mustShow("No matches")
+	e.key("Escape")
+	e.mustShow("Eval Entry", "evl")
+	e.key("Left") // sidebar
+	for i := 0; i < 7; i++ {
+		e.key("Down")
+	}
+	e.mustShow("Recent Searches", "evl")
+	for i := 0; i < 7; i++ {
+		e.key("Up")
+	}
+	e.mustShow("All Entries", "Eval Entry")
+
+	// The same entry remains reachable in wide, medium, and narrow layouts.
+	e.resize(90, 25)
+	e.mustDimensions(90, 25)
+	e.mustShow("Eval Entry")
+	e.resize(60, 20)
+	e.mustDimensions(60, 20)
+	e.mustShow("Eval Entry", "All Entries")
+	e.key("Right")
+	e.mustShow("Eval Entry", "Entries")
+	e.key("Tab")
+	e.mustShow("Eval Entry", "Details", "Password", "••••••••")
+	e.key("Left")
+	e.key("Enter")
+	e.mustShow("Eval Entry", "Details", "Password", "••••••••")
+	e.resize(120, 35)
+	e.mustDimensions(120, 35)
+	e.mustShow("Eval Entry")
+	e.resize(20, 5)
+	e.mustDimensions(20, 5)
+	e.mustShow("Terminal too small")
+	e.resize(120, 35)
+	e.mustDimensions(120, 35)
+	e.mustShow("Eval Entry")
+
+	// Set a session PIN, protect the screen, verify keyboard shortcuts cannot
+	// expose the workspace, then unlock with the PIN after the throttle clears.
+	e.key("C-p")
+	e.typeText("Set Session PIN")
+	e.key("Enter")
+	e.typeText("1234")
+	e.key("Enter")
+	e.mustShow("Confirm Session PIN")
+	e.typeText("1234")
+	e.key("Enter")
+	e.mustShow("Session PIN set.")
+	e.key("C-k")
+	e.mustShow("Screen protected")
+	e.mustNotShow("Eval Entry")
+	e.mustNotShow("first.kdbx")
+	e.key("1")
+	e.key("C-o")
+	e.mustShow("Screen protected")
+	e.mustNotShow("Eval Entry")
+	e.mustNotShow("Open Vault")
+	e.typeText("0000")
+	e.key("Enter")
+	e.mustShow("Incorrect PIN.")
+	e.waitFor("PIN retry window to expire", func() bool {
+		screen := e.capture()
+		return strings.Contains(screen, "Incorrect PIN.") && !strings.Contains(screen, "Try again in")
+	})
+	e.typeText("1234")
+	e.key("Enter")
+	e.mustShow("Eval Entry", "Read only")
+
+	// Full lock uses the vault credential path and does not require the session
+	// PIN again after the master password unlocks the vault.
+	e.key("C-k")
+	e.mustShow("Screen protected")
+	e.key("C-l")
+	e.mustShow("Full lock all vaults?")
+	e.mustNotShow("Eval Entry")
+	e.key("Enter")
+	e.mustShow("Vault locked")
+	e.mustNotShow("Eval Entry")
+	e.key("Enter")
+	e.mustShow("Unlock Vault", "Password")
+	e.typeText(fixturePassword)
+	e.key("Enter")
+	e.mustShow("Eval Entry", "Read only")
+	e.mustNotShow(secretSentinel)
+	e.key("q")
+	e.waitForCleanQuit()
+
+	// Restart against the same private XDG config to confirm the applied theme
+	// and compact appearance survive process exit.
+	restarted := *e
+	restarted.label = fmt.Sprintf("kui%d", time.Now().UnixNano()%1_000_000_000)
+	restarted.closed = false
+	restarted.startWith(filepath.Join(e.root, "fake-keepassxc-cli"), "--read-only", e.db1)
+	restarted.mustShow("Unlock Vault")
+	restarted.typeText(fixturePassword)
+	restarted.key("Enter")
+	restarted.mustShow("Eval Entry", "◖", "◗", "Read only")
+	restarted.key("q")
+	restarted.waitForCleanQuit()
+	restarted.close()
 }
 
 func TestMilestone2IdleLockTimeout(t *testing.T) {
@@ -383,7 +558,7 @@ func (e *evalSession) startWith(backend string, appArgs ...string) {
 		" XDG_STATE_HOME=" + shellQuote(filepath.Join(e.root, "xdg-state")) +
 		" XDG_CACHE_HOME=" + shellQuote(filepath.Join(e.root, "xdg-cache")) +
 		" XDG_RUNTIME_DIR=" + shellQuote(filepath.Join(e.root, "xdg-runtime")) +
-		" TERM=xterm-256color LC_ALL=C.UTF-8 " + command + "\n"
+		" NO_COLOR= CLICOLOR_FORCE=1 TERM=xterm-256color LC_ALL=C.UTF-8 " + command + "\n"
 	if err := os.WriteFile(launcher, []byte(script), 0700); err != nil {
 		e.t.Fatal("write application launcher:", err)
 	}
@@ -507,6 +682,39 @@ func (e *evalSession) mustNotShow(value string) {
 	}
 }
 
+func (e *evalSession) mustSettingsContain(value string) {
+	e.t.Helper()
+	path := filepath.Join(e.root, "xdg-config", "keepassui", "config.json")
+	e.waitFor("settings file to contain "+value, func() bool {
+		contents, err := os.ReadFile(path)
+		return err == nil && strings.Contains(string(contents), value)
+	})
+}
+
+func (e *evalSession) mustShowUnderline(value string) {
+	e.t.Helper()
+	deadline := time.Now().Add(4 * time.Second)
+	for time.Now().Before(deadline) {
+		screen := e.captureEscaped()
+		if strings.Contains(e.capture(), value) && hasUnderlineSGR(screen) {
+			return
+		}
+		time.Sleep(40 * time.Millisecond)
+	}
+	e.failWithScreen("search result did not include an ANSI underline", e.capture())
+}
+
+func hasUnderlineSGR(screen string) bool {
+	for _, match := range regexp.MustCompile(`\x1b\[([0-9;]*)m`).FindAllStringSubmatch(screen, -1) {
+		for _, parameter := range strings.Split(match[1], ";") {
+			if parameter == "4" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (e *evalSession) waitFor(description string, condition func() bool) {
 	e.waitForWithin(4*time.Second, description, condition)
 }
@@ -527,6 +735,15 @@ func (e *evalSession) capture() string {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "tmux", "-L", e.label, "capture-pane", "-p", "-t", "eval")
+	cmd.Env = tmuxEnv(e.label)
+	out, _ := cmd.Output()
+	return string(out)
+}
+
+func (e *evalSession) captureEscaped() string {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "tmux", "-L", e.label, "capture-pane", "-e", "-p", "-t", "eval")
 	cmd.Env = tmuxEnv(e.label)
 	out, _ := cmd.Output()
 	return string(out)

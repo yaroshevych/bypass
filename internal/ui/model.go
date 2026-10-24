@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"keepassui/internal/clipboard"
 	"keepassui/internal/platform"
+	"keepassui/internal/privacy"
 	"keepassui/internal/vault"
 	"keepassui/internal/workspace"
 )
@@ -23,15 +24,16 @@ type RecentStore interface {
 }
 
 type Options struct {
-	Backend     vault.Backend
-	Store       RecentStore
-	InitialPath string
-	Context     context.Context
-	Settings    platform.Settings
-	Clipboard   *clipboard.Manager
-	ReadOnly    bool
-	Now         func() time.Time
-	Warning     string
+	Backend      vault.Backend
+	Store        RecentStore
+	InitialPath  string
+	Context      context.Context
+	Settings     platform.Settings
+	Clipboard    *clipboard.Manager
+	ReadOnly     bool
+	Now          func() time.Time
+	Warning      string
+	SaveSettings func(platform.Settings) error
 }
 
 type screen int
@@ -43,6 +45,22 @@ const (
 )
 
 type Model struct {
+	styles                                  styleSet
+	palette                                 *paletteState
+	jump                                    bool
+	gate                                    *privacy.Gate
+	pinInput                                input
+	pinError                                string
+	pinFullLock                             bool
+	saveSettings                            func(platform.Settings) error
+	helpQuery                               input
+	searchColumn                            int
+	searchError                             string
+	dragging                                int
+	dragStartX                              int
+	pickerReturn                            *paletteState
+	searchCache                             *entrySearchCache
+	searchOrigin                            *workspace.View
 	backend                                 vault.Backend
 	store                                   RecentStore
 	ctx                                     context.Context
@@ -54,7 +72,7 @@ type Model struct {
 	noPassword                              bool
 	path, directory                         string
 	files                                   []fileItem
-	fileIndex                               int
+	fileIndex, fileOffset                   int
 	pickerEditing                           bool
 	recent                                  []string
 	recentIndex                             int
@@ -124,6 +142,9 @@ type navItem struct {
 	label, group string
 	depth        int
 	kind         string
+	value        string
+	key          string
+	record       *workspace.SearchRecord
 }
 
 func New(opts Options) *Model {
@@ -137,6 +158,15 @@ func New(opts Options) *Model {
 		m.now = time.Now
 	}
 	m.settings = opts.Settings
+	if m.settings.Theme == "" {
+		m.settings.Theme = "macchiato"
+	}
+	if m.settings.Appearance == "" {
+		m.settings.Appearance = "classic"
+	}
+	m.styles = stylesForTheme(m.settings.Theme)
+	m.gate = privacy.New()
+	m.saveSettings = opts.SaveSettings
 	if m.settings.IdleTimeout <= 0 {
 		m.settings.IdleTimeout = 15 * time.Minute
 	}
@@ -172,6 +202,13 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func (m *Model) Close() {
+	m.closePalette(false)
+	m.gate.Clear()
+	m.pinInput.clear()
+	m.helpQuery.clear()
+	m.searchCache = nil
+	m.searchOrigin = nil
+	m.pickerReturn = nil
 	m.cancelOperation()
 	m.clearEditor()
 	m.clearDialog()
@@ -201,12 +238,18 @@ func (m *Model) Close() {
 func (m *Model) CleanupError() error { return m.cleanupErr }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.searchCache = nil
+	if cmd, ok := m.updateAdvanced(msg); ok {
+		m.adjustViewport()
+		return m, cmd
+	}
 	if cmd, ok := m.updateOperation(msg); ok {
 		m.adjustViewport()
 		return m, cmd
 	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		m.hideReveal()
 		m.width, m.height = msg.Width, msg.Height
 	case probedMsg:
 		m.backendVersion = safe(msg.version)
@@ -225,7 +268,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen != chooseFile || msg.directory != m.directory {
 			break
 		}
-		m.files, m.fileIndex = msg.files, 0
+		m.files, m.fileIndex, m.fileOffset = msg.files, 0, 0
 		if msg.err != nil {
 			m.err = "Cannot list this directory. Enter a vault path directly."
 		}
@@ -292,9 +335,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case tea.MouseMsg:
-		if s := m.ws.ActiveSession(); s != nil && s.DB != nil && m.screen == browse {
-			s.LastActivity = m.now()
-		}
 		cmd := m.pointer(msg)
 		m.touchActive()
 		m.adjustViewport()
@@ -310,13 +350,44 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) touchActive() {
-	if s := m.ws.ActiveSession(); s != nil && s.DB != nil && m.screen == browse {
+	m.syncPrivacyState()
+	if s := m.ws.ActiveSession(); s != nil && s.DB != nil && m.screen == browse && !m.gate.Protected() {
 		s.LastActivity = m.now()
 	}
 }
 
 func (m *Model) key(k tea.KeyMsg) tea.Cmd {
+	m.searchCache = nil
 	key := k.String()
+	if m.layout().Mode == "tiny" {
+		if key == "ctrl+c" {
+			m.Close()
+			return tea.Quit
+		}
+		if key == "q" && !m.gate.Protected() && (m.editor == nil || !m.editor.dirty()) {
+			m.Close()
+			return tea.Quit
+		}
+		return nil
+	}
+	if m.gate.Protected() {
+		return m.pinKey(k)
+	}
+	if m.palette != nil {
+		return m.paletteKey(k)
+	}
+	if m.jump {
+		return m.jumpKey(k)
+	}
+	if m.dialog == nil && m.screen == browse && !m.writing {
+		if key == "ctrl+p" {
+			m.openPalette("actions", false)
+			return nil
+		}
+		if key == "ctrl+k" {
+			return m.protectScreen()
+		}
+	}
 	if key != "v" {
 		m.hideReveal()
 	}
@@ -348,6 +419,9 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 			m.helpOffset = max(0, m.helpOffset-8)
 		case "pgdown":
 			m.helpOffset += 8
+		default:
+			m.helpQuery.update(k)
+			m.helpOffset = 0
 		}
 		if key == "esc" || key == "?" || key == "enter" {
 			m.help = false
@@ -361,29 +435,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		return m.unlockKey(k)
 	}
 	if m.searching {
-		switch key {
-		case "enter":
-			m.searching = false
-			m.query.clear()
-			m.previousQuery = ""
-		case "esc":
-			if v := m.ws.ActiveView(); v != nil {
-				v.Query = m.previousQuery
-			}
-			m.searching = false
-			m.query.clear()
-			m.previousQuery = ""
-			m.normalize()
-		default:
-			m.query.update(k)
-			if v := m.ws.ActiveView(); v != nil {
-				v.Query = m.query.value()
-				v.SelectedUUID = ""
-				v.EntryOffset = 0
-			}
-			m.normalize()
-		}
-		return nil
+		return m.searchKey(k)
 	}
 	switch key {
 	case "q":
@@ -395,18 +447,22 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		m.hideReveal()
 		m.help = true
 		m.helpOffset = 0
+		m.helpQuery.clear()
 		return nil
 	case "ctrl+t":
 		m.ws.Duplicate()
+		m.normalize()
 		return nil
 	case "ctrl+pgup":
 		if n := len(m.ws.Views); n > 0 {
 			m.ws.Switch((m.ws.Active + n - 1) % n)
+			m.normalize()
 		}
 		return nil
 	case "ctrl+pgdown":
 		if n := len(m.ws.Views); n > 0 {
 			m.ws.Switch((m.ws.Active + 1) % n)
+			m.normalize()
 		}
 		return nil
 	case "ctrl+w":
@@ -423,6 +479,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	tabKey := strings.TrimPrefix(key, "alt+")
 	if len(tabKey) == 1 && tabKey[0] >= '1' && tabKey[0] <= '9' {
 		m.ws.Switch(int(tabKey[0] - '1'))
+		m.normalize()
 		m.err = ""
 		return nil
 	}
@@ -511,15 +568,35 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		}
 	case "enter":
 		if v.Focus < 2 {
+			if v.Focus == 1 {
+				if e := m.selected(); e != nil {
+					m.ws.RecordAccess(session.ID, e.UUID, m.now())
+					m.searchCache = nil
+				}
+			}
 			v.Focus++
 		}
 	case "/", "ctrl+f":
-		m.searching = true
-		m.previousQuery = v.Query
-		m.query.set(v.Query)
+		return m.beginSearch(key == "ctrl+f")
 	case "esc":
-		v.Query = ""
+		if m.clearFilter() {
+			break
+		}
+		if m.layout().Mode != "wide" && v.Focus > 0 {
+			v.Focus--
+		}
 		m.normalize()
+	case "J":
+		m.jump = true
+		m.hideReveal()
+	case "z":
+		v.Zoom = !v.Zoom
+	case "[":
+		m.resizeFocused(-2)
+	case "]":
+		m.resizeFocused(2)
+	case "a":
+		m.openPalette("actions", true)
 	}
 	return nil
 }
@@ -668,7 +745,7 @@ func (m *Model) openPicker() tea.Cmd {
 	m.directory = dir
 	m.inputs[0].set(dir + string(os.PathSeparator))
 	m.files = nil
-	m.fileIndex = 0
+	m.fileIndex, m.fileOffset = 0, 0
 	m.pickerEditing = false
 	return listDirectory(dir)
 }
@@ -780,7 +857,7 @@ func (m *Model) fileKey(k tea.KeyMsg) tea.Cmd {
 func (m *Model) changeDirectory(path string) tea.Cmd {
 	m.directory = path
 	m.files = nil
-	m.fileIndex = 0
+	m.fileIndex, m.fileOffset = 0, 0
 	m.pickerEditing = false
 	m.err = ""
 	m.inputs[0].set(path + string(os.PathSeparator))
