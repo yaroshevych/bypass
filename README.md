@@ -25,3 +25,8 @@ config storage (`config.json`); recent paths and backups use state storage.
 
 Grand View alternates character backgrounds in groups of two. Set
 `"grand_view_group_size": 2` in `config.json` to change the group size (positive integer).
+
+`N` creates a vault. Commands include TOTP codes, attachment import/export/replace/remove,
+read-only entry history, database info/settings, and password/key-file changes.
+Existing cipher/KDF settings are read only in the native CLI; new vaults support
+a target unlock delay. Compare/merge is deferred.

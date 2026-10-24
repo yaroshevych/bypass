@@ -291,9 +291,11 @@ func (m *Model) apply(change vault.Change) tea.Cmd {
 		defer snapshot.Clear()
 		defer creds.Clear()
 		defer clear(change.Password)
+		defer clear(change.AttachmentData)
 		db, err := writer.Apply(ctx, snapshot, creds, change, backupDir)
 		// The result carries only metadata needed to restore selection, never password bytes.
 		change.Password = nil
+		change.AttachmentData = nil
 		return appliedMsg{id: id, sessionID: s.ID, db: db, err: err, change: change}
 	}
 }
@@ -367,6 +369,9 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			}
 			return nil, true
 		}
+		if m.extras != nil && m.extras.sessionID == msg.sessionID {
+			m.clearExtras()
+		}
 		if !m.ws.ReplaceDatabase(msg.sessionID, msg.db) {
 			if msg.db != nil {
 				msg.db.Clear()
@@ -407,6 +412,9 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		if msg.err != nil {
 			m.setNotice("Reload failed. Check file access; lock and unlock again if credentials changed.", true)
 			return nil, true
+		}
+		if m.extras != nil && m.extras.sessionID == msg.sessionID {
+			m.clearExtras()
 		}
 		if !m.ws.ReplaceDatabase(msg.sessionID, msg.db) {
 			if msg.db != nil {
@@ -778,6 +786,12 @@ func (m *Model) lockCurrent(all bool) tea.Cmd {
 	return m.clearClipboard()
 }
 func (m *Model) lockSession(id string) {
+	if m.lifecycle != nil && m.lifecycle.sessionID == id {
+		m.clearLifecycle()
+	}
+	if m.extras != nil && m.extras.sessionID == id {
+		m.clearExtras()
+	}
 	if m.clipCancel != nil {
 		m.clipCancel()
 		m.clipCancel = nil
@@ -809,7 +823,7 @@ func (m *Model) lockSession(id string) {
 
 func (m *Model) onTick(now time.Time) tea.Cmd {
 	m.ticks++
-	cmds := []tea.Cmd{nextTick()}
+	cmds := []tea.Cmd{nextTick(), m.extrasTick(now)}
 	if !m.noticeExpires.IsZero() && !now.Before(m.noticeExpires) {
 		m.notice = ""
 		m.noticeExpires = time.Time{}
@@ -860,6 +874,8 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 	}
 	if configuredPIN && hasUnlocked && allUnlockedIdle && !m.gate.Protected() {
 		m.hideReveal()
+		m.clearExtras()
+		m.clearLifecycle()
 		m.dragging = 0
 		m.pinInput.clear()
 		m.pinError = ""

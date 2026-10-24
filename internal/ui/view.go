@@ -99,6 +99,9 @@ func (m *Model) welcomeLines() []string {
 	pad := strings.Repeat(" ", left)
 	lines := make([]string, max(1, (m.height-18)/2))
 	lines = append(lines, pad+accent.Render("        ◇"), "", pad+accent.Render("KeePassUI"), pad+muted.Render("Your vaults. Your keys. Your terminal."), "", pad+active.Render("  Open Vault  ")+muted.Render("  o / Ctrl+O"), "", pad+muted.Render("Open an existing KeePass-compatible .kdbx file."))
+	if m.canCreateVault() {
+		lines = append(lines, pad+accent.Render("New Vault")+muted.Render("  N"))
+	}
 	if len(m.recent) > 0 {
 		lines = append(lines, "", pad+accent.Render("Recent Vaults"))
 		for i, path := range m.recent {
@@ -513,6 +516,15 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 		e := entries[i]
 		url := strings.TrimPrefix(strings.TrimPrefix(visibleField(e, "URL"), "https://"), "http://")
 		title, username := visibleField(e, "Title"), visibleField(e, "UserName")
+		if e.HasTOTP {
+			title += " [2FA]"
+		}
+		if len(e.AttachmentNames) > 0 {
+			title += " [A]"
+		}
+		if e.ExpiryEnabled && !e.Expires.IsZero() && !m.now().Before(e.Expires) {
+			title += " [expired]"
+		}
 		if v.Query != "" {
 			title = m.highlightText(title, v.Query, "Title")
 			username = m.highlightText(username, v.Query, "UserName")
@@ -563,7 +575,24 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 	if !e.Modified.IsZero() {
 		lines = append(lines, muted.Render("  Modified "+e.Modified.Local().Format("2006-01-02")))
 	}
-	lines = append(lines, muted.Render("  "+safe(e.GroupPath)), m.themedRule(width))
+	lines = append(lines, muted.Render("  "+safe(e.GroupPath)))
+	if e.HasTOTP {
+		lines = append(lines, muted.Render("  TOTP configured · commands to view/copy"))
+	}
+	if len(e.AttachmentNames) > 0 {
+		lines = append(lines, muted.Render(fmt.Sprintf("  Attachments: %d", len(e.AttachmentNames))))
+	}
+	if e.HistoryCount > 0 {
+		lines = append(lines, muted.Render(fmt.Sprintf("  History snapshots: %d", e.HistoryCount)))
+	}
+	if e.ExpiryEnabled && !e.Expires.IsZero() {
+		label := "  Expires: "
+		if !m.now().Before(e.Expires) {
+			label = "  Expired: "
+		}
+		lines = append(lines, muted.Render(label+e.Expires.Local().Format("2006-01-02 15:04")))
+	}
+	lines = append(lines, m.themedRule(width))
 	names := m.fieldNames()
 	var positions []int
 	for index, name := range names {

@@ -137,6 +137,10 @@ func walkGroup(db *Database, n xmlNode, parentUUID, parentPath string, parentRec
 }
 
 func parseEntry(n xmlNode, groupUUID, groupPath string, recycled, defaultPasswordProtection bool) Entry {
+	return parseEntryWithHistory(n, groupUUID, groupPath, recycled, defaultPasswordProtection, true)
+}
+
+func parseEntryWithHistory(n xmlNode, groupUUID, groupPath string, recycled, defaultPasswordProtection, includeHistory bool) Entry {
 	e := Entry{UUID: normalizeUUID(value(n, "UUID")), GroupUUID: groupUUID, GroupPath: groupPath, Recycled: recycled}
 	t := firstChild(n, "Times")
 	if t != nil {
@@ -152,7 +156,7 @@ func parseEntry(n xmlNode, groupUUID, groupPath string, recycled, defaultPasswor
 		if !ok {
 			continue
 		}
-		protected := strings.EqualFold(attr(v, "Protected"), "true") || strings.EqualFold(attr(v, "ProtectInMemory"), "true")
+		protected := strings.EqualFold(attr(v, "Protected"), "true") || strings.EqualFold(attr(v, "ProtectInMemory"), "true") || isTOTPSecretField(key)
 		// KeePassXC's XML exporter normally marks protected values. Password is
 		// protected by the database default when older exports omit the marker.
 		if key == "Password" && attr(v, "Protected") == "" && attr(v, "ProtectInMemory") == "" {
@@ -165,10 +169,29 @@ func parseEntry(n xmlNode, groupUUID, groupPath string, recycled, defaultPasswor
 			e.AttachmentNames = append(e.AttachmentNames, k)
 		}
 	}
-	if h, ok := child(n, "History"); ok {
-		e.HistoryCount = len(children(h, "Entry"))
+	if h, ok := child(n, "History"); ok && includeHistory {
+		snapshots := children(h, "Entry")
+		e.HistoryCount = len(snapshots)
+		if len(snapshots) > 0 {
+			e.History = make([]Entry, 0, len(snapshots))
+			for _, snapshot := range snapshots {
+				e.History = append(e.History, parseEntryWithHistory(snapshot, groupUUID, groupPath, recycled, defaultPasswordProtection, false))
+			}
+		}
 	}
+	e.HasTOTP, e.TOTPPeriodSeconds = totpMetadata(e.Fields)
 	return e
+}
+
+func isTOTPSecretField(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "otp", "totp seed",
+		"timeotp-secret-base32", "timeotp-secret-hex", "timeotp-secret-base64", "timeotp-secret-utf8",
+		"keepass2timeotp-secret-base32", "keepass2timeotp-secret-hex", "keepass2timeotp-secret-base64", "keepass2timeotp-secret-utf8":
+		return true
+	default:
+		return false
+	}
 }
 
 func splitTags(raw string) []string {

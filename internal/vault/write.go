@@ -141,6 +141,17 @@ func (c *CLI) Apply(ctx context.Context, db *Database, creds Credentials, change
 	if err = verifyChange(db, updated, change, selection); err != nil {
 		return nil, err
 	}
+	if change.Kind == AddAttachment || change.Kind == ReplaceAttachment {
+		data, exportErr := c.ExportAttachment(ctx, updated, creds, change.EntryUUID, change.AttachmentName)
+		if exportErr != nil {
+			return nil, ErrWrite
+		}
+		matches := bytes.Equal(data, change.AttachmentData)
+		zero(data)
+		if !matches {
+			return nil, ErrWrite
+		}
+	}
 
 	if err = createBackup(backupDir, path, initialRevision); err != nil {
 		return nil, ErrBackup
@@ -185,10 +196,11 @@ func contextError(ctx context.Context) error {
 
 func validateChange(change Change) error {
 	switch change.Kind {
-	case AddEntry, EditEntry, MoveEntry, DeleteEntry, CreateGroup, DeleteGroup:
+	case AddEntry, EditEntry, MoveEntry, DeleteEntry, CreateGroup, DeleteGroup, AddAttachment, ReplaceAttachment, RemoveAttachment:
 	default:
 		return ErrUnsupported
 	}
+	isAttachmentChange := change.Kind == AddAttachment || change.Kind == ReplaceAttachment || change.Kind == RemoveAttachment
 	for key := range change.Values {
 		if key != "Title" && key != "UserName" && key != "URL" && key != "Notes" {
 			return ErrUnsupported
@@ -206,6 +218,16 @@ func validateChange(change Change) error {
 	if change.NewName != "" && change.Kind != CreateGroup {
 		return ErrUnsupported
 	}
+	if isAttachmentChange {
+		if !validAttachmentName(change.AttachmentName) || len(change.AttachmentData) > maxAttachmentBytes {
+			return ErrUnsupported
+		}
+		if change.Kind == RemoveAttachment && change.AttachmentData != nil {
+			return ErrUnsupported
+		}
+	} else if change.AttachmentName != "" || change.AttachmentData != nil {
+		return ErrUnsupported
+	}
 	if bytes.ContainsAny(change.Password, "\r\n\x00") {
 		return ErrUnsupported
 	}
@@ -215,6 +237,13 @@ func validateChange(change Change) error {
 func (c *CLI) runChange(ctx context.Context, path string, creds Credentials, change Change, selected selectedChange) error {
 	args := []string{}
 	stdin := []byte(nil)
+	attachmentPath := ""
+	var err error
+	defer func() {
+		if attachmentPath != "" {
+			removeStagedAttachment(attachmentPath)
+		}
+	}()
 	appendMaster := !creds.NoPassword
 	if appendMaster {
 		stdin = append(append(stdin, creds.Password...), '\n')
@@ -272,6 +301,20 @@ func (c *CLI) runChange(ctx context.Context, path string, creds Credentials, cha
 	case DeleteGroup:
 		args = append([]string{"rmdir", "-q"}, args[1:]...)
 		args = append(args, path, selected.groupPath)
+	case AddAttachment, ReplaceAttachment:
+		attachmentPath, err = stageAttachmentFile(change.AttachmentData)
+		if err != nil {
+			zero(stdin)
+			return ErrWrite
+		}
+		args = append([]string{"attachment-import", "-q"}, args[1:]...)
+		if change.Kind == ReplaceAttachment {
+			args = append(args, "-f")
+		}
+		args = append(args, "--", path, selected.entryPath, change.AttachmentName, attachmentPath)
+	case RemoveAttachment:
+		args = append([]string{"attachment-rm", "-q"}, args[1:]...)
+		args = append(args, "--", path, selected.entryPath, change.AttachmentName)
 	}
 	defer zero(stdin)
 	ctx, cancel := boundedContext(ctx)
@@ -327,6 +370,58 @@ func copyEncrypted(src string, dst *os.File, mode os.FileMode) error {
 		return err
 	}
 	return dst.Chmod(mode)
+}
+
+func stageAttachmentFile(data []byte) (string, error) {
+	file, err := os.CreateTemp("", "keepassui-attachment-*.bin")
+	if err != nil {
+		return "", err
+	}
+	path := file.Name()
+	if err := file.Chmod(0600); err != nil {
+		_ = file.Close()
+		_ = os.Remove(path)
+		return "", err
+	}
+	if _, err := file.Write(data); err != nil {
+		_ = file.Close()
+		_ = os.Remove(path)
+		return "", err
+	}
+	if err := file.Sync(); err != nil {
+		_ = file.Close()
+		_ = os.Remove(path)
+		return "", err
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(path)
+		return "", err
+	}
+	return path, nil
+}
+
+func removeStagedAttachment(path string) {
+	file, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err == nil {
+		if info, statErr := file.Stat(); statErr == nil && info.Size() <= maxAttachmentBytes {
+			zeros := make([]byte, 32*1024)
+			remaining := info.Size()
+			for remaining > 0 {
+				n := int64(len(zeros))
+				if n > remaining {
+					n = remaining
+				}
+				written, writeErr := file.Write(zeros[:n])
+				if writeErr != nil || written == 0 {
+					break
+				}
+				remaining -= int64(written)
+			}
+			_ = file.Sync()
+		}
+		_ = file.Close()
+	}
+	_ = os.Remove(path)
 }
 
 func createBackup(dir, source string, revision [32]byte) error {
@@ -652,6 +747,19 @@ func (s *selectorSet) selectChange(change Change) (selectedChange, error) {
 		}
 		selected.group = parent
 		selected.groupPath = path
+	case AddAttachment, ReplaceAttachment, RemoveAttachment:
+		if !validAttachmentName(change.AttachmentName) {
+			return selected, ErrUnsupported
+		}
+		path, entry, err := s.uniqueEntry(change.EntryUUID)
+		if err != nil {
+			return selected, err
+		}
+		exists := containsString(entry.AttachmentNames, change.AttachmentName)
+		if (change.Kind == AddAttachment && exists) || (change.Kind != AddAttachment && !exists) {
+			return selected, ErrUnsupported
+		}
+		selected.entryPath, selected.entry, selected.current = path, entry, entry
 	}
 	return selected, nil
 }
@@ -746,6 +854,21 @@ func verifyChange(before, after *Database, change Change, selected selectedChang
 		shouldRecycle := before.RecycleBinEnabled && !beforeGroup.Recycled
 		if shouldRecycle != exists || (shouldRecycle && !afterGroup.Recycled) {
 			return ErrWrite
+		}
+	case AddAttachment, ReplaceAttachment, RemoveAttachment:
+		entry, exists := entryByUUID[change.EntryUUID]
+		if !exists {
+			return ErrWrite
+		}
+		present := containsString(entry.AttachmentNames, change.AttachmentName)
+		if change.Kind == RemoveAttachment && present {
+			return ErrWrite
+		}
+		if change.Kind != RemoveAttachment && !present {
+			return ErrWrite
+		}
+		if err := verifyEntrySelector(after, change.EntryUUID); err != nil {
+			return err
 		}
 	}
 	return nil

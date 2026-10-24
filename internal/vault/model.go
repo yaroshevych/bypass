@@ -42,12 +42,15 @@ type Backend interface {
 type ChangeKind string
 
 const (
-	AddEntry    ChangeKind = "add_entry"
-	EditEntry   ChangeKind = "edit_entry"
-	MoveEntry   ChangeKind = "move_entry"
-	DeleteEntry ChangeKind = "delete_entry"
-	CreateGroup ChangeKind = "create_group"
-	DeleteGroup ChangeKind = "delete_group"
+	AddEntry          ChangeKind = "add_entry"
+	EditEntry         ChangeKind = "edit_entry"
+	MoveEntry         ChangeKind = "move_entry"
+	DeleteEntry       ChangeKind = "delete_entry"
+	CreateGroup       ChangeKind = "create_group"
+	DeleteGroup       ChangeKind = "delete_group"
+	AddAttachment     ChangeKind = "add_attachment"
+	ReplaceAttachment ChangeKind = "replace_attachment"
+	RemoveAttachment  ChangeKind = "remove_attachment"
 )
 
 type Change struct {
@@ -58,6 +61,8 @@ type Change struct {
 	Password        []byte
 	PasswordChanged bool
 	NewName         string
+	AttachmentName  string
+	AttachmentData  []byte
 }
 
 type Writer interface {
@@ -83,12 +88,28 @@ func (d *Database) Clone() *Database {
 	out.Groups = append([]Group(nil), d.Groups...)
 	out.Entries = make([]Entry, len(d.Entries))
 	for i, e := range d.Entries {
-		out.Entries[i] = e
-		out.Entries[i].Fields = append([]Field(nil), e.Fields...)
-		out.Entries[i].Tags = append([]string(nil), e.Tags...)
-		out.Entries[i].AttachmentNames = append([]string(nil), e.AttachmentNames...)
+		out.Entries[i] = cloneEntry(e, true)
 	}
 	return &out
+}
+
+func cloneEntry(e Entry, includeHistory bool) Entry {
+	out := e
+	out.Fields = append([]Field(nil), e.Fields...)
+	out.Tags = append([]string(nil), e.Tags...)
+	out.AttachmentNames = append([]string(nil), e.AttachmentNames...)
+	out.History = nil
+	if includeHistory && len(e.History) > 0 {
+		out.History = make([]Entry, len(e.History))
+		for i, snapshot := range e.History {
+			out.History[i] = cloneEntry(snapshot, false)
+		}
+	}
+	if !includeHistory {
+		out.HistoryCount = 0
+		out.History = nil
+	}
+	return out
 }
 
 var pathLocks = struct {
@@ -149,18 +170,21 @@ type Group struct {
 }
 
 type Entry struct {
-	UUID            string
-	GroupUUID       string
-	GroupPath       string
-	Fields          []Field
-	Tags            []string
-	Recycled        bool
-	Created         time.Time
-	Modified        time.Time
-	Expires         time.Time
-	ExpiryEnabled   bool
-	AttachmentNames []string
-	HistoryCount    int
+	UUID              string
+	GroupUUID         string
+	GroupPath         string
+	Fields            []Field
+	Tags              []string
+	Recycled          bool
+	Created           time.Time
+	Modified          time.Time
+	Expires           time.Time
+	ExpiryEnabled     bool
+	AttachmentNames   []string
+	HistoryCount      int
+	History           []Entry
+	HasTOTP           bool
+	TOTPPeriodSeconds int
 }
 
 type Field struct {
@@ -194,13 +218,27 @@ func (d *Database) Clear() {
 		return
 	}
 	for i := range d.Entries {
-		for j := range d.Entries[i].Fields {
-			d.Entries[i].Fields[j].Value = ""
-		}
-		d.Entries[i].Fields = nil
-		d.Entries[i].Tags = nil
-		d.Entries[i].AttachmentNames = nil
+		clearEntry(&d.Entries[i])
 	}
 	d.Entries = nil
 	d.Groups = nil
+}
+
+func clearEntry(e *Entry) {
+	if e == nil {
+		return
+	}
+	for j := range e.Fields {
+		e.Fields[j].Value = ""
+	}
+	e.Fields = nil
+	e.Tags = nil
+	e.AttachmentNames = nil
+	e.HistoryCount = 0
+	e.HasTOTP = false
+	e.TOTPPeriodSeconds = 0
+	for i := range e.History {
+		clearEntry(&e.History[i])
+	}
+	e.History = nil
 }

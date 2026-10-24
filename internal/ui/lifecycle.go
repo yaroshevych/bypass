@@ -1,0 +1,475 @@
+package ui
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
+	"keepassui/internal/vault"
+)
+
+type lifecycleState struct {
+	kind, sessionID, err string
+	inputs               []input
+	focus, offset        int
+	confirm, proceed     bool
+	busy                 bool
+	request              uint64
+	lines                []string
+}
+
+type lifecycleMsg struct {
+	id              uint64
+	kind, sessionID string
+	db              *vault.Database
+	credentials     vault.Credentials
+	info            vault.DatabaseInfo
+	settings        vault.DatabaseSettings
+	err             error
+}
+
+type vaultCreator interface {
+	CreateWithOptions(context.Context, string, vault.Credentials, vault.CreateOptions) (*vault.Database, error)
+}
+type credentialChanger interface {
+	ChangeCredentials(context.Context, *vault.Database, vault.Credentials, vault.Credentials, string) (*vault.Database, error)
+}
+type databaseInspector interface {
+	Info(context.Context, string, vault.Credentials) (vault.DatabaseInfo, error)
+	Settings(context.Context, string, vault.Credentials) (vault.DatabaseSettings, error)
+}
+
+func (m *Model) clearLifecycle() {
+	if m.lifecycle == nil {
+		return
+	}
+	if m.lifecycle.busy && m.lifecycle.request == m.operation {
+		m.cancelOperation()
+	}
+	for i := range m.lifecycle.inputs {
+		m.lifecycle.inputs[i].clear()
+	}
+	m.lifecycle.lines = nil
+	m.lifecycle = nil
+}
+
+func (m *Model) openCreateVault() tea.Cmd {
+	if reason := m.nativeReason("db-create"); reason != "" {
+		m.setNotice(reason, true)
+		return nil
+	}
+	if m.readOnly {
+		m.setNotice("Read only: restart without --read-only to create a vault.", true)
+		return nil
+	}
+	if _, ok := m.backend.(vaultCreator); !ok {
+		m.setNotice("This backend cannot create vaults.", true)
+		return nil
+	}
+	m.hideReveal()
+	m.clearExtras()
+	m.clearLifecycle()
+	m.lifecycle = &lifecycleState{kind: "create", inputs: make([]input, 5)}
+	return nil
+}
+
+func (m *Model) openCredentials() tea.Cmd {
+	if reason := m.nativeReason("db-edit"); reason != "" {
+		m.setNotice(reason, true)
+		return nil
+	}
+	if !m.writable() {
+		return nil
+	}
+	s := m.ws.ActiveSession()
+	if s.Credentials.YubiKey != "" {
+		m.setNotice("Hardware-factor credential changes are not supported by this backend.", true)
+		return nil
+	}
+	if _, ok := m.backend.(credentialChanger); !ok {
+		m.setNotice("This backend cannot change vault credentials.", true)
+		return nil
+	}
+	m.hideReveal()
+	m.clearExtras()
+	m.clearLifecycle()
+	m.lifecycle = &lifecycleState{kind: "credentials", sessionID: s.ID, inputs: make([]input, 3)}
+	m.lifecycle.inputs[2].set(s.Credentials.KeyFile)
+	return nil
+}
+
+func (m *Model) openDatabaseInfo(settings bool) tea.Cmd {
+	if reason := m.nativeReason("db-info"); reason != "" {
+		m.setNotice(reason, true)
+		return nil
+	}
+	s := m.ws.ActiveSession()
+	backend, ok := m.backend.(databaseInspector)
+	if s == nil || s.DB == nil {
+		return nil
+	}
+	if !ok {
+		m.setNotice("Database information is unavailable from this backend.", true)
+		return nil
+	}
+	m.hideReveal()
+	m.clearExtras()
+	m.clearLifecycle()
+	kind := "info"
+	if settings {
+		kind = "settings"
+	}
+	m.lifecycle = &lifecycleState{kind: kind, sessionID: s.ID, busy: true}
+	id := m.beginOperation(s.ID)
+	m.lifecycle.request = id
+	ctx := m.operationContext()
+	creds, path := s.Credentials.Clone(), s.Path
+	return func() tea.Msg {
+		defer creds.Clear()
+		msg := lifecycleMsg{id: id, kind: kind, sessionID: s.ID}
+		if settings {
+			msg.settings, msg.err = backend.Settings(ctx, path, creds)
+		} else {
+			msg.info, msg.err = backend.Info(ctx, path, creds)
+		}
+		return msg
+	}
+}
+
+func (m *Model) lifecycleCredentials() (vault.Credentials, error) {
+	l := m.lifecycle
+	passwordIndex := 0
+	if l.kind == "create" {
+		passwordIndex = 1
+	}
+	password, confirmation := l.inputs[passwordIndex].value(), l.inputs[passwordIndex+1].value()
+	if password != confirmation {
+		return vault.Credentials{}, fmt.Errorf("Passwords do not match.")
+	}
+	keyFile := strings.TrimSpace(l.inputs[passwordIndex+2].value())
+	if password == "" && keyFile == "" {
+		return vault.Credentials{}, fmt.Errorf("Set a password or select an existing key file.")
+	}
+	if strings.ContainsAny(password, "\r\n\x00") {
+		return vault.Credentials{}, fmt.Errorf("Password cannot contain line breaks.")
+	}
+	return vault.Credentials{Password: []byte(password), KeyFile: keyFile, NoPassword: password == ""}, nil
+}
+
+func (m *Model) submitLifecycle() tea.Cmd {
+	l := m.lifecycle
+	creds, err := m.lifecycleCredentials()
+	if err != nil {
+		l.err = err.Error()
+		return nil
+	}
+	if l.kind == "create" {
+		path := strings.TrimSpace(l.inputs[0].value())
+		if path == "" || !strings.EqualFold(filepath.Ext(path), ".kdbx") {
+			creds.Clear()
+			l.err = "Choose a new .kdbx file path."
+			return nil
+		}
+		options := vault.CreateOptions{}
+		if raw := strings.TrimSpace(l.inputs[4].value()); raw != "" {
+			options.DecryptionTimeMS, err = strconv.Atoi(raw)
+			if err != nil || options.DecryptionTimeMS < 100 || options.DecryptionTimeMS > 5000 {
+				creds.Clear()
+				l.err = "Unlock time must be between 100 and 5000 milliseconds."
+				return nil
+			}
+		}
+		backend, ok := m.backend.(vaultCreator)
+		if !ok {
+			creds.Clear()
+			l.err = "Vault creation is unavailable."
+			return nil
+		}
+		id := m.beginOperation("")
+		ctx := m.operationContext()
+		l.busy, l.request, l.err = true, id, ""
+		return func() tea.Msg {
+			db, err := backend.CreateWithOptions(ctx, path, creds, options)
+			return lifecycleMsg{id: id, kind: "create", db: db, credentials: creds, err: err}
+		}
+	}
+	if !l.confirm {
+		creds.Clear()
+		l.confirm, l.proceed = true, false
+		return nil
+	}
+	s := m.ws.Sessions[l.sessionID]
+	if s == nil || s.DB == nil || s.ReadOnly || s.Stale {
+		creds.Clear()
+		l.err = "Unlock and reload a writable vault before changing credentials."
+		return nil
+	}
+	backend, ok := m.backend.(credentialChanger)
+	if !ok {
+		creds.Clear()
+		l.err = "Credential changes are unavailable."
+		return nil
+	}
+	db, old := s.DB.Clone(), s.Credentials.Clone()
+	id := m.beginOperation(s.ID)
+	ctx := m.operationContext()
+	l.busy, l.request, l.err = true, id, ""
+	sessionID, backupDir := s.ID, m.settings.BackupDir
+	return func() tea.Msg {
+		defer db.Clear()
+		defer old.Clear()
+		updated, err := backend.ChangeCredentials(ctx, db, old, creds, backupDir)
+		return lifecycleMsg{id: id, kind: "credentials", sessionID: sessionID, db: updated, credentials: creds, err: err}
+	}
+}
+
+func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
+	result, ok := msg.(lifecycleMsg)
+	if !ok {
+		return nil, false
+	}
+	defer result.credentials.Clear()
+	l := m.lifecycle
+	if l == nil || l.request != result.id || result.id != m.operation {
+		if result.db != nil {
+			result.db.Clear()
+		}
+		return nil, true
+	}
+	m.cancelOperation()
+	l.busy = false
+	if result.err != nil {
+		if result.db != nil {
+			result.db.Clear()
+		}
+		l.confirm = false
+		l.err = "Operation failed. Check file access, credentials and backend support."
+		switch {
+		case errors.Is(result.err, vault.ErrAlreadyExists):
+			l.err = "That file already exists. Choose a new path."
+		case errors.Is(result.err, vault.ErrExternalChanged):
+			l.err = "Vault changed externally. Cancel and reload before retrying."
+			if session := m.ws.Sessions[result.sessionID]; session != nil {
+				session.Stale = true
+			}
+		case errors.Is(result.err, vault.ErrBackup):
+			l.err = "Backup failed. Check the backup directory before retrying."
+		case errors.Is(result.err, vault.ErrUnsupported):
+			l.err = "This operation is not supported by the installed CLI."
+		case errors.Is(result.err, vault.ErrInvalidPath):
+			l.err = "Check the parent folder and existing key-file path."
+		}
+		return nil, true
+	}
+	if result.kind == "info" {
+		i := result.info
+		l.lines = []string{"Name: " + safe(i.Name), "UUID: " + safe(i.UUID), "Cipher: " + safe(i.Cipher), "KDF: " + safe(i.KDF), fmt.Sprintf("Recycle bin: %t", i.RecycleBinEnabled), fmt.Sprintf("Groups: %d · Entries: %d · Expired: %d", i.GroupCount, i.EntryCount, i.ExpiredEntryCount)}
+		return nil, true
+	}
+	if result.kind == "settings" {
+		s := result.settings
+		l.lines = []string{"Cipher: " + safe(s.Cipher), "KDF: " + safe(s.KDF), fmt.Sprintf("Recycle bin: %t", s.RecycleBinEnabled), "", "These settings are read only in keepassxc-cli.", "Unlock time can be chosen when creating a vault.", "Use Change Vault Credentials for password/key-file changes."}
+		return nil, true
+	}
+	if result.db == nil {
+		l.err = "Backend returned no database."
+		return nil, true
+	}
+	if result.kind == "create" {
+		m.ws.Open(result.db)
+		s := m.ws.ActiveSession()
+		m.ws.SetCredentials(s.ID, result.credentials)
+		s.ReadOnly, s.LastActivity = false, m.now()
+		m.screen = browse
+	} else {
+		if !m.ws.ReplaceDatabase(result.sessionID, result.db) {
+			result.db.Clear()
+			m.clearLifecycle()
+			return nil, true
+		}
+		m.ws.SetCredentials(result.sessionID, result.credentials)
+		m.ws.Sessions[result.sessionID].LastActivity = m.now()
+	}
+	path := result.db.Path
+	m.clearLifecycle()
+	m.restoreGroup()
+	m.normalize()
+	if result.kind == "credentials" {
+		m.setNotice("Credentials changed and verified. Encrypted backup created.", false)
+		return m.clearClipboard(), true
+	}
+	m.setNotice("Vault created and unlocked.", false)
+	if m.store != nil {
+		store := m.store
+		return func() tea.Msg {
+			err := store.Remember(path)
+			paths, loadErr := store.LoadRecent()
+			if err != nil {
+				return rememberedMsg{err}
+			}
+			return recentMsg{paths, loadErr}
+		}, true
+	}
+	return nil, true
+}
+
+func (m *Model) lifecycleKey(k tea.KeyMsg) tea.Cmd {
+	l := m.lifecycle
+	key := k.String()
+	if key == "ctrl+c" {
+		m.Close()
+		return tea.Quit
+	}
+	if key == "ctrl+l" || key == "L" && (l.kind == "info" || l.kind == "settings") {
+		m.clearLifecycle()
+		return m.lockCurrent(key == "L")
+	}
+	if l.busy {
+		return nil
+	}
+	if key == "esc" {
+		if l.confirm {
+			l.confirm = false
+		} else {
+			m.clearLifecycle()
+		}
+		return nil
+	}
+	if l.kind == "info" || l.kind == "settings" {
+		switch key {
+		case "q", "enter":
+			m.clearLifecycle()
+		case "up", "k":
+			l.offset = max(0, l.offset-1)
+		case "down", "j":
+			l.offset++
+		case "pgdown":
+			l.offset += max(1, m.height-10)
+		case "pgup":
+			l.offset = max(0, l.offset-max(1, m.height-10))
+		}
+		return nil
+	}
+	if l.confirm {
+		switch key {
+		case "left", "right", "tab":
+			l.proceed = !l.proceed
+		case "enter":
+			if l.proceed {
+				return m.submitLifecycle()
+			}
+			l.confirm = false
+		}
+		return nil
+	}
+	switch key {
+	case "tab", "down":
+		l.focus = (l.focus + 1) % len(l.inputs)
+	case "shift+tab", "up":
+		l.focus = (l.focus + len(l.inputs) - 1) % len(l.inputs)
+	case "enter":
+		if l.focus == len(l.inputs)-1 {
+			return m.submitLifecycle()
+		}
+		l.focus++
+	case "ctrl+s":
+		return m.submitLifecycle()
+	default:
+		l.inputs[l.focus].update(k)
+		l.err = ""
+	}
+	return nil
+}
+
+func (m *Model) lifecycleLines() []string {
+	l, c := m.lifecycle, m.colors()
+	title := map[string]string{"create": "New Vault", "credentials": "Change Vault Credentials", "info": "Database Info", "settings": "Database Settings"}[l.kind]
+	var body []string
+	if s := m.ws.Sessions[l.sessionID]; s != nil {
+		body = append(body, c.muted.Render(vaultLabel(s.Path)), "")
+	}
+	footer := "Tab next · Ctrl+S submit · Esc cancel"
+	if l.kind == "info" || l.kind == "settings" {
+		var wrapped []string
+		for _, line := range l.lines {
+			wrapped = append(wrapped, strings.Split(ansi.Wrap(safe(line), max(1, min(76, m.width-8)), ""), "\n")...)
+		}
+		capacity := max(1, m.height-12)
+		start := min(l.offset, max(0, len(wrapped)-capacity))
+		body = append(body, wrapped[start:min(len(wrapped), start+capacity)]...)
+		footer = "↑↓ scroll · q / Esc close"
+	} else if l.confirm {
+		body = append(body, "Change the credentials for this vault?", "An encrypted backup will retain the old credentials.", "")
+		cancel, proceed := " Cancel ", " Change Credentials "
+		if l.proceed {
+			proceed = c.active.Render(proceed)
+		} else {
+			cancel = c.active.Render(cancel)
+		}
+		body = append(body, cancel+"  "+proceed)
+		footer = "←→ choose · Enter confirm · Esc back"
+	} else {
+		labels := []string{"New password (blank for key-file only)", "Confirm password", "Existing key file (optional)"}
+		secretStart := 0
+		if l.kind == "create" {
+			labels = append([]string{"New .kdbx path"}, labels...)
+			labels = append(labels, "Target unlock time in ms (optional)")
+			secretStart = 1
+		}
+		var fields []string
+		for i, label := range labels {
+			value := l.inputs[i].display(i == secretStart || i == secretStart+1)
+			if i == l.focus {
+				label = c.accent.Render("› " + label)
+				value += "▏"
+			} else {
+				label = c.muted.Render("  " + label)
+			}
+			fields = append(fields, label, "  "+value)
+		}
+		capacity := max(2, m.height-12)
+		start := viewportOffset(l.focus*2+1, len(fields), capacity, l.offset)
+		body = append(body, fields[start:min(len(fields), start+capacity)]...)
+	}
+	if l.err != "" {
+		body = append(body, c.errorStyle.Render(l.err))
+	}
+	if l.busy {
+		body = append(body, c.accent.Render("Working…"))
+	}
+	return m.overlay(title, body, footer, min(84, m.width-4), -1, -1)
+}
+
+func (m *Model) lifecyclePointer(msg tea.MouseMsg) tea.Cmd {
+	if msg.Action == tea.MouseActionPress && (m.lifecycle.kind == "info" || m.lifecycle.kind == "settings") {
+		if msg.Button == tea.MouseButtonWheelDown {
+			m.lifecycle.offset++
+		}
+		if msg.Button == tea.MouseButtonWheelUp {
+			m.lifecycle.offset = max(0, m.lifecycle.offset-1)
+		}
+	}
+	return nil
+}
+
+func (m *Model) canCreateVault() bool {
+	_, ok := m.backend.(vaultCreator)
+	return ok && !m.readOnly && m.nativeReason("db-create") == ""
+}
+
+func (m *Model) nativeReason(commands ...string) string {
+	if m.backendCapabilities == nil {
+		return ""
+	}
+	for _, command := range commands {
+		if !m.backendCapabilities[command] {
+			return "Installed CLI does not support " + command
+		}
+	}
+	return ""
+}

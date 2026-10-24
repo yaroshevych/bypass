@@ -67,6 +67,8 @@ func (m *Model) configurePIN(protectAfter bool) {
 	}
 }
 func (m *Model) protectScreen() tea.Cmd {
+	m.clearExtras()
+	m.clearLifecycle()
 	if !m.anyUnlocked() {
 		m.setNotice("Unlock a vault first.", true)
 		return nil
@@ -356,6 +358,12 @@ func (m *Model) jumpKey(k tea.KeyMsg) tea.Cmd {
 func (m *Model) advancedScreen() ([]string, bool) {
 	if m.gate.Protected() {
 		return m.pinLines(), true
+	}
+	if m.lifecycle != nil {
+		return m.lifecycleLines(), true
+	}
+	if m.extras != nil {
+		return m.extrasLines(), true
 	}
 	if m.grand {
 		return m.grandLines(), true

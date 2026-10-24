@@ -83,6 +83,17 @@ func (m *Model) commands() []command {
 			return cmd
 		}
 	}
+	createReason := ""
+	if _, ok := m.backend.(vaultCreator); !ok {
+		createReason = "Backend cannot create vaults"
+	}
+	if m.readOnly {
+		createReason = "Restart without --read-only to create a vault"
+	}
+	if reason := m.nativeReason("db-create"); reason != "" {
+		createReason = reason
+	}
+	add("new-vault", "File", "New Vault…", "N", createReason, "", func() tea.Cmd { return m.leaveEditor(m.openCreateVault) })
 	add("open", "File", "Open Vault…", "Ctrl+O", "", "files", nil)
 	add("quit", "App", "Quit KeePassUI", "q", "", "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }) })
 	closeReason := ""
@@ -106,6 +117,26 @@ func (m *Model) commands() []command {
 	if s != nil && s.ReadOnly {
 		readLabel = "Enable Writes"
 	}
+	infoReason := needVault
+	if _, ok := m.backend.(databaseInspector); !ok {
+		infoReason = "Database information unavailable from this backend"
+	}
+	if reason := m.nativeReason("db-info"); reason != "" {
+		infoReason = reason
+	}
+	add("database-info", "Vault", "Database Info", "", infoReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.openDatabaseInfo(false) }) })
+	add("database-settings", "Vault", "Database Settings", "", infoReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.openDatabaseInfo(true) }) })
+	credentialsReason := writeReason
+	if _, ok := m.backend.(credentialChanger); !ok {
+		credentialsReason = "Credential changes unavailable from this backend"
+	}
+	if s != nil && s.Credentials.YubiKey != "" {
+		credentialsReason = "Hardware-factor credential changes unsupported"
+	}
+	if reason := m.nativeReason("db-edit"); reason != "" {
+		credentialsReason = reason
+	}
+	add("credentials", "Vault", "Change Vault Credentials…", "", credentialsReason, "", func() tea.Cmd { return m.leaveEditor(m.openCredentials) })
 	add("read-only", "Vault", readLabel, "R", needVault, "", invoke("R"))
 	add("new", "Entry", "New Entry", "n", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("n")) })
 	add("edit", "Entry", "Edit Entry", "e", editReason, "", invoke("e"))
@@ -159,6 +190,23 @@ func (m *Model) commands() []command {
 	if m.editor != nil {
 		grandReason = "Finish editing before viewing stored fields"
 	}
+	totpReason, historyReason := needEntry, needEntry
+	if entry != nil && !entry.HasTOTP {
+		totpReason = "No TOTP configured for this entry"
+	}
+	if entry != nil && len(entry.History) == 0 {
+		historyReason = "No history snapshots for this entry"
+	}
+	if reason := m.nativeReason("show"); reason != "" {
+		totpReason = reason
+	}
+	attachmentReason := needEntry
+	if reason := m.nativeReason("attachment-import", "attachment-export", "attachment-rm"); reason != "" {
+		attachmentReason = reason
+	}
+	add("totp", "Field", "Show / Copy TOTP", "", totpReason, "", func() tea.Cmd { return m.leaveEditor(m.openTOTP) })
+	add("attachments", "Entry", "Attachments…", "", attachmentReason, "", func() tea.Cmd { return m.leaveEditor(m.openAttachments) })
+	add("history-view", "Entry", "Entry History…", "", historyReason, "", func() tea.Cmd { return m.leaveEditor(m.openHistory) })
 	add("grand-view", "Field", "Grand View — Indexed Field", "G", grandReason, "", m.openGrandView)
 	add("reveal", "Field", "Reveal / Hide Focused Field", "v", needEntry, "", func() tea.Cmd { return m.toggleReveal() })
 	add("generator", "Field", "Password Generator", "Ctrl+G", "", "", func() tea.Cmd { m.openGenerator(); return nil })
@@ -221,6 +269,8 @@ func (m *Model) commands() []command {
 }
 
 func (m *Model) openPalette(scope string, context bool) {
+	m.clearExtras()
+	m.clearLifecycle()
 	m.hideReveal()
 	m.help = false
 	m.palette = &paletteState{scope: scope, original: m.settings, originalStyles: m.styles, context: context, x: -1, y: -1}

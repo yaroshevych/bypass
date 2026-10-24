@@ -45,6 +45,8 @@ const (
 )
 
 type Model struct {
+	lifecycle                               *lifecycleState
+	extras                                  *extraState
 	styles                                  styleSet
 	palette                                 *paletteState
 	jump                                    bool
@@ -88,6 +90,7 @@ type Model struct {
 	help                                    bool
 	helpOffset                              int
 	backendVersion                          string
+	backendCapabilities                     map[string]bool
 	backendMissing                          bool
 	settings                                platform.Settings
 	clipboard                               *clipboard.Manager
@@ -134,6 +137,10 @@ type rememberedMsg struct{ err error }
 type probedMsg struct {
 	version string
 	err     error
+}
+type capabilitiesMsg struct {
+	commands map[string]bool
+	err      error
 }
 type listingMsg struct {
 	directory string
@@ -203,10 +210,21 @@ func (m *Model) Init() tea.Cmd {
 		ctx := m.ctx
 		cmds = append(cmds, func() tea.Msg { version, err := backend.Probe(ctx); return probedMsg{version, err} })
 	}
+	if backend, ok := m.backend.(interface {
+		CommandCapabilities(context.Context) (map[string]bool, error)
+	}); ok {
+		ctx := m.ctx
+		cmds = append(cmds, func() tea.Msg {
+			commands, err := backend.CommandCapabilities(ctx)
+			return capabilitiesMsg{commands, err}
+		})
+	}
 	return tea.Batch(cmds...)
 }
 
 func (m *Model) Close() {
+	m.clearExtras()
+	m.clearLifecycle()
 	m.closePalette(false)
 	m.gate.Clear()
 	m.pinInput.clear()
@@ -244,6 +262,14 @@ func (m *Model) CleanupError() error { return m.cleanupErr }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.searchCache = nil
+	if cmd, ok := m.updateLifecycle(msg); ok {
+		m.adjustViewport()
+		return m, cmd
+	}
+	if cmd, ok := m.updateExtras(msg); ok {
+		m.adjustViewport()
+		return m, cmd
+	}
 	if cmd, ok := m.updateAdvanced(msg); ok {
 		m.adjustViewport()
 		return m, cmd
@@ -256,6 +282,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.hideReveal()
 		m.width, m.height = msg.Width, msg.Height
+	case capabilitiesMsg:
+		if msg.err == nil {
+			m.backendCapabilities = msg.commands
+		}
 	case probedMsg:
 		m.backendVersion = safe(msg.version)
 		m.backendMissing = msg.err != nil
@@ -378,6 +408,12 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if m.gate.Protected() {
 		return m.pinKey(k)
 	}
+	if m.lifecycle != nil {
+		return m.lifecycleKey(k)
+	}
+	if cmd, handled := m.extrasKey(k); handled {
+		return cmd
+	}
 	if m.grand {
 		return m.grandKey(k)
 	}
@@ -446,6 +482,8 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		return m.searchKey(k)
 	}
 	switch key {
+	case "N", "ctrl+n":
+		return m.leaveEditor(m.openCreateVault)
 	case "q":
 		m.Close()
 		return tea.Quit

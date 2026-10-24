@@ -13,6 +13,12 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	if m.gate.Protected() {
 		return nil
 	}
+	if m.lifecycle != nil {
+		return m.lifecyclePointer(msg)
+	}
+	if cmd, handled := m.extrasPointer(msg); handled {
+		return cmd
+	}
 	if m.grand {
 		return m.grandPointer(msg)
 	}
@@ -134,7 +140,14 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		if msg.Y == top+5 {
 			return m.openPicker()
 		}
-		index := msg.Y - top - 10
+		extra := 0
+		if m.canCreateVault() {
+			if msg.Y == top+8 {
+				return m.openCreateVault()
+			}
+			extra = 1
+		}
+		index := msg.Y - top - 10 - extra
 		if index >= 0 && index < min(5, len(m.recent)) {
 			m.recentIndex = index
 			m.beginUnlock(m.recent[index])
