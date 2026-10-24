@@ -380,12 +380,16 @@ func (m *Model) advancedScreen() ([]string, bool) {
 
 func (m *Model) overlay(title string, body []string, footer string, width, x, y int, header ...dialogrender.Header) []string {
 	c := m.colors()
-	headerContent, headerDivider := "", 0
+	headerContent, headerDivider, compactAccessory, compactCount := "", 0, "", ""
+	compactAccessoryStyle := lipgloss.NewStyle()
 	if len(header) > 0 {
 		headerContent, headerDivider = header[0].Content, header[0].Divider
+		compactAccessory, compactCount = header[0].Accessory, header[0].Count
+		compactAccessoryStyle = header[0].AccessoryStyle
 	}
 	return dialogrender.Render(dialogrender.Options{
-		Mode: dialogrender.Overlay, Title: title, HeaderContent: headerContent, HeaderDivider: headerDivider, Body: body, Footer: footer,
+		Mode: dialogrender.Overlay, Title: title, HeaderContent: headerContent, HeaderDivider: headerDivider,
+		CompactAccessory: compactAccessory, CompactAccessoryStyle: compactAccessoryStyle, CompactCount: compactCount, Body: body, Footer: footer,
 		Backdrop: m.modalBackdrop(), Width: width, ScreenWidth: m.width,
 		Height: m.height, X: x, Y: y, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
 		Base: c.base, Accent: c.accent, Muted: c.muted, Pill: c.active, Line: c.lineStyle,

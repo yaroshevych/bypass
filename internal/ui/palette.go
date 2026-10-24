@@ -585,14 +585,7 @@ func (m *Model) paletteBody() (string, []string, string) {
 	if len(p.stack) > 0 && p.scope != "themes" {
 		title = "Commands › " + title
 	}
-	searchWidth := max(1, min(86, m.width-4)-4)
-	count := paletteCountLabel(p.scope, len(choices))
-	var body []string
-	if strings.EqualFold(m.settings.Appearance, "compact") {
-		body = []string{paletteFilterRow(p.query, count, searchWidth, m.colors()), ""}
-	} else {
-		body = []string{""}
-	}
+	body := []string{""}
 	capacity := max(1, m.height-12)
 	start := min(p.offset, max(0, len(rows)-1))
 	for i := start; i < len(rows) && i < start+capacity; i++ {
@@ -659,7 +652,13 @@ func (m *Model) paletteLines() []string {
 		divider := lipgloss.Width(strings.ToUpper(title)) + 3
 		return m.overlay(title, body, footer, min(86, m.width-4), m.palette.x, m.palette.y, dialogrender.Header{Content: header, Divider: divider})
 	}
-	return m.overlay(title, body, footer, min(86, m.width-4), m.palette.x, m.palette.y)
+	count := paletteCountLabel(m.palette.scope, len(m.paletteChoices()))
+	header := dialogrender.Header{
+		Accessory:      paletteCompactFilterInput(m.palette.query, m.colors()),
+		AccessoryStyle: m.colors().inactive,
+		Count:          m.colors().muted.Render(count),
+	}
+	return m.overlay(title, body, footer, min(86, m.width-2), m.palette.x, m.palette.y, header)
 }
 
 func paletteCountLabel(scope string, count int) string {
@@ -685,11 +684,40 @@ func paletteClassicHeader(title string, query input, count string, width int, as
 	label := c.accent.Render(strings.ToUpper(title))
 	dividerText := " │"
 	if ascii {
-		dividerText = " | "
+		dividerText = " |"
 	}
 	divider := c.lineStyle.Render(dividerText)
 	filterWidth := max(1, width-lipgloss.Width(label)-lipgloss.Width(divider))
 	return label + divider + paletteFilterRow(query, count, filterWidth, c)
+}
+
+func paletteCompactFilterInput(query input, c *styleSet) string {
+	const maxWidth = 30
+	const maxContentWidth = maxWidth - 1
+	placeholder := "type to filter"
+	var field string
+	if query.value() == "" {
+		field = c.inactive.Render(" ") + c.active.Render("t") + c.inactive.Render(placeholder[1:]+" ")
+	} else {
+		runes := []rune(safe(query.value()))
+		if len(runes) > maxContentWidth-3 {
+			runes = append(append([]rune(nil), runes[:maxContentWidth-4]...), '…')
+		}
+		cursor := min(query.cursor, len(runes))
+		prefix, suffix := string(runes[:cursor]), string(runes[cursor:])
+		caret := " "
+		if suffix != "" {
+			caret = string([]rune(suffix)[0])
+			suffix = string([]rune(suffix)[1:])
+		}
+		field = c.inactive.Render(" "+prefix) + c.active.Render(caret) + c.inactive.Render(suffix+" ")
+	}
+	minimum := lipgloss.Width(c.inactive.Render(" " + placeholder + " "))
+	fieldWidth := lipgloss.Width(field)
+	if fieldWidth < minimum {
+		field += c.inactive.Render(strings.Repeat(" ", minimum-fieldWidth))
+	}
+	return ansi.Truncate(field, maxContentWidth, "…")
 }
 func (m *Model) palettePointer(msg tea.MouseMsg) tea.Cmd {
 	p := m.palette

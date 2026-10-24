@@ -91,6 +91,53 @@ func TestClassicPaletteSharesHeaderRowWithFilterAndCount(t *testing.T) {
 	}
 }
 
+func TestCompactPaletteHeaderShowsSecondaryFilterPillAndPlainCount(t *testing.T) {
+	m, _ := operationModel(t)
+	m.width, m.height = 100, 30
+	m.settings.Appearance = "compact"
+	m.openPalette("actions", false)
+	lines := m.paletteLines()
+	count := paletteCountLabel("actions", len(m.paletteChoices()))
+	var header string
+	for _, line := range lines {
+		row := ansi.Strip(line)
+		if strings.Contains(row, "COMMANDS") {
+			header = row
+			break
+		}
+	}
+	filterStart := strings.Index(header, "type to filter")
+	filterPill := header[max(0, filterStart):]
+	if filterStart < 0 || !strings.Contains(header, count) || strings.Contains(filterPill, "\ue0b6") || !strings.Contains(filterPill, "\ue0b4") {
+		t.Fatalf("compact palette header is missing its filter pill or count: %q", header)
+	}
+	titleCap := strings.Index(header, "\ue0b4")
+	if titleCap < 0 || header[titleCap+len("\ue0b4"):filterStart] != " " {
+		t.Fatalf("compact filter spacing differs from the tab-bar + item: %q", header)
+	}
+	for _, line := range lines {
+		row := ansi.Strip(line)
+		if strings.Contains(row, "type to filter") && !strings.Contains(row, "COMMANDS") {
+			t.Fatalf("compact palette filter rendered outside the header: %q", row)
+		}
+	}
+	styles := m.colors()
+	empty := paletteCompactFilterInput(input{}, styles)
+	short := input{}
+	short.set("x")
+	long := input{}
+	long.set(strings.Repeat("x", 40))
+	if lipgloss.Width(empty) != lipgloss.Width(paletteCompactFilterInput(short, styles)) {
+		t.Fatal("short compact filter changed the placeholder pill width")
+	}
+	if got := lipgloss.Width(paletteCompactFilterInput(long, styles)) + 1; got != 30 {
+		t.Fatalf("compact filter pill width = %d, want 30", got)
+	}
+	if long.value() != strings.Repeat("x", 40) {
+		t.Fatal("display width cap changed the actual filter query")
+	}
+}
+
 func TestCtrlLLocksAllAndCurrentVaultRemainsInPalette(t *testing.T) {
 	m, _ := operationModel(t)
 	first := m.ws.ActiveSession()

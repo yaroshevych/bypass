@@ -17,24 +17,30 @@ const (
 )
 
 type Header struct {
-	Content string
-	Divider int
+	Content        string
+	Divider        int
+	Accessory      string
+	AccessoryStyle lipgloss.Style
+	Count          string
 }
 
 type Options struct {
-	Mode                Mode
-	Title               string
-	HeaderContent       string
-	HeaderDivider       int
-	Body                []string
-	Footer              string
-	Backdrop            []string
-	Width, ScreenWidth  int
-	Height, X, Y        int
-	Compact, ASCII      bool
-	Base, Accent, Muted lipgloss.Style
-	Pill                lipgloss.Style
-	Line                lipgloss.Style
+	Mode                  Mode
+	Title                 string
+	HeaderContent         string
+	HeaderDivider         int
+	CompactAccessory      string
+	CompactAccessoryStyle lipgloss.Style
+	CompactCount          string
+	Body                  []string
+	Footer                string
+	Backdrop              []string
+	Width, ScreenWidth    int
+	Height, X, Y          int
+	Compact, ASCII        bool
+	Base, Accent, Muted   lipgloss.Style
+	Pill                  lipgloss.Style
+	Line                  lipgloss.Style
 }
 
 // Render places a framed dialog over a pre-rendered, already shaded backdrop.
@@ -92,7 +98,7 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 	}
 	var box []string
 	if o.Compact {
-		box = []string{compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Line, o.Pill, o.Base)}
+		box = []string{compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Line, o.Pill, o.Base, o.CompactAccessory, o.CompactAccessoryStyle, o.CompactCount)}
 	} else {
 		header := o.Accent.Render(title)
 		if o.HeaderContent != "" {
@@ -170,7 +176,7 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 	}
 	topBorder := o.Line.Render(tl + strings.Repeat(horizontal, width-2) + tr)
 	if o.Compact {
-		topBorder = compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Line, o.Pill, o.Base)
+		topBorder = compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Line, o.Pill, o.Base, "", lipgloss.NewStyle(), "")
 	} else if o.HeaderContent != "" {
 		join := "┬"
 		if o.ASCII {
@@ -198,14 +204,44 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 	return background
 }
 
-func compactTopBorder(width int, title string, ascii bool, horizontal, leftCorner, rightCorner string, line, pillStyle, surface lipgloss.Style) string {
+func compactTopBorder(width int, title string, ascii bool, horizontal, leftCorner, rightCorner string, line, pillStyle, surface lipgloss.Style, accessory string, accessoryStyle lipgloss.Style, count string) string {
 	inner := max(0, width-2)
+	if accessory != "" || count != "" {
+		pill := renderTitlePillWithRightSurface(title, inner, ascii, pillStyle, surface, accessoryStyle)
+		prefix := line.Render(leftCorner+horizontal) + pill
+		suffix := surface.Render(" ") + count + line.Render(horizontal+rightCorner)
+		budget := max(0, width-lipgloss.Width(prefix)-lipgloss.Width(suffix))
+		contentBudget := max(0, budget-1)
+		accessory = ansi.Truncate(accessory, contentBudget, "…")
+		if ascii {
+			accessory += accessoryStyle.Render("]")
+		} else {
+			edge := surface.Foreground(accessoryStyle.GetBackground())
+			accessory += edge.Render("\ue0b4")
+		}
+		remaining := max(0, budget-lipgloss.Width(accessory))
+		return prefix + accessory + line.Render(strings.Repeat(horizontal, remaining)) + suffix
+	}
 	pill := renderTitlePill(title, inner, ascii, pillStyle, surface)
 	pillWidth := min(inner, lipgloss.Width(pill))
 	remaining := max(0, inner-pillWidth)
 	left := min(1, remaining)
 	right := remaining - left
 	return line.Render(leftCorner+strings.Repeat(horizontal, left)) + pill + line.Render(strings.Repeat(horizontal, right)+rightCorner)
+}
+
+func renderTitlePillWithRightSurface(title string, width int, ascii bool, style, leftSurface, rightSurface lipgloss.Style) string {
+	if width <= 0 {
+		return ""
+	}
+	pillWidth := min(width, lipgloss.Width(title)+4)
+	if ascii {
+		return style.Render("[ " + fit(title, max(0, pillWidth-4)) + " ]")
+	}
+	center := style.Render(" ") + style.Render(fit(title, max(0, pillWidth-4))) + style.Render(" ")
+	left := leftSurface.Foreground(style.GetBackground()).Render("\ue0b6")
+	right := rightSurface.Foreground(style.GetBackground()).Render("\ue0b4")
+	return fit(left+center+right, pillWidth)
 }
 
 func renderTitlePill(title string, width int, ascii bool, style, surface lipgloss.Style) string {
