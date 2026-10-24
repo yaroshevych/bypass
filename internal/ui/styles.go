@@ -22,11 +22,12 @@ func lowercaseShortcutLabels(text string) string {
 }
 
 type styleSet struct {
-	base, accent, muted, lineStyle, active, inactive, errorStyle lipgloss.Style
+	primary, secondary, accent, error lipgloss.Style
+	divider, active, inactive         lipgloss.Style
 }
 
 type themeColors struct {
-	background, foreground, accent, muted, line, activeForeground, activeBackground, inactiveBackground, error string
+	background, primary, accent, secondary, divider, selectedForeground, selectedBackground, inactiveBackground, error string
 }
 
 var defaultStyles = stylesForTheme("macchiato")
@@ -38,13 +39,13 @@ func themeNames() []string {
 func stylesForTheme(name string) styleSet {
 	c := colorsForTheme(name)
 	return styleSet{
-		base:       lipgloss.NewStyle().Foreground(lipgloss.Color(c.foreground)).Background(lipgloss.Color(c.background)),
-		accent:     lipgloss.NewStyle().Foreground(lipgloss.Color(c.accent)).Bold(true),
-		muted:      lipgloss.NewStyle().Foreground(lipgloss.Color(c.muted)),
-		lineStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color(c.line)),
-		active:     lipgloss.NewStyle().Foreground(lipgloss.Color(c.activeForeground)).Background(lipgloss.Color(c.activeBackground)).Bold(true),
-		inactive:   lipgloss.NewStyle().Foreground(lipgloss.Color(c.foreground)).Background(lipgloss.Color(c.inactiveBackground)),
-		errorStyle: lipgloss.NewStyle().Foreground(lipgloss.Color(c.error)),
+		primary:   lipgloss.NewStyle().Foreground(lipgloss.Color(c.primary)).Background(lipgloss.Color(c.background)),
+		secondary: lipgloss.NewStyle().Foreground(lipgloss.Color(c.secondary)),
+		accent:    lipgloss.NewStyle().Foreground(lipgloss.Color(c.accent)).Bold(true),
+		error:     lipgloss.NewStyle().Foreground(lipgloss.Color(c.error)),
+		divider:   lipgloss.NewStyle().Foreground(lipgloss.Color(c.divider)),
+		active:    lipgloss.NewStyle().Foreground(lipgloss.Color(c.selectedForeground)).Background(lipgloss.Color(c.selectedBackground)).Bold(true),
+		inactive:  lipgloss.NewStyle().Foreground(lipgloss.Color(c.primary)).Background(lipgloss.Color(c.inactiveBackground)),
 	}
 }
 
@@ -74,7 +75,7 @@ func colorsForTheme(name string) themeColors {
 func (m *Model) colors() *styleSet { return &m.styles }
 
 func (m *Model) pill(text string, width int, focused bool) string {
-	return m.pillOn(text, width, focused, m.colors().base)
+	return m.pillOn(text, width, focused, m.colors().primary)
 }
 
 func (m *Model) pillOn(text string, width int, focused bool, surface lipgloss.Style) string {
@@ -100,5 +101,5 @@ func (m *Model) themedRule(width int) string {
 }
 
 func (s *styleSet) rule(width int) string {
-	return s.lineStyle.Render(strings.Repeat("─", max(0, width)))
+	return s.divider.Render(strings.Repeat("─", max(0, width)))
 }

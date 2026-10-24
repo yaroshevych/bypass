@@ -62,17 +62,17 @@ func (m *Model) requestTOTP(api interface {
 }
 
 func (m *Model) totpLines(state *extraState) []string {
-	body := []string{m.colors().muted.Render("TOTP seed stays hidden; only the current one-time code is shown."), ""}
+	body := []string{m.colors().secondary.Render("TOTP seed stays hidden; only the current one-time code is shown."), ""}
 	if state.loading {
 		body = append(body, m.colors().accent.Render("Generating code…"))
 	} else if state.err != "" {
-		body = append(body, m.colors().errorStyle.Render(state.err))
+		body = append(body, m.colors().error.Render(state.err))
 	} else if len(state.totpCode) != 0 && m.now().Before(state.totpExpires) {
 		remaining := int(state.totpExpires.Sub(m.now()).Seconds())
 		if remaining < 0 {
 			remaining = 0
 		}
-		body = append(body, m.colors().accent.Render("Code  "+safe(string(state.totpCode))), m.colors().muted.Render(fmt.Sprintf("Refreshes in %ds", remaining)))
+		body = append(body, m.colors().accent.Render("Code  "+safe(string(state.totpCode))), m.colors().secondary.Render(fmt.Sprintf("Refreshes in %ds", remaining)))
 	} else if len(state.totpCode) != 0 {
 		body = append(body, m.colors().accent.Render("Refreshing code…"))
 	}

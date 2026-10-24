@@ -25,22 +25,22 @@ type Header struct {
 }
 
 type Options struct {
-	Mode                  Mode
-	Title                 string
-	HeaderContent         string
-	HeaderDivider         int
-	CompactAccessory      string
-	CompactAccessoryStyle lipgloss.Style
-	CompactCount          string
-	Body                  []string
-	Footer                string
-	Backdrop              []string
-	Width, ScreenWidth    int
-	Height, X, Y          int
-	Compact, ASCII        bool
-	Base, Accent, Muted   lipgloss.Style
-	Pill                  lipgloss.Style
-	Line                  lipgloss.Style
+	Mode                       Mode
+	Title                      string
+	HeaderContent              string
+	HeaderDivider              int
+	CompactAccessory           string
+	CompactAccessoryStyle      lipgloss.Style
+	CompactCount               string
+	Body                       []string
+	Footer                     string
+	Backdrop                   []string
+	Width, ScreenWidth         int
+	Height, X, Y               int
+	Compact, ASCII             bool
+	Surface, Accent, Secondary lipgloss.Style
+	Pill                       lipgloss.Style
+	Divider                    lipgloss.Style
 }
 
 // Render places a framed dialog over a pre-rendered, already shaded backdrop.
@@ -94,11 +94,11 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 		if right {
 			content = fitRight(text, width-4)
 		}
-		return o.Line.Render(border) + o.Base.Render(" "+content+" ") + o.Line.Render(border)
+		return o.Divider.Render(border) + o.Surface.Render(" "+content+" ") + o.Divider.Render(border)
 	}
 	var box []string
 	if o.Compact {
-		box = []string{compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Line, o.Pill, o.Base, o.CompactAccessory, o.CompactAccessoryStyle, o.CompactCount)}
+		box = []string{compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Divider, o.Pill, o.Surface, o.CompactAccessory, o.CompactAccessoryStyle, o.CompactCount)}
 	} else {
 		header := o.Accent.Render(title)
 		if o.HeaderContent != "" {
@@ -114,15 +114,15 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 			topRule = ruleWithDivider(width, tl, tr, horizontal, o.HeaderDivider, topJoin)
 			bottomRule = ruleWithDivider(width, leftRule, rightRule, horizontal, o.HeaderDivider, cross)
 		}
-		box = []string{o.Line.Render(topRule), wrap(header, false), o.Line.Render(bottomRule)}
+		box = []string{o.Divider.Render(topRule), wrap(header, false), o.Divider.Render(bottomRule)}
 	}
 	for _, line := range o.Body {
 		box = append(box, wrap(line, false))
 	}
 	if footer != "" {
-		box = append(box, wrap(o.Muted.Render(footer), true))
+		box = append(box, wrap(o.Secondary.Render(footer), true))
 	}
-	box = append(box, o.Line.Render(bl+strings.Repeat(horizontal, width-2)+br))
+	box = append(box, o.Divider.Render(bl+strings.Repeat(horizontal, width-2)+br))
 	x := o.X
 	if x < 0 {
 		x = (o.ScreenWidth - width) / 2
@@ -159,13 +159,13 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 		if o.HeaderContent != "" {
 			header = o.HeaderContent
 		}
-		content = append(content, header, o.Line.Render(strings.Repeat(horizontal, width)))
+		content = append(content, header, o.Divider.Render(strings.Repeat(horizontal, width)))
 	}
 	for _, line := range o.Body {
 		content = append(content, "  "+fit(line, inner))
 	}
 	if footer != "" {
-		content = append(content, o.Muted.Render("  "+fitRight(footer, inner)))
+		content = append(content, o.Secondary.Render("  "+fitRight(footer, inner)))
 	}
 	left := max(0, (o.ScreenWidth-width)/2)
 	top := max(0, (o.Height-len(content))/2)
@@ -174,15 +174,15 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 			background[row] = ansi.Cut(background[row], 0, left) + text + ansi.Cut(background[row], left+width, o.ScreenWidth)
 		}
 	}
-	topBorder := o.Line.Render(tl + strings.Repeat(horizontal, width-2) + tr)
+	topBorder := o.Divider.Render(tl + strings.Repeat(horizontal, width-2) + tr)
 	if o.Compact {
-		topBorder = compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Line, o.Pill, o.Base, "", lipgloss.NewStyle(), "")
+		topBorder = compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Divider, o.Pill, o.Surface, "", lipgloss.NewStyle(), "")
 	} else if o.HeaderContent != "" {
 		join := "┬"
 		if o.ASCII {
 			join = "+"
 		}
-		topBorder = o.Line.Render(ruleWithDivider(width, tl, tr, horizontal, o.HeaderDivider, join))
+		topBorder = o.Divider.Render(ruleWithDivider(width, tl, tr, horizontal, o.HeaderDivider, join))
 	}
 	frame(top-1, topBorder)
 	for i, line := range content {
@@ -195,12 +195,12 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 				}
 				rule = ruleWithDivider(width, leftRule, rightRule, horizontal, o.HeaderDivider, join)
 			}
-			frame(top+i, o.Line.Render(rule))
+			frame(top+i, o.Divider.Render(rule))
 			continue
 		}
-		frame(top+i, o.Line.Render(border)+o.Base.Render(" "+fit(ansi.Cut(line, 2, width-2), inner)+" ")+o.Line.Render(border))
+		frame(top+i, o.Divider.Render(border)+o.Surface.Render(" "+fit(ansi.Cut(line, 2, width-2), inner)+" ")+o.Divider.Render(border))
 	}
-	frame(top+len(content), o.Line.Render(bl+strings.Repeat(horizontal, width-2)+br))
+	frame(top+len(content), o.Divider.Render(bl+strings.Repeat(horizontal, width-2)+br))
 	return background
 }
 

@@ -8,8 +8,8 @@ import (
 )
 
 type FilterStyles struct {
-	Text, Placeholder, Fill, Caret lipgloss.Style
-	Count, Accent, Divider, Base   lipgloss.Style
+	Text, Placeholder, Fill, Caret  lipgloss.Style
+	Count, Accent, Divider, Surface lipgloss.Style
 }
 
 // FilterHeader builds the common filtered-dialog header for classic and compact
@@ -32,7 +32,7 @@ func FilterHeader(title, value string, cursor int, placeholder, count string, wi
 	}
 	separator := styles.Divider.Render(separatorText)
 	filterWidth := max(1, width-lipgloss.Width(label)-lipgloss.Width(separator))
-	row := FilterRow(field, count, filterWidth, styles.Base)
+	row := FilterRow(field, count, filterWidth, styles.Surface)
 	return Header{Content: label + separator + row, Divider: lipgloss.Width(label) + 3}
 }
 

@@ -199,7 +199,7 @@ func TestPaletteFilterPlaceholderHasStableHighlightedWidthAndRightAlignedCount(t
 		t.Fatalf("empty palette filter placeholder missing: %q", ansi.Strip(placeholder))
 	}
 	for _, query := range []input{placeholderInput, shortInput, longInput} {
-		row := ansi.Strip(dialogrender.FilterRow(dialogrender.FilterInput(query.value(), query.cursor, "type to filter", 0, false, filterStyles), styles.muted.Render("12 results"), 60, styles.base))
+		row := ansi.Strip(dialogrender.FilterRow(dialogrender.FilterInput(query.value(), query.cursor, "type to filter", 0, false, filterStyles), styles.secondary.Render("12 results"), 60, styles.primary))
 		if lipgloss.Width(row) != 60 || !strings.HasSuffix(row, "12 results") {
 			t.Fatalf("filter count is not right-aligned in a fixed-width row: width=%d row=%q", lipgloss.Width(row), row)
 		}

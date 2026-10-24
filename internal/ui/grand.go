@@ -133,14 +133,14 @@ func (m *Model) grandLines() []string {
 	columns, visible, total := m.grandGeometry()
 	start := min(m.grandOffset, max(0, total-visible))
 	cell := grandCellWidth(runes, m.settings.ASCII)
-	body := []string{c.muted.Render(fmt.Sprintf("%s · %d characters · positions start at 1", safe(m.revealField), len(runes))), ""}
+	body := []string{c.secondary.Render(fmt.Sprintf("%s · %d characters · positions start at 1", safe(m.revealField), len(runes))), ""}
 	if len(runes) == 0 {
-		body = append(body, c.muted.Render("This field is empty."))
+		body = append(body, c.secondary.Render("This field is empty."))
 	}
-	neutralValue := c.accent.Background(c.base.GetBackground())
-	neutralIndex := c.muted.Background(c.base.GetBackground())
+	neutralValue := c.accent.Background(c.primary.GetBackground())
+	neutralIndex := c.secondary.Background(c.primary.GetBackground())
 	stripeValue := c.accent.Background(c.inactive.GetBackground())
-	stripeIndex := c.muted.Background(c.inactive.GetBackground())
+	stripeIndex := c.secondary.Background(c.inactive.GetBackground())
 	groupSize := max(1, m.settings.GrandViewGroupSize)
 	for row := start; row < min(total, start+visible) && len(runes) > 0; row++ {
 		var values, indexes strings.Builder
@@ -194,12 +194,12 @@ func (m *Model) grandTextView() []string {
 	rows := m.grandTextRows()
 	visible := max(1, m.height-10)
 	start := min(m.grandOffset, max(0, len(rows)-visible))
-	body := []string{c.muted.Render(safe(m.revealField)), ""}
+	body := []string{c.secondary.Render(safe(m.revealField)), ""}
 	if len(m.revealValue) == 0 {
-		body = append(body, c.muted.Render("This field is empty."))
+		body = append(body, c.secondary.Render("This field is empty."))
 	} else {
 		for _, row := range rows[start:min(len(rows), start+visible)] {
-			body = append(body, c.base.Render(row))
+			body = append(body, c.primary.Render(row))
 		}
 	}
 	footer := "q close · PgUp/PgDn scroll"

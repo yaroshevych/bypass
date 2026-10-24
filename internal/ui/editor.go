@@ -310,7 +310,7 @@ func (e *entryEditor) render(width, height int) []string {
 		return nil
 	}
 	if e == nil {
-		return padLines([]string{defaultStyles.muted.Render("Editor unavailable")}, height)
+		return padLines([]string{defaultStyles.secondary.Render("Editor unavailable")}, height)
 	}
 	lines := e.layoutLines(width, height)
 	out := make([]string, len(lines))
@@ -351,7 +351,7 @@ func (e *entryEditor) renderLines(title string, width, height int) []editorLine 
 		if i == e.focus {
 			label = styles.accent.Render(label)
 		} else {
-			label = styles.muted.Render(label)
+			label = styles.secondary.Render(label)
 		}
 		lines = append(lines, editorLine{text: label, focus: i})
 		valueLines, cursorLine := e.renderValue(i, max(1, width-2))
@@ -364,12 +364,12 @@ func (e *entryEditor) renderLines(title string, width, height int) []editorLine 
 			lines = append(lines, editorLine{text: value, focus: i})
 		}
 		if e.validation != "" && e.validationFocus == i {
-			lines = append(lines, editorLine{text: styles.errorStyle.Render(e.validation), focus: i})
+			lines = append(lines, editorLine{text: styles.error.Render(e.validation), focus: i})
 		}
 	}
 	for _, field := range e.readonlyFields {
 		label := safe(field.Name) + " (read only)"
-		lines = append(lines, editorLine{text: styles.muted.Render(label), focus: -1})
+		lines = append(lines, editorLine{text: styles.secondary.Render(label), focus: -1})
 		value := field.Value
 		if field.Protected {
 			value = strings.Repeat("•", len([]rune(value)))
@@ -388,16 +388,16 @@ func (e *entryEditor) renderLines(title string, width, height int) []editorLine 
 		label string
 		index int
 	}{{"Generate password", editGenerate}, {"Save", editSave}, {"Cancel", editCancel}} {
-		text := styles.muted.Render("  " + action.label)
+		text := styles.secondary.Render("  " + action.label)
 		if action.index == e.focus {
 			text = styles.active.Render("› " + action.label)
 		}
 		lines = append(lines, editorLine{text: text, focus: action.index})
 	}
 	if e.err != "" && e.validation == "" {
-		lines = append(lines, editorLine{text: styles.errorStyle.Render(e.err), focus: -1})
+		lines = append(lines, editorLine{text: styles.error.Render(e.err), focus: -1})
 	}
-	lines = append(lines, editorLine{text: styles.rule(width), focus: -1}, editorLine{text: styles.muted.Render(editorFooter(width)), focus: -1})
+	lines = append(lines, editorLine{text: styles.rule(width), focus: -1}, editorLine{text: styles.secondary.Render(editorFooter(width)), focus: -1})
 
 	focusedLine := 0
 	for i, line := range lines {

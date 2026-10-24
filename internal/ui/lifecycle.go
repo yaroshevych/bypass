@@ -394,7 +394,7 @@ func (m *Model) lifecycleLines() []string {
 	var body []string
 	if s := m.ws.Sessions[l.sessionID]; s != nil {
 		home, _ := os.UserHomeDir()
-		body = append(body, renderVaultPath(s.Path, home, c.base), "")
+		body = append(body, renderVaultPath(s.Path, home, c.accent), "")
 	}
 	footer := "Tab next · Ctrl+S submit"
 	if l.kind == "info" {
@@ -431,7 +431,7 @@ func (m *Model) lifecycleLines() []string {
 				label = c.accent.Render("› " + label)
 				value += "▏"
 			} else {
-				label = c.muted.Render("  " + label)
+				label = c.secondary.Render("  " + label)
 			}
 			fields = append(fields, label, "  "+value)
 		}
@@ -440,7 +440,7 @@ func (m *Model) lifecycleLines() []string {
 		body = append(body, fields[start:min(len(fields), start+capacity)]...)
 	}
 	if l.err != "" {
-		body = append(body, c.errorStyle.Render(l.err))
+		body = append(body, c.error.Render(l.err))
 	}
 	if l.busy {
 		body = append(body, c.accent.Render("Working…"))
@@ -448,20 +448,8 @@ func (m *Model) lifecycleLines() []string {
 	return m.overlay(title, body, footer, min(84, m.width-4), -1, -1)
 }
 
-func renderVaultPath(path, home string, style lipgloss.Style) string {
-	displayPath := displayVaultPath(path, home)
-	directory, filename := filepath.Split(displayPath)
-	if filename == "" {
-		return style.Render(displayPath)
-	}
-	directory = strings.TrimSuffix(directory, string(filepath.Separator))
-	if directory == "" && filepath.IsAbs(displayPath) {
-		directory = string(filepath.Separator)
-	}
-	if directory != "" && !strings.HasSuffix(directory, string(filepath.Separator)) {
-		directory += string(filepath.Separator)
-	}
-	return style.Render(directory) + style.Bold(true).Render(filename)
+func renderVaultPath(path, home string, accent lipgloss.Style) string {
+	return accent.Bold(true).Render(displayVaultPath(path, home))
 }
 
 func (m *Model) lifecyclePointer(msg tea.MouseMsg) tea.Cmd {

@@ -391,20 +391,20 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 			section = commandSection(choice.group)
 		}
 		if section != group {
-			rows = append(rows, paletteRow{text: c.muted.Bold(true).Render(section), choice: -1})
+			rows = append(rows, paletteRow{text: c.secondary.Bold(true).Render(section), choice: -1})
 			group = section
 		}
 		text := "  " + m.highlightText(choice.label, p.query.value(), "title")
 		if choice.key != "" {
-			text += "  " + c.muted.Render(choice.key)
+			text += "  " + c.secondary.Render(choice.key)
 		}
 		if choice.reason != "" {
-			text = c.muted.Render("  " + safe(choice.label) + " · " + safe(choice.reason))
+			text = c.secondary.Render("  " + safe(choice.label) + " · " + safe(choice.reason))
 		}
 		if i == p.selected {
 			text = c.active.Render("› " + safe(choice.label))
 			if choice.reason != "" {
-				text += " " + c.muted.Render(choice.reason)
+				text += " " + c.secondary.Render(choice.reason)
 			}
 			selectedRow = len(rows)
 		}
@@ -585,10 +585,10 @@ func (m *Model) paletteBody() (string, []string, string) {
 		body = append(body, rows[i].text)
 	}
 	if len(choices) == 0 {
-		body = append(body, m.colors().muted.Render("No matching actions"))
+		body = append(body, m.colors().secondary.Render("No matching actions"))
 	}
 	if p.err != "" {
-		body = append(body, m.colors().errorStyle.Render(p.err))
+		body = append(body, m.colors().error.Render(p.err))
 	}
 	footer := ""
 	return title, body, footer
@@ -627,8 +627,8 @@ func paletteCountLabel(scope string, count int) string {
 
 func filterDialogStyles(c *styleSet) dialogrender.FilterStyles {
 	return dialogrender.FilterStyles{
-		Text: c.base, Placeholder: c.muted, Fill: c.inactive, Caret: c.active,
-		Count: c.muted, Accent: c.accent, Divider: c.lineStyle, Base: c.base,
+		Text: c.primary, Placeholder: c.secondary, Fill: c.inactive, Caret: c.active,
+		Count: c.secondary, Accent: c.accent, Divider: c.divider, Surface: c.primary,
 	}
 }
 func (m *Model) palettePointer(msg tea.MouseMsg) tea.Cmd {

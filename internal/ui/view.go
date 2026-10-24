@@ -13,16 +13,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-var (
-	base       = lipgloss.NewStyle().Foreground(lipgloss.Color("#cad3f5")).Background(lipgloss.Color("#24273a"))
-	accent     = lipgloss.NewStyle().Foreground(lipgloss.Color("#c6a0f6")).Bold(true)
-	muted      = lipgloss.NewStyle().Foreground(lipgloss.Color("#a5adcb"))
-	lineStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#6e738d"))
-	active     = lipgloss.NewStyle().Foreground(lipgloss.Color("#24273a")).Background(lipgloss.Color("#cad3f5")).Bold(true)
-	inactive   = lipgloss.NewStyle().Background(lipgloss.Color("#494d64"))
-	errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#ed8796"))
-)
-
 // safe prevents vault text or filenames from injecting terminal control sequences.
 func safe(s string) string {
 	s = ansi.Strip(s)
@@ -67,8 +57,6 @@ func displayVaultPath(path, home string) string {
 	return safe(filepath.Join("~", rel))
 }
 
-func rule(w int) string { return lineStyle.Render(strings.Repeat("─", max(0, w))) }
-
 func (m *Model) View() string {
 	// Rendering may ask the browser for filtered entries. Keep that read path
 	// from populating its optional cache so View remains side-effect free.
@@ -76,15 +64,15 @@ func (m *Model) View() string {
 	defer func() { m.searchCache = searchCache }()
 	w, h := max(1, m.width), max(1, m.height)
 	styles := m.colors()
-	base, accent := styles.base, styles.accent
-	muted := styles.muted
+	primary, accent := styles.primary, styles.accent
+	secondary := styles.secondary
 	var lines []string
 	if m.layout().Mode == "tiny" {
 		minimum := "Resize to at least 48 × 14"
 		if m.settings.ASCII {
 			minimum = "Resize to at least 48x14"
 		}
-		lines = []string{accent.Render("bypass"), "Terminal too small", muted.Render(minimum), "q quit · ctrl+c quit"}
+		lines = []string{accent.Render("bypass"), "Terminal too small", secondary.Render(minimum), "q quit · ctrl+c quit"}
 		if m.editor != nil && m.editor.dirty() {
 			lines[3] = "Draft kept · resize · ctrl+c quits"
 		}
@@ -112,20 +100,20 @@ func (m *Model) View() string {
 	for i := range lines {
 		lines[i] = fit(lines[i], w)
 	}
-	return base.Render(strings.Join(lines, "\n"))
+	return primary.Render(strings.Join(lines, "\n"))
 }
 
 func (m *Model) welcomeLines() []string {
 	styles := m.colors()
-	accent, muted, active, inactive, errorStyle := styles.accent, styles.muted, styles.active, styles.inactive, styles.errorStyle
+	accent, secondary, active, inactive, error := styles.accent, styles.secondary, styles.active, styles.inactive, styles.error
 	w := m.width
 	contentW := min(62, w-8)
 	left := max(0, (w-contentW)/2)
 	pad := strings.Repeat(" ", left)
 	lines := make([]string, max(1, (m.height-18)/2))
-	lines = append(lines, pad+accent.Render("        ◇"), "", pad+accent.Render("bypass secrets manager"), pad+muted.Render("Your vaults. Your keys. Your terminal."), "", pad+active.Render("  Open Vault  ")+muted.Render("  o / ctrl+o"), "", pad+muted.Render("Open an existing KeePass-compatible .kdbx file."))
+	lines = append(lines, pad+accent.Render("        ◇"), "", pad+accent.Render("bypass secrets manager"), pad+secondary.Render("Your vaults. Your keys. Your terminal."), "", pad+active.Render("  Open Vault  ")+secondary.Render("  o / ctrl+o"), "", pad+secondary.Render("Open an existing KeePass-compatible .kdbx file."))
 	if m.canCreateVault() {
-		lines = append(lines, pad+accent.Render("New Vault")+muted.Render("  N"))
+		lines = append(lines, pad+accent.Render("New Vault")+secondary.Render("  N"))
 	}
 	if len(m.recent) > 0 {
 		lines = append(lines, "", pad+accent.Render("Recent Vaults"))
@@ -139,13 +127,13 @@ func (m *Model) welcomeLines() []string {
 			}
 			lines = append(lines, pad+text)
 		}
-		lines = append(lines, pad+muted.Render("↑↓ select · enter open · delete remove recent"))
+		lines = append(lines, pad+secondary.Render("↑↓ select · enter open · delete remove recent"))
 	}
 	if m.notice != "" {
-		lines = append(lines, "", pad+muted.Render(m.notice))
+		lines = append(lines, "", pad+secondary.Render(m.notice))
 	}
 	if m.backendMissing {
-		lines = append(lines, "", pad+errorStyle.Render("Install KeePassXC or set --backend executable."))
+		lines = append(lines, "", pad+error.Render("Install KeePassXC or set --backend executable."))
 	}
 	footerHeight := 1
 	for len(lines) < m.height-footerHeight {
@@ -165,7 +153,7 @@ func (m *Model) paneWidths() (int, int, int) {
 
 func (m *Model) workspaceLines() []string {
 	styles := m.colors()
-	accent, muted, active := styles.accent, styles.muted, styles.active
+	accent, secondary, active := styles.accent, styles.secondary, styles.active
 	s := m.ws.ActiveSession()
 	w := m.width
 	name := safe(filepath.Base(s.Path))
@@ -184,7 +172,7 @@ func (m *Model) workspaceLines() []string {
 		}
 	}
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	lines := []string{accent.Render(fit("  "+name, max(0, w-lipgloss.Width(right)))) + muted.Render(right)}
+	lines := []string{accent.Render(fit("  "+name, max(0, w-lipgloss.Width(right)))) + secondary.Render(right)}
 	if !compact {
 		lines = append(lines, m.tabRule(w, true))
 	}
@@ -242,7 +230,7 @@ func (m *Model) workspaceLines() []string {
 				}
 				label = style.Render(label)
 			} else {
-				style := styles.base.Bold(true)
+				style := styles.primary.Bold(true)
 				if m.tabHovered && m.hoverTab == span.Index {
 					style = style.Foreground(styles.accent.GetForeground())
 				}
@@ -251,7 +239,7 @@ func (m *Model) workspaceLines() []string {
 		}
 		tabs = append(tabs, label)
 	}
-	separator := styles.lineStyle.Render("│")
+	separator := styles.divider.Render("│")
 	if compact {
 		separator = styles.inactive.Render(" ")
 	}
@@ -260,7 +248,7 @@ func (m *Model) workspaceLines() []string {
 		tabLine += separator
 	}
 	if compact && !m.settings.ASCII {
-		edge := styles.base.Foreground(styles.inactive.GetBackground())
+		edge := styles.primary.Foreground(styles.inactive.GetBackground())
 		tabLine = edge.Render("\ue0b6") + tabLine + edge.Render("\ue0b4")
 	}
 	lines = append(lines, fit(tabLine, w))
@@ -269,7 +257,7 @@ func (m *Model) workspaceLines() []string {
 	}
 	if s.DB == nil {
 		home, _ := os.UserHomeDir()
-		lines = append(lines, "", accent.Render("  Vault locked"), muted.Render("  "+displayVaultPath(s.Path, home)), "", muted.Render("  enter to unlock"), muted.Render("  ctrl+o open another vault"))
+		lines = append(lines, "", accent.Render("  Vault locked"), secondary.Render("  "+displayVaultPath(s.Path, home)), "", secondary.Render("  enter to unlock"), secondary.Render("  ctrl+o open another vault"))
 		footerHeight := 1
 		for len(lines) < m.height-footerHeight {
 			lines = append(lines, "")
@@ -330,7 +318,7 @@ func (m *Model) paneRule(layout viewLayout, top bool) string {
 			line[x] = junction
 		}
 	}
-	return m.colors().lineStyle.Render(string(line))
+	return m.colors().divider.Render(string(line))
 }
 
 func (m *Model) tabRule(width int, top bool) string {
@@ -352,7 +340,7 @@ func (m *Model) tabRule(width int, top bool) string {
 			line[x] = junction
 		}
 	}
-	return m.colors().lineStyle.Render(string(line))
+	return m.colors().divider.Render(string(line))
 }
 
 func (m *Model) workspaceTopRule(layout viewLayout) string {
@@ -374,32 +362,32 @@ func (m *Model) workspaceTopRule(layout viewLayout) string {
 			}
 		}
 	}
-	return m.colors().lineStyle.Render(string(line))
+	return m.colors().divider.Render(string(line))
 }
 
 func (m *Model) footerBadge() string {
 	c := m.colors()
-	style := c.active.Foreground(c.base.GetBackground()).Background(c.accent.GetForeground())
+	style := c.active.Foreground(c.primary.GetBackground()).Background(c.accent.GetForeground())
 	badge := style.Render(" bypass ")
 	if strings.EqualFold(m.settings.Appearance, "compact") {
 		if m.settings.ASCII {
 			badge = style.Render("[ bypass ]")
 		} else {
-			badge = renderPill("bypass", 10, style, c.base)
+			badge = renderPill("bypass", 10, style, c.primary)
 		}
 	}
 	return badge
 }
 
 func (m *Model) footerLine(text string, contextual ...string) string {
-	return m.footerLineWithLeftStyle(text, m.colors().muted, contextual...)
+	return m.footerLineWithLeftStyle(text, m.colors().secondary, contextual...)
 }
 
 func (m *Model) searchFooterLine(text, contextual string, applied bool) string {
 	c := m.colors()
 	style := c.inactive
 	if applied {
-		style = c.base.Bold(true).Background(c.inactive.GetBackground())
+		style = c.primary.Bold(true).Background(c.inactive.GetBackground())
 	}
 	if strings.EqualFold(m.settings.Appearance, "compact") {
 		label := strings.TrimSpace(text)
@@ -413,14 +401,14 @@ func (m *Model) searchFooterLine(text, contextual string, applied bool) string {
 			content = style.Render(label + " ")
 		}
 		width := lipgloss.Width(content) + 2 // one cell of inner padding per side plus caps
-		edge := c.base.Foreground(style.GetBackground())
+		edge := c.primary.Foreground(style.GetBackground())
 		control := fit(edge.Render("\ue0b6")+content+edge.Render("\ue0b4"), width)
 		if m.settings.ASCII {
 			control = fit(style.Render("[")+content+style.Render("]"), width)
 		}
 		left := m.footerBadge() + " " + control
 		if contextual != "" {
-			left += " " + c.muted.Render(lowercaseShortcutLabels(contextual))
+			left += " " + c.secondary.Render(lowercaseShortcutLabels(contextual))
 		}
 		return fit(ansi.Truncate(left, m.width, "…"), m.width)
 	}
@@ -434,7 +422,7 @@ func (m *Model) searchFooterLine(text, contextual string, applied bool) string {
 	left := m.footerBadge()
 	left += text
 	if contextual != "" {
-		left += " " + c.muted.Render(lowercaseShortcutLabels(contextual))
+		left += " " + c.secondary.Render(lowercaseShortcutLabels(contextual))
 	}
 	return fit(ansi.Truncate(left, m.width, "…"), m.width)
 }
@@ -451,7 +439,7 @@ func (m *Model) footerLineWithLeftStyle(text string, leftStyle lipgloss.Style, c
 	}
 	left := badge + gap + leftStyle.Render(strings.TrimSpace(text))
 	if len(contextual) > 0 && contextual[0] != "" {
-		right := c.muted.Render(lowercaseShortcutLabels(contextual[0]))
+		right := c.secondary.Render(lowercaseShortcutLabels(contextual[0]))
 		minimumLeft := lipgloss.Width(badge) + lipgloss.Width(gap) + lipgloss.Width("/ filter · ctrl+p commands")
 		if status := m.clipboardStatus(); status != "" {
 			minimumLeft += 3 + lipgloss.Width(status)
@@ -477,7 +465,7 @@ func (m *Model) layoutBody(layout viewLayout) []string {
 	}
 	styles := m.colors()
 	if layout.Breadcrumb {
-		body[0] = styles.muted.Render(fit(m.layoutBreadcrumb(layout), m.width))
+		body[0] = styles.secondary.Render(fit(m.layoutBreadcrumb(layout), m.width))
 	}
 	contents := make([][]string, len(layout.Panes))
 	for i, pane := range layout.Panes {
@@ -512,9 +500,9 @@ func (m *Model) layoutBody(layout viewLayout) []string {
 			}
 			parts = append(parts, fit(line, pane.Width))
 		}
-		sep := styles.lineStyle.Render("│")
+		sep := styles.divider.Render("│")
 		if m.settings.ASCII {
-			sep = styles.lineStyle.Render("|")
+			sep = styles.divider.Render("|")
 		}
 		var joined strings.Builder
 		for i, part := range parts {
@@ -524,14 +512,14 @@ func (m *Model) layoutBody(layout viewLayout) []string {
 				leftRule := strings.HasSuffix(ansi.Strip(parts[i-1]), "─")
 				rightRule := strings.TrimSpace(right) != "" && strings.Trim(right, "─") == ""
 				if leftRule && rightRule {
-					junction = styles.lineStyle.Render("┼")
+					junction = styles.divider.Render("┼")
 				} else if leftRule {
-					junction = styles.lineStyle.Render("┤")
+					junction = styles.divider.Render("┤")
 				} else if rightRule {
-					junction = styles.lineStyle.Render("├")
+					junction = styles.divider.Render("├")
 				}
 				if m.settings.ASCII && (strings.HasSuffix(ansi.Strip(parts[i-1]), "-") || rightRule) {
-					junction = styles.lineStyle.Render("+")
+					junction = styles.divider.Render("+")
 				}
 				joined.WriteString(junction)
 			}
@@ -756,7 +744,7 @@ func (m *Model) tabSpans() []tabSpan {
 
 func (m *Model) navLines(width, height int, focused bool) []string {
 	styles := m.colors()
-	muted, active, inactive := styles.muted, styles.active, styles.inactive
+	secondary, active, inactive := styles.secondary, styles.active, styles.inactive
 	var lines []string
 	v := m.ws.ActiveView()
 	items := m.navigation()
@@ -777,9 +765,9 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 				if compact {
 					endPadding = 2
 				}
-				line := muted.Render(label)
+				line := secondary.Render(label)
 				if row.label != "Views" || compact {
-					line += styles.lineStyle.Render(strings.Repeat(rule, max(0, width-lipgloss.Width(label)-endPadding)))
+					line += styles.divider.Render(strings.Repeat(rule, max(0, width-lipgloss.Width(label)-endPadding)))
 				}
 				lines = append(lines, fit(line, width))
 			}
@@ -797,13 +785,13 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 		label := fit("  "+text, width)
 		if compact {
 			count := fmt.Sprintf("%d", countValue)
-			countStyle := muted
+			countStyle := secondary
 			if i == v.NavIndex {
 				selection := inactive
 				if focused {
 					selection = active
 				}
-				countStyle = muted.Foreground(selection.GetForeground()).Background(selection.GetBackground()).Faint(true).Bold(false)
+				countStyle = secondary.Foreground(selection.GetForeground()).Background(selection.GetBackground()).Faint(true).Bold(false)
 			}
 			inner := max(0, width-4)
 			labelWidth := max(0, inner-lipgloss.Width(count)-1)
@@ -827,7 +815,7 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 		if row.count {
 			label = fit("  "+indent+fmt.Sprintf("%d entries", countValue), width)
 		}
-		style := styles.base
+		style := styles.primary
 		if i == v.NavIndex {
 			if focused {
 				style = active
@@ -835,7 +823,7 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 				style = inactive
 			}
 		} else if row.count {
-			style = muted
+			style = secondary
 		}
 		if !row.count {
 			style = style.Bold(true)
@@ -851,7 +839,7 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 
 func (m *Model) entryLines(width, height int, focused bool) []string {
 	styles := m.colors()
-	accent, muted, active, inactive := styles.accent, styles.muted, styles.active, styles.inactive
+	accent, secondary, active, inactive := styles.accent, styles.secondary, styles.active, styles.inactive
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	contentWidth := width
 	if compact {
@@ -872,7 +860,7 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 	if focused {
 		heading = accent.Render(heading)
 	} else {
-		heading = muted.Render(heading)
+		heading = secondary.Render(heading)
 	}
 	lines := []string{heading}
 	entries := m.entries()
@@ -882,15 +870,15 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 		if v.Query != "" {
 			text = "No matches"
 		}
-		lines = append(lines, "", muted.Render(" "+text))
+		lines = append(lines, "", secondary.Render(" "+text))
 		if v.Query != "" {
-			lines = append(lines, muted.Render(" esc clears filter"))
+			lines = append(lines, secondary.Render(" esc clears filter"))
 		} else {
 			text := " n creates an entry"
 			if s := m.ws.ActiveSession(); s != nil && s.ReadOnly {
 				text = " Read only · R enables writes"
 			}
-			lines = append(lines, muted.Render(text))
+			lines = append(lines, secondary.Render(text))
 		}
 		return padLines(lines, height)
 	}
@@ -971,33 +959,33 @@ func (m *Model) detailContent(width int) []string {
 
 func (m *Model) detailLayout(width int) ([]string, []int) {
 	styles := m.colors()
-	muted, active := styles.muted, styles.active
+	secondary, active := styles.secondary, styles.active
 	e := m.selected()
 	if e == nil {
-		return []string{muted.Render("  Select an entry")}, nil
+		return []string{secondary.Render("  Select an entry")}, nil
 	}
 	title := "  " + visibleField(*e, "Title")
-	title = muted.Render(title)
+	title = secondary.Render(title)
 	lines := []string{title}
 	if !e.Modified.IsZero() {
-		lines = append(lines, muted.Render("  Modified "+e.Modified.Local().Format("2006-01-02")))
+		lines = append(lines, secondary.Render("  Modified "+e.Modified.Local().Format("2006-01-02")))
 	}
-	lines = append(lines, muted.Render("  "+safe(e.GroupPath)))
+	lines = append(lines, secondary.Render("  "+safe(e.GroupPath)))
 	if e.HasTOTP {
-		lines = append(lines, muted.Render("  TOTP configured · commands to view/copy"))
+		lines = append(lines, secondary.Render("  TOTP configured · commands to view/copy"))
 	}
 	if len(e.AttachmentNames) > 0 {
-		lines = append(lines, muted.Render(fmt.Sprintf("  Attachments: %d", len(e.AttachmentNames))))
+		lines = append(lines, secondary.Render(fmt.Sprintf("  Attachments: %d", len(e.AttachmentNames))))
 	}
 	if e.HistoryCount > 0 {
-		lines = append(lines, muted.Render(fmt.Sprintf("  History snapshots: %d", e.HistoryCount)))
+		lines = append(lines, secondary.Render(fmt.Sprintf("  History snapshots: %d", e.HistoryCount)))
 	}
 	if e.ExpiryEnabled && !e.Expires.IsZero() {
 		label := "  Expires: "
 		if !m.now().Before(e.Expires) {
 			label = "  Expired: "
 		}
-		lines = append(lines, muted.Render(label+e.Expires.Local().Format("2006-01-02 15:04")))
+		lines = append(lines, secondary.Render(label+e.Expires.Local().Format("2006-01-02 15:04")))
 	}
 	lines = append(lines, m.themedRule(width))
 	names := m.fieldNames()
@@ -1026,12 +1014,12 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 		for _, paragraph := range strings.Split(value, "\n") {
 			wrapped := ansi.Wrap(safe(paragraph), max(1, width-4), "")
 			for _, line := range strings.Split(wrapped, "\n") {
-				lines = append(lines, muted.Render("  "+line))
+				lines = append(lines, secondary.Render("  "+line))
 			}
 		}
 	}
 	if len(e.Tags) > 0 {
-		lines = append(lines, "", muted.Render("  Tags: "+safe(strings.Join(e.Tags, ", "))))
+		lines = append(lines, "", secondary.Render("  Tags: "+safe(strings.Join(e.Tags, ", "))))
 	}
 	return lines, positions
 }
@@ -1056,7 +1044,7 @@ func (m *Model) box(title string, body []string, footer string, header ...dialog
 		Mode: dialogrender.Box, Title: title, HeaderContent: headerContent, HeaderDivider: headerDivider, Body: body, Footer: footer,
 		Backdrop: m.modalBackdrop(), Width: min(m.width-6, 82), ScreenWidth: m.width,
 		Height: m.height, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
-		Base: c.base, Accent: c.accent, Muted: c.muted, Pill: c.active, Line: c.lineStyle,
+		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, Pill: c.active, Divider: c.divider,
 	})
 }
 
@@ -1069,13 +1057,13 @@ func (m *Model) dialogTitle(title string) string {
 
 func (m *Model) unlockLines() []string {
 	styles := m.colors()
-	accent, muted, errorStyle := styles.accent, styles.muted, styles.errorStyle
+	accent, secondary, error := styles.accent, styles.secondary, styles.error
 	path := safe(m.path)
 	pathWidth := max(1, min(m.width-6, 82)-4)
 	if cells := lipgloss.Width(path); cells > pathWidth {
 		path = "…" + ansi.Cut(path, cells-pathWidth+1, cells)
 	}
-	body := []string{muted.Render(path), ""}
+	body := []string{secondary.Render(path), ""}
 	labels := []string{"Password", "Key file (optional)", "Hardware slot (optional, e.g. 1)", "Password authentication"}
 	footer := "tab next · space toggle"
 	if m.width < 70 {
@@ -1108,19 +1096,19 @@ func (m *Model) unlockLines() []string {
 		body = append(body, accent.Render("Unlocking… esc cancels"))
 	}
 	if m.err != "" {
-		body = append(body, errorStyle.Render(m.err))
+		body = append(body, error.Render(m.err))
 	}
 	return m.box("Unlock Vault", body, footer)
 }
 
 func (m *Model) pickerLines() []string {
 	styles := m.colors()
-	accent, muted, active, inactive, errorStyle := styles.accent, styles.muted, styles.active, styles.inactive, styles.errorStyle
-	pathLine := muted.Render(m.inputs[0].display(false))
+	accent, secondary, active, inactive, error := styles.accent, styles.secondary, styles.active, styles.inactive, styles.error
+	pathLine := secondary.Render(m.inputs[0].display(false))
 	if m.pickerEditing {
 		pathLine = accent.Render(m.inputs[0].display(false) + "▏")
 	}
-	body := []string{muted.Render("Path · Tab to edit, or type/paste a new path"), pathLine, ""}
+	body := []string{secondary.Render("Path · Tab to edit, or type/paste a new path"), pathLine, ""}
 	start, capacity := m.fileViewport()
 	for i := start; i < len(m.files) && i < start+capacity; i++ {
 		f := m.files[i]
@@ -1141,10 +1129,10 @@ func (m *Model) pickerLines() []string {
 		body = append(body, name)
 	}
 	if len(m.files) == 0 {
-		body = append(body, muted.Render("No vault files here. Enter another path."))
+		body = append(body, secondary.Render("No vault files here. Enter another path."))
 	}
 	if m.err != "" {
-		body = append(body, "", errorStyle.Render(m.err))
+		body = append(body, "", error.Render(m.err))
 	}
 	return m.box("Open Vault", body, "tab path")
 }
@@ -1155,9 +1143,9 @@ func (m *Model) helpLines() []string {
 	count := fmt.Sprintf("%d shortcuts", len(actions))
 	body := append([]string{""}, actions...)
 	if m.helpQuery.value() == "" {
-		body = append(body, "", m.colors().muted.Render("Encrypted backup before every write"))
+		body = append(body, "", m.colors().secondary.Render("Encrypted backup before every write"))
 		if m.backendVersion != "" {
-			body = append(body, m.colors().muted.Render("Backend: "+m.backendVersion))
+			body = append(body, m.colors().secondary.Render("Backend: "+m.backendVersion))
 		}
 	}
 	compact := strings.EqualFold(m.settings.Appearance, "compact")

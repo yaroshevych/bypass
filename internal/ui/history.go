@@ -47,7 +47,7 @@ func (m *Model) openHistory() tea.Cmd {
 }
 
 func (m *Model) historyLines(state *extraState) []string {
-	body := []string{m.colors().muted.Render("Read-only history · snapshots cannot be restored from this view."), ""}
+	body := []string{m.colors().secondary.Render("Read-only history · snapshots cannot be restored from this view."), ""}
 	capacity := max(1, m.height-12)
 	start := viewportOffset(state.historyIndex, len(state.history), capacity, state.offset)
 	for i := start; i < len(state.history) && i < start+capacity; i++ {
@@ -72,13 +72,13 @@ func (m *Model) historyLines(state *extraState) []string {
 func (m *Model) historyEntryLines(state *extraState) []string {
 	entry := m.extraHistorySnapshot(state)
 	if entry == nil {
-		return m.overlay("History Snapshot", []string{m.colors().errorStyle.Render("Snapshot is no longer available.")}, "", min(78, m.width-4), -1, -1)
+		return m.overlay("History Snapshot", []string{m.colors().error.Render("Snapshot is no longer available.")}, "", min(78, m.width-4), -1, -1)
 	}
 	when := entry.Modified
 	if when.IsZero() {
 		when = entry.Created
 	}
-	body := []string{m.colors().muted.Render(historyDate(when)), "", m.colors().muted.Render("Read-only snapshot · no restore action")}
+	body := []string{m.colors().secondary.Render(historyDate(when)), "", m.colors().secondary.Render("Read-only snapshot · no restore action")}
 	if state.fieldIndex >= 0 && state.fieldIndex < len(entry.Fields) {
 		field := entry.Fields[state.fieldIndex]
 		label := field.Name

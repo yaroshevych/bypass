@@ -259,16 +259,16 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 
 func (m *Model) dialogLines() []string {
 	c := m.colors()
-	accent, muted, active, errorStyle := c.accent, c.muted, c.active, c.errorStyle
+	accent, secondary, active, error := c.accent, c.secondary, c.active, c.error
 	d := m.dialog
 	body := append([]string(nil), d.message...)
 	footer := ""
 	switch d.kind {
 	case "pin-setup", "pin-confirm":
-		body = append(body, muted.Render("4–12 digits · current run only"), accent.Render(d.input.display(true)+"▏"))
+		body = append(body, secondary.Render("4–12 digits · current run only"), accent.Render(d.input.display(true)+"▏"))
 		footer = ""
 	case "group":
-		body = append(body, muted.Render("Group name"), accent.Render(d.input.display(false)+"▏"))
+		body = append(body, secondary.Render("Group name"), accent.Render(d.input.display(false)+"▏"))
 		footer = ""
 	case "generator":
 		if len(d.secret) == 0 {
@@ -303,20 +303,20 @@ func (m *Model) dialogLines() []string {
 			if i == d.selected {
 				label = active.Render(label)
 			} else {
-				label = muted.Render(label)
+				label = secondary.Render(label)
 			}
 			choices = append(choices, label)
 		}
 		body = append(body, strings.Join(choices, "  "))
 	}
 	if d.err != "" {
-		body = append(body, errorStyle.Render(d.err))
+		body = append(body, error.Render(d.err))
 	}
 	if m.writing {
 		body = append(body, accent.Render("Working…"))
 	}
 	if m.notice != "" && d.kind == "generator" {
-		body = append(body, muted.Render(m.notice))
+		body = append(body, secondary.Render(m.notice))
 	}
 	return m.box(d.title, body, footer)
 }

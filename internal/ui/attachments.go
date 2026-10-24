@@ -31,7 +31,7 @@ func (m *Model) openAttachments() tea.Cmd {
 func (m *Model) attachmentLines(state *extraState) []string {
 	session, entry := m.currentExtraEntry(state)
 	if session == nil || entry == nil {
-		return m.overlay("Attachments", []string{m.colors().errorStyle.Render("Entry is no longer available.")}, "", min(72, m.width-4), -1, -1)
+		return m.overlay("Attachments", []string{m.colors().error.Render("Entry is no longer available.")}, "", min(72, m.width-4), -1, -1)
 	}
 	var body []string
 	if state.phase == "path" {
@@ -39,12 +39,12 @@ func (m *Model) attachmentLines(state *extraState) []string {
 		if state.action == "export" {
 			label = "Plaintext export destination"
 		}
-		body = []string{m.colors().muted.Render(label), m.colors().accent.Render(state.input.display(false) + "▏"), ""}
+		body = []string{m.colors().secondary.Render(label), m.colors().accent.Render(state.input.display(false) + "▏"), ""}
 	} else if strings.HasPrefix(state.phase, "confirm-") {
 		body = m.attachmentConfirmation(state)
 	} else {
 		writable := m.extrasWritable(session)
-		body = append(body, m.colors().muted.Render("a add · r replace · d remove · e export · Esc close"), "")
+		body = append(body, m.colors().secondary.Render("a add · r replace · d remove · e export · Esc close"), "")
 		capacity := m.attachmentListCapacity()
 		items := len(entry.AttachmentNames) + 1
 		start := viewportOffset(state.selected, items, capacity, state.offset)
@@ -61,11 +61,11 @@ func (m *Model) attachmentLines(state *extraState) []string {
 			body = append(body, label)
 		}
 		if !writable {
-			body = append(body, "", m.colors().muted.Render("Read only · R enables writes"))
+			body = append(body, "", m.colors().secondary.Render("Read only · R enables writes"))
 		}
 	}
 	if state.err != "" {
-		body = append(body, "", m.colors().errorStyle.Render(state.err))
+		body = append(body, "", m.colors().error.Render(state.err))
 	}
 	footer := "a add · r replace · d remove · e export"
 	if state.phase == "path" {

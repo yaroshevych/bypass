@@ -209,15 +209,15 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 }
 func (m *Model) pinLines() []string {
 	c := m.colors()
-	body := []string{c.accent.Render("◇"), "", c.accent.Render("Screen protected"), c.muted.Render("Vault sessions remain unlocked in memory."), "", c.accent.Render(m.pinInput.display(true) + "▏"), "", c.muted.Render("Enter unlock · Ctrl+L full lock · Ctrl+C quit")}
+	body := []string{c.accent.Render("◇"), "", c.accent.Render("Screen protected"), c.secondary.Render("Vault sessions remain unlocked in memory."), "", c.accent.Render(m.pinInput.display(true) + "▏"), "", c.secondary.Render("Enter unlock · Ctrl+L full lock · Ctrl+C quit")}
 	if m.pinError != "" {
-		body = append(body, c.errorStyle.Render(m.pinError))
+		body = append(body, c.error.Render(m.pinError))
 	}
 	if delay := m.gate.NextAttempt().Sub(m.now()); delay > 0 {
-		body = append(body, c.muted.Render(fmt.Sprintf("Try again in %ds", int(delay.Seconds())+1)))
+		body = append(body, c.secondary.Render(fmt.Sprintf("Try again in %ds", int(delay.Seconds())+1)))
 	}
 	if m.pinFullLock {
-		body = []string{c.accent.Render("Full lock all vaults?"), "", c.muted.Render("Unsaved drafts will be discarded."), c.muted.Render("Vault credentials will be required."), "", c.accent.Render("Enter full lock · Esc cancel")}
+		body = []string{c.accent.Render("Full lock all vaults?"), "", c.secondary.Render("Unsaved drafts will be discarded."), c.secondary.Render("Vault credentials will be required."), "", c.accent.Render("Enter full lock · Esc cancel")}
 	}
 	width := min(66, m.width-8)
 	left := max(0, (m.width-width)/2)
@@ -397,7 +397,7 @@ func (m *Model) overlay(title string, body []string, footer string, width, x, y 
 		CompactAccessory: compactAccessory, CompactAccessoryStyle: compactAccessoryStyle, CompactCount: compactCount, Body: body, Footer: footer,
 		Backdrop: m.modalBackdrop(), Width: width, ScreenWidth: m.width,
 		Height: m.height, X: x, Y: y, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
-		Base: c.base, Accent: c.accent, Muted: c.muted, Pill: c.active, Line: c.lineStyle,
+		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, Pill: c.active, Divider: c.divider,
 	})
 }
 
@@ -410,7 +410,7 @@ func (m *Model) modalBackdrop() []string {
 		fmt.Sscanf(value, "#%02x%02x%02x", &r, &g, &b)
 		return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", int(float64(r)*factor), int(float64(g)*factor), int(float64(b)*factor)))
 	}
-	scrim := lipgloss.NewStyle().Foreground(shade(c.muted, .60)).Background(shade(c.background, .78))
+	scrim := lipgloss.NewStyle().Foreground(shade(c.secondary, .60)).Background(shade(c.background, .78))
 	var background []string
 	if m.ws.ActiveSession() == nil {
 		background = m.welcomeLines()
