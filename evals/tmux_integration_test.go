@@ -305,24 +305,24 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	// Command palette can preview a nested theme and restore the original
 	// appearance on Escape, then commit a different theme and compact layout.
 	e.key("C-p")
-	e.typeText("Choose Theme")
+	e.typeText("Theme")
 	e.key("Enter")
-	e.mustShow("Choose Theme", "Macchiato")
+	e.mustShow("Theme", "Macchiato")
 	e.typeText("Tokyo Night")
 	e.mustShow("Tokyo Night")
 	e.key("Escape")
 	e.waitFor("theme preview cancel to return to commands", func() bool {
 		screen := e.capture()
-		return strings.Contains(screen, "Commands") && !strings.Contains(screen, "Commands › Choose Theme")
+		return strings.Contains(screen, "Commands") && !strings.Contains(screen, "Commands › Theme")
 	})
 	e.key("Escape")
 	e.waitFor("palette cancel to close", func() bool {
 		return !strings.Contains(e.capture(), "Commands")
 	})
 	e.key("C-p")
-	e.typeText("Choose Theme")
+	e.typeText("Theme")
 	e.key("Enter")
-	e.mustShow("Choose Theme")
+	e.mustShow("Theme")
 	e.typeText("Nord")
 	e.mustShow("Nord")
 	e.key("Enter")
@@ -397,7 +397,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	// Set a session PIN, protect the screen, verify keyboard shortcuts cannot
 	// expose the workspace, then unlock with the PIN after the throttle clears.
 	e.key("C-p")
-	e.typeText("Set Session PIN")
+	e.typeText("Change PIN")
 	e.key("Enter")
 	e.typeText("1234")
 	e.key("Enter")

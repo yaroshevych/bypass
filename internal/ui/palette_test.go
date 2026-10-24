@@ -23,7 +23,7 @@ func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	beforeStyles := m.styles
 
 	m.openPalette("actions", false)
-	m.palette.query.set("Choose Theme")
+	m.palette.query.set("Theme")
 	m.refreshPalette()
 	if got := m.paletteChoices(); len(got) != 1 || got[0].next != "themes" {
 		t.Fatalf("theme command choices = %#v", got)
@@ -68,10 +68,10 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 		t.Fatalf("command palette sections = %#v, want %#v", sections, wantSections)
 	}
 	wantStarts := map[string][]string{
-		"VAULTS":   {"open", "close-vault", "new-vault"},
+		"VAULTS":   {"protect", "open", "close-vault"},
 		"VIEW":     {"duplicate", "close-view", "previous-tab"},
 		"ENTRIES":  {"new", "edit", "group"},
-		"SECRETS":  {"copy:Password", "copy:UserName", "copy-focused"},
+		"SECRETS":  {"copy-focused", "reveal", "generator"},
 		"SETTINGS": {"theme", "appearance", "ascii"},
 	}
 	for section, want := range wantStarts {
@@ -85,12 +85,55 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 			t.Errorf("%s command order starts %v, want %v", section, got, want)
 		}
 	}
+	var vaults []string
+	for _, choice := range choices {
+		if commandSection(choice.group) == "VAULTS" {
+			vaults = append(vaults, choice.id)
+		}
+	}
+	lockAt, pinAt := -1, -1
+	for i, id := range vaults {
+		if id == "lock" {
+			lockAt = i
+		}
+		if id == "protect" {
+			pinAt = i
+		}
+	}
+	if pinAt != 0 || lockAt < 0 {
+		t.Fatalf("Lock with PIN is not first in VAULTS: %v", vaults)
+	}
+	var secrets []string
+	for _, choice := range choices {
+		if commandSection(choice.group) == "SECRETS" {
+			secrets = append(secrets, choice.id)
+		}
+	}
+	if len(secrets) == 0 || secrets[len(secrets)-1] != "totp" {
+		t.Fatalf("TOTP is not last in SECRETS: %v", secrets)
+	}
 	for _, choice := range choices {
 		if strings.HasPrefix(choice.id, "tab:") || strings.HasPrefix(choice.label, "Switch to ") {
 			t.Fatalf("numbered tab-switch command remains in palette: %#v", choice)
 		}
-		if choice.id == "clear-filters" {
+		switch choice.id {
+		case "clear-filters":
 			t.Fatalf("Clear All Filters command remains in palette: %#v", choice)
+		case "clear-pin":
+			t.Fatalf("Remove Session PIN command remains in palette: %#v", choice)
+		case "wider", "narrower":
+			t.Fatalf("pane resize command remains in palette: %#v", choice)
+		case "copy:Title", "copy:UserName", "copy:Password", "copy:Email", "copy:URL", "copy:Notes":
+			t.Fatalf("field-specific copy command remains in palette: %#v", choice)
+		}
+		wantLabel := map[string]string{
+			"copy-focused": "Copy", "reveal": "Reveal", "grand-view": "Large View",
+			"theme": "Theme", "appearance": "Layout", "set-pin": "Change PIN", "protect": "Lock with PIN",
+			"read-only": "Read Only",
+			"totp":      "TOTP", "help": "Shortcuts", "close-vault": "Close Vault", "lock": "Lock Vault",
+		}[choice.id]
+		if wantLabel != "" && choice.label != wantLabel {
+			t.Errorf("command %q label = %q, want %q", choice.id, choice.label, wantLabel)
 		}
 	}
 	boundary := -1
@@ -306,7 +349,7 @@ func TestCtrlLLocksAllAndCurrentVaultRemainsInPalette(t *testing.T) {
 		}
 	}
 	if lockCurrent == nil {
-		t.Fatal("Lock Current Vault is missing from the command palette")
+		t.Fatal("Lock Vault is missing from the command palette")
 	}
 	if cmd := lockCurrent(); cmd != nil {
 		cmd()

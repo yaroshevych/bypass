@@ -39,7 +39,7 @@ func TestPINMasksNativeSaveAndFullLockCancelsNextSaveTmux(t *testing.T) {
 	e.key("c")
 	e.mustClipboardEqual([]byte(fixtureEntryPassword))
 	e.key("C-p")
-	e.typeText("Set Session PIN")
+	e.typeText("Change PIN")
 	e.key("Enter")
 	e.mustShow("Set Session PIN")
 	e.typeText("2468")

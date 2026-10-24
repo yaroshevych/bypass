@@ -105,10 +105,10 @@ func (m *Model) commands() []command {
 	add("close-view", "Tabs", "Close Tab", "Ctrl+W", closeReason, "", func() tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd { m.ws.CloseView(); m.normalize(); m.syncPrivacyState(); return m.clearClipboard() })
 	})
-	add("close-vault", "File", "Close Current Vault", "", closeReason, "", func() tea.Cmd {
+	add("close-vault", "File", "Close Vault", "", closeReason, "", func() tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd { m.ws.CloseVault(); m.normalize(); m.syncPrivacyState(); return m.clearClipboard() })
 	})
-	add("lock", "Vault", "Lock Current Vault", "", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(false) }) })
+	add("lock", "Vault", "Lock Vault", "", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(false) }) })
 	allReason := ""
 	if !m.anyUnlocked() {
 		allReason = "No unlocked vaults"
@@ -118,6 +118,8 @@ func (m *Model) commands() []command {
 	readLabel := "Enable Read Only"
 	if s != nil && s.ReadOnly {
 		readLabel = "Enable Writes"
+	} else {
+		readLabel = "Read Only"
 	}
 	infoReason := needVault
 	if _, ok := m.backend.(databaseInspector); !ok {
@@ -168,26 +170,7 @@ func (m *Model) commands() []command {
 	if m.editor != nil {
 		focusedCopyReason = "Finish editing before copying stored fields"
 	}
-	add("copy-focused", "Field", "Copy Focused Field", "c", focusedCopyReason, "", func() tea.Cmd { return m.copyField("") })
-	for _, field := range []struct{ name, label string }{{"Title", "Title"}, {"UserName", "Username"}, {"Password", "Password"}, {"Email", "Email"}, {"URL", "URL"}, {"Notes", "Notes"}} {
-		name, label := field.name, field.label
-		reason := needEntry
-		if name == "Email" && entry != nil {
-			present := false
-			for _, f := range entry.Fields {
-				if f.Name == name {
-					present = true
-				}
-			}
-			if !present {
-				reason = "Entry has no Email field"
-			}
-		}
-		if m.editor != nil {
-			reason = "Finish editing before copying stored fields"
-		}
-		add("copy:"+name, "Field", "Copy "+label, "", reason, "", func() tea.Cmd { return m.copyField(name) })
-	}
+	add("copy-focused", "Field", "Copy", "c", focusedCopyReason, "", func() tea.Cmd { return m.copyField("") })
 	grandReason := needEntry
 	if m.editor != nil {
 		grandReason = "Finish editing before viewing stored fields"
@@ -206,11 +189,11 @@ func (m *Model) commands() []command {
 	if reason := m.nativeReason("attachment-import", "attachment-export", "attachment-rm"); reason != "" {
 		attachmentReason = reason
 	}
-	add("totp", "Field", "Show / Copy TOTP", "", totpReason, "", func() tea.Cmd { return m.leaveEditor(m.openTOTP) })
+	add("totp", "Field", "TOTP", "", totpReason, "", func() tea.Cmd { return m.leaveEditor(m.openTOTP) })
 	add("attachments", "Entry", "Attachments…", "", attachmentReason, "", func() tea.Cmd { return m.leaveEditor(m.openAttachments) })
 	add("history-view", "Entry", "Entry History…", "", historyReason, "", func() tea.Cmd { return m.leaveEditor(m.openHistory) })
-	add("grand-view", "Field", "Grand View — Indexed Field", "G", grandReason, "", m.openGrandView)
-	add("reveal", "Field", "Reveal / Hide Focused Field", "v", needEntry, "", func() tea.Cmd { return m.toggleReveal() })
+	add("grand-view", "Field", "Large View", "G", grandReason, "", m.openGrandView)
+	add("reveal", "Field", "Reveal", "v", needEntry, "", func() tea.Cmd { return m.toggleReveal() })
 	add("generator", "Field", "Password Generator", "Ctrl+G", "", "", func() tea.Cmd { m.openGenerator(); return nil })
 	saveReason := writeReason
 	if m.editor == nil {
@@ -225,8 +208,6 @@ func (m *Model) commands() []command {
 	add("search", "View", "Search All Entries", "Ctrl+F", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.beginSearch(true) }) })
 	add("jump", "View", "Jump to Pane / Field", "J", needVault, "", func() tea.Cmd { m.jump = true; return nil })
 	add("zoom", "View", "Zoom / Restore Focused Pane", "z", needVault, "", func() tea.Cmd { v.Zoom = !v.Zoom; return nil })
-	add("wider", "View", "Widen Focused Pane", "", needVault, "", func() tea.Cmd { m.resizeFocused(2); return nil })
-	add("narrower", "View", "Narrow Focused Pane", "", needVault, "", func() tea.Cmd { m.resizeFocused(-2); return nil })
 	newTabReason := closeReason
 	if s == nil || s.DB == nil {
 		newTabReason = needVault
@@ -248,21 +229,16 @@ func (m *Model) commands() []command {
 			return nil
 		})
 	})
-	add("theme", "Settings", "Choose Theme…", "", "", "themes", nil)
-	add("appearance", "Settings", "Choose Compact / Classic…", "", "", "appearance", nil)
+	add("theme", "Settings", "Theme", "", "", "themes", nil)
+	add("appearance", "Settings", "Layout", "", "", "appearance", nil)
 	add("ascii", "Settings", "Toggle ASCII UI", "", "", "", func() tea.Cmd { m.settings.ASCII = !m.settings.ASCII; return m.persistPreferences() })
-	add("set-pin", "Privacy", "Set / Change Session PIN…", "", allReason, "", func() tea.Cmd { m.configurePIN(false); return nil })
+	add("set-pin", "Privacy", "Change PIN", "", allReason, "", func() tea.Cmd { m.configurePIN(false); return nil })
 	pinReason := allReason
 	if pinReason == "" && !m.gate.Configured() {
 		pinReason = "Set a session PIN first"
 	}
-	add("protect", "Privacy", "Protect Screen with PIN", "Ctrl+K", pinReason, "", m.protectScreen)
-	clearPINReason := allReason
-	if clearPINReason == "" && !m.gate.Configured() {
-		clearPINReason = "No session PIN configured"
-	}
-	add("clear-pin", "Privacy", "Remove Session PIN", "", clearPINReason, "", func() tea.Cmd { m.gate.Clear(); m.setNotice("Session PIN removed.", false); return nil })
-	add("help", "Help", "Keyboard Shortcuts", "?", "", "", func() tea.Cmd { m.help = true; m.helpOffset = 0; m.helpQuery.clear(); return nil })
+	add("protect", "Vault", "Lock with PIN", "Ctrl+K", pinReason, "", m.protectScreen)
+	add("help", "Help", "Shortcuts", "?", "", "", func() tea.Cmd { m.help = true; m.helpOffset = 0; m.helpQuery.clear(); return nil })
 	return commands
 }
 
@@ -458,19 +434,18 @@ func orderCommandChoices(choices []command) []command {
 func commandPriority(id string) int {
 	order := []string{
 		// VAULTS: open/close first, then setup, security and maintenance.
-		"open", "close-vault", "new-vault", "lock-all", "lock", "reload",
+		"protect", "open", "close-vault", "new-vault", "lock-all", "lock", "reload",
 		"database-info", "database-settings", "credentials", "read-only", "quit",
 		// VIEW: tab lifecycle and navigation, then search and layout controls.
 		"duplicate", "close-view", "previous-tab", "next-tab",
-		"search", "jump", "zoom", "wider", "narrower",
+		"search", "jump", "zoom",
 		// ENTRIES: create and edit first, then organize and review.
 		"new", "edit", "group", "move", "restore", "delete", "history-view",
 		"attachments", "save", "cancel-edit",
 		// SECRETS: copy common credentials first, then field tools.
-		"copy:Password", "copy:UserName", "copy-focused", "copy:Email", "copy:URL",
-		"copy:Notes", "copy:Title", "reveal", "totp", "generator", "grand-view",
+		"copy-focused", "reveal", "generator", "grand-view", "totp",
 		// SETTINGS: appearance first, then privacy and help.
-		"theme", "appearance", "ascii", "set-pin", "protect", "clear-pin", "help",
+		"theme", "appearance", "ascii", "set-pin", "protect", "help",
 	}
 	for rank, candidate := range order {
 		if candidate == id {

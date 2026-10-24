@@ -34,8 +34,10 @@ func TestClipboardCopyExpiryAndExternalReplacementTmux(t *testing.T) {
 	e.mustShow("Seed Entry")
 	e.mustNotShow(secretSentinel)
 
+	e.key("J")
+	e.key("p")
 	e.key("C-p")
-	e.typeText("Copy Password")
+	e.typeText("Copy")
 	e.key("Enter")
 	e.mustClipboardEqual([]byte(fixtureEntryPassword))
 	e.registerSecret(fixtureEntryPassword)
@@ -49,8 +51,10 @@ func TestClipboardCopyExpiryAndExternalReplacementTmux(t *testing.T) {
 	e.mustClipboardEqual([]byte(replacement))
 	// Copy again without replacing the clipboard to exercise normal expiry of
 	// a value the application still owns.
+	e.key("J")
+	e.key("p")
 	e.key("C-p")
-	e.typeText("Copy Password")
+	e.typeText("Copy")
 	e.key("Enter")
 	e.mustClipboardEqual([]byte(fixtureEntryPassword))
 	e.mustShow("Clipboard clears in")
