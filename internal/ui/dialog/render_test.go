@@ -28,6 +28,74 @@ func TestClassicBoxJoinsHeaderAndRightAlignsFooter(t *testing.T) {
 	}
 }
 
+func TestClassicOverlayHeaderDividerConnectsTopAndBottomRules(t *testing.T) {
+	lines := Render(Options{
+		Mode: Overlay, Title: "Commands", HeaderContent: "COMMANDS │ type to filter 18 commands", HeaderDivider: 11,
+		Body: []string{"APP"}, Backdrop: make([]string, 18), Width: 40, ScreenWidth: 50, Height: 18, X: -1, Y: -1,
+	})
+	var top, header, bottom string
+	for _, line := range strip(lines) {
+		if strings.Contains(line, "┬") {
+			top = line
+		}
+		if strings.Contains(line, "COMMANDS") {
+			header = line
+		}
+		if strings.Contains(line, "┴") {
+			bottom = line
+		}
+	}
+	if top == "" || header == "" || bottom == "" {
+		t.Fatalf("header divider junctions are missing: %q", strings.Join(strip(lines), "\n"))
+	}
+	divider := runeIndex(header, "COMMANDS") + len([]rune("COMMANDS")) + 1
+	headerRunes := []rune(header)
+	outer := runeIndex(header, "│")
+	inner := outer + 1 + runeIndex(string(headerRunes[outer+1:]), "│")
+	if runeIndex(top, "┬") != divider || inner != divider || runeIndex(bottom, "┴") != divider {
+		t.Fatalf("header divider does not connect through rules: expected=%d top=%d header=%d bottom=%d (%q / %q / %q)", divider, runeIndex(top, "┬"), inner, runeIndex(bottom, "┴"), top, header, bottom)
+	}
+}
+
+func TestClassicBoxHeaderDividerConnectsTopAndBottomRules(t *testing.T) {
+	const title = "KEYBOARD SHORTCUTS"
+	lines := Render(Options{
+		Mode: Box, Title: "Keyboard Shortcuts", HeaderContent: "  KEYBOARD SHORTCUTS │", HeaderDivider: len(title) + 3,
+		Body: []string{"Navigate"}, Backdrop: make([]string, 18), Width: 40, ScreenWidth: 50, Height: 18,
+	})
+	var top, header, bottom string
+	for _, line := range strip(lines) {
+		if strings.Contains(line, "┬") {
+			top = line
+		}
+		if strings.Contains(line, title) {
+			header = line
+		}
+		if strings.Contains(line, "┴") {
+			bottom = line
+		}
+	}
+	if top == "" || header == "" || bottom == "" {
+		t.Fatalf("shortcuts header divider junctions are missing: %q", strings.Join(strip(lines), "\n"))
+	}
+	divider := runeIndex(header, title) + len([]rune(title)) + 1
+	outer := runeIndex(header, "│")
+	inner := outer + 1 + runeIndex(string([]rune(header)[outer+1:]), "│")
+	if runeIndex(top, "┬") != divider || inner != divider || runeIndex(bottom, "┴") != divider {
+		t.Fatalf("shortcuts header divider does not connect through rules: %q / %q / %q", top, header, bottom)
+	}
+}
+
+func runeIndex(text, target string) int {
+	textRunes, targetRunes := []rune(text), []rune(target)
+	for i := 0; i+len(targetRunes) <= len(textRunes); i++ {
+		if string(textRunes[i:i+len(targetRunes)]) == target {
+			return i
+		}
+	}
+	return -1
+}
+
 func TestCompactOverlayKeepsTitleCaseAndOmitsEmptyFooter(t *testing.T) {
 	lines := Render(Options{
 		Mode: Overlay, Title: "History", Body: []string{"Snapshot"},

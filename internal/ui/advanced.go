@@ -378,10 +378,14 @@ func (m *Model) advancedScreen() ([]string, bool) {
 	return nil, false
 }
 
-func (m *Model) overlay(title string, body []string, footer string, width, x, y int) []string {
+func (m *Model) overlay(title string, body []string, footer string, width, x, y int, header ...dialogrender.Header) []string {
 	c := m.colors()
+	headerContent, headerDivider := "", 0
+	if len(header) > 0 {
+		headerContent, headerDivider = header[0].Content, header[0].Divider
+	}
 	return dialogrender.Render(dialogrender.Options{
-		Mode: dialogrender.Overlay, Title: title, Body: body, Footer: footer,
+		Mode: dialogrender.Overlay, Title: title, HeaderContent: headerContent, HeaderDivider: headerDivider, Body: body, Footer: footer,
 		Backdrop: m.modalBackdrop(), Width: width, ScreenWidth: m.width,
 		Height: m.height, X: x, Y: y, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
 		Base: c.base, Accent: c.accent, Muted: c.muted, Pill: c.active, Line: c.lineStyle,

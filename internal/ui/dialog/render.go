@@ -16,9 +16,16 @@ const (
 	Overlay
 )
 
+type Header struct {
+	Content string
+	Divider int
+}
+
 type Options struct {
 	Mode                Mode
 	Title               string
+	HeaderContent       string
+	HeaderDivider       int
 	Body                []string
 	Footer              string
 	Backdrop            []string
@@ -87,8 +94,21 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 	if o.Compact {
 		box = []string{compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Line, o.Pill, o.Base)}
 	} else {
-		box = []string{o.Line.Render(tl + strings.Repeat(horizontal, width-2) + tr), wrap(o.Accent.Render(title), false)}
-		box = append(box, o.Line.Render(leftRule+strings.Repeat(horizontal, width-2)+rightRule))
+		header := o.Accent.Render(title)
+		if o.HeaderContent != "" {
+			header = o.HeaderContent
+		}
+		topRule := tl + strings.Repeat(horizontal, width-2) + tr
+		bottomRule := leftRule + strings.Repeat(horizontal, width-2) + rightRule
+		if o.HeaderContent != "" {
+			topJoin, cross := "┬", "┴"
+			if o.ASCII {
+				topJoin, cross = "+", "+"
+			}
+			topRule = ruleWithDivider(width, tl, tr, horizontal, o.HeaderDivider, topJoin)
+			bottomRule = ruleWithDivider(width, leftRule, rightRule, horizontal, o.HeaderDivider, cross)
+		}
+		box = []string{o.Line.Render(topRule), wrap(header, false), o.Line.Render(bottomRule)}
 	}
 	for _, line := range o.Body {
 		box = append(box, wrap(line, false))
@@ -117,11 +137,23 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 	return background
 }
 
+func ruleWithDivider(width int, left, right, horizontal string, divider int, join string) string {
+	runes := []rune(strings.Repeat(horizontal, max(0, width-2)))
+	if divider > 0 && divider < width-1 {
+		runes[divider-1] = []rune(join)[0]
+	}
+	return left + string(runes) + right
+}
+
 func renderBox(o Options, background []string, width int, border, horizontal, tl, tr, bl, br, leftRule, rightRule, title, footer string) []string {
 	inner := width - 4
 	var content []string
 	if !o.Compact {
-		content = append(content, o.Accent.Render("  "+title), o.Line.Render(strings.Repeat(horizontal, width)))
+		header := o.Accent.Render("  " + title)
+		if o.HeaderContent != "" {
+			header = o.HeaderContent
+		}
+		content = append(content, header, o.Line.Render(strings.Repeat(horizontal, width)))
 	}
 	for _, line := range o.Body {
 		content = append(content, "  "+fit(line, inner))
@@ -139,11 +171,25 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 	topBorder := o.Line.Render(tl + strings.Repeat(horizontal, width-2) + tr)
 	if o.Compact {
 		topBorder = compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Line, o.Pill, o.Base)
+	} else if o.HeaderContent != "" {
+		join := "┬"
+		if o.ASCII {
+			join = "+"
+		}
+		topBorder = o.Line.Render(ruleWithDivider(width, tl, tr, horizontal, o.HeaderDivider, join))
 	}
 	frame(top-1, topBorder)
 	for i, line := range content {
 		if i == 1 && !o.Compact {
-			frame(top+i, o.Line.Render(leftRule+strings.Repeat(horizontal, width-2)+rightRule))
+			rule := leftRule + strings.Repeat(horizontal, width-2) + rightRule
+			if o.HeaderContent != "" {
+				join := "┴"
+				if o.ASCII {
+					join = "+"
+				}
+				rule = ruleWithDivider(width, leftRule, rightRule, horizontal, o.HeaderDivider, join)
+			}
+			frame(top+i, o.Line.Render(rule))
 			continue
 		}
 		frame(top+i, o.Line.Render(border)+o.Base.Render(" "+fit(ansi.Cut(line, 2, width-2), inner)+" ")+o.Line.Render(border))

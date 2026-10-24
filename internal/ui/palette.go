@@ -7,8 +7,11 @@ import (
 
 	"bypass/internal/platform"
 	"bypass/internal/search"
+	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type paletteFrame struct {
@@ -582,7 +585,14 @@ func (m *Model) paletteBody() (string, []string, string) {
 	if len(p.stack) > 0 && p.scope != "themes" {
 		title = "Commands › " + title
 	}
-	body := []string{m.colors().accent.Render("Search "+p.query.display(false)+"▏") + m.colors().muted.Render(fmt.Sprintf("   %d results", len(choices))), ""}
+	searchWidth := max(1, min(86, m.width-4)-4)
+	count := paletteCountLabel(p.scope, len(choices))
+	var body []string
+	if strings.EqualFold(m.settings.Appearance, "compact") {
+		body = []string{paletteFilterRow(p.query, count, searchWidth, m.colors()), ""}
+	} else {
+		body = []string{""}
+	}
 	capacity := max(1, m.height-12)
 	start := min(p.offset, max(0, len(rows)-1))
 	for i := start; i < len(rows) && i < start+capacity; i++ {
@@ -597,9 +607,89 @@ func (m *Model) paletteBody() (string, []string, string) {
 	footer := ""
 	return title, body, footer
 }
+
+func paletteFilterRow(query input, count string, width int, c *styleSet) string {
+	field := paletteFilterInput(query, c)
+	fieldWidth := lipgloss.Width(field)
+	count = c.muted.Render(count)
+	countWidth := lipgloss.Width(count)
+	if width <= 0 {
+		return ""
+	}
+	fieldBudget := max(1, width-countWidth-1)
+	if fieldWidth > fieldBudget {
+		field = ansi.Truncate(field, fieldBudget, "…")
+		fieldWidth = lipgloss.Width(field)
+	}
+	gap := max(1, width-fieldWidth-countWidth)
+	return field + c.base.Render(strings.Repeat(" ", gap)) + count
+}
+
+func paletteFilterInput(query input, c *styleSet) string {
+	placeholder := "type to filter"
+	var field string
+	if query.value() == "" {
+		field = c.base.Render(" ") + c.active.Render("t") + c.muted.Render(placeholder[1:]+" ")
+	} else {
+		runes := []rune(safe(query.value()))
+		cursor := min(query.cursor, len(runes))
+		prefix, suffix := string(runes[:cursor]), string(runes[cursor:])
+		caret := " "
+		if suffix != "" {
+			caret = string([]rune(suffix)[0])
+			suffix = string([]rune(suffix)[1:])
+		}
+		field = c.base.Render(" "+prefix) + c.active.Render(caret) + c.base.Render(suffix+" ")
+	}
+	minimum := lipgloss.Width(c.base.Render(" " + placeholder + " "))
+	fieldWidth := lipgloss.Width(field)
+	if fieldWidth < minimum {
+		field += c.base.Render(strings.Repeat(" ", minimum-fieldWidth))
+	}
+	return field
+}
+
 func (m *Model) paletteLines() []string {
 	title, body, footer := m.paletteBody()
+	if !strings.EqualFold(m.settings.Appearance, "compact") {
+		choices := m.paletteChoices()
+		count := paletteCountLabel(m.palette.scope, len(choices))
+		width := max(1, min(86, m.width-4)-4)
+		header := paletteClassicHeader(title, m.palette.query, count, width, m.settings.ASCII, m.colors())
+		divider := lipgloss.Width(strings.ToUpper(title)) + 3
+		return m.overlay(title, body, footer, min(86, m.width-4), m.palette.x, m.palette.y, dialogrender.Header{Content: header, Divider: divider})
+	}
 	return m.overlay(title, body, footer, min(86, m.width-4), m.palette.x, m.palette.y)
+}
+
+func paletteCountLabel(scope string, count int) string {
+	label := "commands"
+	singular := "command"
+	switch scope {
+	case "themes":
+		label, singular = "themes", "theme"
+	case "appearance":
+		label, singular = "appearances", "appearance"
+	case "files":
+		label, singular = "files", "file"
+	case "history":
+		label, singular = "searches", "search"
+	}
+	if count == 1 {
+		label = singular
+	}
+	return fmt.Sprintf("%d %s", count, label)
+}
+
+func paletteClassicHeader(title string, query input, count string, width int, ascii bool, c *styleSet) string {
+	label := c.accent.Render(strings.ToUpper(title))
+	dividerText := " │"
+	if ascii {
+		dividerText = " | "
+	}
+	divider := c.lineStyle.Render(dividerText)
+	filterWidth := max(1, width-lipgloss.Width(label)-lipgloss.Width(divider))
+	return label + divider + paletteFilterRow(query, count, filterWidth, c)
 }
 func (m *Model) palettePointer(msg tea.MouseMsg) tea.Cmd {
 	p := m.palette

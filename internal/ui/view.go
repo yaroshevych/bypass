@@ -1046,10 +1046,14 @@ func padLines(lines []string, height int) []string {
 	return lines
 }
 
-func (m *Model) box(title string, body []string, footer string) []string {
+func (m *Model) box(title string, body []string, footer string, header ...dialogrender.Header) []string {
 	c := m.colors()
+	headerContent, headerDivider := "", 0
+	if len(header) > 0 {
+		headerContent, headerDivider = header[0].Content, header[0].Divider
+	}
 	return dialogrender.Render(dialogrender.Options{
-		Mode: dialogrender.Box, Title: title, Body: body, Footer: footer,
+		Mode: dialogrender.Box, Title: title, HeaderContent: headerContent, HeaderDivider: headerDivider, Body: body, Footer: footer,
 		Backdrop: m.modalBackdrop(), Width: min(m.width-6, 82), ScreenWidth: m.width,
 		Height: m.height, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
 		Base: c.base, Accent: c.accent, Muted: c.muted, Pill: c.active, Line: c.lineStyle,
@@ -1147,6 +1151,15 @@ func (m *Model) pickerLines() []string {
 
 func (m *Model) helpLines() []string {
 	muted := m.colors().muted
+	title := "Keyboard Shortcuts"
+	divider := "│"
+	if m.settings.ASCII {
+		divider = "|"
+	}
+	header := dialogrender.Header{
+		Content: "  " + m.colors().accent.Render(strings.ToUpper(title)) + " " + m.colors().lineStyle.Render(divider),
+		Divider: lipgloss.Width(strings.ToUpper(title)) + 3,
+	}
 	body := m.helpActionLines()
 	body = append(body, "", muted.Render("Encrypted backup before every write"))
 	if m.backendVersion != "" {
@@ -1155,5 +1168,5 @@ func (m *Model) helpLines() []string {
 	capacity := max(1, m.height-8)
 	start := min(m.helpOffset, max(0, len(body)-capacity))
 	end := min(len(body), start+capacity)
-	return m.box("Keyboard Shortcuts", body[start:end], "")
+	return m.box(title, body[start:end], "", header)
 }

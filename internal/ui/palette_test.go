@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -47,6 +48,46 @@ func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	}
 	if *m.ws.ActiveView() != beforeView {
 		t.Fatal("palette preview changed active view focus or filters")
+	}
+}
+
+func TestPaletteFilterPlaceholderHasStableHighlightedWidthAndRightAlignedCount(t *testing.T) {
+	styles := stylesForTheme("macchiato")
+	placeholderInput := input{}
+	shortInput := input{}
+	shortInput.set("a")
+	longInput := input{}
+	longInput.set("a significantly longer filter query")
+
+	placeholder := paletteFilterInput(placeholderInput, &styles)
+	short := paletteFilterInput(shortInput, &styles)
+	long := paletteFilterInput(longInput, &styles)
+	if lipgloss.Width(placeholder) != lipgloss.Width(short) {
+		t.Fatalf("short active filter width %d differs from placeholder width %d", lipgloss.Width(short), lipgloss.Width(placeholder))
+	}
+	if lipgloss.Width(long) <= lipgloss.Width(placeholder) {
+		t.Fatalf("long active filter did not expand: %d <= %d", lipgloss.Width(long), lipgloss.Width(placeholder))
+	}
+	if !strings.Contains(ansi.Strip(placeholder), "type to filter") {
+		t.Fatalf("empty palette filter placeholder missing: %q", ansi.Strip(placeholder))
+	}
+	for _, query := range []input{placeholderInput, shortInput, longInput} {
+		row := ansi.Strip(paletteFilterRow(query, "12 results", 60, &styles))
+		if lipgloss.Width(row) != 60 || !strings.HasSuffix(row, "12 results") {
+			t.Fatalf("filter count is not right-aligned in a fixed-width row: width=%d row=%q", lipgloss.Width(row), row)
+		}
+	}
+}
+
+func TestClassicPaletteSharesHeaderRowWithFilterAndCount(t *testing.T) {
+	styles := stylesForTheme("macchiato")
+	header := paletteClassicHeader("Commands", input{}, "18 commands", 82, false, &styles)
+	stripped := ansi.Strip(header)
+	if lipgloss.Width(stripped) != 82 {
+		t.Fatalf("classic palette header width = %d, want 82", lipgloss.Width(stripped))
+	}
+	if !strings.HasPrefix(stripped, "COMMANDS │ ") || !strings.Contains(stripped, "type to filter") || !strings.HasSuffix(stripped, "18 commands") {
+		t.Fatalf("classic palette header did not align title, filter and count: %q", stripped)
 	}
 }
 
