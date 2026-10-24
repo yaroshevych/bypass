@@ -665,8 +665,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	case "G":
 		return m.openGrandView()
 	case "J":
-		m.jump = true
-		m.hideReveal()
+		return m.beginJump()
 	case "z":
 		v.Zoom = !v.Zoom
 	case "a":

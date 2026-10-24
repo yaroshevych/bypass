@@ -128,12 +128,16 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 		}
 		wantLabel := map[string]string{
 			"copy-focused": "Copy", "reveal": "Reveal", "grand-view": "Large View",
-			"theme": "Theme", "appearance": "Layout", "set-pin": "Change PIN", "protect": "Lock with PIN",
+			"theme": "Theme", "appearance": "Layout", "set-pin": "Change PIN", "protect": "Lock with PIN", "jump": "Jump",
 			"read-only": "Read Only",
 			"totp":      "TOTP", "help": "Shortcuts", "close-vault": "Close Vault", "lock": "Lock Vault",
+			"search": "Search", "zoom": "Zoom", "delete": "Delete", "history-view": "History",
 		}[choice.id]
 		if wantLabel != "" && choice.label != wantLabel {
 			t.Errorf("command %q label = %q, want %q", choice.id, choice.label, wantLabel)
+		}
+		if choice.id == "jump" && commandSection(choice.group) != "ENTRIES" {
+			t.Errorf("Jump is grouped under %s, want ENTRIES", commandSection(choice.group))
 		}
 	}
 	boundary := -1

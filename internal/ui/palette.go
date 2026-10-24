@@ -165,7 +165,7 @@ func (m *Model) commands() []command {
 	if m.editor != nil {
 		deleteReason = "Finish editing first"
 	}
-	add("delete", "Entry", "Delete Selected Entry / Group", "d", deleteReason, "", func() tea.Cmd { m.confirmDelete(); return nil })
+	add("delete", "Entry", "Delete", "d", deleteReason, "", func() tea.Cmd { m.confirmDelete(); return nil })
 	focusedCopyReason := needEntry
 	if m.editor != nil {
 		focusedCopyReason = "Finish editing before copying stored fields"
@@ -191,7 +191,7 @@ func (m *Model) commands() []command {
 	}
 	add("totp", "Field", "TOTP", "", totpReason, "", func() tea.Cmd { return m.leaveEditor(m.openTOTP) })
 	add("attachments", "Entry", "Attachments…", "", attachmentReason, "", func() tea.Cmd { return m.leaveEditor(m.openAttachments) })
-	add("history-view", "Entry", "Entry History…", "", historyReason, "", func() tea.Cmd { return m.leaveEditor(m.openHistory) })
+	add("history-view", "Entry", "History", "", historyReason, "", func() tea.Cmd { return m.leaveEditor(m.openHistory) })
 	add("grand-view", "Field", "Large View", "G", grandReason, "", m.openGrandView)
 	add("reveal", "Field", "Reveal", "v", needEntry, "", func() tea.Cmd { return m.toggleReveal() })
 	add("generator", "Field", "Password Generator", "Ctrl+G", "", "", func() tea.Cmd { m.openGenerator(); return nil })
@@ -205,9 +205,9 @@ func (m *Model) commands() []command {
 		cancelReason = "No entry draft"
 	}
 	add("cancel-edit", "Editor", "Cancel Editing", "Esc", cancelReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return nil }) })
-	add("search", "View", "Search All Entries", "Ctrl+F", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.beginSearch(true) }) })
-	add("jump", "View", "Jump to Pane / Field", "J", needVault, "", func() tea.Cmd { m.jump = true; return nil })
-	add("zoom", "View", "Zoom / Restore Focused Pane", "z", needVault, "", func() tea.Cmd { v.Zoom = !v.Zoom; return nil })
+	add("search", "View", "Search", "Ctrl+F", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.beginSearch(true) }) })
+	add("jump", "Entry", "Jump", "J", needEntry, "", m.beginJump)
+	add("zoom", "View", "Zoom", "z", needVault, "", func() tea.Cmd { v.Zoom = !v.Zoom; return nil })
 	newTabReason := closeReason
 	if s == nil || s.DB == nil {
 		newTabReason = needVault
@@ -438,9 +438,9 @@ func commandPriority(id string) int {
 		"database-info", "database-settings", "credentials", "read-only", "quit",
 		// VIEW: tab lifecycle and navigation, then search and layout controls.
 		"duplicate", "close-view", "previous-tab", "next-tab",
-		"search", "jump", "zoom",
+		"search", "zoom",
 		// ENTRIES: create and edit first, then organize and review.
-		"new", "edit", "group", "move", "restore", "delete", "history-view",
+		"new", "edit", "group", "jump", "move", "restore", "delete", "history-view",
 		"attachments", "save", "cancel-edit",
 		// SECRETS: copy common credentials first, then field tools.
 		"copy-focused", "reveal", "generator", "grand-view", "totp",

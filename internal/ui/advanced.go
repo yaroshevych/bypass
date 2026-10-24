@@ -297,6 +297,16 @@ func (m *Model) resizePointer(msg tea.MouseMsg) bool {
 	return false
 }
 
+func (m *Model) beginJump() tea.Cmd {
+	if m.selected() == nil {
+		m.setNotice("Select an entry first.", false)
+		return nil
+	}
+	m.jump = true
+	m.hideReveal()
+	return nil
+}
+
 func (m *Model) jumpKey(k tea.KeyMsg) tea.Cmd {
 	if k.String() == "esc" {
 		m.jump = false
@@ -308,20 +318,6 @@ func (m *Model) jumpKey(k tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	target := k.String()
-	switch target {
-	case "g":
-		v.Focus = 0
-		m.jump = false
-		return nil
-	case "i":
-		v.Focus = 1
-		m.jump = false
-		return nil
-	case "d":
-		v.Focus = 2
-		m.jump = false
-		return nil
-	}
 	name := map[string]string{"p": "Password", "e": "Email", "u": "UserName", "w": "URL", "n": "Notes"}[target]
 	if name == "" {
 		return nil
@@ -373,7 +369,16 @@ func (m *Model) advancedScreen() ([]string, bool) {
 		return m.paletteLines(), true
 	}
 	if m.jump {
-		return m.overlay("Jump to…", []string{"g Groups   i Entries   d Details", "p Password   u Username   w URL   n Notes", "e Email (when present)"}, "", min(66, m.width-4), -1, -1), true
+		body := []string{"p Password   u Username   w URL   n Notes"}
+		if e := m.selected(); e != nil {
+			for _, field := range e.Fields {
+				if field.Name == "Email" {
+					body = append(body, "e Email")
+					break
+				}
+			}
+		}
+		return m.overlay("Jump to Field", body, "", min(66, m.width-4), -1, -1), true
 	}
 	return nil, false
 }

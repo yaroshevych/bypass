@@ -102,3 +102,50 @@ func TestJumpToPasswordDoesNotRevealIt(t *testing.T) {
 		t.Fatal("password details were not masked after the jump")
 	}
 }
+
+func TestJumpRequiresEntryAndOnlyTargetsFields(t *testing.T) {
+	m, _ := operationModel(t)
+	v := m.ws.ActiveView()
+	v.SelectedUUID = ""
+	var jump *command
+	commands := m.commands()
+	for i := range commands {
+		if commands[i].id == "jump" {
+			jump = &commands[i]
+			break
+		}
+	}
+	if jump == nil || jump.group != "Entry" || jump.label != "Jump" || jump.reason != "Select an entry first" {
+		t.Fatalf("Jump command without selection = %#v", jump)
+	}
+	m.key(key("J"))
+	if m.jump {
+		t.Fatal("Jump opened without a selected entry")
+	}
+
+	v.SelectedUUID = "a"
+	m.key(key("J"))
+	if !m.jump {
+		t.Fatal("Jump did not open with a selected entry")
+	}
+	lines, handled := m.advancedScreen()
+	if !handled {
+		t.Fatal("Jump field chooser was not rendered")
+	}
+	text := strings.Join(lines, "\n")
+	for _, field := range []string{"Password", "Username", "URL", "Notes"} {
+		if !strings.Contains(text, field) {
+			t.Errorf("Jump field chooser omits %q: %s", field, text)
+		}
+	}
+	for _, paneTarget := range []string{"g Groups", "i Entries", "d Details"} {
+		if strings.Contains(text, paneTarget) {
+			t.Errorf("Jump field chooser includes pane target %q: %s", paneTarget, text)
+		}
+	}
+	initialFocus := v.Focus
+	m.jumpKey(key("i"))
+	if !m.jump || v.Focus != initialFocus {
+		t.Fatal("former pane target changed focus instead of leaving Jump open")
+	}
+}

@@ -59,13 +59,13 @@ func TestMilestone4EntryExtrasNativeTmux(t *testing.T) {
 	e.mustNotShow(secretSentinel)
 
 	palette := func(query string) { e.key("C-p"); e.typeText(query); e.key("Enter") }
-	palette("Show Copy TOTP")
+	palette("TOTP")
 	e.mustShowWrite("Authenticator Code", "Refreshes in", "Code")
 	e.mustNotShow(seed)
 	e.mustNotShow(secretSentinel)
 	e.key("Escape")
 
-	palette("Entry History")
+	palette("History")
 	e.mustShow("Entry History", "Earlier Entry")
 	e.key("Enter")
 	e.mustShow("History Snapshot", "Read-only snapshot")

@@ -105,7 +105,7 @@ func TestNavigationActionsAndSessionCleanupTmux(t *testing.T) {
 	e.key("z")
 	e.waitFor("zoomed details after jump closes", func() bool {
 		screen := e.capture()
-		return !strings.Contains(screen, "Jump to…") && !strings.Contains(screen, "Website") && strings.Contains(screen, "Details")
+		return !strings.Contains(screen, "Jump to Field") && !strings.Contains(screen, "Website") && strings.Contains(screen, "Details")
 	})
 	e.mustShow("Details", "Password")
 	e.mustNotShow("Website")

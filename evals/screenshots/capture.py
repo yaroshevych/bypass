@@ -143,7 +143,7 @@ def capture(args, fixture, cli, output):
                         elif args.screen == 'attachments':
                             palette('Attachments', 'Attachments')
                         elif args.screen == 'history':
-                            palette('Entry History', 'History')
+							palette('History', 'History')
                         elif args.screen == 'pin':
                             key('C-k')
                             wait('Set Session PIN')

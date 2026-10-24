@@ -107,7 +107,7 @@ func TestHistoryCopyRevealAndRemaskTmux(t *testing.T) {
 	e.mustShow("History Entry")
 
 	e.key("C-p")
-	e.typeText("Entry History")
+	e.typeText("History")
 	e.key("Enter")
 	e.mustShow("Entry History", "Earlier Entry")
 	e.key("Enter")
