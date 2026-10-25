@@ -246,10 +246,10 @@ func TestEntryEditorMarksDirtyField(t *testing.T) {
 	}}, "root")
 	e.inputs[editNotes].set("new")
 	view := strings.Join(e.render(65, 22), "\n")
-	if !strings.Contains(view, "Notes *") {
+	if !strings.Contains(view, "NOTES *") {
 		t.Fatalf("dirty field label missing:\n%s", view)
 	}
-	if strings.Contains(view, "Title *") {
+	if strings.Contains(view, "TITLE *") {
 		t.Fatalf("unchanged field marked dirty:\n%s", view)
 	}
 }
@@ -264,7 +264,7 @@ func TestEntryEditorNotesCursorRemainsVisibleWhenPaneIsShort(t *testing.T) {
 	if len(lines) != 12 {
 		t.Fatalf("render produced %d lines, want 12", len(lines))
 	}
-	for _, want := range []string{"New Entry", "Notes", "▏", "ctrl+s save", "esc cancel"} {
+	for _, want := range []string{"New Entry", "NOTES", "▏", "ctrl+s save", "esc cancel"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("short-pane render missing %q:\n%s", want, joined)
 		}
@@ -366,7 +366,7 @@ func TestEntryEditorShowsUnsupportedFieldsReadOnlyAndMasked(t *testing.T) {
 	}
 	e := newEntryEditor(entry, "root")
 	view := strings.Join(e.render(65, 26), "\n")
-	for _, visible := range []string{"Email (read only)", "person@example.test", "Recovery Code (read only)", "••••••••"} {
+	for _, visible := range []string{"EMAIL (READ ONLY)", "person@example.test", "RECOVERY CODE (READ ONLY)", "••••••••"} {
 		if !strings.Contains(view, visible) {
 			t.Fatalf("readonly custom field missing %q:\n%s", visible, view)
 		}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"bypass/internal/vault"
@@ -51,6 +52,8 @@ type entryEditor struct {
 	isNew            bool
 	EntryUUID        string
 	GroupUUID        string
+	header           itemHeader
+	headerNow        time.Time
 	err              string
 }
 
@@ -58,6 +61,8 @@ func newEntryEditor(e *vault.Entry, groupUUID string) *entryEditor {
 	editor := &entryEditor{
 		original:        make(map[string]string, 4),
 		GroupUUID:       groupUUID,
+		header:          newItemHeader(e),
+		headerNow:       time.Now(),
 		isNew:           e == nil,
 		validationFocus: -1,
 	}
@@ -129,6 +134,8 @@ func (e *entryEditor) clear() {
 	e.original = nil
 	e.EntryUUID = ""
 	e.GroupUUID = ""
+	e.header = itemHeader{}
+	e.headerNow = time.Time{}
 	e.validation = ""
 	e.err = ""
 }
@@ -333,18 +340,27 @@ func (e *entryEditor) layoutLines(width, height int) []editorLine {
 		}
 		return e.renderLines(title, width, height)
 	}
-	title := "Edit Entry"
-	if e.dirty() {
-		title += " *"
-	}
-	return e.renderLines(title, width, height)
+	return e.renderLines("", width, height)
 }
 
 func (e *entryEditor) renderLines(title string, width, height int) []editorLine {
 	styles := e.styleSet()
+	if e.header.exists {
+		lines := make([]editorLine, 0, 8)
+		for _, line := range e.header.render(styles, width, e.headerNow, true, e.dirty()) {
+			lines = append(lines, editorLine{text: line, focus: -1})
+		}
+		return e.renderFieldLines(lines, width, height)
+	}
 	lines := []editorLine{{text: styles.accent.Render(title), focus: -1}, {text: styles.rule(width), focus: -1}}
+	return e.renderFieldLines(lines, width, height)
+}
+
+func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []editorLine {
+	styles := e.styleSet()
 	for i, name := range editorFields {
-		label := editorLabel(name)
+		lines = append(lines, editorLine{focus: -1})
+		label := "  " + strings.ToUpper(editorLabel(name))
 		if e.fieldDirty(i) {
 			label += " *"
 		}
@@ -368,7 +384,8 @@ func (e *entryEditor) renderLines(title string, width, height int) []editorLine 
 		}
 	}
 	for _, field := range e.readonlyFields {
-		label := safe(field.Name) + " (read only)"
+		lines = append(lines, editorLine{focus: -1})
+		label := "  " + strings.ToUpper(safe(field.Name)) + " (READ ONLY)"
 		lines = append(lines, editorLine{text: styles.secondary.Render(label), focus: -1})
 		value := field.Value
 		if field.Protected {
@@ -384,10 +401,11 @@ func (e *entryEditor) renderLines(title string, width, height int) []editorLine 
 			}
 		}
 	}
+	lines = append(lines, editorLine{text: styles.rule(width), focus: -1})
 	for _, action := range []struct {
 		label string
 		index int
-	}{{"Generate password", editGenerate}, {"Save", editSave}, {"Cancel", editCancel}} {
+	}{{"Generate Password", editGenerate}, {"Save", editSave}, {"Cancel", editCancel}} {
 		text := styles.secondary.Render("  " + action.label)
 		if action.index == e.focus {
 			text = styles.active.Render("› " + action.label)
@@ -397,7 +415,7 @@ func (e *entryEditor) renderLines(title string, width, height int) []editorLine 
 	if e.err != "" && e.validation == "" {
 		lines = append(lines, editorLine{text: styles.error.Render(e.err), focus: -1})
 	}
-	lines = append(lines, editorLine{text: styles.rule(width), focus: -1}, editorLine{text: styles.secondary.Render(editorFooter(width)), focus: -1})
+	lines = append(lines, editorLine{text: styles.rule(width), focus: -1}, editorLine{text: styles.secondary.Render("  " + editorFooter(max(0, width-2))), focus: -1})
 
 	focusedLine := 0
 	for i, line := range lines {

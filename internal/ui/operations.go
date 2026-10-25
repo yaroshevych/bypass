@@ -176,6 +176,7 @@ func (m *Model) startEditor(e *vault.Entry, group string) {
 	m.clearEditor()
 	m.editor = newEntryEditor(e, group)
 	m.editor.styles = &m.styles
+	m.editor.headerNow = m.now()
 	m.editorSession = m.ws.ActiveSession().ID
 	m.ws.ActiveView().Focus = 2
 	m.ws.ActiveView().DetailOffset = 0

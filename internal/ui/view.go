@@ -1104,30 +1104,7 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 	if e == nil {
 		return []string{secondary.Render("  Select an entry")}, nil
 	}
-	title := "  " + visibleField(*e, "Title")
-	title = secondary.Render(title)
-	lines := []string{title}
-	if !e.Modified.IsZero() {
-		lines = append(lines, secondary.Render("  Modified "+e.Modified.Local().Format("2006-01-02")))
-	}
-	lines = append(lines, secondary.Render("  "+safe(e.GroupPath)))
-	if e.HasTOTP {
-		lines = append(lines, secondary.Render("  TOTP configured · commands to view/copy"))
-	}
-	if len(e.AttachmentNames) > 0 {
-		lines = append(lines, secondary.Render(fmt.Sprintf("  Attachments: %d", len(e.AttachmentNames))))
-	}
-	if e.HistoryCount > 0 {
-		lines = append(lines, secondary.Render(fmt.Sprintf("  History snapshots: %d", e.HistoryCount)))
-	}
-	if e.ExpiryEnabled && !e.Expires.IsZero() {
-		label := "  Expires: "
-		if !m.now().Before(e.Expires) {
-			label = "  Expired: "
-		}
-		lines = append(lines, secondary.Render(label+e.Expires.Local().Format("2006-01-02 15:04")))
-	}
-	lines = append(lines, m.themedRule(width))
+	lines := newItemHeader(e).render(styles, width, m.now(), false, false)
 	names := m.fieldNames()
 	var positions []int
 	for index, name := range names {
