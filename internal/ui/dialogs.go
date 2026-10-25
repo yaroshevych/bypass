@@ -15,6 +15,7 @@ type actionDialog struct {
 	message                         []string
 	options                         []string
 	selected, offset                int
+	destinationFocus                int
 	input                           input
 	err                             string
 	applyToPassword                 bool
@@ -282,11 +283,40 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 	if d.kind == "destination" {
 		groups := d.filteredGroups()
 		switch key {
+		case "tab", "shift+tab":
+			delta := 1
+			if key == "shift+tab" {
+				delta = -1
+			}
+			d.destinationFocus = (d.destinationFocus + 3 + delta) % 3
 		case "up":
-			d.selected = max(0, d.selected-1)
+			switch d.destinationFocus {
+			case 0:
+				d.selected = max(0, d.selected-1)
+			case 1:
+				if len(groups) > 0 {
+					d.destinationFocus = 0
+					d.selected = len(groups) - 1
+				}
+			case 2:
+				d.destinationFocus = 1
+			}
 		case "down":
-			d.selected = min(max(0, len(groups)-1), d.selected+1)
+			switch d.destinationFocus {
+			case 0:
+				if len(groups) > 0 && d.selected < len(groups)-1 {
+					d.selected++
+				} else {
+					d.destinationFocus = 1
+				}
+			case 1:
+				d.destinationFocus = 2
+			}
 		case "enter":
+			if d.destinationFocus == 2 {
+				m.clearDialog()
+				return nil
+			}
 			if len(groups) == 0 {
 				d.err = "No available destinations."
 				return nil
@@ -410,7 +440,7 @@ func (m *Model) dialogLines() []string {
 		body = append(body, secondary.Render(" Move item to:"), "")
 		rows := make([]listComponentRow, 0, capacity)
 		for i := start; i < len(groups) && i < start+capacity; i++ {
-			rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: groupLabel(groups[i].Path), selected: i == d.selected, activeFill: true, pillSelected: true, classicInset: true})
+			rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: groupLabel(groups[i].Path), selected: d.destinationFocus == 0 && i == d.selected, activeFill: true, pillSelected: true, classicInset: true})
 		}
 		if len(groups) == 0 {
 			body = append(body, "No matching groups")
@@ -420,6 +450,11 @@ func (m *Model) dialogLines() []string {
 				body = append(body, row.text)
 			}
 		}
+		actionWidth := max(1, min(m.width-6, 60)-4)
+		body = append(body, dialogrender.BodyRule,
+			renderDialogAction("Save", "enter", actionWidth, compact, m.settings.ASCII, d.destinationFocus == 1, c),
+			renderDialogAction("Cancel", "esc", actionWidth, compact, m.settings.ASCII, d.destinationFocus == 2, c),
+		)
 		footer = ""
 	default:
 		body = append(body, "")
