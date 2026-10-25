@@ -158,12 +158,33 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	if d.kind == "group" {
-		if key == "enter" {
+		switch key {
+		case "up":
+			d.selected = max(0, d.selected-1)
+			return nil
+		case "down":
+			d.selected = min(2, d.selected+1)
+			return nil
+		case "tab", "shift+tab":
+			delta := 1
+			if key == "shift+tab" {
+				delta = -1
+			}
+			d.selected = (d.selected + 3 + delta) % 3
+			return nil
+		case "enter":
+			if d.selected == 2 {
+				m.clearDialog()
+				return nil
+			}
 			if strings.TrimSpace(d.input.value()) == "" {
 				d.err = "Group name is required."
 				return nil
 			}
 			return m.apply(vault.Change{Kind: vault.CreateGroup, GroupUUID: d.groupUUID, NewName: d.input.value()})
+		}
+		if d.selected != 0 {
+			return nil
 		}
 		d.input.update(k)
 		d.err = ""
@@ -350,9 +371,13 @@ func (m *Model) dialogLines() []string {
 		body = append(body, renderStackedInputField(inputFieldView{label: "Session PIN", value: &d.input, secret: true, focused: true, indent: 1}, dialogBoxInputWidth(m.width), compact, c)...)
 		footer = ""
 	case "group":
-		body = append(body, "")
-		body = append(body, renderStackedInputField(inputFieldView{label: "Group name", value: &d.input, focused: true, indent: 1}, dialogBoxInputWidth(m.width), compact, c)...)
-		footer = "enter create · esc cancel"
+		actionWidth := dialogBoxInputWidth(m.width)
+		body = append(body, renderStackedInputField(inputFieldView{label: "Group name", value: &d.input, focused: d.selected == 0, indent: 1}, actionWidth, compact, c)...)
+		body = append(body, dialogrender.BodyRule,
+			renderDialogAction("Create", "enter", actionWidth, compact, m.settings.ASCII, d.selected == 1, c),
+			renderDialogAction("Cancel", "esc", actionWidth, compact, m.settings.ASCII, d.selected == 2, c),
+		)
+		footer = ""
 	case "generator":
 		if len(d.secret) == 0 {
 			body = append(body, "")
