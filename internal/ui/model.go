@@ -432,6 +432,9 @@ func (m *Model) touchActive() {
 func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	m.searchCache = nil
 	key := k.String()
+	if m.debugAppearanceToggle(key) {
+		return nil
+	}
 	if m.layout().Mode == "tiny" {
 		if key == "ctrl+c" {
 			m.Close()
@@ -528,9 +531,6 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	if m.searching {
 		return m.searchKey(k)
-	}
-	if m.debugAppearanceToggle(key) {
-		return nil
 	}
 	switch key {
 	case "N", "ctrl+n":

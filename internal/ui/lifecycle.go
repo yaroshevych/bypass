@@ -425,7 +425,7 @@ func (m *Model) lifecycleLines() []string {
 		home, _ := os.UserHomeDir()
 		body = append(body, renderVaultPath(s.Path, home, c.accent), "")
 	}
-	footer := "↑/↓ move · tab focus"
+	footer := "tab focus "
 	if l.kind == "info" {
 		var wrapped []string
 		for _, line := range l.lines {
@@ -455,27 +455,46 @@ func (m *Model) lifecycleLines() []string {
 			secretStart = 1
 		}
 		var fields []string
+		compact := strings.EqualFold(m.settings.Appearance, "compact")
+		newVaultClassic := l.kind == "create" && !compact
 		for position, index := range indices {
 			label := labels[position]
 			value := l.inputs[index].display(index == secretStart || index == secretStart+1)
 			if index == l.focus {
-				label = c.accent.Render("› " + label)
+				prefix := "› "
+				if newVaultClassic {
+					prefix = " "
+				}
+				label = c.accent.Render(prefix + label)
 				value += "▏"
 			} else {
-				label = c.secondary.Render("  " + label)
+				prefix := "  "
+				if newVaultClassic {
+					prefix = " "
+				}
+				label = c.secondary.Render(prefix + label)
 			}
-			fields = append(fields, label, "  "+value)
+			valuePrefix := "  "
+			if newVaultClassic {
+				valuePrefix = " "
+			}
+			fields = append(fields, label, valuePrefix+value)
 		}
-		// Overlay dialogs have a two-cell border and one cell of body padding
-		// on each side, with a maximum outer width of 84 cells.
-		actionWidth := max(1, min(80, m.width-8))
+		dialogWidth := min(84, m.width-4)
+		if l.kind == "create" {
+			dialogWidth = min(60, m.width-4)
+		}
+		// Overlay rows have a two-cell border and one cell of body padding
+		// on each side.
+		actionWidth := max(1, dialogWidth-4)
 		fields = append(fields, c.rule(actionWidth))
 		actionFocus := len(indices)
 		for _, action := range []struct {
 			label, shortcut string
 			index           int
 		}{{"Save", "ctrl+s", actionFocus}, {"Cancel", "esc", actionFocus + 1}} {
-			fields = append(fields, renderEditorAction(action.label, action.shortcut, actionWidth, strings.EqualFold(m.settings.Appearance, "compact"), m.settings.ASCII, l.focus == action.index, &m.styles))
+			line := renderLifecycleAction(action.label, action.shortcut, actionWidth, compact, m.settings.ASCII, l.focus == action.index, newVaultClassic, &m.styles)
+			fields = append(fields, line)
 		}
 		capacity := max(2, m.height-12)
 		focusLine := l.focus*2 + 1
@@ -491,7 +510,26 @@ func (m *Model) lifecycleLines() []string {
 	if l.busy {
 		body = append(body, c.accent.Render("Working…"))
 	}
-	return m.overlay(title, body, footer, min(84, m.width-4), -1, -1)
+	dialogWidth := min(84, m.width-4)
+	if l.kind == "create" {
+		dialogWidth = min(60, m.width-4)
+	}
+	return m.overlay(title, body, footer, dialogWidth, -1, -1)
+}
+
+func renderLifecycleAction(label, shortcut string, width int, compact, ascii, selected, padded bool, styles *styleSet) string {
+	if compact || !padded {
+		return renderEditorAction(label, shortcut, width, compact, ascii, selected, styles)
+	}
+	shortcutWidth := ansi.StringWidth(shortcut)
+	labelWidth := max(0, width-shortcutWidth-2)
+	left := ansi.Truncate(" "+label, labelWidth, "…")
+	gap := max(1, width-ansi.StringWidth(left)-shortcutWidth-1)
+	row := fit(left+strings.Repeat(" ", gap)+shortcut+" ", width)
+	if selected {
+		return styles.active.Render(row)
+	}
+	return styles.secondary.Render(row)
 }
 
 func renderVaultPath(path, home string, accent lipgloss.Style) string {
