@@ -319,8 +319,12 @@ func (m *Model) dialogLines() []string {
 		footer = ""
 	default:
 		body = append(body, "")
-		if d.kind == "delete" {
-			actionWidth := max(1, min(m.width-6, 60)-4)
+		if d.kind == "delete" || d.kind == "unsaved" {
+			dialogWidth := min(m.width-6, 60)
+			if d.kind == "unsaved" {
+				dialogWidth = min(m.width-6, 42)
+			}
+			actionWidth := max(1, dialogWidth-4)
 			for i, option := range d.options {
 				shortcut := ""
 				if strings.EqualFold(option, "Cancel") {
@@ -340,6 +344,9 @@ func (m *Model) dialogLines() []string {
 	}
 	if m.notice != "" && d.kind == "generator" {
 		footer = m.notice
+	}
+	if d.kind == "unsaved" {
+		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 42), false)
 	}
 	if d.kind == "delete" {
 		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 60), false)

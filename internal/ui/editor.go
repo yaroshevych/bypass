@@ -254,9 +254,9 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 		return editorNone
 	}
 	if e.focus >= editGenerate {
-		actions := e.actionFocuses()
+		order := e.focusOrder()
 		position := 0
-		for i, focus := range actions {
+		for i, focus := range order {
 			if focus == e.focus {
 				position = i
 				break
@@ -264,10 +264,10 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 		}
 		switch key {
 		case "up":
-			e.focus = actions[max(0, position-1)]
+			e.focus = order[max(0, position-1)]
 			return editorNone
 		case "down":
-			e.focus = actions[min(len(actions)-1, position+1)]
+			e.focus = order[min(len(order)-1, position+1)]
 			return editorNone
 		}
 		if key == "enter" {
@@ -283,6 +283,26 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 			case editCancel:
 				return editorCancel
 			}
+		}
+		return editorNone
+	}
+	if key == "up" || key == "down" {
+		delta := -1
+		if key == "down" {
+			delta = 1
+		}
+		if e.focus == editNotes && strings.Contains(e.inputs[editNotes].value(), "\n") {
+			e.moveNotesCursor(delta)
+		} else {
+			order := e.focusOrder()
+			position := 0
+			for i, focus := range order {
+				if focus == e.focus {
+					position = i
+					break
+				}
+			}
+			e.focus = order[min(max(0, position+delta), len(order)-1)]
 		}
 		return editorNone
 	}
@@ -418,7 +438,7 @@ func (e *entryEditor) renderLines(title string, width, height int) []editorLine 
 	styles := e.styleSet()
 	if e.header.exists {
 		lines := make([]editorLine, 0, 8)
-		for _, line := range e.header.render(styles, width, e.headerNow, true, e.dirty()) {
+		for _, line := range e.header.renderWithIndent(styles, width, e.headerNow, true, e.dirty(), 1) {
 			lines = append(lines, editorLine{text: line, focus: -1})
 		}
 		return e.renderFieldLines(lines, width, height)
@@ -431,7 +451,7 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 	styles := e.styleSet()
 	for i, name := range editorFields {
 		lines = append(lines, editorLine{focus: -1})
-		label := "  " + strings.ToUpper(editorLabel(name))
+		label := " " + strings.ToUpper(editorLabel(name))
 		if e.fieldDirty(i) {
 			label += " *"
 		}
@@ -441,14 +461,20 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 			label = styles.secondary.Render(label)
 		}
 		lines = append(lines, editorLine{text: label, focus: i})
-		valueLines, cursorLine := e.renderValue(i, max(1, width-2))
-		for j, value := range valueLines {
-			if i == e.focus && j == cursorLine {
-				value = styles.accent.Render("› " + value)
-			} else {
-				value = "  " + value
-			}
+		if i != editNotes || !strings.Contains(e.inputs[i].value(), "\n") {
+			field := inputFieldView{value: &e.inputs[i], focused: i == e.focus, indent: 1}
+			value := renderInputBox(field, max(1, width-1), e.compact, 0, styles)
 			lines = append(lines, editorLine{text: value, focus: i})
+		} else {
+			valueLines, cursorLine := e.renderValue(i, max(1, width-2))
+			for j, value := range valueLines {
+				if i == e.focus {
+					value = renderEditorMultilineLine(value, j == cursorLine, max(1, width-1), styles)
+				} else {
+					value = " " + value
+				}
+				lines = append(lines, editorLine{text: value, focus: i})
+			}
 		}
 		if e.validation != "" && e.validationFocus == i {
 			lines = append(lines, editorLine{text: styles.error.Render(e.validation), focus: i})
@@ -457,16 +483,16 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 	if showNonPasswordVaultSecurity {
 		for _, field := range e.readonlyFields {
 			lines = append(lines, editorLine{focus: -1})
-			label := "  " + strings.ToUpper(safe(field.Name)) + " (READ ONLY)"
+			label := " " + strings.ToUpper(safe(field.Name)) + " (READ ONLY)"
 			lines = append(lines, editorLine{text: styles.secondary.Render(label), focus: -1})
 			value := field.Value
 			if value == "" {
 				value = "—"
 			}
 			for _, paragraph := range strings.Split(value, "\n") {
-				wrapped := ansi.Wrap(safe(paragraph), max(1, width-2), "")
+				wrapped := ansi.Wrap(safe(paragraph), max(1, width-1), "")
 				for _, text := range strings.Split(wrapped, "\n") {
-					lines = append(lines, editorLine{text: "  " + text, focus: -1})
+					lines = append(lines, editorLine{text: " " + text, focus: -1})
 				}
 			}
 		}
@@ -528,43 +554,24 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 }
 
 func renderEditorAction(label, shortcut string, width int, compact, ascii, selected bool, styles *styleSet) string {
-	if compact {
-		innerWidth := max(0, width-2)
-		labelWidth := innerWidth
-		if shortcut != "" {
-			labelWidth = max(0, innerWidth-ansi.StringWidth(shortcut)-1)
-		}
-		body := ansi.Truncate(label, labelWidth, "…")
-		if shortcut != "" {
-			body += strings.Repeat(" ", max(1, innerWidth-ansi.StringWidth(body)-ansi.StringWidth(shortcut))) + shortcut
-		}
-		body = fit(body, innerWidth)
-		if selected {
-			if ascii {
-				return styles.active.Render(fit("["+body+"]", width))
-			}
-			return renderPillTight(body, width, styles.active, styles.primary)
-		}
-		return styles.secondary.Render(fit(" "+body+" ", width))
+	return renderDialogAction(label, shortcut, width, compact, ascii, selected, styles)
+}
+
+func renderEditorMultilineLine(value string, cursor bool, width int, styles *styleSet) string {
+	before, after := value, ""
+	if cursor {
+		before, after, _ = strings.Cut(value, "▏")
 	}
-	left := "  " + label
-	rowWidth := width
-	if shortcut == "ctrl+s" || shortcut == "esc" || shortcut == "ctrl+l" {
-		rowWidth = max(0, width-1)
+	content := " " + before
+	if cursor {
+		content += "▏"
 	}
-	if shortcut != "" {
-		labelWidth := max(0, rowWidth-ansi.StringWidth(shortcut)-1)
-		left = ansi.Truncate(left, labelWidth, "…")
-		left += strings.Repeat(" ", max(1, rowWidth-ansi.StringWidth(left)-ansi.StringWidth(shortcut))) + shortcut
+	content += after
+	padding := max(0, width-ansi.StringWidth(content))
+	if cursor {
+		return styles.inactive.Render(" "+before) + styles.active.Render("▏") + styles.inactive.Render(after+strings.Repeat(" ", padding))
 	}
-	left = fit(left, rowWidth)
-	if rowWidth < width {
-		left += strings.Repeat(" ", width-rowWidth)
-	}
-	if selected {
-		return styles.active.Render(left)
-	}
-	return styles.secondary.Render(left)
+	return styles.inactive.Render(fit(content+strings.Repeat(" ", padding), width))
 }
 
 func (e *entryEditor) styleSet() *styleSet {
@@ -698,6 +705,52 @@ func (e *entryEditor) insertNotesNewline() {
 	value.text = append(value.text, tail...)
 	value.cursor++
 	clear(tail)
+}
+
+func (e *entryEditor) moveNotesCursor(delta int) {
+	value := &e.inputs[editNotes]
+	lineStart := 0
+	for i := value.cursor - 1; i >= 0; i-- {
+		if value.text[i] == '\n' {
+			lineStart = i + 1
+			break
+		}
+	}
+	column := value.cursor - lineStart
+	if delta < 0 {
+		if lineStart == 0 {
+			return
+		}
+		previousEnd := lineStart - 1
+		previousStart := 0
+		for i := previousEnd - 1; i >= 0; i-- {
+			if value.text[i] == '\n' {
+				previousStart = i + 1
+				break
+			}
+		}
+		value.cursor = previousStart + min(column, previousEnd-previousStart)
+		return
+	}
+	lineEnd := len(value.text)
+	for i := value.cursor; i < len(value.text); i++ {
+		if value.text[i] == '\n' {
+			lineEnd = i
+			break
+		}
+	}
+	if lineEnd == len(value.text) {
+		return
+	}
+	nextStart := lineEnd + 1
+	nextEnd := len(value.text)
+	for i := nextStart; i < len(value.text); i++ {
+		if value.text[i] == '\n' {
+			nextEnd = i
+			break
+		}
+	}
+	value.cursor = nextStart + min(column, nextEnd-nextStart)
 }
 
 func (e *entryEditor) clearValidation() {
