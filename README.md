@@ -1,49 +1,72 @@
 # Bypass Secrets Manager
 
-Go terminal workspace for KeePass-compatible vaults. Native edits use encrypted
-staging files, backups and external-change checks.
-Requires Go 1.24+ and `keepassxc-cli` on PATH.
+**Private, modern secrets manager.**
+
+Use your KeePass vaults from the terminal. Enjoy a modern, beautiful interface
+where each detail is crafted: navigation, controls, keyboard shortcuts, and themes.
+
+Bypass is using KeePassXC to manage your secrets - a hardened, independently
+reviewed open source software for KDBX vaults.
+
+Bypass is in **beta** for Linux and macOS.
+
+- **Commands within reach.** Press `ctrl+p` to find an action. Press `?` to see
+  the keyboard shortcuts.
+- **Your choice of style.** Select a theme and a Classic or Compact layout.
+- **Simple navigation.** Use the keyboard or mouse. Open vaults in tabs, filter
+  entries, and keep the fields you need in view.
+- **Passwords when you need them.** Copy a field, reveal a value, or use Large
+  View to read individual characters. Create passwords with the password generator.
+- **Quick privacy controls.** Lock the interface with a PIN. Press `ctrl+l` to
+  lock all vaults.
 
 ## Install
+
+Install Go 1.24 or later, Make, and KeePassXC CLI. Make sure `keepassxc-cli` is
+on your `PATH`. From the source directory, run:
 
 ```sh
 make install
 ```
 
-This builds `bypass` and installs it to `/usr/local/bin` (use `sudo make install`
-if that directory requires administrator access). To install under your home
-directory instead, use `make install PREFIX="$HOME/.local"`. `DESTDIR` can be
-set to stage an install, for example `make install DESTDIR=/tmp/package`.
-Bypass also requires KeePassXC CLI (`keepassxc-cli`) at runtime; install it
-separately and make sure it is on your `PATH`.
+This command builds Bypass and installs it in `/usr/local/bin`. If that directory
+requires administrator access, use `sudo make install`. To install in your home
+directory, use `make install PREFIX="$HOME/.local"`. Make sure the installation
+directory is on your `PATH`.
+
+## Start
 
 ```sh
-just run
-# Browse without writes: just run --read-only
-# or: go run ./cmd/bypass [vault.kdbx]
-just check
-just eval # deterministic terminal integration tests; requires tmux
+bypass
+# Or open a vault directly:
+bypass path/to/vault.kdbx
 ```
 
-`Ctrl+P` opens commands; `?` lists controls. `1`–`9` switch tabs outside text inputs.
-`n`/`e` create/edit; `Ctrl+S` saves; `c` copies;
-`G` opens Grand View with numbered characters for the focused field.
-`v` briefly reveals; `Ctrl+L` locks the current vault; `L` locks all vaults.
-`/` filters the focused pane; `Ctrl+F` searches all entries. `J` starts jump mode;
-`z` zooms a pane; `[`/`]` resize it. Choose themes and Compact/Classic in commands.
-`Ctrl+K` protects the screen with a session PIN after vault authentication.
-Clipboard defaults to 10s; idle protection to 15m (PIN when set, otherwise full lock).
-Secrets stay in memory; backups remain encrypted. Config uses XDG config storage
-(`config.json`); recent paths and backups use XDG state storage on all platforms.
+Open a vault or create one from the command menu (`ctrl+p`). No configuration is
+necessary. Select **Theme** or **Layout** from the same menu to change the interface.
 
-Grand View alternates character backgrounds in groups of two. Set
-`"grand_view_group_size": 2` in `config.json` to change the group size (positive integer).
+| Shortcut | Action |
+| --- | --- |
+| `ctrl+p` | Open commands |
+| `?` | Show keyboard shortcuts |
+| `/` | Filter entries |
+| `n` / `e` | Create / edit an entry |
+| `ctrl+s` | Save an entry |
+| `c` / `v` | Copy / reveal the selected field |
+| `t` | Open a new tab for the current vault |
+| `[` / `]` | Navigate tab |
+| `ctrl+l` | Lock all vaults |
 
-`N` creates a vault. Commands include TOTP codes, attachment import/export/replace/remove,
-read-only entry history, database info/settings, and password/key-file changes.
-Existing cipher/KDF settings are read only in the native CLI; new vaults support
-a target unlock delay. Compare/merge is deferred.
+## Vault protection
 
-Before release: `just verify` (race, native CLI, tmux), `just eval-repeat`, and
-`just mutations`. See [test coverage](evals/COVERAGE.md) for the behavior matrix
-and remaining platform checks. Tests use temporary vaults and an isolated clipboard.
+Bypass uses KeePassXC CLI to open and change vaults. KeePassXC has undergone
+[independent security reviews](https://keepassxc.org/audits/). These reviews apply
+to specific KeePassXC versions and platforms; they do not cover Bypass.
+
+Vault files and backups stay encrypted on disk. A strong master password helps
+protect stored passwords. When a vault is unlocked, passwords can appear in the
+interface. The clipboard clears after 10 seconds by default.
+
+Before a change is saved, Bypass checks the result and creates an encrypted backup.
+If another application changes a vault, Bypass blocks further changes until you
+reload it.
