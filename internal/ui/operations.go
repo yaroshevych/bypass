@@ -71,7 +71,7 @@ func (m *Model) writable() bool {
 		return false
 	}
 	if s.ReadOnly {
-		m.setNotice("Read only: enable writes with R first.", true)
+		m.setNotice("Read only: enable writes with shift+r first.", true)
 		return false
 	}
 	if m.settings.BackupDir == "" {
@@ -152,6 +152,10 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		m.openGenerator()
 		return nil, true
 	case "R":
+		if s.Stale {
+			m.setNotice("Reload the vault before changing read-only mode.", true)
+			return nil, true
+		}
 		s.ReadOnly = !s.ReadOnly
 		if s.ReadOnly {
 			m.setNotice("Read only enabled.", false)
@@ -438,6 +442,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			if errors.Is(msg.err, vault.ErrExternalChanged) {
 				if s := m.ws.Sessions[msg.sessionID]; s != nil {
 					s.Stale = true
+					s.ReadOnly = true
 				}
 				m.showExternal(msg.sessionID)
 			}
@@ -585,6 +590,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		s := m.ws.Sessions[msg.sessionID]
 		if s != nil && s.DB != nil && !s.Stale && s.DB.Revision == msg.expected && (msg.err != nil || msg.actual != msg.expected) {
 			s.Stale = true
+			s.ReadOnly = true
 			if m.dialog == nil && !m.writing {
 				m.showExternal(s.ID)
 			}

@@ -153,7 +153,7 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 	}
 	if key == "esc" {
 		if d.kind == "external" {
-			m.changeDismissed[d.sessionID] = true
+			return nil
 		}
 		m.clearDialog()
 		return nil
@@ -380,6 +380,15 @@ func (m *Model) dialogLines() []string {
 	d := m.dialog
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	body := append([]string(nil), d.message...)
+	if d.kind == "external" {
+		for i, line := range body {
+			if i == 0 {
+				body[i] = accent.Bold(true).Render(" " + line)
+			} else {
+				body[i] = " " + line
+			}
+		}
+	}
 	if d.kind == "delete" {
 		wrapped := make([]string, 0, len(body))
 		textWidth := max(1, min(m.width-6, 60)-5)
@@ -458,15 +467,17 @@ func (m *Model) dialogLines() []string {
 		footer = ""
 	default:
 		body = append(body, "")
-		if d.kind == "delete" || d.kind == "unsaved" {
+		if d.kind == "delete" || d.kind == "unsaved" || d.kind == "external" {
 			dialogWidth := min(m.width-6, 60)
 			if d.kind == "unsaved" {
 				dialogWidth = min(m.width-6, 42)
+			} else if d.kind == "external" {
+				dialogWidth = min(m.width-6, 72)
 			}
 			actionWidth := max(1, dialogWidth-4)
 			for i, option := range d.options {
 				shortcut := ""
-				if strings.EqualFold(option, "Cancel") {
+				if d.kind != "external" && strings.EqualFold(option, "Cancel") {
 					shortcut = "esc"
 				}
 				body = append(body, renderDialogAction(option, shortcut, actionWidth, compact, m.settings.ASCII, i == d.selected, c))
@@ -483,6 +494,9 @@ func (m *Model) dialogLines() []string {
 	}
 	if d.kind == "unsaved" {
 		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 42), false)
+	}
+	if d.kind == "external" {
+		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 72), false)
 	}
 	if d.kind == "delete" {
 		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 60), false)

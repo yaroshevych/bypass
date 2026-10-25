@@ -116,10 +116,16 @@ func (m *Model) commands() []command {
 	add("lock-all", "Vault", "Lock All Vaults", "Ctrl+L", allReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) }) })
 	add("reload", "Vault", "Reload Vault", "Ctrl+R", needVault, "", func() tea.Cmd { return m.requestReload(s.ID) })
 	readLabel := "Enable Read Only"
-	if s != nil && s.ReadOnly {
+	if s != nil && s.Stale {
+		readLabel = "Read Only"
+	} else if s != nil && s.ReadOnly {
 		readLabel = "Enable Writes"
 	} else {
 		readLabel = "Read Only"
+	}
+	readOnlyReason := needVault
+	if s != nil && s.Stale {
+		readOnlyReason = "Reload required"
 	}
 	infoReason := needVault
 	if _, ok := m.backend.(databaseInspector); !ok {
@@ -140,7 +146,7 @@ func (m *Model) commands() []command {
 		credentialsReason = reason
 	}
 	add("credentials", "Vault", "Change Password…", "", credentialsReason, "", func() tea.Cmd { return m.leaveEditor(m.openCredentials) })
-	add("read-only", "Vault", readLabel, "Shift+R", needVault, "", invoke("R"))
+	add("read-only", "Vault", readLabel, "Shift+R", readOnlyReason, "", invoke("R"))
 	add("new", "Entry", "New Entry…", "n", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("n")) })
 	add("edit", "Entry", "Edit Entry…", "e", editReason, "", invoke("e"))
 	add("group", "Entry", "New Group…", "g", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("g")) })
@@ -242,7 +248,7 @@ func (m *Model) commands() []command {
 	add("set-pin", "Privacy", "Change PIN…", "", allReason, "", func() tea.Cmd { m.configurePIN(false); return nil })
 	pinReason := allReason
 	if pinReason == "" && !m.gate.Configured() {
-		pinReason = "Set a session PIN first"
+		pinReason = "PIN not set"
 	}
 	add("protect", "Vault", "Lock UI with PIN", "Ctrl+K", pinReason, "", m.protectScreen)
 	add("help", "Help", "Shortcuts", "?", "", "", func() tea.Cmd { m.help = true; m.helpOffset = 0; m.helpQuery.clear(); return nil })

@@ -276,7 +276,7 @@ func TestPaletteDisabledReasonIsRightAlignedAndFirstGroupHasNoLeadingBlank(t *te
 	m.settings.Appearance = "classic"
 	m.palette = &paletteState{scope: "actions", selected: 1}
 	choices := []command{
-		{group: "Vault", label: "Lock with PIN", reason: "Set a session PIN first"},
+		{group: "Vault", label: "Lock with PIN", reason: "PIN not set"},
 		{group: "Vault", label: "Open Vault", key: "ctrl+o"},
 	}
 	rows, _ := m.paletteRows(choices)
@@ -290,7 +290,7 @@ func TestPaletteDisabledReasonIsRightAlignedAndFirstGroupHasNoLeadingBlank(t *te
 		}
 		if row.choice == 0 {
 			line := ansi.Strip(row.text)
-			if lipgloss.Width(line) != m.paletteListWidth(choices) || !strings.HasSuffix(strings.TrimRight(line, " "), "Set a session PIN first") {
+			if lipgloss.Width(line) != m.paletteListWidth(choices) || !strings.HasSuffix(strings.TrimRight(line, " "), "PIN not set") {
 				t.Fatalf("disabled reason is not right-aligned: %q", line)
 			}
 		}

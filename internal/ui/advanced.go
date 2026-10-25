@@ -485,13 +485,19 @@ func dimANSIColors(text string, foreground, background float64, surfaceColor str
 }
 
 func (m *Model) footerText() string {
+	readOnlyFooter := func(text string) string {
+		if s := m.ws.ActiveSession(); s != nil && (s.ReadOnly || s.Stale) {
+			return text + " · read only"
+		}
+		return text
+	}
 	v := m.ws.ActiveView()
 	if m.searching {
 		query := strings.TrimSpace(m.query.value())
 		if query == "" {
-			return "/ filter"
+			return readOnlyFooter("/ filter")
 		}
-		return "/ " + safe(query)
+		return readOnlyFooter("/ " + safe(query))
 	}
 	if v != nil && (v.Query != "" || v.NavFilter != "" || v.DetailFilter != "") {
 		query := v.Query
@@ -501,13 +507,13 @@ func (m *Model) footerText() string {
 		if query == "" {
 			query = v.DetailFilter
 		}
-		return "/ " + safe(query)
+		return readOnlyFooter("/ " + safe(query))
 	}
 	text := "/ filter · ctrl+p commands"
 	if m.searchError != "" {
 		text += " · " + m.searchError
 	}
-	return text
+	return readOnlyFooter(text)
 }
 
 func (m *Model) footerContext() string {

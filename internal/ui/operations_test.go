@@ -162,13 +162,40 @@ func TestReadOnlyAndStaleWritesBlocked(t *testing.T) {
 		t.Fatal("stale edit wasn't blocked")
 	}
 }
+
+func TestExternalChangeCannotDisableReadOnly(t *testing.T) {
+	m, _ := operationModel(t)
+	s := m.ws.ActiveSession()
+	s.Stale = true
+	s.ReadOnly = true
+
+	var readOnly *command
+	for _, cmd := range m.commands() {
+		if cmd.id == "read-only" {
+			copy := cmd
+			readOnly = &copy
+			break
+		}
+	}
+	if readOnly == nil || readOnly.reason == "" {
+		t.Fatal("read-only palette command should be disabled after external change")
+	}
+	readOnly.run()
+	m.key(key("R"))
+	if !s.ReadOnly {
+		t.Fatal("external-change protection allowed writes to be enabled")
+	}
+	if !s.Stale {
+		t.Fatal("read-only toggle cleared external-change state")
+	}
+}
 func TestExternalChangeKeepAndReloadWithDraft(t *testing.T) {
 	m, _ := operationModel(t)
 	s := m.ws.ActiveSession()
 	m.key(key("e"))
 	m.editor.inputs[editTitle].set("Draft")
 	m.Update(revisionMsg{sessionID: s.ID, actual: [32]byte{1}})
-	if !s.Stale || m.dialog == nil || m.dialog.selected != 1 {
+	if !s.Stale || !s.ReadOnly || m.dialog == nil || m.dialog.selected != 1 {
 		t.Fatal("external change modal missing safe default")
 	}
 	m.key(key("enter"))

@@ -58,6 +58,26 @@ func TestDefaultFooterPadsSlashAfterBadge(t *testing.T) {
 	}
 }
 
+func TestFooterShowsReadOnlyForManualAndExternalChange(t *testing.T) {
+	m, _ := operationModel(t)
+	s := m.ws.ActiveSession()
+	for _, state := range []struct {
+		name     string
+		readOnly bool
+		stale    bool
+	}{
+		{name: "manual", readOnly: true},
+		{name: "external", stale: true},
+	} {
+		t.Run(state.name, func(t *testing.T) {
+			s.ReadOnly, s.Stale = state.readOnly, state.stale
+			if got := m.footerText(); !strings.Contains(got, "/ filter · ctrl+p commands · read only") {
+				t.Fatalf("footer = %q, want read-only indicator", got)
+			}
+		})
+	}
+}
+
 func TestLockedVaultFooterRightAlignsTabAndQuitActions(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 120, 35
