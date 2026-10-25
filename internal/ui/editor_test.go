@@ -29,9 +29,10 @@ func TestEntryEditorDirtyValuesAndPasswordSeparation(t *testing.T) {
 	if _, ok := values["Password"]; ok {
 		t.Fatal("password must not be returned in values")
 	}
+	newEditor.focus = editPassword
 	view := strings.Join(newEditor.render(65, 22), "\n")
-	if strings.Contains(view, "secret-value") || !strings.Contains(view, "••••••••••••") {
-		t.Fatalf("new password is not masked in render:\n%s", view)
+	if !strings.Contains(view, "secret-value") {
+		t.Fatalf("new password is not visible in edit form:\n%s", view)
 	}
 	if got := strings.Count(view, "▏"); got != 1 {
 		t.Fatalf("render shows %d cursors, want only the focused-field cursor", got)
@@ -120,7 +121,7 @@ func TestEntryEditorTabActionsAndNotesEnter(t *testing.T) {
 	}
 }
 
-func TestEntryEditorPasswordGeneratorAndSecretRendering(t *testing.T) {
+func TestEntryEditorPasswordGeneratorAndSecretVisibility(t *testing.T) {
 	e := newEntryEditor(&vault.Entry{
 		UUID: "id",
 		Fields: []vault.Field{
@@ -142,14 +143,12 @@ func TestEntryEditorPasswordGeneratorAndSecretRendering(t *testing.T) {
 	if e.values()["Title"] != "Private title" || e.values()["UserName"] != "Private user" {
 		t.Fatal("values() should retain protected standard fields for save")
 	}
-	view := strings.Join(e.render(65, 22), "\n")
-	for _, secret := range []string{"Private title", "Private user", "original-password", "generated-secret"} {
-		if strings.Contains(view, secret) {
-			t.Fatalf("render leaked %q", secret)
+	e.focus = editPassword
+	view := strings.Join(e.render(65, 40), "\n")
+	for _, secret := range []string{"Private title", "Private user", "generated-secret"} {
+		if !strings.Contains(view, secret) {
+			t.Fatalf("edit form does not show %q", secret)
 		}
-	}
-	if !strings.Contains(view, "••••••••") {
-		t.Fatal("render does not mask the password")
 	}
 
 	e.focus = editUserName
@@ -159,8 +158,8 @@ func TestEntryEditorPasswordGeneratorAndSecretRendering(t *testing.T) {
 	if got := e.values()["UserName"]; got != "replacement" {
 		t.Fatalf("typing into protected field = %q, want replacement", got)
 	}
-	if strings.Contains(strings.Join(e.render(65, 22), "\n"), "replacement") {
-		t.Fatal("edited protected field should remain masked")
+	if !strings.Contains(strings.Join(e.render(65, 40), "\n"), "replacement") {
+		t.Fatal("edited protected field is not visible")
 	}
 }
 
@@ -353,7 +352,7 @@ func TestEntryEditorKeySpaceInFieldsAndProtectedReplacement(t *testing.T) {
 	}
 }
 
-func TestEntryEditorShowsUnsupportedFieldsReadOnlyAndMasked(t *testing.T) {
+func TestEntryEditorShowsUnsupportedFieldsReadOnlyAndRevealsSecrets(t *testing.T) {
 	const privateValue = "custom-private-value"
 	entry := &vault.Entry{
 		UUID:      "entry",
@@ -365,14 +364,11 @@ func TestEntryEditorShowsUnsupportedFieldsReadOnlyAndMasked(t *testing.T) {
 		},
 	}
 	e := newEntryEditor(entry, "root")
-	view := strings.Join(e.render(65, 26), "\n")
-	for _, visible := range []string{"EMAIL (READ ONLY)", "person@example.test", "RECOVERY CODE (READ ONLY)", "••••••••"} {
+	view := strings.Join(e.render(65, 40), "\n")
+	for _, visible := range []string{"EMAIL (READ ONLY)", "person@example.test", "RECOVERY CODE (READ ONLY)", privateValue} {
 		if !strings.Contains(view, visible) {
 			t.Fatalf("readonly custom field missing %q:\n%s", visible, view)
 		}
-	}
-	if strings.Contains(view, privateValue) {
-		t.Fatal("protected custom field leaked into the editor")
 	}
 	if _, ok := e.values()["Email"]; ok {
 		t.Fatal("readonly custom field should not be returned as an editable value")

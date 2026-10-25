@@ -287,8 +287,14 @@ func TestPasswordPasteRejectsNewlines(t *testing.T) {
 
 func TestWelcomeMouseAndVaultTabMouse(t *testing.T) {
 	m := New(Options{})
-	top := max(1, (m.height-18)/2)
-	cmd := m.pointer(tea.MouseMsg{X: 40, Y: top + 5, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+	openRow := -1
+	for i, line := range m.welcomeLines() {
+		if strings.Contains(ansi.Strip(line), "ctrl+o") {
+			openRow = i
+			break
+		}
+	}
+	cmd := m.pointer(tea.MouseMsg{X: 40, Y: openRow, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
 	if cmd == nil || m.screen != chooseFile {
 		t.Fatal("Open Vault button not clickable")
 	}

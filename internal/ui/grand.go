@@ -78,7 +78,7 @@ func (m *Model) scrollGrand(delta int) {
 
 func (m *Model) grandGeometry() (columns, visible, total int) {
 	if m.grandIsText() {
-		return max(1, m.width-8), max(1, m.height-10), len(m.grandTextRows())
+		return max(1, m.width-8), m.grandTextCapacity(), len(m.grandTextRows())
 	}
 	runes := []rune(string(m.revealValue))
 	defer clear(runes)
@@ -87,6 +87,10 @@ func (m *Model) grandGeometry() (columns, visible, total int) {
 	visible = max(1, (m.height-10)/3)
 	total = max(1, (len(runes)+columns-1)/columns)
 	return
+}
+
+func (m *Model) grandTextCapacity() int {
+	return max(1, m.height-11)
 }
 
 func grandCharacter(r rune, ascii bool) string {
@@ -192,7 +196,7 @@ func (m *Model) grandTextRows() []string {
 func (m *Model) grandTextView() []string {
 	c := m.colors()
 	rows := m.grandTextRows()
-	visible := max(1, m.height-10)
+	visible := m.grandTextCapacity()
 	start := min(m.grandOffset, max(0, len(rows)-visible))
 	body := []string{c.secondary.Render(safe(m.revealField)), ""}
 	if len(m.revealValue) == 0 {

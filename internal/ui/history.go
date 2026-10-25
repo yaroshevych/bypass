@@ -96,7 +96,7 @@ func (m *Model) historyEntryLines(state *extraState) []string {
 }
 
 func (m *Model) historyValueCapacity() int {
-	return max(1, max(1, m.height-8)-4)
+	return max(1, max(1, m.height-8)-5)
 }
 
 func (m *Model) historyValueLines(entry vault.Entry, field vault.Field, state *extraState) []string {

@@ -1222,7 +1222,10 @@ func (m *Model) unlockLines() []string {
 	if cells := lipgloss.Width(path); cells > pathWidth {
 		path = "…" + ansi.Cut(path, cells-pathWidth+1, cells)
 	}
-	body := []string{secondary.Render(path), ""}
+	body := []string{secondary.Render(path)}
+	if m.width >= 70 {
+		body = append(body, "")
+	}
 	labels := []string{"Password", "Key file (optional)", "Hardware slot (optional, e.g. 1)", "Password authentication"}
 	footer := "tab next · space toggle"
 	if m.width < 70 {
@@ -1297,7 +1300,6 @@ func (m *Model) pickerLines() []string {
 			}
 			rows = append(rows, listComponentRow{kind: listComponentItem, item: -1, text: name, selected: m.pickerRecent && i == m.pickerRecentIndex, activeFill: true, pillSelected: true})
 		}
-		rows = append(rows, listComponentRow{kind: listComponentSpacer, item: -1})
 	}
 	rows = append(rows,
 		listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "PATH ", divider: true},

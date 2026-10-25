@@ -316,7 +316,7 @@ func (m *Model) extrasKey(k tea.KeyMsg) (tea.Cmd, bool) {
 			if state.fieldIndex >= 0 && state.fieldIndex < len(entry.Fields) {
 				lines := m.historyValueLines(*entry, entry.Fields[state.fieldIndex], state)
 				maxOffset := max(0, len(lines)-m.historyValueCapacity())
-				delta := m.historyValueCapacity()
+				delta := m.historyValueCapacity() + 1
 				if k.String() == "pgup" {
 					state.valueOffset = max(0, state.valueOffset-delta)
 				} else {

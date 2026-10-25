@@ -106,13 +106,12 @@ func TestFilePickerMouseUsesScrolledViewport(t *testing.T) {
 	}
 	m.fileIndex = 12
 	m.adjustViewport()
-	start, capacity := m.fileViewport()
+	start, _ := m.fileViewport()
 	target := start + 4
-	bodyLen := m.pickerFixedRows() + capacity
-	top := max(0, (m.height-(min(bodyLen, max(1, m.height-8))+4))/2)
+	top := max(0, (m.height-(m.pickerBodyRows()+4))/2)
 	boxWidth := min(m.width-6, 82)
 	left := max(0, (m.width-boxWidth)/2)
-	msg := tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: left + 4, Y: top + 6 + target - start}
+	msg := tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonLeft, X: left + 4, Y: top + 2 + m.pickerFixedRows() + target - start}
 	m.pointer(msg)
 	if m.fileIndex != target {
 		t.Fatalf("mouse selected file %d, want %d", m.fileIndex, target)

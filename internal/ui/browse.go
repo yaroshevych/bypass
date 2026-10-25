@@ -267,7 +267,7 @@ func (m *Model) fileViewport() (start, capacity int) {
 	if m.err != "" {
 		available--
 	}
-	capacity = max(0, available)
+	capacity = min(16, max(0, available))
 	start = viewportOffset(m.fileIndex, len(m.files), max(1, capacity), m.fileOffset)
 	return start, capacity
 }
@@ -294,14 +294,14 @@ func (m *Model) pickerStatusBar() string {
 
 func (m *Model) pickerFixedRows() int {
 	if count := m.pickerRecentCount(); count > 0 {
-		return count + 6
+		return count + 5
 	}
 	return 4
 }
 
 func (m *Model) pickerPathRow() int {
 	if m.pickerRecentCount() > 0 {
-		return m.pickerRecentCount() + 3
+		return m.pickerRecentCount() + 2
 	}
 	return 1
 }

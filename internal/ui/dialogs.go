@@ -275,10 +275,10 @@ func (m *Model) dialogLines() []string {
 			body = append(body, "Length (8–128)", accent.Render(d.input.display(false)+"▏"))
 			footer = ""
 		} else {
-			body = append(body, "Generated password", accent.Render("••••••••"))
-			footer = "c copy · g regenerate"
+			body = append(body, "Generated password", accent.Render(safe(string(d.secret))))
+			footer = "c copy · g regenerate · esc close"
 			if m.editor != nil {
-				footer = "c copy · g regenerate"
+				footer = "c copy · g regenerate · esc close"
 			}
 		}
 	case "destination":
@@ -316,7 +316,7 @@ func (m *Model) dialogLines() []string {
 		body = append(body, accent.Render("Working…"))
 	}
 	if m.notice != "" && d.kind == "generator" {
-		body = append(body, secondary.Render(m.notice))
+		footer = m.notice
 	}
 	return m.box(d.title, body, footer)
 }

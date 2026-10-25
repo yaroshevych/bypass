@@ -95,8 +95,8 @@ func TestInlineEditorSavesAndSelectsNewEntry(t *testing.T) {
 	m.key(key("n"))
 	m.editor.inputs[editTitle].set("New example")
 	m.editor.inputs[editPassword].set("NEW-SECRET")
-	if strings.Contains(m.View(), "NEW-SECRET") {
-		t.Fatal("new password exposed")
+	if !strings.Contains(m.View(), "NEW-SECRET") {
+		t.Fatal("new password is not visible in the edit form")
 	}
 	execute(t, m, m.key(tea.KeyMsg{Type: tea.KeyCtrlS}))
 	if b.applied != 1 || m.editor != nil || m.selected() == nil || m.selected().Get("Title") != "New example" {
@@ -250,8 +250,8 @@ func TestGeneratorChangesDraftOnlyOnAccept(t *testing.T) {
 	original := m.editor.inputs[editPassword].value()
 	m.openGenerator()
 	execute(t, m, m.dialogKey(key("enter")))
-	if strings.Contains(m.View(), "GENERATED-SECRET") || m.editor.inputs[editPassword].value() != original {
-		t.Fatal("generator exposed or applied password before accept")
+	if !strings.Contains(m.View(), "GENERATED-SECRET") || m.editor.inputs[editPassword].value() != original {
+		t.Fatal("generator preview did not reveal the password or changed the draft before accept")
 	}
 	m.dialogKey(key("esc"))
 	if m.editor.inputs[editPassword].value() != original {

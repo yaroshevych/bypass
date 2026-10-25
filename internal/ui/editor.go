@@ -398,9 +398,6 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 		label := "  " + strings.ToUpper(safe(field.Name)) + " (READ ONLY)"
 		lines = append(lines, editorLine{text: styles.secondary.Render(label), focus: -1})
 		value := field.Value
-		if field.Protected {
-			value = strings.Repeat("•", len([]rune(value)))
-		}
 		if value == "" {
 			value = "—"
 		}
@@ -563,16 +560,6 @@ func absInt(n int) int {
 
 func (e *entryEditor) renderValue(field, width int) ([]string, int) {
 	value := &e.inputs[field]
-	if e.protected[field] {
-		text := strings.Repeat("•", len(value.text))
-		if field == e.focus {
-			text += "▏"
-		}
-		if text == "" {
-			text = "—"
-		}
-		return []string{safe(text)}, 0
-	}
 	text := string(value.text)
 	if field == e.focus {
 		text = string(value.text[:value.cursor]) + "▏" + string(value.text[value.cursor:])

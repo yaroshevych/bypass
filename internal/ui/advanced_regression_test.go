@@ -54,7 +54,7 @@ func TestClassicDialogTitlesAreUppercaseAndHeaderRulesJoinFrame(t *testing.T) {
 	m.settings.Appearance = "classic"
 	for name, lines := range map[string][]string{
 		"box":     m.box("Change Vault Credentials", []string{"body"}, ""),
-		"overlay": m.overlay("History", []string{"body"}, "", 60, -1, -1),
+		"overlay": m.overlay("History", []string{"body"}, "", 60, 0, 0),
 	} {
 		stripped := make([]string, len(lines))
 		for i, line := range lines {
