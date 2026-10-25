@@ -1088,7 +1088,8 @@ func (m *Model) detailContent(width int) []string {
 
 func (m *Model) detailLayout(width int) ([]string, []int) {
 	styles := m.colors()
-	secondary, active := styles.secondary, styles.active
+	primary, secondary, active := styles.primary, styles.secondary, styles.active
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	e := m.selected()
 	if e == nil {
 		return []string{secondary.Render("  Select an entry")}, nil
@@ -1120,15 +1121,16 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 	names := m.fieldNames()
 	var positions []int
 	for index, name := range names {
-		positions = append(positions, len(lines)+1)
+		positions = append(positions, len(lines)+2)
 		label := name
 		if name == "UserName" {
 			label = "Username"
 		}
 		label = strings.ToUpper(safe(label))
 		labelLine := secondary.Render("  " + label)
+		focused := false
 		if v := m.ws.ActiveView(); v != nil && v.Focus == 2 && index == v.FieldIndex {
-			labelLine = active.Render(fit("› "+label, width))
+			focused = true
 		}
 		lines = append(lines, "", labelLine)
 		value := m.fieldValue(*e, name)
@@ -1141,10 +1143,39 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 		if value == "" {
 			value = "—"
 		}
+		var valueLines []string
 		for _, paragraph := range strings.Split(value, "\n") {
 			wrapped := ansi.Wrap(safe(paragraph), max(1, width-4), "")
-			for _, line := range strings.Split(wrapped, "\n") {
-				lines = append(lines, secondary.Render("  "+line))
+			valueLines = append(valueLines, strings.Split(wrapped, "\n")...)
+		}
+		multiline := strings.Contains(value, "\n")
+		if focused && compact && multiline {
+			for _, line := range valueLines {
+				valueLine := "  " + line
+				lines = append(lines, active.Bold(true).Render(fit(ansi.Truncate(valueLine, width, "…"), width)))
+			}
+			continue
+		}
+		for _, line := range valueLines {
+			valueLine := "  " + line
+			if compact {
+				if focused {
+					// The pill supplies its own leading inset.
+					valueLine = line
+				} else {
+					valueLine = "  " + line
+				}
+			}
+			if focused {
+				if compact && !m.settings.ASCII {
+					lines = append(lines, renderPill(valueLine, width, active.Bold(true), primary))
+				} else if compact {
+					lines = append(lines, active.Bold(true).Render(fit("[ "+ansi.Truncate(valueLine, max(0, width-4), "…")+" ]", width)))
+				} else {
+					lines = append(lines, active.Bold(true).Render(fit(valueLine, width)))
+				}
+			} else {
+				lines = append(lines, primary.Render(valueLine))
 			}
 		}
 	}

@@ -541,12 +541,16 @@ func (m *Model) adjustViewport() {
 	lines, positions := m.detailLayout(detailWidth)
 	if v.Focus == 2 && len(positions) > 0 && !v.DetailManual {
 		v.FieldIndex = min(max(0, v.FieldIndex), len(positions)-1)
-		row := positions[v.FieldIndex]
-		if row < v.DetailOffset {
-			v.DetailOffset = row
-		}
-		if row+1 >= v.DetailOffset+detailHeight {
-			v.DetailOffset = max(0, row+2-detailHeight)
+		if v.FieldIndex == 0 {
+			v.DetailOffset = 0
+		} else {
+			row := positions[v.FieldIndex]
+			if row < v.DetailOffset {
+				v.DetailOffset = row
+			}
+			if row+1 >= v.DetailOffset+detailHeight {
+				v.DetailOffset = max(0, row+2-detailHeight)
+			}
 		}
 	}
 	v.DetailOffset = min(max(0, v.DetailOffset), max(0, len(lines)-detailHeight))
