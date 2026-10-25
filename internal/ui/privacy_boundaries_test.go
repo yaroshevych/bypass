@@ -224,10 +224,10 @@ func TestPublicFullLockDropsLateReferenceCopy(t *testing.T) {
 	m := newBoundaryModel(t, backend, fixture("/tmp/pending-copy.kdbx"))
 	driver := &memoryClipboard{}
 	m.clipboard = clipboard.New(driver)
-	m.ws.ActiveSession().DB.Entries[0].Fields[2].Value = "{REF:P@I:01010101010101010101010101010101}"
+	m.ws.ActiveSession().DB.Entries[0].Fields[1].Value = "{REF:P@I:01010101010101010101010101010101}"
 	view := m.ws.ActiveView()
 	view.Focus = 2
-	view.FieldIndex = 1
+	view.FieldIndex = 0
 	cmd := updateKey(m, key("c"))
 	if cmd == nil {
 		t.Fatal("reference copy did not start")

@@ -46,6 +46,10 @@ type copiedMsg struct {
 	expires time.Time
 	err     error
 }
+type nativeCopiedMsg struct {
+	id  uint64
+	err error
+}
 type resolvedCopyMsg struct {
 	id    uint64
 	label string
@@ -591,6 +595,16 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		m.dialog.secret = append([]byte(nil), msg.value...)
 		m.dialog.err = ""
 		return nil, true
+	case nativeCopiedMsg:
+		if msg.id != m.clipGeneration {
+			return nil, true
+		}
+		if msg.err != nil {
+			m.setNotice("native password copy failed", true)
+			return nil, true
+		}
+		m.setNotice("password copied", false)
+		return nil, true
 	case copiedMsg:
 		if msg.id != m.clipGeneration {
 			return nil, true
@@ -758,12 +772,15 @@ func (m *Model) copyField(name string) tea.Cmd {
 	if name == "" {
 		name = m.focusedField()
 	}
+	if name == "Password" {
+		return m.copyNativePassword(e.UUID)
+	}
 	m.recordItemUse()
 	label := name
 	if label == "UserName" {
 		label = "Username"
 	}
-	if strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Interactive() && (name == "Password" || (name == "Notes" && !e.DetailsLoaded))) {
+	if strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Interactive() && name == "Notes" && !e.DetailsLoaded) {
 		resolver, ok := m.backend.(interface {
 			ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
 		})
@@ -791,6 +808,34 @@ func (m *Model) copyField(name string) tea.Cmd {
 	}
 	return m.copyValue([]byte(e.Get(name)), label)
 }
+
+func (m *Model) copyNativePassword(entryID string) tea.Cmd {
+	copier, ok := m.backend.(interface {
+		CopyPassword(context.Context, *vault.Database, string) error
+	})
+	if !ok {
+		m.setNotice("native password copy unavailable", true)
+		return nil
+	}
+	if m.clipCancel != nil {
+		m.clipCancel()
+	}
+	ctx, cancel := context.WithCancel(m.ctx)
+	m.clipCancel = cancel
+	m.clipGeneration++
+	id := m.clipGeneration
+	// The manager must not read back a native-copied password to check ownership.
+	m.clipboard.Forget()
+	m.recordItemUse()
+	db := m.ws.ActiveSession().DB.Clone()
+	m.clipboardExpires = time.Time{}
+	m.setNotice("copying password", false)
+	return func() tea.Msg {
+		defer db.Clear()
+		return nativeCopiedMsg{id, copier.CopyPassword(ctx, db, entryID)}
+	}
+}
+
 func (m *Model) copyValue(value []byte, label string) tea.Cmd {
 	if m.clipboard == nil {
 		clear(value)

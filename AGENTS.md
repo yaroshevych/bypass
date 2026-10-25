@@ -32,6 +32,8 @@
 - Never put passwords in process arguments, logs, notices, or test diagnostics.
   Use disposable vaults and the isolated clipboard for tests. Do not commit `.env`,
   vaults, credentials, or generated test artifacts.
+- Copy stored passwords with native `clip` and timeout `0`. Do not fetch plaintext
+  for copying or register native copies for clipboard cleanup.
 - Synchronize terminal tests on observable state with deadlines, not fixed sleeps.
   Check saved data and privacy boundaries, not only visible text.
 

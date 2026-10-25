@@ -33,7 +33,7 @@ func (c *InteractiveCLI) CommandCapabilities(ctx context.Context) (map[string]bo
 	}
 	for key := range capabilities {
 		switch key {
-		case "open", "ls", "show", "add", "edit", "mkdir", "mv", "generate", "db-create", "db-info", "db-edit", "rm", "rmdir":
+		case "open", "ls", "show", "clip", "add", "edit", "mkdir", "mv", "generate", "db-create", "db-info", "db-edit", "rm", "rmdir":
 		default:
 			capabilities[key] = false
 		}

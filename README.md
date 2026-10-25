@@ -65,7 +65,7 @@ to specific KeePassXC versions and platforms; they do not cover Bypass.
 
 Vault files and backups stay encrypted on disk. A strong master password helps
 protect stored passwords. When a vault is unlocked, passwords can appear in the
-interface. The clipboard clears after 10 seconds by default.
+interface.
 
 KeePassXC opens and saves the vault directly. Before an edit, Bypass copies the
 encrypted vault file to the backup directory. Bypass keeps the five newest backups

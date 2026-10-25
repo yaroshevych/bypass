@@ -17,7 +17,7 @@ import (
 	"bypass/internal/vault"
 )
 
-func TestClipboardCopyExpiryAndExternalReplacementTmux(t *testing.T) {
+func TestNativePasswordCopyAndExternalReplacementTmux(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
@@ -42,27 +42,21 @@ func TestClipboardCopyExpiryAndExternalReplacementTmux(t *testing.T) {
 	e.key("Enter")
 	e.mustClipboardEqual([]byte(fixtureEntryPassword))
 	e.registerSecret(fixtureEntryPassword)
-	e.mustShow("Clipboard clears in")
+	e.mustShow("password copied")
+	e.mustNotShow("Clipboard clears in")
 
 	const replacement = "EXTERNAL-CLIPBOARD-REPLACEMENT"
 	e.replaceClipboard([]byte(replacement))
-	e.waitFor("owned clipboard timeout", func() bool {
-		return !strings.Contains(e.capture(), "Clipboard clears in")
-	})
 	e.mustClipboardEqual([]byte(replacement))
-	// Copy again without replacing the clipboard to exercise normal expiry of
-	// a value the application still owns.
+	// Another copy must work immediately, without a native timeout or app timer.
 	e.key("J")
 	e.key("p")
 	e.key("C-p")
 	e.typeText("Copy")
 	e.key("Enter")
 	e.mustClipboardEqual([]byte(fixtureEntryPassword))
-	e.mustShow("Clipboard clears in")
-	e.mustClipboardEqual(nil)
-	e.waitFor("owned clipboard expiry notice", func() bool {
-		return !strings.Contains(e.capture(), "Clipboard clears in")
-	})
+	e.mustShow("password copied")
+	e.mustNotShow("Clipboard clears in")
 	e.replaceClipboard([]byte(replacement))
 	e.key("q")
 	e.waitForCleanQuit()

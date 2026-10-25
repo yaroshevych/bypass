@@ -28,6 +28,9 @@ KeePassXC CLI 2.8.0 on macOS. Other versions and platforms need their own runs.
   PIN protection and configurable inactivity, and full locking.
 - Platform, workspace, search, privacy, and clipboard packages have independent
   tests. Clipboard journeys use an isolated file-backed driver.
+- Stored password copies use native `clip` without returning plaintext to Bypass.
+  Rapid selection changes, no clipboard readback, and no automatic clearing are
+  checked with private clipboard fixtures. Other fields retain managed cleanup.
 
 Mouse tests locate visible text independently of production hit-test coordinates.
 Layout changes must preserve the correspondence between visible rows and clicks.

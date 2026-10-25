@@ -313,7 +313,7 @@ func TestCopyCountdownDoesNotRenderSecretOrClearExternalClipboard(t *testing.T) 
 	m, _ := operationModel(t)
 	driver := &memoryClipboard{}
 	m.clipboard = clipboard.New(driver)
-	execute(t, m, m.copyField("Password"))
+	execute(t, m, m.copyField("UserName"))
 	if !strings.Contains(m.View(), "Clipboard clears in 10s") || strings.Contains(m.View(), "PASSWORD-DO-NOT-RENDER") {
 		t.Fatal("copy feedback missing or exposed secret")
 	}
@@ -341,7 +341,7 @@ func TestClipboardExpiryUsesCleanupContextAfterAppCancellation(t *testing.T) {
 	m, _ := operationModel(t)
 	driver := &memoryClipboard{}
 	m.clipboard = clipboard.New(driver)
-	execute(t, m, m.copyField("Password"))
+	execute(t, m, m.copyField("UserName"))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	m.ctx = ctx
@@ -402,8 +402,9 @@ func TestCopyAndRevealResolveReferences(t *testing.T) {
 	m, _ := operationModel(t)
 	driver := &memoryClipboard{}
 	m.clipboard = clipboard.New(driver)
+	m.ws.ActiveSession().DB.Entries[0].Fields[1].Value = "{REF:P@I:01010101010101010101010101010101}"
 	m.ws.ActiveSession().DB.Entries[0].Fields[2].Value = "{REF:P@I:01010101010101010101010101010101}"
-	resolveCmd := m.copyField("Password")
+	resolveCmd := m.copyField("UserName")
 	if resolveCmd == nil {
 		t.Fatal("reference not resolved")
 	}
@@ -429,8 +430,8 @@ func TestPendingResolvedCopyCannotSurviveLock(t *testing.T) {
 	m, _ := operationModel(t)
 	driver := &memoryClipboard{}
 	m.clipboard = clipboard.New(driver)
-	m.ws.ActiveSession().DB.Entries[0].Fields[2].Value = "{REF:P@I:01010101010101010101010101010101}"
-	cmd := m.copyField("Password")
+	m.ws.ActiveSession().DB.Entries[0].Fields[1].Value = "{REF:P@I:01010101010101010101010101010101}"
+	cmd := m.copyField("UserName")
 	m.lockSession(m.ws.ActiveSession().ID)
 	_, next := m.Update(cmd())
 	if next != nil || len(driver.value) > 0 {

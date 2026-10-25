@@ -80,11 +80,11 @@ func TestInteractiveUnlockDropsCredentialsAndResolvesOnDemand(t *testing.T) {
 	if strings.Contains(m.View(), "synthetic UI entry password") {
 		t.Fatal("password rendered before reveal")
 	}
-	cmd = m.copyField("Password")
+	cmd = m.toggleReveal()
 	if cmd == nil {
-		t.Fatal("copy did not resolve through CLI")
+		t.Fatal("reveal did not resolve through CLI")
 	}
-	resolved := cmd().(resolvedCopyMsg)
+	resolved := cmd().(resolvedRevealMsg)
 	defer clear(resolved.value)
 	if resolved.err != nil || string(resolved.value) != "synthetic UI entry password" {
 		t.Fatal("on-demand password resolution failed")
@@ -109,11 +109,11 @@ func TestInteractiveUnlockDropsCredentialsAndResolvesOnDemand(t *testing.T) {
 	if m.gate.Protected() {
 		t.Fatal("PIN did not unlock interface")
 	}
-	cmd = m.copyField("Password")
+	cmd = m.toggleReveal()
 	if cmd == nil {
 		t.Fatal("PIN protection lost authenticated process")
 	}
-	resumed := cmd().(resolvedCopyMsg)
+	resumed := cmd().(resolvedRevealMsg)
 	defer clear(resumed.value)
 	if resumed.err != nil || string(resumed.value) != "synthetic UI entry password" {
 		t.Fatal("authenticated process did not survive PIN protection")

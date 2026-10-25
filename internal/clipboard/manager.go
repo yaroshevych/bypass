@@ -20,6 +20,17 @@ type Manager struct {
 
 func New(driver Driver) *Manager { return &Manager{driver: driver} }
 
+// Forget drops ownership without reading or changing the system clipboard.
+// Native KeePassXC copies are not tracked by Bypass.
+func (m *Manager) Forget() {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.dropOwned()
+}
+
 func (m *Manager) Copy(ctx context.Context, value []byte, now time.Time, timeout time.Duration) error {
 	if m == nil {
 		return ErrUnavailable

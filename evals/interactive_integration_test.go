@@ -142,7 +142,7 @@ func TestInteractiveBackendTmuxEditCreateAndReopen(t *testing.T) {
 			e.mustClipboardEqual([]byte(createdPassword))
 			e.key("C-l")
 			e.mustShow("Vault locked")
-			e.mustClipboardEqual(nil)
+			e.mustClipboardEqual([]byte(createdPassword))
 			e.key("Enter")
 			e.mustShow("UNLOCK VAULT")
 			e.typeText(fixturePassword)
