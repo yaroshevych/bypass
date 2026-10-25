@@ -39,7 +39,12 @@ func (m *Model) attachmentLines(state *extraState) []string {
 		if state.action == "export" {
 			label = "Plaintext export destination"
 		}
-		body = []string{m.colors().secondary.Render(label), m.colors().accent.Render(state.input.display(false) + "▏"), ""}
+		fieldWidth := dialogOverlayInputWidth(m.width, 76)
+		body = []string{""}
+		body = append(body, renderStackedInputField(inputFieldView{
+			label: label, value: &state.input, focused: true, indent: 1,
+		}, fieldWidth, strings.EqualFold(m.settings.Appearance, "compact"), m.colors())...)
+		body = append(body, "")
 	} else if strings.HasPrefix(state.phase, "confirm-") {
 		body = m.attachmentConfirmation(state)
 	} else {

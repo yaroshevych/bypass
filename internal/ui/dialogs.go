@@ -261,18 +261,22 @@ func (m *Model) dialogLines() []string {
 	c := m.colors()
 	accent, secondary, active, error := c.accent, c.secondary, c.active, c.error
 	d := m.dialog
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	body := append([]string(nil), d.message...)
 	footer := ""
 	switch d.kind {
 	case "pin-setup", "pin-confirm":
-		body = append(body, secondary.Render("4–12 digits · current run only"), accent.Render(d.input.display(true)+"▏"))
+		body = append(body, secondary.Render("4–12 digits · current run only"), "")
+		body = append(body, renderStackedInputField(inputFieldView{label: "Session PIN", value: &d.input, secret: true, focused: true, indent: 1}, dialogBoxInputWidth(m.width), compact, c)...)
 		footer = ""
 	case "group":
-		body = append(body, secondary.Render("Group name"), accent.Render(d.input.display(false)+"▏"))
-		footer = ""
+		body = append(body, "")
+		body = append(body, renderStackedInputField(inputFieldView{label: "Group name", value: &d.input, focused: true, indent: 1}, dialogBoxInputWidth(m.width), compact, c)...)
+		footer = "enter create · esc cancel"
 	case "generator":
 		if len(d.secret) == 0 {
-			body = append(body, "Length (8–128)", accent.Render(d.input.display(false)+"▏"))
+			body = append(body, "")
+			body = append(body, renderStackedInputField(inputFieldView{label: "Length (8–128)", value: &d.input, focused: true, indent: 1}, dialogBoxInputWidth(m.width), compact, c)...)
 			footer = ""
 		} else {
 			body = append(body, "Generated password", accent.Render(safe(string(d.secret))))
@@ -297,17 +301,7 @@ func (m *Model) dialogLines() []string {
 		footer = ""
 	default:
 		body = append(body, "")
-		var choices []string
-		for i, option := range d.options {
-			label := " " + option + " "
-			if i == d.selected {
-				label = active.Render(label)
-			} else {
-				label = secondary.Render(label)
-			}
-			choices = append(choices, label)
-		}
-		body = append(body, strings.Join(choices, "  "))
+		body = append(body, renderDialogChoices(d.options, d.selected, compact, m.settings.ASCII, c))
 	}
 	if d.err != "" {
 		body = append(body, error.Render(d.err))

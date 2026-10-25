@@ -126,16 +126,22 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		if m.busy {
 			return nil
 		}
-		bodyLen := 6
-		if m.err != "" {
-			bodyLen++
+		labels := []string{"Password", "Key file (optional)", "Hardware slot (optional, e.g. 1)"}
+		if m.width < 70 {
+			labels = []string{"Password", "Key file", "Hardware slot"}
 		}
-		top := max(0, (m.height-(bodyLen+4))/2)
-		index := msg.Y - top - 4
-		if index >= 0 && index < 4 {
-			m.inputFocus = index
-			if index == 3 {
+		for row, line := range m.unlockLines() {
+			plain := ansi.Strip(line)
+			for index, label := range labels {
+				if (msg.Y == row || msg.Y == row+1) && strings.Contains(plain, label) {
+					m.inputFocus = index
+					return nil
+				}
+			}
+			if msg.Y == row && (strings.Contains(plain, "Password authentication") || strings.Contains(plain, "Password auth")) {
+				m.inputFocus = 3
 				m.noPassword = !m.noPassword
+				return nil
 			}
 		}
 		return nil

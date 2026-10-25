@@ -1232,18 +1232,22 @@ func (m *Model) unlockLines() []string {
 		labels = []string{"Password", "Key file", "Hardware slot", "Password auth"}
 		footer = "tab next"
 	}
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	fieldWidth := dialogBoxInputWidth(m.width)
 	for i, label := range labels {
 		if i < 3 {
-			body = append(body, renderInputField(inputFieldView{
+			body = append(body, "")
+			body = append(body, renderStackedInputField(inputFieldView{
 				label: label, value: &m.inputs[i], secret: i == 0,
-				focused: i == m.inputFocus, indent: 2, showChevron: true,
-			}, styles))
+				focused: i == m.inputFocus, indent: 1,
+			}, fieldWidth, compact, styles)...)
 			continue
-		} else if m.noPassword {
-			body = append(body, styles.secondary.Render("  "+label+": [ ] disabled"))
-		} else {
-			body = append(body, styles.secondary.Render("  "+label+": [x] enabled"))
 		}
+		toggle := "[x] enabled"
+		if m.noPassword {
+			toggle = "[ ] disabled"
+		}
+		body = append(body, "", renderDialogChoice(label+": "+toggle, compact, m.settings.ASCII, i == m.inputFocus, styles))
 	}
 	if m.busy {
 		body = append(body, accent.Render("Unlocking… esc cancels"))
@@ -1268,7 +1272,7 @@ func (m *Model) pickerLines() []string {
 	if m.pickerEditing {
 		pathLine = renderInputBox(inputFieldView{
 			value: &m.inputs[0], focused: true, indent: 1,
-		}, listWidth, compact, styles)
+		}, listWidth, compact, 1, styles)
 	}
 	headerIndent := "  "
 	if !compact {

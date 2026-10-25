@@ -427,9 +427,6 @@ func (m *Model) lifecycleLines() []string {
 		body = append(body, renderVaultPath(s.Path, home, c.accent), "")
 	}
 	footer := "tab focus "
-	if strings.EqualFold(m.settings.Appearance, "compact") {
-		footer += " "
-	}
 	if l.kind == "info" {
 		var wrapped []string
 		for _, line := range l.lines {
@@ -441,13 +438,12 @@ func (m *Model) lifecycleLines() []string {
 		footer = ""
 	} else if l.confirm {
 		body = append(body, "Change the credentials for this vault?", "An encrypted backup will retain the old credentials.", "")
-		cancel, proceed := " Cancel ", " Change Credentials "
+		compact := strings.EqualFold(m.settings.Appearance, "compact")
+		selected := 0
 		if l.proceed {
-			proceed = c.active.Render(proceed)
-		} else {
-			cancel = c.active.Render(cancel)
+			selected = 1
 		}
-		body = append(body, cancel+"  "+proceed)
+		body = append(body, renderDialogChoices([]string{"Cancel", "Change Credentials"}, selected, compact, m.settings.ASCII, c))
 		footer = "←→ choose"
 	} else {
 		labels := []string{"New password", "Confirm password"}
@@ -460,7 +456,6 @@ func (m *Model) lifecycleLines() []string {
 		}
 		var fields []string
 		compact := strings.EqualFold(m.settings.Appearance, "compact")
-		newVaultClassic := l.kind == "create" && !compact
 		dialogWidth := min(84, m.width-4)
 		if l.kind == "create" {
 			dialogWidth = min(60, m.width-4)
@@ -469,21 +464,13 @@ func (m *Model) lifecycleLines() []string {
 		// on each side.
 		actionWidth := max(1, dialogWidth-4)
 		for position, index := range indices {
-			indent := 2
-			if newVaultClassic {
-				indent = 1
-			}
 			field := inputFieldView{
 				label: labels[position], value: &l.inputs[index],
 				secret:  index == secretStart || index == secretStart+1,
-				focused: index == l.focus, indent: indent,
+				focused: index == l.focus, indent: 1,
 			}
-			if l.kind == "create" {
-				fields = append(fields, "")
-				fields = append(fields, renderStackedInputField(field, actionWidth, compact, &m.styles)...)
-			} else {
-				fields = append(fields, renderInputField(field, &m.styles))
-			}
+			fields = append(fields, "")
+			fields = append(fields, renderStackedInputField(field, actionWidth, compact, &m.styles)...)
 		}
 		if l.kind == "create" {
 			fields = append(fields, dialogrender.BodyRule)
@@ -495,18 +482,15 @@ func (m *Model) lifecycleLines() []string {
 			label, shortcut string
 			index           int
 		}{{"Save", "ctrl+s", actionFocus}, {"Cancel", "esc", actionFocus + 1}} {
-			line := renderLifecycleAction(action.label, action.shortcut, actionWidth, compact, m.settings.ASCII, l.focus == action.index, newVaultClassic, &m.styles)
+			line := renderDialogAction(action.label, action.shortcut, actionWidth, compact, m.settings.ASCII, l.focus == action.index, &m.styles)
 			fields = append(fields, line)
 		}
 		capacity := max(2, m.height-12)
 		focusLine := l.focus
-		if l.kind == "create" && l.focus < actionFocus {
+		if l.focus < actionFocus {
 			focusLine = l.focus*3 + 2
 		} else if l.focus >= actionFocus {
-			fieldRows := len(indices)
-			if l.kind == "create" {
-				fieldRows *= 3
-			}
+			fieldRows := len(indices) * 3
 			focusLine = fieldRows + 1 + l.focus - actionFocus
 		}
 		start := viewportOffset(focusLine, len(fields), capacity, l.offset)
@@ -523,21 +507,6 @@ func (m *Model) lifecycleLines() []string {
 		dialogWidth = min(60, m.width-4)
 	}
 	return m.overlay(title, body, footer, dialogWidth, -1, -1)
-}
-
-func renderLifecycleAction(label, shortcut string, width int, compact, ascii, selected, padded bool, styles *styleSet) string {
-	if compact || !padded {
-		return renderEditorAction(label, shortcut, width, compact, ascii, selected, styles)
-	}
-	shortcutWidth := ansi.StringWidth(shortcut)
-	labelWidth := max(0, width-shortcutWidth-2)
-	left := ansi.Truncate(" "+label, labelWidth, "…")
-	gap := max(1, width-ansi.StringWidth(left)-shortcutWidth-1)
-	row := fit(left+strings.Repeat(" ", gap)+shortcut+" ", width)
-	if selected {
-		return styles.active.Render(row)
-	}
-	return styles.secondary.Render(row)
 }
 
 func renderVaultPath(path, home string, accent lipgloss.Style) string {

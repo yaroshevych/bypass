@@ -405,11 +405,10 @@ func (m *Model) extrasLines() []string {
 }
 
 func (m *Model) confirmationChoice(state *extraState, body []string) []string {
-	cancel := m.colors().active.Render("› Cancel")
-	confirm := "  Confirm  "
+	selected := 0
 	if state.confirmProceed {
-		cancel = "  Cancel  "
-		confirm = m.colors().active.Render("› Confirm")
+		selected = 1
 	}
-	return append(body, "", cancel+"   "+confirm)
+	choices := renderDialogChoices([]string{"Cancel", "Confirm"}, selected, strings.EqualFold(m.settings.Appearance, "compact"), m.settings.ASCII, m.colors())
+	return append(body, "", choices)
 }
