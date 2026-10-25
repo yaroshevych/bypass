@@ -3,6 +3,7 @@
 package evals
 
 import (
+	"bypass/internal/vaulttest"
 	"context"
 	"os"
 	"os/exec"
@@ -70,7 +71,7 @@ func TestPINMasksNativeSaveAndFullLockCancelsNextSaveTmux(t *testing.T) {
 		defer cancel()
 		creds := vault.Credentials{Password: []byte(fixturePassword)}
 		defer creds.Clear()
-		db, err := vault.NewCLI(backend).Open(ctx, e.realDB, creds)
+		db, err := vaulttest.NewCLI(backend).Open(ctx, e.realDB, creds)
 		if err != nil {
 			return false
 		}

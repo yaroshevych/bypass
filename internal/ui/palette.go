@@ -128,7 +128,8 @@ func (m *Model) commands() []command {
 		readOnlyReason = "Reload required"
 	}
 	infoReason := needVault
-	if _, ok := m.backend.(databaseInspector); !ok {
+	_, sessionInfo := m.backend.(sessionDatabaseInspector)
+	if !sessionInfo {
 		infoReason = "Database information unavailable from this backend"
 	}
 	if reason := m.nativeReason("db-info"); reason != "" {
@@ -164,6 +165,9 @@ func (m *Model) commands() []command {
 		return nil
 	})
 	deleteReason := writeReason
+	if reason := m.nativeReason("rm"); reason != "" {
+		deleteReason = reason
+	}
 	if deleteReason == "" && m.currentNav().kind != "group" {
 		deleteReason = needEntry
 	}
@@ -207,7 +211,7 @@ func (m *Model) commands() []command {
 		cancelReason = "No entry draft"
 	}
 	add("cancel-edit", "Editor", "Cancel", "Esc", cancelReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return nil }) })
-	add("search", "View", "Search", "", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.beginSearch(true) }) })
+	add("search", "View", "Search", "/", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.beginSearch(true) }) })
 	add("jump", "Entry", "Jump…", "Shift+J", needEntry, "", m.beginJump)
 	add("zoom", "View", "Zoom", "z", needVault, "", func() tea.Cmd { v.Zoom = !v.Zoom; return nil })
 	newTabReason := closeReason

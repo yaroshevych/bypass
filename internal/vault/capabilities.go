@@ -20,7 +20,7 @@ var knownCLICommands = []string{
 // CommandCapabilities probes the bounded native --help output and returns a
 // complete map for the commands recognized by this application. Help output
 // is never returned or logged.
-func (c *CLI) CommandCapabilities(ctx context.Context) (map[string]bool, error) {
+func (c *commandCLI) CommandCapabilities(ctx context.Context) (map[string]bool, error) {
 	if _, err := exec.LookPath(c.binary); err != nil {
 		return nil, ErrUnavailable
 	}

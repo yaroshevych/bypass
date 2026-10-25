@@ -36,7 +36,7 @@ func (b *lifecycleBackend) ChangeCredentials(_ context.Context, db *vault.Databa
 	}
 	return db.Clone(), nil
 }
-func (b *lifecycleBackend) Info(context.Context, string, vault.Credentials) (vault.DatabaseInfo, error) {
+func (b *lifecycleBackend) InfoDatabase(context.Context, *vault.Database) (vault.DatabaseInfo, error) {
 	return vault.DatabaseInfo{Name: "Test Vault", Cipher: "AES", KDF: "Argon2", EntryCount: 2}, nil
 }
 func TestCreateVaultFormMasksInputsAndRetainsFailedDraft(t *testing.T) {

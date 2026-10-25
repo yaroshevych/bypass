@@ -210,6 +210,7 @@ func (w *Workspace) ReplaceDatabase(sessionID string, db *vault.Database) bool {
 		return false
 	}
 	if session.DB != nil && session.DB != db {
+		session.DB.TransferInteractive(db)
 		session.DB.Clear()
 	}
 	session.DB = db
@@ -223,7 +224,10 @@ func (w *Workspace) SetCredentials(sessionID string, credentials vault.Credentia
 	if session == nil {
 		return false
 	}
-	owned := credentials.Clone()
+	owned := vault.Credentials{}
+	if session.DB == nil || !session.DB.Interactive() {
+		owned = credentials.Clone()
+	}
 	session.Credentials.Clear()
 	session.Credentials = owned
 	session.LastActivity = time.Now()

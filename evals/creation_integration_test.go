@@ -3,6 +3,7 @@
 package evals
 
 import (
+	"bypass/internal/vaulttest"
 	"context"
 	"errors"
 	"os"
@@ -56,7 +57,7 @@ func TestKeyFileOnlyCreationUnlockAndPasswordAdditionTmux(t *testing.T) {
 	e.mustShow("disabled")
 	e.key("Enter")
 	e.mustShow("No entries")
-	cli := vault.NewCLI(backend)
+	cli := vaulttest.NewCLI(backend)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	db, err := cli.Open(ctx, e.realDB, vault.Credentials{NoPassword: true, KeyFile: keyFile})

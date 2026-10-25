@@ -3,6 +3,7 @@
 package evals
 
 import (
+	"bypass/internal/vaulttest"
 	"bytes"
 	"context"
 	"os"
@@ -149,7 +150,7 @@ func TestMilestone4EntryExtrasNativeTmux(t *testing.T) {
 	e.key("Enter")
 	savedToWorkspace()
 
-	cli := vault.NewCLI(backend)
+	cli := vaulttest.NewCLI(backend)
 	creds := vault.Credentials{Password: []byte(fixturePassword)}
 	defer creds.Clear()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

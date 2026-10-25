@@ -3,6 +3,7 @@
 package evals
 
 import (
+	"bypass/internal/vaulttest"
 	"context"
 	"crypto/sha256"
 	"os"
@@ -181,7 +182,7 @@ func assertNativeEntry(t *testing.T, backend, path, title, password string) {
 	defer cancel()
 	creds := vault.Credentials{Password: []byte(fixturePassword)}
 	defer creds.Clear()
-	db, err := vault.NewCLI(backend).Open(ctx, path, creds)
+	db, err := vaulttest.NewCLI(backend).Open(ctx, path, creds)
 	if err != nil {
 		t.Fatal("independent native reopen failed:", err)
 	}

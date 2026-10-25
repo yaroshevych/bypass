@@ -14,6 +14,8 @@
   operation changes. It includes native CLI and terminal integration tests.
 - Before release, also run `just eval-repeat` and `just mutations`.
   See [test coverage](evals/COVERAGE.md) for scope and platform limits.
+- `just clean` stops project eval processes and removes generated binaries, artifacts,
+  and temporary test fixtures. Requires Python 3; `just clean --dry-run` previews it.
 - Documentation-only changes need link, command, and diff checks; no Go test run.
 
 ## Code and data
@@ -22,9 +24,10 @@
   their existing packages. Keep I/O in commands; `View()` must not change state.
 - Preserve operation IDs and cancellation guards. Late results must not restore
   data after a lock. PIN protection covers the UI; full lock clears authentication.
-- Keep native writes on encrypted staging copies with verification, revision
-  checks, and encrypted backups. Preserve unsupported KeePass data. Do not replace
-  native writes with an XML export/import rewrite.
+- The default backend opens the original vault in KeePassXC and sends native
+  commands over stdin. KeePassXC owns encryption, saving, and conflict handling.
+  Backups are plain copies of the encrypted file before an edit. Do not add custom
+  staging, publication, cryptographic validation, or XML export/import rewrites.
 - Never put passwords in process arguments, logs, notices, or test diagnostics.
   Use disposable vaults and the isolated clipboard for tests. Do not commit `.env`,
   vaults, credentials, or generated test artifacts.
@@ -54,7 +57,9 @@
   punctuation. Prevent overlap with status text and the clipboard countdown.
 - Match shortcut hints to actual bindings. `ctrl+l` locks all vaults, including
   from the editor; `[` and `]` switch tabs. Resize panes by dragging dividers.
-- Mask protected fields by default. Copy feedback must not contain the copied value.
+- Mask passwords by default; show other standard fields. Cache list/search fields
+  in memory and load remaining details on item focus. Copy feedback must not contain
+  the copied value.
   Keep the PIN cover opaque and prevent async results from exposing secrets.
 - Review affected dialogs in both appearances and relevant terminal sizes. Screenshot
   tooling is documented in [evals/screenshots/USAGE.md](evals/screenshots/USAGE.md).

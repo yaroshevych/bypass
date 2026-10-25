@@ -103,6 +103,10 @@ func (m *Model) confirmDelete() {
 		action = "Delete Permanently"
 		message = "This permanently deletes the item. Recovery requires a backup."
 	}
+	if s.DB.Interactive() {
+		action = "Delete"
+		message = "KeePassXC moves the item to its recycle bin when enabled. Items already in the bin are deleted permanently."
+	}
 	m.hideReveal()
 	m.dialog = &actionDialog{kind: "delete", title: action, options: []string{"Cancel", action}, selected: 0, sessionID: s.ID, change: change, message: []string{safe(name), message}}
 }

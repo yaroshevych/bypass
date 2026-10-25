@@ -91,7 +91,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	m := ui.New(ui.Options{Backend: vault.NewCLI(*backend), Store: store, InitialPath: path, Context: ctx, Settings: settings, ReadOnly: *readOnly, Clipboard: clipboard.New(clipboard.NewSystem()), Warning: warning, SaveSettings: saveSettings})
+	vaultBackend := vault.NewInteractiveCLI(*backend)
+	m := ui.New(ui.Options{Backend: vaultBackend, Store: store, InitialPath: path, Context: ctx, Settings: settings, ReadOnly: *readOnly, Clipboard: clipboard.New(clipboard.NewSystem()), Warning: warning, SaveSettings: saveSettings})
 	defer func() {
 		m.Close()
 		if m.CleanupError() != nil {

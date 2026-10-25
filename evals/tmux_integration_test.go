@@ -558,6 +558,10 @@ func (e *evalSession) start() {
 }
 
 func (e *evalSession) startWith(backend string, appArgs ...string) {
+	e.startApp(backend, appArgs...)
+}
+
+func (e *evalSession) startApp(backend string, appArgs ...string) {
 	e.t.Helper()
 	launcher := filepath.Join(e.root, "launch.sh")
 	command := shellQuote(appBinary) + " --backend " + shellQuote(backend)
@@ -835,7 +839,9 @@ func (e *evalSession) close() {
 	e.closed = true
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	_ = exec.CommandContext(ctx, "tmux", "-L", e.label, "kill-server").Run()
+	cmd := exec.CommandContext(ctx, "tmux", "-L", e.label, "kill-server")
+	cmd.Env = tmuxEnv(e.label)
+	_ = cmd.Run()
 	_ = os.RemoveAll(e.root)
 }
 
@@ -880,27 +886,34 @@ func tmuxEnv(_ string) []string {
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'" }
 
-const fakeBackend = `#!/bin/sh
-if [ "$1" = "--version" ]; then
-	printf '%s\n' 'keepassxc-cli 2.8.0'
-	exit 0
-fi
-password=
-no_password=0
-for arg in "$@"; do
-	if [ "$arg" = "--no-password" ]; then
-		no_password=1
-	fi
-done
-if [ "$no_password" -eq 0 ]; then
-	IFS= read -r password || true
-fi
-if [ "$no_password" -eq 0 ] && [ "$password" != "fixture-passphrase" ]; then
-	printf '%s\n' 'synthetic authentication failure' >&2
-	exit 1
-fi
-cat <<'XML'
-<?xml version="1.0" encoding="UTF-8"?>
-<KeePassFile><Meta><DatabaseName>Eval Vault</DatabaseName><RecycleBinEnabled>false</RecycleBinEnabled></Meta><Root><Group><UUID>00000000-0000-0000-0000-000000000001</UUID><Name>Root</Name><Entry><UUID>00000000-0000-0000-0000-000000000002</UUID><String><Key>Title</Key><Value>Eval Entry</Value></String><String><Key>UserName</Key><Value>eval-user</Value></String><String><Key>Password</Key><Value Protected="True">` + secretSentinel + `</Value></String><String><Key>Secret Note</Key><Value Protected="True">` + secretSentinel + `</Value></String></Entry></Group></Root></KeePassFile>
-XML
+const fakeBackend = `#!/usr/bin/env python3
+import shlex
+import sys
+
+if sys.argv[1:] == ["--version"]:
+    print("keepassxc-cli 2.8.0")
+    sys.exit(0)
+if sys.argv[1:] == ["--help"]:
+    print("open  Open a vault\nls  List entries\nshow  Show an entry\ndb-info  Database information")
+    sys.exit(0)
+if "--no-password" not in sys.argv and sys.stdin.readline().rstrip("\n") != "fixture-passphrase":
+    sys.exit(1)
+while True:
+    sys.stdout.write("fixture.kdbx> ")
+    sys.stdout.flush()
+    line = sys.stdin.readline()
+    if not line:
+        break
+    args = shlex.split(line)
+    if not args:
+        continue
+    if args[0] == "db-info":
+        print("UUID: {00000000-0000-0000-0000-000000000001}\nName: Eval Vault\nNumber of groups: 1\nNumber of entries: 1\nRecycle bin is disabled.")
+    elif args[0] == "ls":
+        print("Eval Entry")
+    elif args[0] == "show":
+        field = args[args.index("-a") + 1]
+        print({"Uuid": "{00000000-0000-0000-0000-000000000002}", "UserName": "eval-user", "Password": "` + secretSentinel + `"}.get(field, ""))
+    else:
+        print("Unknown command " + args[0])
 `

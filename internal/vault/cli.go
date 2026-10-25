@@ -6,25 +6,25 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
 )
 
 var (
-	ErrUnavailable     = errors.New("vault CLI unavailable")
-	ErrInvalidPath     = errors.New("invalid vault path")
-	ErrUnlock          = errors.New("unable to unlock vault")
-	ErrCanceled        = errors.New("vault operation canceled")
-	ErrMalformed       = errors.New("malformed vault export")
-	ErrTooLarge        = errors.New("vault export exceeds size limit")
-	ErrReadOnly        = errors.New("vault is read-only")
-	ErrAmbiguous       = errors.New("vault selector is ambiguous")
-	ErrUnsupported     = errors.New("vault change is unsupported")
-	ErrExternalChanged = errors.New("vault changed outside this application")
-	ErrWrite           = errors.New("vault write failed")
-	ErrBackup          = errors.New("vault backup failed")
+	ErrInteractiveSessionLost = errors.New("interactive session lost; lock and unlock to retry")
+	ErrUnavailable            = errors.New("vault CLI unavailable")
+	ErrInvalidPath            = errors.New("invalid vault path")
+	ErrUnlock                 = errors.New("unable to unlock vault")
+	ErrCanceled               = errors.New("vault operation canceled")
+	ErrMalformed              = errors.New("malformed vault export")
+	ErrTooLarge               = errors.New("vault export exceeds size limit")
+	ErrReadOnly               = errors.New("vault is read-only")
+	ErrAmbiguous              = errors.New("vault selector is ambiguous")
+	ErrUnsupported            = errors.New("vault change is unsupported")
+	ErrExternalChanged        = errors.New("vault changed outside this application")
+	ErrWrite                  = errors.New("vault write failed")
+	ErrBackup                 = errors.New("vault backup failed")
 )
 
 const (
@@ -32,16 +32,16 @@ const (
 	defaultTimeout = 60 * time.Second
 )
 
-type CLI struct{ binary string }
+type commandCLI struct{ binary string }
 
-func NewCLI(binary string) *CLI {
+func newCommandCLI(binary string) *commandCLI {
 	if strings.TrimSpace(binary) == "" {
 		binary = "keepassxc-cli"
 	}
-	return &CLI{binary: binary}
+	return &commandCLI{binary: binary}
 }
 
-func (c *CLI) Probe(ctx context.Context) (string, error) {
+func (c *commandCLI) Probe(ctx context.Context) (string, error) {
 	ctx, cancel := boundedContext(ctx)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, c.binary, "--version")
@@ -65,85 +65,6 @@ func (c *CLI) Probe(ctx context.Context) (string, error) {
 		return "", ErrUnavailable
 	}
 	return v, nil
-}
-
-func (c *CLI) Open(ctx context.Context, path string, creds Credentials) (*Database, error) {
-	if path == "" {
-		return nil, ErrInvalidPath
-	}
-	canonical, err := canonicalPath(path)
-	if err != nil {
-		return nil, ErrInvalidPath
-	}
-	path = canonical
-	st, err := os.Stat(path)
-	if err != nil || !st.Mode().IsRegular() {
-		return nil, ErrInvalidPath
-	}
-	initialRevision, err := Revision(path)
-	if err != nil {
-		return nil, err
-	}
-	if err := validateCredentials(creds); err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := boundedContext(ctx)
-	defer cancel()
-	args := []string{"export", "-q", "-f", "xml"}
-	if creds.KeyFile != "" {
-		args = append(args, "-k", creds.KeyFile)
-	}
-	if creds.NoPassword {
-		args = append(args, "--no-password")
-	}
-	if creds.YubiKey != "" {
-		args = append(args, "-y", creds.YubiKey)
-	}
-	args = append(args, path)
-	cmd := exec.CommandContext(ctx, c.binary, args...)
-	cmd.WaitDelay = 250 * time.Millisecond
-	var stdout limitedBuffer
-	stdout.limit = maxExportBytes
-	defer func() { zero(stdout.Bytes()) }()
-	cmd.Stdout = &stdout
-	cmd.Stderr = io.Discard // CLI errors can echo user-controlled paths or credentials.
-	if !creds.NoPassword {
-		input := append(append([]byte(nil), creds.Password...), '\n')
-		cmd.Stdin = bytes.NewReader(input)
-		defer zero(input)
-	}
-	runErr := cmd.Run()
-	finalRevision, revisionErr := Revision(path)
-	if revisionErr != nil {
-		return nil, ErrExternalChanged
-	}
-	if initialRevision != finalRevision {
-		return nil, ErrExternalChanged
-	}
-	if err := runErr; err != nil {
-		if stdout.exceeded {
-			return nil, ErrTooLarge
-		}
-		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, fmt.Errorf("%w: %v", ErrCanceled, ctx.Err())
-		}
-		var e *exec.Error
-		if errors.As(err, &e) {
-			return nil, ErrUnavailable
-		}
-		// Keep unlock failures opaque: CLI stderr includes uncontrolled text.
-		return nil, ErrUnlock
-	}
-	if stdout.exceeded {
-		return nil, ErrTooLarge
-	}
-	db, err := parseXML(stdout.Bytes(), path)
-	if err != nil {
-		return nil, err
-	}
-	db.Revision = finalRevision
-	return db, nil
 }
 
 func validateCredentials(creds Credentials) error {

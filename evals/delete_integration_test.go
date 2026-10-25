@@ -3,6 +3,7 @@
 package evals
 
 import (
+	"bypass/internal/vaulttest"
 	"context"
 	"os/exec"
 	"runtime"
@@ -98,7 +99,7 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	defer cancel()
 	creds := vault.Credentials{Password: []byte(fixturePassword)}
 	defer creds.Clear()
-	db, err := vault.NewCLI(backend).Open(ctx, e.realDB, creds)
+	db, err := vaulttest.NewCLI(backend).Open(ctx, e.realDB, creds)
 	if err != nil {
 		t.Fatal("reopen after deletions:", err)
 	}

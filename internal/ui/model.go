@@ -45,6 +45,10 @@ const (
 )
 
 type Model struct {
+	detailRequest                           uint64
+	detailCancel                            context.CancelFunc
+	detailSession, detailEntry              string
+	detailDatabase                          *vault.Database
 	hoverTab                                int
 	tabHovered                              bool
 	lifecycle                               *lifecycleState
@@ -236,6 +240,7 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func (m *Model) Close() {
+	m.cancelFocusedDetails()
 	m.clearExtras()
 	m.clearLifecycle()
 	m.closePalette(false)
@@ -273,6 +278,18 @@ func (m *Model) Close() {
 func (m *Model) CleanupError() error { return m.cleanupErr }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	model, cmd := m.update(msg)
+	details := m.loadFocusedDetails()
+	if cmd == nil {
+		return model, details
+	}
+	if details == nil {
+		return model, cmd
+	}
+	return model, tea.Batch(cmd, details)
+}
+
+func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.searchCache = nil
 	if cmd, ok := m.updateLifecycle(msg); ok {
 		m.adjustViewport()
@@ -820,7 +837,7 @@ func (m *Model) startOpen() tea.Cmd {
 		defer clear(creds.Password)
 		db, err := backend.Open(ctx, path, creds)
 		result := openedMsg{request: id, db: db, err: err}
-		if err == nil {
+		if err == nil && !db.Interactive() {
 			result.credentials = creds.Clone()
 		}
 		return result

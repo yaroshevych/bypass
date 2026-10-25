@@ -42,8 +42,8 @@ type vaultCreator interface {
 type credentialChanger interface {
 	ChangeCredentials(context.Context, *vault.Database, vault.Credentials, vault.Credentials, string) (*vault.Database, error)
 }
-type databaseInspector interface {
-	Info(context.Context, string, vault.Credentials) (vault.DatabaseInfo, error)
+type sessionDatabaseInspector interface {
+	InfoDatabase(context.Context, *vault.Database) (vault.DatabaseInfo, error)
 }
 
 func (m *Model) clearLifecycle() {
@@ -115,7 +115,7 @@ func (m *Model) openDatabaseInfo() tea.Cmd {
 		return nil
 	}
 	s := m.ws.ActiveSession()
-	backend, ok := m.backend.(databaseInspector)
+	backend, ok := m.backend.(sessionDatabaseInspector)
 	if s == nil || s.DB == nil {
 		return nil
 	}
@@ -130,11 +130,11 @@ func (m *Model) openDatabaseInfo() tea.Cmd {
 	id := m.beginOperation(s.ID)
 	m.lifecycle.request = id
 	ctx := m.operationContext()
-	creds, path := s.Credentials.Clone(), s.Path
+	snapshot := s.DB.Clone()
 	return func() tea.Msg {
-		defer creds.Clear()
+		defer snapshot.Clear()
 		msg := lifecycleMsg{id: id, kind: "info", sessionID: s.ID}
-		msg.info, msg.err = backend.Info(ctx, path, creds)
+		msg.info, msg.err = backend.InfoDatabase(ctx, snapshot)
 		return msg
 	}
 }
@@ -580,7 +580,7 @@ func (m *Model) nativeReason(commands ...string) string {
 	}
 	for _, command := range commands {
 		if !m.backendCapabilities[command] {
-			return "Installed CLI does not support " + command
+			return "Backend does not support " + command
 		}
 	}
 	return ""

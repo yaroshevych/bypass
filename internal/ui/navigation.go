@@ -114,9 +114,23 @@ func (m *Model) allNavigation() []navItem {
 		children[g.ParentUUID] = append(children[g.ParentUUID], g)
 	}
 	visited := make(map[string]bool)
+	var skipBranch func(vault.Group)
+	skipBranch = func(g vault.Group) {
+		if visited[g.UUID] {
+			return
+		}
+		visited[g.UUID] = true
+		for _, child := range children[g.UUID] {
+			skipBranch(child)
+		}
+	}
 	var visit func(vault.Group, int)
 	visit = func(g vault.Group, depth int) {
-		if visited[g.UUID] || g.Recycled {
+		if visited[g.UUID] {
+			return
+		}
+		if g.Recycled || g.UUID == s.DB.RecycleBinUUID || strings.EqualFold(g.Name, "Recycle Bin") {
+			skipBranch(g)
 			return
 		}
 		visited[g.UUID] = true
@@ -304,7 +318,7 @@ func (m *Model) filterEntries(nav navItem, query string) []vault.Entry {
 	byID := map[string]vault.Entry{}
 	for _, e := range entries {
 		get := func(name string) string {
-			if e.IsProtected(name) || name == "Password" {
+			if e.IsProtected(name) || name == "Password" || (s.DB.Interactive() && name == "Notes") {
 				return ""
 			}
 			return e.Get(name)

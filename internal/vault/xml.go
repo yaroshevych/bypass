@@ -52,6 +52,11 @@ func attr(n xmlNode, name string) string {
 	return ""
 }
 
+// DecodeExport decodes a native KeePassXC XML export for independent test readback.
+func DecodeExport(data []byte, path string) (*Database, error) {
+	return parseXML(data, path)
+}
+
 func parseXML(data []byte, path string) (*Database, error) {
 	d := xml.NewDecoder(bytes.NewReader(data))
 	d.Strict = true

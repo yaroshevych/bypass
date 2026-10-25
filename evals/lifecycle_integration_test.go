@@ -3,6 +3,7 @@
 package evals
 
 import (
+	"bypass/internal/vaulttest"
 	"context"
 	"os"
 	"os/exec"
@@ -102,7 +103,7 @@ func TestMilestone4VaultLifecycleTmux(t *testing.T) {
 
 	// Verify the saved entry using a fresh native CLI session and check that the
 	// old-credential encrypted backup remains available.
-	cli := vault.NewCLI(backend)
+	cli := vaulttest.NewCLI(backend)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	db, err := cli.Open(ctx, e.realDB, vault.Credentials{Password: []byte(fixtureEntryPassword)})

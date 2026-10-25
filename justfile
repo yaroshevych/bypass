@@ -11,6 +11,10 @@ debug:
 build:
     go build -trimpath -o bin/bypass ./cmd/bypass
 
+# Stop project evals and remove binaries, generated artifacts, and temporary fixtures.
+clean *args:
+    python3 scripts/clean.py {{args}}
+
 test:
     go test -race ./...
 

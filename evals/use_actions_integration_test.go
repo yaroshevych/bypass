@@ -3,6 +3,7 @@
 package evals
 
 import (
+	"bypass/internal/vaulttest"
 	"context"
 	"errors"
 	"os"
@@ -236,7 +237,7 @@ func TestKeyFileUnlockAndPasswordKeyFileRotationTmux(t *testing.T) {
 	e.typeText(keyFile)
 	e.key("Enter")
 	e.mustShow("Seed Entry")
-	cli := vault.NewCLI(backend)
+	cli := vaulttest.NewCLI(backend)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	withoutKey, err := cli.Open(ctx, e.realDB, vault.Credentials{Password: []byte(fixtureWrongPassword)})
@@ -335,7 +336,7 @@ func TestReadOnlyBlocksHighImpactPaletteActionsTmux(t *testing.T) {
 	const attachment = "synthetic read-only attachment"
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	cli := vault.NewCLI(backend)
+	cli := vaulttest.NewCLI(backend)
 	db, err := cli.Open(ctx, e.realDB, vault.Credentials{Password: []byte(fixturePassword)})
 	if err != nil {
 		t.Fatalf("open synthetic readonly fixture for setup: %v", err)

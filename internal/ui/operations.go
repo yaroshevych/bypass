@@ -14,6 +14,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type editorReadyMsg struct {
+	fields             []vault.Field
+	id                 uint64
+	sessionID, entryID string
+	password           []byte
+	err                error
+}
+
 type appliedMsg struct {
 	id        uint64
 	sessionID string
@@ -115,6 +123,9 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		if e := m.selected(); e != nil {
+			if s.DB.Interactive() {
+				return m.prepareEditor(*e), true
+			}
 			m.startEditor(e, e.GroupUUID)
 		}
 		return nil, true
@@ -130,6 +141,10 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		m.dialog = &actionDialog{kind: "group", title: "New Group", sessionID: s.ID, groupUUID: group}
 		return nil, true
 	case "ctrl+d", "delete":
+		if reason := m.nativeReason("rm"); reason != "" {
+			m.setNotice(reason, true)
+			return nil, true
+		}
 		if !m.writable() {
 			return nil, true
 		}
@@ -168,6 +183,27 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		return m.requestReload(s.ID), true
 	}
 	return nil, false
+}
+
+func (m *Model) prepareEditor(entry vault.Entry) tea.Cmd {
+	session := m.ws.ActiveSession()
+	snapshot := session.DB.Clone()
+	detailReader := m.backend.(entryDetailsReader)
+	resolver := m.backend.(interface {
+		ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
+	})
+	id := m.beginOperation(session.ID)
+	ctx := m.operationContext()
+	sessionID := session.ID
+	return func() tea.Msg {
+		defer snapshot.Clear()
+		fields, err := detailReader.EntryDetails(ctx, snapshot, entry.UUID)
+		if err != nil {
+			return editorReadyMsg{id: id, sessionID: sessionID, entryID: entry.UUID, err: err}
+		}
+		password, err := resolver.ResolveField(ctx, snapshot, vault.Credentials{}, entry.UUID, "Password")
+		return editorReadyMsg{id: id, sessionID: sessionID, entryID: entry.UUID, password: password, fields: fields, err: err}
+	}
 }
 
 func (m *Model) startEditor(e *vault.Entry, group string) {
@@ -419,6 +455,34 @@ func (m *Model) reload(id string) tea.Cmd {
 
 func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 	switch msg := msg.(type) {
+	case focusedDetailsMsg:
+		return m.acceptFocusedDetails(msg), true
+	case editorReadyMsg:
+		defer clear(msg.password)
+		if msg.id != m.operation {
+			return nil, true
+		}
+		m.cancelOperation()
+		if msg.err != nil {
+			m.setNotice("could not load entry · lock and unlock to retry", true)
+			return nil, true
+		}
+		session := m.ws.Sessions[msg.sessionID]
+		if session == nil || session.DB == nil || m.editor != nil {
+			return nil, true
+		}
+		for index := range session.DB.Entries {
+			entry := &session.DB.Entries[index]
+			if entry.UUID == msg.entryID {
+				applyEntryDetails(entry, msg.fields)
+				m.startEditor(entry, entry.GroupUUID)
+				m.editor.setPassword(msg.password)
+				clear(m.editor.originalPassword)
+				m.editor.originalPassword = append([]rune(nil), m.editor.inputs[editPassword].text...)
+				break
+			}
+		}
+		return nil, true
 	case appliedMsg:
 		if msg.id != m.operation {
 			if msg.db != nil {
@@ -430,6 +494,11 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		if msg.err != nil {
 			if msg.db != nil {
 				msg.db.Clear()
+			}
+			if errors.Is(msg.err, vault.ErrInteractiveSessionLost) {
+				if session := m.ws.Sessions[msg.sessionID]; session != nil {
+					session.ReadOnly = true
+				}
 			}
 			text := writeError(msg.err)
 			if m.editor != nil {
@@ -600,6 +669,8 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 
 func writeError(err error) string {
 	switch {
+	case errors.Is(err, vault.ErrInteractiveSessionLost):
+		return "session interrupted · lock and unlock to check saved state"
 	case errors.Is(err, vault.ErrExternalChanged):
 		return "file changed externally · reload before saving"
 	case errors.Is(err, vault.ErrAmbiguous):
@@ -692,7 +763,7 @@ func (m *Model) copyField(name string) tea.Cmd {
 	if label == "UserName" {
 		label = "Username"
 	}
-	if strings.Contains(e.Get(name), "{") {
+	if strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Interactive() && (name == "Password" || (name == "Notes" && !e.DetailsLoaded))) {
 		resolver, ok := m.backend.(interface {
 			ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
 		})
@@ -782,7 +853,7 @@ func (m *Model) toggleReveal() tea.Cmd {
 	m.revealEntry = e.UUID
 	m.revealField = name
 	m.revealSession = s.ID
-	if strings.Contains(e.Get(name), "{") {
+	if strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Interactive() && (name == "Password" || (name == "Notes" && !e.DetailsLoaded))) {
 		resolver, ok := m.backend.(interface {
 			ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
 		})
@@ -838,6 +909,10 @@ func (m *Model) revealed(uuid, name string) bool {
 }
 
 func (m *Model) requestReload(id string) tea.Cmd {
+	if session := m.ws.Sessions[id]; session != nil && session.DB.Interactive() {
+		m.setNotice("lock and unlock to reload", true)
+		return nil
+	}
 	if m.editor != nil && m.editorSession == id && m.editor.dirty() {
 		m.dialog = &actionDialog{kind: "discardReload", title: "Discard draft and reload?", options: []string{"Cancel", "Discard and Reload"}, selected: 0, sessionID: id}
 		return nil
@@ -877,6 +952,9 @@ func (m *Model) lockCurrent(all bool) tea.Cmd {
 	return m.clearClipboard()
 }
 func (m *Model) lockSession(id string) {
+	if m.detailSession == id {
+		m.cancelFocusedDetails()
+	}
 	if m.lifecycle != nil && m.lifecycle.sessionID == id {
 		m.clearLifecycle()
 	}
@@ -955,7 +1033,7 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 			locked = true
 			continue
 		}
-		if m.ticks%2 == 0 && !m.checking[id] && !m.writing {
+		if !s.DB.Interactive() && m.ticks%2 == 0 && !m.checking[id] && !m.writing {
 			m.checking[id] = true
 			path := s.Path
 			expected := s.DB.Revision

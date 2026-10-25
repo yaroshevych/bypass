@@ -54,11 +54,15 @@ func (h itemHeader) renderWithIndent(styles *styleSet, width int, now time.Time,
 			title += " *"
 		}
 	}
-	lines := []string{titleStyle.Render(title)}
+	groupPath := strings.Trim(h.groupPath, "/")
+	if groupPath == "" {
+		groupPath = "Passwords"
+	}
+	groupPath = strings.Join(strings.Split(groupPath, "/"), " / ")
+	lines := []string{titleStyle.Render(title), styles.secondary.Render(padding + safe(groupPath))}
 	if !h.modified.IsZero() {
 		lines = append(lines, styles.secondary.Render(padding+"Modified "+h.modified.Local().Format("2006-01-02")))
 	}
-	lines = append(lines, styles.secondary.Render(padding+safe(h.groupPath)))
 	if showNonPasswordVaultSecurity && h.hasTOTP {
 		lines = append(lines, styles.secondary.Render(padding+"TOTP configured · commands to view/copy"))
 	}

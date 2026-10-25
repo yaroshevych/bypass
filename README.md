@@ -67,6 +67,5 @@ Vault files and backups stay encrypted on disk. A strong master password helps
 protect stored passwords. When a vault is unlocked, passwords can appear in the
 interface. The clipboard clears after 10 seconds by default.
 
-Before a change is saved, Bypass checks the result and creates an encrypted backup.
-If another application changes a vault, Bypass blocks further changes until you
-reload it.
+KeePassXC opens and saves the vault directly. Before an edit, Bypass copies the
+encrypted vault file to the backup directory.

@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 )
 
@@ -70,6 +69,8 @@ type Writer interface {
 }
 
 type Database struct {
+	interactive       *interactiveSession
+	interactiveOwner  bool
 	Path              string
 	Name              string
 	RootUUID          string
@@ -85,6 +86,7 @@ func (d *Database) Clone() *Database {
 		return nil
 	}
 	out := *d
+	out.interactiveOwner = false
 	out.Groups = append([]Group(nil), d.Groups...)
 	out.Entries = make([]Entry, len(d.Entries))
 	for i, e := range d.Entries {
@@ -110,27 +112,6 @@ func cloneEntry(e Entry, includeHistory bool) Entry {
 		out.History = nil
 	}
 	return out
-}
-
-var pathLocks = struct {
-	sync.Mutex
-	byPath map[string]*sync.Mutex
-}{byPath: make(map[string]*sync.Mutex)}
-
-func lockCanonicalPath(path string) (string, func(), error) {
-	canonical, err := canonicalPath(path)
-	if err != nil {
-		return "", nil, err
-	}
-	pathLocks.Lock()
-	mu := pathLocks.byPath[canonical]
-	if mu == nil {
-		mu = &sync.Mutex{}
-		pathLocks.byPath[canonical] = mu
-	}
-	pathLocks.Unlock()
-	mu.Lock()
-	return canonical, mu.Unlock, nil
 }
 
 func canonicalPath(path string) (string, error) {
@@ -170,6 +151,7 @@ type Group struct {
 }
 
 type Entry struct {
+	DetailsLoaded     bool
 	UUID              string
 	GroupUUID         string
 	GroupPath         string
@@ -211,12 +193,33 @@ func (e Entry) IsProtected(name string) bool {
 	return false
 }
 
-// Clear removes references to field values and drops the database's slices.
+// SharesInteractive reports whether two models use the same authenticated child.
+func (d *Database) SharesInteractive(other *Database) bool {
+	return d != nil && other != nil && d.interactive != nil && d.interactive == other.interactive
+}
+
+// TransferInteractive transfers process ownership to a successful replacement.
+func (d *Database) TransferInteractive(other *Database) {
+	if d.SharesInteractive(other) {
+		d.interactiveOwner = false
+		other.interactiveOwner = true
+	}
+}
+
+// Interactive reports whether this database uses a live, credential-free CLI session.
+func (d *Database) Interactive() bool { return d != nil && d.interactive != nil }
+
+// Clear drops field references and closes an owned interactive process.
 // Go strings are immutable, so this cannot reliably overwrite their backing bytes.
 func (d *Database) Clear() {
 	if d == nil {
 		return
 	}
+	if d.interactiveOwner {
+		d.interactive.close()
+	}
+	d.interactive = nil
+	d.interactiveOwner = false
 	for i := range d.Entries {
 		clearEntry(&d.Entries[i])
 	}
@@ -228,6 +231,7 @@ func clearEntry(e *Entry) {
 	if e == nil {
 		return
 	}
+	e.DetailsLoaded = false
 	for j := range e.Fields {
 		e.Fields[j].Value = ""
 	}
