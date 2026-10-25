@@ -95,7 +95,7 @@ func (m *Model) commands() []command {
 	if reason := m.nativeReason("db-create"); reason != "" {
 		createReason = reason
 	}
-	add("new-vault", "File", "New Vault…", "N", createReason, "", func() tea.Cmd { return m.leaveEditor(m.openCreateVault) })
+	add("new-vault", "File", "New Vault…", "Shift+N", createReason, "", func() tea.Cmd { return m.leaveEditor(m.openCreateVault) })
 	add("open", "File", "Open Vault…", "Ctrl+O", "", "", func() tea.Cmd { return m.leaveEditor(m.openPicker) })
 	add("quit", "App", "Quit bypass", "q", "", "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }) })
 	closeReason := ""
@@ -140,7 +140,7 @@ func (m *Model) commands() []command {
 		credentialsReason = reason
 	}
 	add("credentials", "Vault", "Change Vault Credentials…", "", credentialsReason, "", func() tea.Cmd { return m.leaveEditor(m.openCredentials) })
-	add("read-only", "Vault", readLabel, "R", needVault, "", invoke("R"))
+	add("read-only", "Vault", readLabel, "Shift+R", needVault, "", invoke("R"))
 	add("new", "Entry", "New Entry", "n", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("n")) })
 	add("edit", "Entry", "Edit Entry", "e", editReason, "", invoke("e"))
 	add("group", "Entry", "New Group", "g", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("g")) })
@@ -152,11 +152,6 @@ func (m *Model) commands() []command {
 		moveReason = "Finish editing first"
 	}
 	add("move", "Entry", "Move Entry…", "m", moveReason, "destination", nil)
-	restoreReason := moveReason
-	if restoreReason == "" && !entry.Recycled {
-		restoreReason = "Select a recycled entry"
-	}
-	add("restore", "Entry", "Restore Entry…", "r", restoreReason, "destination", nil)
 	deleteReason := writeReason
 	if deleteReason == "" && m.currentNav().kind != "group" {
 		deleteReason = needEntry
@@ -200,14 +195,14 @@ func (m *Model) commands() []command {
 	if m.editor == nil {
 		saveReason = "No entry draft"
 	}
-	add("save", "Editor", "Save Entry Draft", "Ctrl+S", saveReason, "", m.saveEditor)
+	add("save", "Editor", "Save Entry", "Ctrl+S", saveReason, "", m.saveEditor)
 	cancelReason := ""
 	if m.editor == nil {
 		cancelReason = "No entry draft"
 	}
-	add("cancel-edit", "Editor", "Cancel Editing", "Esc", cancelReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return nil }) })
-	add("search", "View", "Search", "Ctrl+F", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.beginSearch(true) }) })
-	add("jump", "Entry", "Jump", "J", needEntry, "", m.beginJump)
+	add("cancel-edit", "Editor", "Cancel", "Esc", cancelReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return nil }) })
+	add("search", "View", "Search", "", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.beginSearch(true) }) })
+	add("jump", "Entry", "Jump", "Shift+J", needEntry, "", m.beginJump)
 	add("zoom", "View", "Zoom", "z", needVault, "", func() tea.Cmd { v.Zoom = !v.Zoom; return nil })
 	newTabReason := closeReason
 	if s == nil || s.DB == nil {
@@ -238,7 +233,7 @@ func (m *Model) commands() []command {
 	if pinReason == "" && !m.gate.Configured() {
 		pinReason = "Set a session PIN first"
 	}
-	add("protect", "Vault", "Lock with PIN", "Ctrl+K", pinReason, "", m.protectScreen)
+	add("protect", "Vault", "Lock UI with PIN", "Ctrl+K", pinReason, "", m.protectScreen)
 	add("help", "Help", "Shortcuts", "?", "", "", func() tea.Cmd { m.help = true; m.helpOffset = 0; m.helpQuery.clear(); return nil })
 	return commands
 }
@@ -492,13 +487,13 @@ func orderCommandChoices(choices []command) []command {
 func commandPriority(id string) int {
 	order := []string{
 		// VAULTS: open/close first, then setup, security and maintenance.
-		"protect", "open", "close-vault", "new-vault", "lock-all", "lock", "reload",
+		"protect", "lock-all", "open", "close-vault", "new-vault", "lock", "reload",
 		"database-info", "credentials", "read-only", "quit",
 		// VIEW: tab lifecycle and navigation, then search and layout controls.
 		"duplicate", "close-view", "previous-tab", "next-tab",
 		"search", "zoom",
 		// ENTRIES: create and edit first, then organize and review.
-		"new", "edit", "group", "jump", "move", "restore", "delete", "history-view",
+		"new", "edit", "group", "jump", "move", "delete", "history-view",
 		"attachments", "save", "cancel-edit",
 		// SECRETS: copy common credentials first, then field tools.
 		"copy-focused", "reveal", "generator", "grand-view", "totp",
@@ -723,27 +718,33 @@ func (m *Model) palettePointer(msg tea.MouseMsg) tea.Cmd {
 	return nil
 }
 
-func (m *Model) helpActionLines() []string {
-	var lines []string
+func (m *Model) helpActionGroups() (map[string][]string, int) {
 	query := strings.ToLower(m.helpQuery.value())
-	for _, line := range []string{"↑↓ / j k       Navigate lists / fields", "←→ / h l       Change pane", "Tab / Shift+Tab Fields / panes", "/              Filter focused pane", "1–9            Switch view", "[ / ]          Resize pane"} {
+	groups := map[string][]string{}
+	count := 0
+	add := func(section, line string) {
 		if query == "" || strings.Contains(strings.ToLower(line), query) {
-			lines = append(lines, line)
+			groups[section] = append(groups[section], line)
+			count++
 		}
 	}
-	for _, command := range m.commands() {
-		if command.key == "" {
+	for _, line := range []string{"↑↓ / j k       Change selection", "←→ / h l       Navigate", "tab            Cycle navigation", "/              Filter", "1–9            Switch tab", "[ ]            Cycle tabs"} {
+		add("VIEW", line)
+	}
+	for _, command := range orderCommandChoices(m.commands()) {
+		if command.key == "" || command.id == "previous-tab" || command.id == "next-tab" {
 			continue
 		}
-		line := fmt.Sprintf("%-14s %s", command.key, command.label)
-		if command.reason != "" {
+		line := strings.ToLower(command.key) + " " + command.label
+		if command.id != "help" {
+			line = fmt.Sprintf("%-14s %s", strings.ToLower(command.key), command.label)
+		}
+		if command.reason != "" && command.id != "protect" && command.id != "save" && command.id != "cancel-edit" {
 			line += " (" + command.reason + ")"
 		}
-		if query == "" || strings.Contains(strings.ToLower(line), query) {
-			lines = append(lines, line)
-		}
+		add(commandSection(command.group), line)
 	}
-	return lines
+	return groups, count
 }
 
 // Recent destinations precede the remaining hierarchy; deleted and recycled groups are omitted.

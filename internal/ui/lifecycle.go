@@ -272,6 +272,12 @@ func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
 			fmt.Sprintf("Groups: %d", i.GroupCount), fmt.Sprintf("Entries: %d", i.EntryCount),
 			fmt.Sprintf("Expired: %d", i.ExpiredEntryCount),
 		}
+		if m.backendVersion != "" {
+			version := strings.TrimSpace(m.backendVersion)
+			version = strings.TrimPrefix(version, "KeePassXC ")
+			version = strings.TrimPrefix(version, "keepassxc-cli ")
+			l.lines = append(l.lines, "Backend: keepassxc-cli "+version)
+		}
 		return nil, true
 	}
 	if result.db == nil {

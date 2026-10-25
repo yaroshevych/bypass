@@ -986,14 +986,14 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 	secondary, active, inactive := styles.secondary, styles.active, styles.inactive
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	contentWidth := max(0, width-2)
-	available := max(0, contentWidth-2)
+	available := contentWidth
 	tw := min(available, max(7, available*40/100))
 	uw := min(available-tw, max(5, available*27/100))
 	urlw := max(0, available-tw-uw)
 	cell := func(text string, width int) string {
 		return fit(ansi.Truncate(text, width, "…"), width)
 	}
-	row := func(a, b, c string) string { return fit(cell(a, tw)+" "+cell(b, uw)+" "+cell(c, urlw), contentWidth) }
+	row := func(a, b, c string) string { return fit(cell(a, tw)+cell(b, uw)+cell(c, urlw), contentWidth) }
 	heading := row("TITLE", "USERNAME", "WEBSITE")
 	heading = fit(" "+heading+" ", width)
 	heading = secondary.Render(heading)
@@ -1330,27 +1330,61 @@ func (m *Model) pickerLines() []string {
 
 func (m *Model) helpLines() []string {
 	title := "Keyboard Shortcuts"
-	actions := m.helpActionLines()
-	count := fmt.Sprintf("%d shortcuts", len(actions))
-	body := append([]string{""}, actions...)
-	if m.helpQuery.value() == "" {
-		body = append(body, "", m.colors().secondary.Render("Encrypted backup before every write"))
-		if m.backendVersion != "" {
-			body = append(body, m.colors().secondary.Render("Backend: "+m.backendVersion))
-		}
-	}
+	groups, actionCount := m.helpActionGroups()
+	count := fmt.Sprintf("%d shortcuts", actionCount)
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	if compact {
-		count = fmt.Sprintf("%d", len(m.helpActionLines()))
+		count = fmt.Sprintf("%d", actionCount)
 	}
 	width := min(86, m.width-4)
 	if compact {
 		width = min(86, m.width-2)
 	}
+	var actions []string
+	sections := []string{"VAULTS", "VIEW", "ENTRIES", "SECRETS", "SETTINGS"}
+	if strings.TrimSpace(m.helpQuery.value()) != "" || m.width < 88 {
+		actions = m.helpActionColumn(groups, sections, max(1, width-4))
+	} else {
+		gap := 4
+		columnWidth := max(1, (width-4-gap)/2)
+		left := m.helpActionColumn(groups, sections[:2], columnWidth)
+		right := m.helpActionColumn(groups, sections[2:], columnWidth)
+		actions = make([]string, max(len(left), len(right)))
+		for i := range actions {
+			leftLine, rightLine := "", ""
+			if i < len(left) {
+				leftLine = fit(left[i], columnWidth)
+			}
+			if i < len(right) {
+				rightLine = right[i]
+			}
+			actions[i] = leftLine + strings.Repeat(" ", gap) + rightLine
+		}
+	}
+	body := append([]string{""}, actions...)
 	filterWidth := max(1, width-4)
 	header := dialogrender.FilterHeader(title, safe(m.helpQuery.value()), m.helpQuery.cursor, "type to filter", count, filterWidth, compact, m.settings.ASCII, filterDialogStyles(m.colors()))
 	capacity := max(1, m.height-8)
 	start := min(m.helpOffset, max(0, len(body)-capacity))
 	end := min(len(body), start+capacity)
 	return m.overlay(title, body[start:end], "", width, -1, -1, header)
+}
+
+func (m *Model) helpActionColumn(groups map[string][]string, sections []string, width int) []string {
+	var lines []string
+	for _, section := range sections {
+		items := groups[section]
+		if len(items) == 0 {
+			continue
+		}
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, m.colors().secondary.Render(section))
+		for _, item := range items {
+			wrapped := ansi.Wrap(item, width, "  ")
+			lines = append(lines, strings.Split(wrapped, "\n")...)
+		}
+	}
+	return lines
 }

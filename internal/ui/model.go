@@ -672,8 +672,8 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 			}
 			v.Focus++
 		}
-	case "/", "ctrl+f":
-		return m.beginSearch(key == "ctrl+f")
+	case "/":
+		return m.beginSearch(false)
 	case "esc":
 		if v.Zoom {
 			v.Zoom = false
