@@ -4,6 +4,19 @@ Go terminal workspace for KeePass-compatible vaults. Native edits use encrypted
 staging files, backups and external-change checks.
 Requires Go 1.24+ and `keepassxc-cli` on PATH.
 
+## Install
+
+```sh
+make install
+```
+
+This builds `bypass` and installs it to `/usr/local/bin` (use `sudo make install`
+if that directory requires administrator access). To install under your home
+directory instead, use `make install PREFIX="$HOME/.local"`. `DESTDIR` can be
+set to stage an install, for example `make install DESTDIR=/tmp/package`.
+Bypass also requires KeePassXC CLI (`keepassxc-cli`) at runtime; install it
+separately and make sure it is on your `PATH`.
+
 ```sh
 just run
 # Browse without writes: just run --read-only
