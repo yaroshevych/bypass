@@ -466,7 +466,9 @@ func (m *Model) lifecycleLines() []string {
 			}
 			fields = append(fields, label, "  "+value)
 		}
-		actionWidth := max(1, min(84, m.width-8))
+		// Overlay dialogs have a two-cell border and one cell of body padding
+		// on each side, with a maximum outer width of 84 cells.
+		actionWidth := max(1, min(80, m.width-8))
 		fields = append(fields, c.rule(actionWidth))
 		actionFocus := len(indices)
 		for _, action := range []struct {
