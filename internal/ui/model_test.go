@@ -79,7 +79,7 @@ func TestSearchExcludesSecretsAndFiltersLive(t *testing.T) {
 	m := New(Options{})
 	m.ws.Open(fixture("/tmp/fixture.kdbx"))
 	m.normalize()
-	m.key(key("ctrl+f"))
+	m.key(key("/"))
 	m.key(key("alice"))
 	if got := m.entries(); len(got) != 1 || got[0].UUID != "a" {
 		t.Fatal("search didn't filter")
@@ -88,7 +88,7 @@ func TestSearchExcludesSecretsAndFiltersLive(t *testing.T) {
 	if len(m.entries()) != 2 {
 		t.Fatal("cancel didn't restore query")
 	}
-	m.key(key("ctrl+f"))
+	m.key(key("/"))
 	m.key(key("PASSWORD-DO-NOT-RENDER"))
 	m.key(key("enter"))
 	if len(m.entries()) != 0 {
@@ -236,7 +236,7 @@ func TestUnlockControlsFitMinimumSize(t *testing.T) {
 	m.width, m.height = 65, 16
 	m.err = "Could not unlock"
 	text := m.View()
-	for _, want := range []string{"Password auth", "Could not unlock", "tab next"} {
+	for _, want := range []string{"Password", "Could not unlock", "enter"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("minimum view hides %q", want)
 		}
@@ -347,7 +347,7 @@ func TestOpenVaultPickerUsesPathAndBrowseGroups(t *testing.T) {
 				switch {
 				case strings.Contains(plain, "PATH"):
 					pathHeader = i
-					if appearance == "compact" && !strings.Contains(plain, "│   PATH") {
+					if appearance == "compact" && !strings.Contains(plain, "│  PATH") {
 						t.Fatalf("compact group heading indentation changed: %q", plain)
 					}
 					if appearance == "classic" && !strings.Contains(plain, "│  PATH") {
@@ -357,7 +357,7 @@ func TestOpenVaultPickerUsesPathAndBrowseGroups(t *testing.T) {
 					pathValue = i
 					wantPath := "│  /tmp/vaults/"
 					if appearance == "compact" {
-						wantPath = "│   /tmp/vaults/"
+						wantPath = "│  /tmp/vaults/"
 					}
 					if !strings.Contains(plain, wantPath) {
 						t.Fatalf("%s path has incorrect left padding; want %q: %q", appearance, wantPath, plain)
@@ -516,7 +516,7 @@ func TestPickerRecentFooterConsumesBrowseRowAndDeleteRemovesRecent(t *testing.T)
 	m.pickerRecent = false
 	_, browseCapacity := m.fileViewport()
 	browseRows := strings.Join(m.pickerLines(), "\n")
-	if browseCapacity != recentCapacity+1 || strings.Contains(ansi.Strip(browseRows), "delete remove recent") || !strings.Contains(ansi.Strip(browseRows), "folder-15") {
+	if browseCapacity != recentCapacity+1 || strings.Contains(ansi.Strip(browseRows), "delete remove recent") || !strings.Contains(ansi.Strip(browseRows), fmt.Sprintf("folder-%02d", browseCapacity-1)) {
 		t.Fatalf("Browse did not reclaim the Recent footer row: recent=%d browse=%d", recentCapacity, browseCapacity)
 	}
 
@@ -552,7 +552,7 @@ func TestOpenVaultPickerKeepsDialogPositionAcrossDirectorySizes(t *testing.T) {
 	m.inputs[0].set("/first/")
 	m.files = []fileItem{{name: "only.kdbx", path: "/first/only.kdbx"}}
 	_, capacity := m.fileViewport()
-	if capacity != 16 {
+	if capacity != 14 {
 		t.Fatalf("browse viewport capacity = %d, want 16", capacity)
 	}
 	first := m.pickerLines()
@@ -603,7 +603,7 @@ func TestFocusedCompactPickerPathMatchesBrowseItemPillBounds(t *testing.T) {
 	pathLeft := ansi.StringWidth(pathRow[:pathLeftByte])
 	pathRight := ansi.StringWidth(pathRow[:pathRightByte])
 	pathTextByte := strings.Index(pathRow, "/tmp/vaults/")
-	if pathTextByte < 0 || ansi.StringWidth(pathRow[pathLeftByte:pathTextByte]) != 2 {
+	if pathTextByte < 0 || ansi.StringWidth(pathRow[pathLeftByte:pathTextByte]) != 1 {
 		t.Fatalf("focused compact path has unexpected left padding: %q", pathRow)
 	}
 

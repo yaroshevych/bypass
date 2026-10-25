@@ -25,7 +25,7 @@ func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	m.openPalette("actions", false)
 	m.palette.query.set("Theme")
 	m.refreshPalette()
-	if got := m.paletteChoices(); len(got) != 1 || got[0].next != "themes" {
+	if got := m.paletteChoices(); len(got) != 1 || got[0].run == nil {
 		t.Fatalf("theme command choices = %#v", got)
 	}
 	m.executePalette()
@@ -37,15 +37,11 @@ func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	}
 
 	m.key(key("esc"))
-	if m.palette == nil || m.palette.scope != "actions" {
-		t.Fatal("Escape did not return to the parent palette")
+	if m.palette != nil {
+		t.Fatal("Escape did not close the theme picker")
 	}
 	if m.settings != beforeSettings || !reflect.DeepEqual(m.styles, beforeStyles) {
 		t.Fatal("canceling theme preview did not restore original settings and styles")
-	}
-	m.key(key("esc"))
-	if m.palette != nil {
-		t.Fatal("Escape did not close the parent palette")
 	}
 	if *m.ws.ActiveView() != beforeView {
 		t.Fatal("palette preview changed active view focus or filters")
@@ -103,7 +99,7 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 		t.Fatalf("command palette sections = %#v, want %#v", sections, wantSections)
 	}
 	wantStarts := map[string][]string{
-		"VAULTS":   {"protect", "open", "close-vault"},
+		"VAULTS":   {"protect", "lock-all", "open"},
 		"VIEW":     {"duplicate", "close-view", "previous-tab"},
 		"ENTRIES":  {"new", "edit", "group"},
 		"SECRETS":  {"copy-focused", "reveal", "generator"},
@@ -165,11 +161,11 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 			t.Fatalf("field-specific copy command remains in palette: %#v", choice)
 		}
 		wantLabel := map[string]string{
-			"copy-focused": "Copy", "reveal": "Reveal", "grand-view": "Large View",
-			"theme": "Theme", "appearance": "Layout", "set-pin": "Change PIN", "protect": "Lock with PIN", "jump": "Jump",
+			"copy-focused": "Copy", "reveal": "Reveal", "grand-view": "Large View…",
+			"theme": "Theme…", "appearance": "Layout…", "set-pin": "Change PIN…", "protect": "Lock UI with PIN", "jump": "Jump…",
 			"read-only": "Read Only",
 			"totp":      "TOTP", "help": "Shortcuts", "close-vault": "Close Vault", "lock": "Lock Vault",
-			"search": "Search", "zoom": "Zoom", "delete": "Delete", "history-view": "History",
+			"search": "Search", "zoom": "Zoom", "delete": "Delete…", "history-view": "History",
 		}[choice.id]
 		if wantLabel != "" && choice.label != wantLabel {
 			t.Errorf("command %q label = %q, want %q", choice.id, choice.label, wantLabel)
@@ -343,7 +339,7 @@ func TestClassicPaletteSharesHeaderRowWithFilterAndCount(t *testing.T) {
 	if lipgloss.Width(stripped) != 82 {
 		t.Fatalf("classic palette header width = %d, want 82", lipgloss.Width(stripped))
 	}
-	if !strings.HasPrefix(stripped, "COMMANDS │ ") || !strings.Contains(stripped, "type to filter") || !strings.HasSuffix(stripped, "18 commands") {
+	if !strings.HasPrefix(stripped, " COMMANDS  │ ") || !strings.Contains(stripped, "type to filter") || !strings.HasSuffix(stripped, "18 commands") {
 		t.Fatalf("classic palette header did not align title, filter and count: %q", stripped)
 	}
 }

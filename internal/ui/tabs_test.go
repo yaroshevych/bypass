@@ -203,7 +203,7 @@ func TestTabCreationStopsAtNineAndResumesAfterClose(t *testing.T) {
 		m.duplicateTab()
 	}
 	m.duplicateTab()
-	if len(m.ws.Views) != 9 || m.ws.ActiveSession() == nil || !strings.Contains(m.notice, "Maximum 9 tabs") {
+	if len(m.ws.Views) != 9 || m.ws.ActiveSession() == nil || !strings.Contains(m.notice, "max 9 tabs") {
 		t.Fatal("tab limit did not preserve the active workspace")
 	}
 	for _, span := range m.tabSpans() {

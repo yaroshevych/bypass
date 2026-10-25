@@ -29,7 +29,7 @@ func TestClipboardCopyExpiryAndExternalReplacementTmux(t *testing.T) {
 	defer e.close()
 	createRealVault(e, backend)
 	e.startWith(backend, "--clipboard-timeout=1s", e.realDB)
-	e.mustShow("Unlock Vault", "Password")
+	e.mustShow("UNLOCK VAULT", "Password")
 	e.typeText(fixturePassword)
 	e.key("Enter")
 	e.mustShow("Seed Entry")
@@ -70,6 +70,7 @@ func TestClipboardCopyExpiryAndExternalReplacementTmux(t *testing.T) {
 }
 
 func TestHistoryCopyRevealAndRemaskTmux(t *testing.T) {
+	t.Skip("History UI is hidden in beta; retain this test for re-enablement")
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
@@ -133,6 +134,7 @@ func TestHistoryCopyRevealAndRemaskTmux(t *testing.T) {
 }
 
 func TestTOTPClipboardAndRefreshUseControlledBackendTmux(t *testing.T) {
+	t.Skip("TOTP UI is hidden in beta; retain this test for re-enablement")
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
@@ -190,6 +192,7 @@ func TestTOTPClipboardAndRefreshUseControlledBackendTmux(t *testing.T) {
 }
 
 func TestKeyFileUnlockAndPasswordKeyFileRotationTmux(t *testing.T) {
+	t.Skip("non-password authentication UI is hidden in beta; retain this test for re-enablement")
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
@@ -353,34 +356,39 @@ func TestReadOnlyBlocksHighImpactPaletteActionsTmux(t *testing.T) {
 		t.Fatal("record readonly fixture revision:", err)
 	}
 	e.startWith(backend, "--read-only", e.realDB)
-	e.mustShow("Unlock Vault")
+	e.mustShow("UNLOCK VAULT")
 	e.typeText(fixturePassword)
 	e.key("Enter")
-	e.mustShow("Seed Entry", "Read only")
+	e.mustShow("Seed Entry", "read only")
 	e.key("C-p")
-	e.typeText("New Vault")
-	e.mustShow("New Vault", "Restart without --read-only to create a vault")
+	e.typeText(`"NEW VAULT"`)
+	e.mustShow(`"NEW VAULT"`, "1 command", "Restart without --read-only to create a vault")
 	e.key("Escape")
+	e.waitFor("commands closed", func() bool { return !strings.Contains(e.capture(), "COMMANDS") })
 	e.key("n")
-	e.mustShow("Read only: enable writes with R first.")
+	e.mustShow("read-only · press shift+r to enable")
 	e.mustNotShow("New Entry")
+	t.Run("attachment controls", func(t *testing.T) {
+		t.Skip("attachment controls are hidden in beta")
+		e.key("C-p")
+		e.typeText("Attachments")
+		e.key("Enter")
+		e.mustShow("Attachments", "readonly.bin", "read only")
+		e.key("a")
+		e.mustShow("Attachment changes require write access and an encrypted backup location")
+		e.key("Down")
+		e.key("r")
+		e.mustShow("Select an attachment and enable writes first.")
+		e.key("C-d")
+		e.mustShow("Select an attachment and enable writes first.")
+		e.key("Escape")
+		e.mustShow("Seed Entry")
+	})
 	e.key("C-p")
-	e.typeText("Attachments")
-	e.key("Enter")
-	e.mustShow("Attachments", "readonly.bin", "Read only")
-	e.key("a")
-	e.mustShow("Attachment changes require write access and an encrypted backup location")
-	e.key("Down")
-	e.key("r")
-	e.mustShow("Select an attachment and enable writes first.")
-	e.key("d")
-	e.mustShow("Select an attachment and enable writes first.")
+	e.typeText("CHANGE PASSWORD")
+	e.mustShow("CHANGE PASSWORD", "1 command", "Vault is read only")
 	e.key("Escape")
-	e.mustShow("Seed Entry")
-	e.key("C-p")
-	e.typeText("Change Vault Credentials")
-	e.mustShow("Change Vault Credentials", "Vault is read only")
-	e.key("Escape")
+	e.waitFor("commands closed", func() bool { return !strings.Contains(e.capture(), "COMMANDS") })
 	e.key("q")
 	e.waitForCleanQuit()
 	finalRevision, err := vault.Revision(e.realDB)

@@ -78,7 +78,7 @@ func TestVaultLifecycleDialogsUseConnectedClassicHeaders(t *testing.T) {
 		title string
 	}{
 		{kind: "create", title: "NEW VAULT"},
-		{kind: "credentials", title: "CHANGE VAULT CREDENTIALS"},
+		{kind: "credentials", title: "CHANGE PASSWORD"},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
 			m := New(Options{})
@@ -100,9 +100,27 @@ func TestVaultLifecycleDialogsUseConnectedClassicHeaders(t *testing.T) {
 			if titleRow < 0 || titleRow+1 >= len(stripped) {
 				t.Fatalf("%s dialog title missing or not uppercase: %q", tc.kind, strings.Join(stripped, "\n"))
 			}
-			header := []rune(strings.TrimSpace(stripped[titleRow+1]))
-			if len(header) < 2 || header[0] != '├' || header[len(header)-1] != '┤' {
-				t.Fatalf("%s dialog header rule does not join the frame: %q", tc.kind, string(header))
+			header := stripped[titleRow+1]
+			left, right := strings.Index(header, "├"), strings.LastIndex(header, "┤")
+			if left < 0 || right <= left || strings.Trim(header[left+len("├"):right], "─") != "" {
+				t.Fatalf("%s dialog header rule does not join the frame: %q", tc.kind, header)
+			}
+		})
+	}
+}
+
+func TestCredentialConfirmationKeepsBothButtonLabelsVisible(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		t.Run(appearance, func(t *testing.T) {
+			m := New(Options{})
+			m.width, m.height = 100, 30
+			m.settings.Appearance = appearance
+			m.lifecycle = &lifecycleState{kind: "credentials", confirm: true}
+			lines := m.lifecycleLines()
+			_, cancelRow := renderedTextPosition(t, lines, "Cancel")
+			_, changeRow := renderedTextPosition(t, lines, "Change Credentials")
+			if changeRow != cancelRow+1 {
+				t.Fatal("confirmation buttons should use separate full-width rows")
 			}
 		})
 	}

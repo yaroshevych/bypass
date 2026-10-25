@@ -17,6 +17,7 @@ import (
 )
 
 func TestKeyFileOnlyCreationUnlockAndPasswordAdditionTmux(t *testing.T) {
+	t.Skip("non-password authentication UI is hidden in beta; retain this test for re-enablement")
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}

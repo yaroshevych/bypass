@@ -124,7 +124,7 @@ func runeIndex(text, target string) int {
 	return -1
 }
 
-func TestCompactOverlayKeepsTitleCaseAndOmitsEmptyFooter(t *testing.T) {
+func TestCompactOverlayUsesUppercaseAndOmitsEmptyFooter(t *testing.T) {
 	lines := Render(Options{
 		Mode: Overlay, Title: "History", Body: []string{"Snapshot"},
 		Backdrop: make([]string, 18), Width: 36, ScreenWidth: 50, Height: 18, X: -1, Y: -1, Compact: true,
@@ -141,7 +141,7 @@ func TestCompactOverlayKeepsTitleCaseAndOmitsEmptyFooter(t *testing.T) {
 	}
 	titleOnTopLeft := false
 	for _, line := range strip(lines) {
-		if strings.Contains(line, "╭─ HISTORY") && strings.Contains(line, "╮") {
+		if strings.Contains(line, "╭─HISTORY") && strings.Contains(line, "╮") {
 			titleOnTopLeft = true
 			break
 		}
@@ -184,7 +184,7 @@ func TestCompactBoxUsesRoundedFrameAndTitlePill(t *testing.T) {
 	}
 	titleOnTopLeft := false
 	for _, line := range strip(lines) {
-		if strings.Contains(line, "╭─ NEW VAULT") && strings.Contains(line, "╮") {
+		if strings.Contains(line, "╭─NEW VAULT") && strings.Contains(line, "╮") {
 			titleOnTopLeft = true
 			break
 		}

@@ -144,7 +144,7 @@ func TestSearchFooterShowsQueryAndSearchActions(t *testing.T) {
 	m.searching = true
 	m.query.set("test search")
 	line := ansi.Strip(m.searchFooterLine(m.footerText(), m.footerContext(), false))
-	if !strings.Contains(line, "bypass  / test search  enter apply · esc cancel") || strings.Contains(line, "/ filter ·") {
+	if (!strings.Contains(line, "bypass  / test search") || !strings.Contains(line, "enter apply · esc cancel")) || strings.Contains(line, "/ filter ·") {
 		t.Fatalf("search input footer is incorrect: %q", line)
 	}
 
@@ -152,7 +152,7 @@ func TestSearchFooterShowsQueryAndSearchActions(t *testing.T) {
 	m.query.clear()
 	m.ws.ActiveView().Query = "test search"
 	line = ansi.Strip(m.searchFooterLine(m.footerText(), m.footerContext(), true))
-	if !strings.Contains(line, "/ test search  esc cancel") || strings.Contains(line, "/ filter ·") {
+	if (!strings.Contains(line, "/ test search") || !strings.Contains(line, "esc cancel")) || strings.Contains(line, "/ filter ·") {
 		t.Fatalf("applied search footer is incorrect: %q", line)
 	}
 

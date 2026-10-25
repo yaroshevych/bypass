@@ -88,6 +88,7 @@ func extrasEntryDB(path string) *vault.Database {
 }
 
 func TestTOTPOverlayShowsCodeWithoutSeedAndRefreshes(t *testing.T) {
+	t.Skip("TOTP UI is hidden in beta; retain this test for re-enablement")
 	backend := &extrasTestBackend{}
 	m := newExtrasTestModel(t, extrasEntryDB("/tmp/extras-totp.kdbx"), backend)
 	cmd := m.openTOTP()
@@ -115,6 +116,7 @@ func TestTOTPOverlayShowsCodeWithoutSeedAndRefreshes(t *testing.T) {
 }
 
 func TestExpiredTOTPIsNotCopiedWhileRefreshIsPending(t *testing.T) {
+	t.Skip("TOTP UI is hidden in beta; retain this test for re-enablement")
 	backend := &extrasTestBackend{}
 	m := newExtrasTestModel(t, extrasEntryDB("/tmp/extras-totp-expired.kdbx"), backend)
 	cmd := m.openTOTP()
@@ -135,6 +137,7 @@ func TestExpiredTOTPIsNotCopiedWhileRefreshIsPending(t *testing.T) {
 }
 
 func TestCanceledTOTPResultIsCleared(t *testing.T) {
+	t.Skip("TOTP UI is hidden in beta; retain this test for re-enablement")
 	backend := &extrasTestBackend{}
 	m := newExtrasTestModel(t, extrasEntryDB("/tmp/extras-totp-cancel.kdbx"), backend)
 	cmd := m.openTOTP()
@@ -148,6 +151,7 @@ func TestCanceledTOTPResultIsCleared(t *testing.T) {
 }
 
 func TestOlderTOTPRequestCannotReplaceNewerCode(t *testing.T) {
+	t.Skip("TOTP UI is hidden in beta; retain this test for re-enablement")
 	backend := &extrasTestBackend{}
 	m := newExtrasTestModel(t, extrasEntryDB("/tmp/extras-totp-generation.kdbx"), backend)
 	first := m.openTOTP()
@@ -165,6 +169,7 @@ func TestOlderTOTPRequestCannotReplaceNewerCode(t *testing.T) {
 }
 
 func TestAttachmentReplaceDefaultsToCancelAndRequiresExplicitConfirm(t *testing.T) {
+	t.Skip("attachment UI is hidden in beta; retain this test for re-enablement")
 	backend := &extrasTestBackend{}
 	m := newExtrasTestModel(t, extrasEntryDB("/tmp/extras-replace.kdbx"), backend)
 	source := filepath.Join(t.TempDir(), "replacement.pdf")
@@ -200,6 +205,7 @@ func TestAttachmentReplaceDefaultsToCancelAndRequiresExplicitConfirm(t *testing.
 }
 
 func TestQClosesOverlayButCanBeTypedInAttachmentPath(t *testing.T) {
+	t.Skip("attachment UI is hidden in beta; retain this test for re-enablement")
 	backend := &extrasTestBackend{}
 	m := newExtrasTestModel(t, extrasEntryDB("/tmp/extras-q.kdbx"), backend)
 	m.openAttachments()
@@ -217,6 +223,7 @@ func TestQClosesOverlayButCanBeTypedInAttachmentPath(t *testing.T) {
 }
 
 func TestPlaintextAttachmentExportRequiresConfirmAndUsesPrivateExclusiveFile(t *testing.T) {
+	t.Skip("attachment UI is hidden in beta; retain this test for re-enablement")
 	backend := &extrasTestBackend{exportData: []byte("private attachment bytes")}
 	m := newExtrasTestModel(t, extrasEntryDB("/tmp/extras-export.kdbx"), backend)
 	dest := filepath.Join(t.TempDir(), "document.pdf")
@@ -263,6 +270,7 @@ func TestPlaintextAttachmentExportRequiresConfirmAndUsesPrivateExclusiveFile(t *
 }
 
 func TestHistoryMasksSecretsAndAllowsTimedExplicitRevealAndLongTextScroll(t *testing.T) {
+	t.Skip("History UI is hidden in beta; retain this test for re-enablement")
 	db := extrasEntryDB("/tmp/extras-history.kdbx")
 	notes := make([]string, 40)
 	for i := range notes {

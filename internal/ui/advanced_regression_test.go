@@ -112,9 +112,16 @@ func TestDialogFootersAreRightAlignedWithoutSeparator(t *testing.T) {
 		if left < 0 || right <= start || start-left <= right-(start+len("c copy")) {
 			t.Fatalf("%s footer is not right-aligned: %q", name, line)
 		}
+		// Inspect the dialog interior, not rules from the dimmed backdrop.
+		startColumn := ansi.StringWidth(line[:start])
+		footer := []rune(line)
+		frameLeft := strings.LastIndex(string(footer[:startColumn]), "│")
+		frameLeft = ansi.StringWidth(string(footer[:startColumn])[:frameLeft])
 		previous := stripped[footerRow-1]
-		prevLeft, prevRight := strings.Index(previous, "│"), strings.LastIndex(previous, "│")
-		if prevLeft >= 0 && prevRight > prevLeft && strings.Contains(previous[prevLeft+1:prevRight], "─") {
+		interior := ansi.Cut(previous, frameLeft+1, ansi.StringWidth(line[:right]))
+		// The outer frame may also have backdrop content to its right.
+		interior = strings.SplitN(interior, "│", 2)[0]
+		if strings.Contains(interior, "─") {
 			t.Fatalf("%s has a horizontal separator above its footer: %q", name, previous)
 		}
 	}

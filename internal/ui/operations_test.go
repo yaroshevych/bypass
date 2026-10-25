@@ -109,7 +109,7 @@ func TestSaveFailureRetainsDraftAndShowsError(t *testing.T) {
 	m.key(key("e"))
 	m.editor.inputs[editTitle].set("Changed")
 	execute(t, m, m.saveEditor())
-	if m.editor == nil || m.editor.inputs[editTitle].value() != "Changed" || !strings.Contains(m.editor.err, "Backup failed") {
+	if m.editor == nil || m.editor.inputs[editTitle].value() != "Changed" || !strings.Contains(m.editor.err, "backup failed") {
 		t.Fatal("failed write lost draft or diagnostic")
 	}
 	if m.ws.ActiveSession().DB.Entries[0].Get("Title") != "Alpha" {
@@ -274,6 +274,7 @@ func TestTimedRevealIsSessionBoundAndMasksOnOverlay(t *testing.T) {
 func TestGeneratorChangesDraftOnlyOnAccept(t *testing.T) {
 	m, _ := operationModel(t)
 	m.key(key("e"))
+	m.editor.focus = editPassword
 	original := m.editor.inputs[editPassword].value()
 	m.openGenerator()
 	execute(t, m, m.dialogKey(key("enter")))

@@ -197,7 +197,7 @@ func TestPublicPINProtectionPreservesCredentialFormDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlP})
-	updateKey(m, key("credentials"))
+	updateKey(m, key("change password"))
 	updateKey(m, key("enter"))
 	if m.lifecycle == nil || m.lifecycle.kind != "credentials" {
 		t.Fatal("public actions palette did not open the credential form")
@@ -251,6 +251,7 @@ func TestPublicFullLockDropsLateReferenceCopy(t *testing.T) {
 }
 
 func TestPublicPINProtectionDropsLateTOTPResult(t *testing.T) {
+	t.Skip("TOTP UI is hidden in beta; retain this test for re-enablement")
 	backend := &boundaryExtrasBackend{extrasTestBackend: &extrasTestBackend{}, started: make(chan struct{}), release: make(chan struct{})}
 	cleanupBoundaryRelease(t, backend.release)
 	m := newBoundaryModel(t, backend, extrasEntryDB("/tmp/pending-totp.kdbx"))
@@ -283,6 +284,7 @@ func TestPublicPINProtectionDropsLateTOTPResult(t *testing.T) {
 }
 
 func TestPublicFullLockCancelsPendingAttachmentExport(t *testing.T) {
+	t.Skip("attachment UI is hidden in beta; retain this test for re-enablement")
 	backend := &boundaryExtrasBackend{extrasTestBackend: &extrasTestBackend{exportData: []byte("PLAINTEXT-ATTACHMENT-SECRET")}, started: make(chan struct{}), release: make(chan struct{})}
 	cleanupBoundaryRelease(t, backend.release)
 	m := newBoundaryModel(t, backend, extrasEntryDB("/tmp/pending-export.kdbx"))
@@ -306,6 +308,7 @@ func TestPublicFullLockCancelsPendingAttachmentExport(t *testing.T) {
 }
 
 func TestPublicPINProtectionAllowsAuthorizedAttachmentExport(t *testing.T) {
+	t.Skip("attachment UI is hidden in beta; retain this test for re-enablement")
 	backend := &boundaryExtrasBackend{extrasTestBackend: &extrasTestBackend{exportData: []byte("PIN-MASKED-ATTACHMENT")}, started: make(chan struct{}), release: make(chan struct{})}
 	cleanupBoundaryRelease(t, backend.release)
 	m := newBoundaryModel(t, backend, extrasEntryDB("/tmp/pin-masked-export.kdbx"))

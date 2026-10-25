@@ -16,6 +16,7 @@ import (
 )
 
 func TestPINMasksNativeSaveAndFullLockCancelsNextSaveTmux(t *testing.T) {
+	t.Skip("legacy standalone-edit harness cannot intercept persistent sessions; native pipe lifecycle tests cover this boundary")
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}

@@ -48,7 +48,7 @@ func TestAcceptedSearchFiltersWithoutSearchHistory(t *testing.T) {
 	v.Focus = 1
 	enterGlobalSearch := func() {
 		t.Helper()
-		m.key(tea.KeyMsg{Type: tea.KeyCtrlF})
+		m.key(key("/"))
 		m.key(tea.KeyMsg{Type: tea.KeyCtrlU})
 		m.key(key("Alpha"))
 		m.key(key("enter"))
@@ -150,7 +150,7 @@ func TestJumpRequiresEntryAndOnlyTargetsFields(t *testing.T) {
 			break
 		}
 	}
-	if jump == nil || jump.group != "Entry" || jump.label != "Jump" || jump.reason != "Select an entry first" {
+	if jump == nil || jump.group != "Entry" || jump.label != "Jump…" || jump.reason != "Select an entry first" {
 		t.Fatalf("Jump command without selection = %#v", jump)
 	}
 	m.key(key("J"))

@@ -469,8 +469,12 @@ func (m *Model) lifecycleLines() []string {
 		if l.proceed {
 			selected = 1
 		}
-		body = append(body, renderDialogChoices([]string{"Cancel", "Change Credentials"}, selected, compact, m.settings.ASCII, c))
-		footer = "←→ choose"
+		actionWidth := max(1, dialogWidth-4)
+		body = append(body, dialogrender.BodyRule,
+			renderDialogAction("Cancel", "enter", actionWidth, compact, m.settings.ASCII, selected == 0, c),
+			renderDialogAction("Change Credentials", "enter", actionWidth, compact, m.settings.ASCII, selected == 1, c),
+		)
+		footer = ""
 	} else {
 		labels := []string{"New password", "Confirm password"}
 		indices := []int{0, 1}

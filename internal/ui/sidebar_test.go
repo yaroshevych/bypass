@@ -40,7 +40,7 @@ func TestSidebarSectionsCountsAndHeaderMouseTargets(t *testing.T) {
 			}
 			if mode == "compact" {
 				row := []rune(ansi.Strip(lines[1]))
-				if row[pane.Width-3] != '2' {
+				if row[pane.Width-2] != '2' {
 					t.Fatal("compact count is not right-aligned inside the pill inset")
 				}
 			} else if !strings.Contains(ansi.Strip(lines[2]), "2 entries") {

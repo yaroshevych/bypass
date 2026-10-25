@@ -146,8 +146,8 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	case chooseFile:
 		start, capacity := m.fileViewport()
 		visible := min(len(m.files)-start, capacity)
-		top := max(0, (m.height-(m.pickerBodyRows()+4))/2)
-		pathY := top + 2 + m.pickerPathRow()
+		bodyTop := m.pickerBodyTop()
+		pathY := bodyTop + m.pickerPathRow()
 		if msg.Y == pathY {
 			m.pickerEditing = true
 			m.pickerRecent = false
@@ -160,7 +160,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		}
 		recentCount := m.pickerRecentCount()
 		if recentCount > 0 {
-			recentStartY := top + 5
+			recentStartY := bodyTop + 3
 			if msg.Y >= recentStartY && msg.Y < recentStartY+recentCount {
 				m.pickerEditing = false
 				m.pickerRecent = true
@@ -168,7 +168,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 				return nil
 			}
 		}
-		fileStartY := top + 2 + m.pickerFixedRows()
+		fileStartY := bodyTop + m.pickerFixedRows()
 		if msg.Y < fileStartY {
 			return nil
 		}
@@ -283,6 +283,14 @@ func (m *Model) fileViewport() (start, capacity int) {
 func (m *Model) pickerBodyRows() int {
 	// Keep the picker sized for up to five Recent rows and fifteen Browse rows.
 	return min(26, max(1, m.height-9))
+}
+
+func (m *Model) pickerBodyTop() int {
+	headerRows := 2
+	if strings.EqualFold(m.settings.Appearance, "compact") {
+		headerRows = 0
+	}
+	return max(0, (m.height-m.pickerBodyRows()-headerRows)/2) + headerRows
 }
 
 func (m *Model) pickerRecentCount() int {

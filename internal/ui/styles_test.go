@@ -124,7 +124,7 @@ func TestMinimumUnlockKeepsFilenameAndEssentialControls(t *testing.T) {
 	m.width, m.height = 48, 14
 	m.path = "/a/very/long/directory/with/many/components/demo-vault.kdbx"
 	text := ansi.Strip(strings.Join(m.unlockLines(), "\n"))
-	for _, label := range []string{"demo-vault.kdbx", "Password:", "Key file:", "Hardware slot:", "Password auth:", "tab next"} {
+	for _, label := range []string{"demo-vault.kdbx", "Password", "Open", "enter"} {
 		if !strings.Contains(text, label) {
 			t.Fatalf("minimum-size unlock lost %q:\n%s", label, text)
 		}
@@ -143,20 +143,20 @@ func TestCompactSelectionKeepsEntryAndViewTextAligned(t *testing.T) {
 	before := m.entryLines(48, 10, true)
 	m.ws.ActiveView().SelectedUUID = "b"
 	after := m.entryLines(48, 10, true)
-	for i, title := range []string{"Alpha", "Beta"} {
-		a := []rune(ansi.Strip(before[i+1]))
-		b := []rune(ansi.Strip(after[i+1]))
-		if string(a[2:2+len(title)]) != title || string(b[2:2+len(title)]) != title {
+	for _, title := range []string{"Alpha", "Beta"} {
+		x, _ := renderedTextPosition(t, before, title)
+		nextX, _ := renderedTextPosition(t, after, title)
+		if x != 1 || nextX != x {
 			t.Fatalf("%s moved horizontally when selection changed", title)
 		}
 	}
 	before = m.navLines(27, 20, true)
 	m.selectNav(1)
 	after = m.navLines(27, 20, true)
-	for i, title := range []string{"All Entries", "Favourites"} {
+	for _, title := range []string{"All Entries", "Favourites"} {
 		for _, rows := range [][]string{before, after} {
-			runes := []rune(ansi.Strip(rows[i+1]))
-			if string(runes[2:2+len(title)]) != title {
+			x, _ := renderedTextPosition(t, rows, title)
+			if x != 1 {
 				t.Fatalf("%s lost its fixed compact inset", title)
 			}
 		}
