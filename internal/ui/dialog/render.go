@@ -24,6 +24,9 @@ type Header struct {
 	Count          string
 }
 
+// BodyRule marks a body row as a full-width rule joined to both dialog sides.
+const BodyRule = "\x00bypass-dialog-body-rule"
+
 type Options struct {
 	Mode                       Mode
 	Title                      string
@@ -140,6 +143,10 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 		box = []string{o.Divider.Render(topRule), wrap(header, false), o.Divider.Render(bottomRule)}
 	}
 	for _, line := range o.Body {
+		if line == BodyRule {
+			box = append(box, o.Divider.Render(leftRule+strings.Repeat(horizontal, max(0, width-2))+rightRule))
+			continue
+		}
 		box = append(box, wrap(line, false))
 	}
 	if footer != "" {

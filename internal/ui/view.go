@@ -1233,26 +1233,17 @@ func (m *Model) unlockLines() []string {
 		footer = "tab next"
 	}
 	for i, label := range labels {
-		prefix := "  "
-		if i == m.inputFocus {
-			prefix = "› "
-		}
-		value := ""
 		if i < 3 {
-			value = m.inputs[i].display(i == 0)
+			body = append(body, renderInputField(inputFieldView{
+				label: label, value: &m.inputs[i], secret: i == 0,
+				focused: i == m.inputFocus, indent: 2, showChevron: true,
+			}, styles))
+			continue
 		} else if m.noPassword {
-			value = "[ ] disabled"
+			body = append(body, styles.secondary.Render("  "+label+": [ ] disabled"))
 		} else {
-			value = "[x] enabled"
+			body = append(body, styles.secondary.Render("  "+label+": [x] enabled"))
 		}
-		if value == "" {
-			value = "—"
-		}
-		line := prefix + label + ": " + value
-		if i == m.inputFocus {
-			line = accent.Render(line)
-		}
-		body = append(body, line)
 	}
 	if m.busy {
 		body = append(body, accent.Render("Unlocking… esc cancels"))
@@ -1275,14 +1266,9 @@ func (m *Model) pickerLines() []string {
 	pathText := pathIndent + m.inputs[0].display(false)
 	pathLine := secondary.Render(pathText)
 	if m.pickerEditing {
-		if compact {
-			pathLine = renderPillWithCaret(m.inputs[0].display(false), "▏", listWidth, styles.inactive, styles.active, styles.primary)
-		} else {
-			caret := styles.active.Render("▏")
-			visible := ansi.Truncate(pathText, max(0, listWidth-2), "…")
-			padding := max(0, listWidth-lipgloss.Width(visible)-2)
-			pathLine = styles.inactive.Render(visible) + caret + styles.inactive.Render(strings.Repeat(" ", padding+1))
-		}
+		pathLine = renderInputBox(inputFieldView{
+			value: &m.inputs[0], focused: true, indent: 1,
+		}, listWidth, compact, styles)
 	}
 	headerIndent := "  "
 	if !compact {

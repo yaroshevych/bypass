@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
 	tea "github.com/charmbracelet/bubbletea"
@@ -460,29 +461,6 @@ func (m *Model) lifecycleLines() []string {
 		var fields []string
 		compact := strings.EqualFold(m.settings.Appearance, "compact")
 		newVaultClassic := l.kind == "create" && !compact
-		for position, index := range indices {
-			label := labels[position]
-			value := l.inputs[index].display(index == secretStart || index == secretStart+1)
-			if index == l.focus {
-				prefix := "  "
-				if newVaultClassic {
-					prefix = " "
-				}
-				label = c.accent.Render(prefix + label)
-				value += "▏"
-			} else {
-				prefix := "  "
-				if newVaultClassic {
-					prefix = " "
-				}
-				label = c.secondary.Render(prefix + label)
-			}
-			valuePrefix := "  "
-			if newVaultClassic {
-				valuePrefix = " "
-			}
-			fields = append(fields, label, valuePrefix+value)
-		}
 		dialogWidth := min(84, m.width-4)
 		if l.kind == "create" {
 			dialogWidth = min(60, m.width-4)
@@ -490,7 +468,28 @@ func (m *Model) lifecycleLines() []string {
 		// Overlay rows have a two-cell border and one cell of body padding
 		// on each side.
 		actionWidth := max(1, dialogWidth-4)
-		fields = append(fields, c.rule(actionWidth))
+		for position, index := range indices {
+			indent := 2
+			if newVaultClassic {
+				indent = 1
+			}
+			field := inputFieldView{
+				label: labels[position], value: &l.inputs[index],
+				secret:  index == secretStart || index == secretStart+1,
+				focused: index == l.focus, indent: indent,
+			}
+			if l.kind == "create" {
+				fields = append(fields, "")
+				fields = append(fields, renderStackedInputField(field, actionWidth, compact, &m.styles)...)
+			} else {
+				fields = append(fields, renderInputField(field, &m.styles))
+			}
+		}
+		if l.kind == "create" {
+			fields = append(fields, dialogrender.BodyRule)
+		} else {
+			fields = append(fields, c.rule(actionWidth))
+		}
 		actionFocus := len(indices)
 		for _, action := range []struct {
 			label, shortcut string
@@ -500,9 +499,15 @@ func (m *Model) lifecycleLines() []string {
 			fields = append(fields, line)
 		}
 		capacity := max(2, m.height-12)
-		focusLine := l.focus*2 + 1
-		if l.focus >= actionFocus {
-			focusLine = len(indices)*2 + 1 + l.focus - actionFocus
+		focusLine := l.focus
+		if l.kind == "create" && l.focus < actionFocus {
+			focusLine = l.focus*3 + 2
+		} else if l.focus >= actionFocus {
+			fieldRows := len(indices)
+			if l.kind == "create" {
+				fieldRows *= 3
+			}
+			focusLine = fieldRows + 1 + l.focus - actionFocus
 		}
 		start := viewportOffset(focusLine, len(fields), capacity, l.offset)
 		body = append(body, fields[start:min(len(fields), start+capacity)]...)
@@ -546,6 +551,24 @@ func (m *Model) lifecyclePointer(msg tea.MouseMsg) tea.Cmd {
 		}
 		if msg.Button == tea.MouseButtonWheelUp {
 			m.lifecycle.offset = max(0, m.lifecycle.offset-1)
+		}
+		return nil
+	}
+	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft || m.lifecycle.busy || m.lifecycle.confirm {
+		return nil
+	}
+	labels := []string{"New password", "Confirm password"}
+	if m.lifecycle.kind == "create" {
+		labels = []string{"New .kdbx path", "New password", "Confirm password"}
+	}
+	lines := m.lifecycleLines()
+	for row, line := range lines {
+		plain := ansi.Strip(line)
+		for index, label := range labels {
+			if (msg.Y == row || msg.Y == row+1) && strings.Contains(plain, label) {
+				m.lifecycle.focus = index
+				return nil
+			}
 		}
 	}
 	return nil
