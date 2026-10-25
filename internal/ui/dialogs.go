@@ -11,6 +11,7 @@ import (
 )
 
 type actionDialog struct {
+	duplicates                      *vault.DuplicateEntries
 	kind, title                     string
 	message                         []string
 	options                         []string
@@ -28,6 +29,7 @@ type actionDialog struct {
 
 func (m *Model) clearDialog() {
 	if m.dialog != nil {
+		m.dialog.duplicates.Close()
 		m.dialog.input.clear()
 		clear(m.dialog.secret)
 		m.dialog.secret = nil
@@ -161,6 +163,17 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 		}
 		m.clearDialog()
 		return nil
+	}
+	if d.kind == "duplicates" {
+		page := max(1, min(8, m.height-14))
+		if key == "pgdown" {
+			d.offset = min(max(0, len(d.duplicates.Renames)-page), d.offset+page)
+			return nil
+		}
+		if key == "pgup" {
+			d.offset = max(0, d.offset-page)
+			return nil
+		}
 	}
 	if d.kind == "group" {
 		switch key {
@@ -340,6 +353,11 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 	case "enter":
 		choice := d.selected
 		switch d.kind {
+		case "duplicates":
+			if choice == 1 {
+				return m.renameDuplicates()
+			}
+			m.clearDialog()
 		case "delete":
 			if choice == 1 {
 				return m.apply(d.change)
@@ -384,6 +402,13 @@ func (m *Model) dialogLines() []string {
 	d := m.dialog
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	body := append([]string(nil), d.message...)
+	if d.kind == "duplicates" {
+		end := min(len(d.duplicates.Renames), d.offset+max(1, min(8, m.height-14)))
+		body = []string{fmt.Sprintf("Rename %d entries (%d–%d shown)", len(d.duplicates.Renames), d.offset+1, end), "Encrypted backup first. pgup/pgdn to view names."}
+		for _, rename := range d.duplicates.Renames[d.offset:end] {
+			body = append(body, safe(rename.Path)+" -> "+safe(rename.Title))
+		}
+	}
 	if d.kind == "external" {
 		for i, line := range body {
 			if i == 0 {
@@ -477,7 +502,7 @@ func (m *Model) dialogLines() []string {
 		footer = ""
 	default:
 		body = append(body, "")
-		if d.kind == "delete" || d.kind == "unsaved" || d.kind == "external" {
+		if d.kind == "duplicates" || d.kind == "delete" || d.kind == "unsaved" || d.kind == "external" {
 			dialogWidth := min(m.width-6, 60)
 			if d.kind == "unsaved" {
 				dialogWidth = min(m.width-6, 42)
@@ -487,6 +512,9 @@ func (m *Model) dialogLines() []string {
 			actionWidth := max(1, dialogWidth-4)
 			for i, option := range d.options {
 				shortcut := ""
+				if d.kind == "duplicates" && i == 1 {
+					shortcut = "enter"
+				}
 				if d.kind != "external" && strings.EqualFold(option, "Cancel") {
 					shortcut = "esc"
 				}
@@ -511,7 +539,7 @@ func (m *Model) dialogLines() []string {
 	if d.kind == "external" {
 		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 72), false)
 	}
-	if d.kind == "delete" {
+	if d.kind == "delete" || d.kind == "duplicates" {
 		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 60), false)
 	}
 	if d.kind == "generator" {

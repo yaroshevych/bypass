@@ -133,6 +133,7 @@ type fileItem struct {
 	dir        bool
 }
 type openedMsg struct {
+	repaired    bool
 	request     uint64
 	db          *vault.Database
 	err         error
@@ -359,7 +360,10 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = "Cannot list this directory. Enter a vault path directly."
 		}
 	case openedMsg:
+		var duplicates *vault.DuplicateEntries
+		errors.As(msg.err, &duplicates)
 		if msg.request != m.request {
+			duplicates.Close()
 			msg.credentials.Clear()
 			if msg.db != nil {
 				msg.db.Clear()
@@ -367,13 +371,33 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			break
 		}
 		m.busy = false
+		if msg.repaired {
+			m.writing = false
+			m.clearDialog()
+		}
 		if m.cancel != nil {
 			m.cancel()
 			m.cancel = nil
 		}
+		if duplicates != nil {
+			msg.credentials.Clear()
+			if m.readOnly {
+				duplicates.Close()
+				m.err = "Duplicate names cannot be repaired in read-only mode."
+				break
+			}
+			m.dialog = &actionDialog{kind: "duplicates", title: "Duplicate entry names", options: []string{"Cancel", "Rename and Open"}, duplicates: duplicates}
+			break
+		}
 		if msg.err != nil {
 			m.err = "Could not unlock. Check credentials, file access and backend support."
 			msg.credentials.Clear()
+			if msg.repaired {
+				m.err = "Rename stopped. Earlier renames may be saved. Reopen the vault."
+				if errors.Is(msg.err, vault.ErrBackup) {
+					m.err = "Could not create backup. No entries were renamed."
+				}
+			}
 			if errors.Is(msg.err, vault.ErrUnavailable) {
 				m.err = "Could not unlock. Install KeePassXC or set --backend executable."
 			}
@@ -843,6 +867,13 @@ func (m *Model) startOpen() tea.Cmd {
 	return func() tea.Msg {
 		defer clear(creds.Password)
 		db, err := backend.Open(ctx, path, creds)
+		if ctx.Err() != nil {
+			var pending *vault.DuplicateEntries
+			if errors.As(err, &pending) {
+				pending.Close()
+				return openedMsg{request: id, err: vault.ErrCanceled}
+			}
+		}
 		result := openedMsg{request: id, db: db, err: err}
 		if err == nil && !db.Interactive() {
 			result.credentials = creds.Clone()

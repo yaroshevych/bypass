@@ -8,11 +8,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 )
 
@@ -20,12 +22,21 @@ const maxResolvedFieldBytes = 1 << 20
 
 // InteractiveCLI keeps an authenticated KeePassXC child on the original vault.
 // It never retains the master password after Open returns.
-type InteractiveCLI struct{ cli *commandCLI }
+type InteractiveCLI struct {
+	cli    *commandCLI
+	logger *slog.Logger
+}
 
 func NewInteractiveCLI(binary string) *InteractiveCLI {
 	return &InteractiveCLI{cli: newCommandCLI(binary)}
 }
-func (c *InteractiveCLI) Probe(ctx context.Context) (string, error) { return c.cli.Probe(ctx) }
+func (c *InteractiveCLI) Probe(ctx context.Context) (string, error) {
+	version, err := c.cli.Probe(ctx)
+	if c.logger != nil {
+		c.logger.Info("backend_version", "version", backendVersion.FindString(version), "error", diagnosticError(err))
+	}
+	return version, err
+}
 func (c *InteractiveCLI) CommandCapabilities(ctx context.Context) (map[string]bool, error) {
 	capabilities, err := c.cli.CommandCapabilities(ctx)
 	if err != nil {
@@ -41,7 +52,22 @@ func (c *InteractiveCLI) CommandCapabilities(ctx context.Context) (map[string]bo
 	return capabilities, nil
 }
 
-func (c *InteractiveCLI) Open(ctx context.Context, path string, creds Credentials) (*Database, error) {
+func (c *InteractiveCLI) Open(ctx context.Context, path string, creds Credentials) (_ *Database, err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if c.logger != nil {
+		ctx = context.WithValue(ctx, diagnosticKey{}, c.logger.With("attempt", openAttempt.Add(1)))
+	}
+	started, stage := time.Now(), "validate_credentials"
+	diagnostic(ctx, "open_started")
+	defer func() {
+		event := "open_completed"
+		if err != nil {
+			event = "open_failed"
+		}
+		diagnostic(ctx, event, "stage", stage, "error", diagnosticError(err), "elapsed_ms", time.Since(started).Milliseconds())
+	}()
 	if err := validateCredentials(creds); err != nil {
 		return nil, err
 	}
@@ -50,7 +76,8 @@ func (c *InteractiveCLI) Open(ctx context.Context, path string, creds Credential
 	if creds.Password == nil && !creds.NoPassword {
 		return nil, ErrUnlock
 	}
-	path, err := canonicalPath(path)
+	stage = "validate_path"
+	path, err = canonicalPath(path)
 	if err != nil {
 		return nil, ErrInvalidPath
 	}
@@ -60,10 +87,21 @@ func (c *InteractiveCLI) Open(ctx context.Context, path string, creds Credential
 	}
 	ctx, cancel := boundedContext(ctx)
 	defer cancel()
+	stage = "start_session"
 	session, err := startInteractive(ctx, c.cli.binary, path, creds)
 	if err != nil {
 		return nil, err
 	}
+	stage = "find_duplicates"
+	renames, err := session.duplicateRenames(ctx)
+	if err != nil {
+		session.close()
+		return nil, err
+	}
+	if len(renames) > 0 {
+		return nil, &DuplicateEntries{Path: path, Renames: renames, session: session}
+	}
+	stage = "load_metadata"
 	db, err := session.load(ctx, path)
 	if err != nil {
 		session.close()
@@ -144,10 +182,24 @@ type interactiveSession struct {
 	done          chan struct{}
 	prompt        []byte
 	echo          bool
+	unlockFailure string
 }
 
-func startInteractive(ctx context.Context, binary, path string, creds Credentials) (*interactiveSession, error) {
-	args := appendAuthArgs([]string{"open", "-q"}, creds)
+func startInteractive(ctx context.Context, binary, path string, creds Credentials) (_ *interactiveSession, err error) {
+	stage := "create_pipes"
+	defer func() {
+		if err != nil {
+			diagnostic(ctx, "session_failed", "stage", stage, "error", diagnosticError(err))
+		}
+	}()
+	openArgs := []string{"open", "-q"}
+	if ctx.Value(diagnosticKey{}) != nil {
+		// Quiet mode suppresses the native reason for authentication failures.
+		// Keep the response in the private pipe and log only its classification.
+		openArgs = []string{"open"}
+	}
+	diagnostic(ctx, "authentication_options", "password_enabled", !creds.NoPassword, "key_file_enabled", creds.KeyFile != "", "hardware_key_enabled", creds.YubiKey != "")
+	args := appendAuthArgs(openArgs, creds)
 	args = append(args, "--", path)
 	cmd := exec.Command(binary, args...)
 	// Readline echoes piped input. Reserve enough columns to prevent its
@@ -165,6 +217,7 @@ func startInteractive(ctx context.Context, binary, path string, creds Credential
 	}
 	cmd.Stdout, cmd.Stderr = childOutput, childOutput
 	s := &interactiveSession{cmd: cmd, input: input, output: output, reader: bufio.NewReader(output), done: make(chan struct{})}
+	stage = "start_process"
 	if err := cmd.Start(); err != nil {
 		input.Close()
 		output.Close()
@@ -174,6 +227,7 @@ func startInteractive(ctx context.Context, binary, path string, creds Credential
 	childOutput.Close()
 	go func() { _ = cmd.Wait(); close(s.done) }()
 	_, err = s.withContext(ctx, func() ([]byte, error) {
+		stage = "send_credentials"
 		if !creds.NoPassword {
 			line := append(append([]byte(nil), creds.Password...), '\n')
 			defer zero(line)
@@ -182,12 +236,14 @@ func startInteractive(ctx context.Context, binary, path string, creds Credential
 			}
 		}
 		// Wait until authentication has consumed its input before sending commands.
+		stage = "wait_for_unlock_prompt"
 		initial, err := s.readUntil([]byte("> "), maxInfoBytes)
 		if err != nil {
 			zero(initial)
 			return nil, ErrUnlock
 		}
 		defer zero(initial)
+		stage = "probe_command_protocol"
 		marker, err := completionMarker()
 		if err != nil {
 			return nil, ErrUnavailable
@@ -207,6 +263,7 @@ func startInteractive(ctx context.Context, binary, path string, creds Credential
 		if s.echo {
 			prefix = prefix[:len(prefix)-len(marker)-1]
 		}
+		stage = "validate_command_prompt"
 		if len(prefix) == 0 || !bytes.HasSuffix(prefix, []byte("> ")) {
 			return nil, ErrMalformed
 		}
@@ -220,8 +277,14 @@ func startInteractive(ctx context.Context, binary, path string, creds Credential
 	})
 	if err != nil {
 		s.close()
+		exitCode := -1
+		if cmd.ProcessState != nil {
+			exitCode = cmd.ProcessState.ExitCode()
+		}
+		diagnostic(ctx, "unlock_diagnostic", "reason", s.unlockFailure, "exit_code", exitCode, "context_error", diagnosticError(ctx.Err()))
 		return nil, err
 	}
+	diagnostic(ctx, "session_authenticated", "readline_echo", s.echo)
 	return s, nil
 }
 
@@ -261,7 +324,28 @@ func (s *interactiveSession) commandInput(ctx context.Context, password []byte, 
 	return s.commandPrompts(ctx, [][]byte{password}, []string{passwordPrompt}, args...)
 }
 
-func (s *interactiveSession) commandPrompts(ctx context.Context, passwords [][]byte, prompts []string, args ...string) ([]byte, error) {
+func (s *interactiveSession) commandPrompts(ctx context.Context, passwords [][]byte, prompts []string, args ...string) (_ []byte, err error) {
+	command := "other"
+	if len(args) > 0 {
+		switch args[0] {
+		case "db-info", "ls", "show", "clip", "add", "edit", "mkdir", "mv", "rm", "rmdir", "db-edit":
+			command = args[0]
+		}
+	}
+	started := time.Now()
+	attribute := ""
+	for i := 1; i+1 < len(args); i++ {
+		if args[i] == "-a" {
+			switch args[i+1] {
+			case "Uuid", "Title", "UserName", "URL", "Tags", "Notes", "Password":
+				attribute = args[i+1]
+			}
+		}
+	}
+	diagnostic(ctx, "command_started", "command", command, "attribute", attribute)
+	defer func() {
+		diagnostic(ctx, "command_completed", "command", command, "error", diagnosticError(err), "elapsed_ms", time.Since(started).Milliseconds())
+	}()
 	line, err := interactiveLine(args...)
 	if err != nil {
 		return nil, err
@@ -350,6 +434,9 @@ func (s *interactiveSession) readUntil(suffix []byte, limit int) ([]byte, error)
 	for len(data) < limit {
 		b, err := s.reader.ReadByte()
 		if err != nil {
+			if s.prompt == nil {
+				s.unlockFailure = classifyUnlockFailure(data)
+			}
 			zero(data)
 			return nil, ErrUnlock
 		}
@@ -357,6 +444,9 @@ func (s *interactiveSession) readUntil(suffix []byte, limit int) ([]byte, error)
 		if bytes.HasSuffix(data, suffix) {
 			return data, nil
 		}
+	}
+	if s.prompt == nil {
+		s.unlockFailure = "startup_output_limit"
 	}
 	zero(data)
 	return nil, ErrTooLarge
@@ -428,13 +518,19 @@ func (s *interactiveSession) load(ctx context.Context, path string) (*Database, 
 	info, err := parseDatabaseInfo(rawInfo)
 	zero(rawInfo)
 	if err != nil {
+		diagnostic(ctx, "metadata_rejected", "reason", "database_info_parse", "error", diagnosticError(err))
 		return nil, err
 	}
 	db.RecycleBinEnabled = info.RecycleBinEnabled
 	seenEntries := map[string]bool{}
 	var walk func(string, string, int) error
 	walk = func(groupPath, parentID string, depth int) error {
+		reject := func(reason string, row int) {
+			diagnostic(ctx, "metadata_rejected", "reason", reason, "depth", depth, "row", row, "groups", len(db.Groups), "entries", len(db.Entries))
+		}
+		diagnostic(ctx, "group_listing", "group_index", len(db.Groups)-1, "depth", depth)
 		if depth > 64 || len(db.Entries)+len(db.Groups) > 10000 {
+			reject("group_depth_or_entity_limit", -1)
 			return ErrTooLarge
 		}
 		raw, err := s.command(ctx, "ls", "-q", "-f", "--", groupPath)
@@ -460,17 +556,26 @@ func (s *interactiveSession) load(ctx context.Context, path string) (*Database, 
 			}
 		}
 		seen := map[string]bool{}
-		for _, item := range strings.Split(listing, "\n") {
+		for row, item := range strings.Split(listing, "\n") {
 			if len(db.Entries)+len(db.Groups) >= 10000 {
+				reject("entity_limit", row)
 				return ErrTooLarge
 			}
 			if item == "" || seen[item] || strings.IndexFunc(item, unicode.IsControl) >= 0 {
+				reason := "duplicate_listing_name"
+				if item == "" {
+					reason = "empty_listing_name"
+				} else if strings.IndexFunc(item, unicode.IsControl) >= 0 {
+					reason = "control_character_in_listing_name"
+				}
+				reject(reason, row)
 				return ErrAmbiguous
 			}
 			seen[item] = true
 			if strings.HasSuffix(item, "/") {
 				name := strings.TrimSuffix(item, "/")
 				if name == "" || strings.Contains(name, "/") {
+					reject("invalid_group_name", row)
 					return ErrUnsupported
 				}
 				childPath := groupPath + name + "/"
@@ -481,9 +586,6 @@ func (s *interactiveSession) load(ctx context.Context, path string) (*Database, 
 				}
 				continue
 			}
-			if strings.Contains(item, "/") {
-				return ErrUnsupported
-			}
 			entryPath := groupPath + item
 			rawID, err := s.command(ctx, "show", "-q", "-a", "Uuid", "--", entryPath)
 			if err != nil {
@@ -492,6 +594,11 @@ func (s *interactiveSession) load(ctx context.Context, path string) (*Database, 
 			id := normalizeUUID(strings.Trim(string(trimOutputLine(rawID)), "{}"))
 			zero(rawID)
 			if id == "" || seenEntries[id] {
+				reason := "duplicate_entry_uuid"
+				if id == "" {
+					reason = "invalid_entry_uuid"
+				}
+				reject(reason, row)
 				return ErrAmbiguous
 			}
 			seenEntries[id] = true
@@ -533,6 +640,7 @@ func (s *interactiveSession) load(ctx context.Context, path string) (*Database, 
 		return nil, err
 	}
 	s.markRecycled(db)
+	diagnostic(ctx, "metadata_loaded", "groups", len(db.Groups), "entries", len(db.Entries))
 	return db, nil
 }
 

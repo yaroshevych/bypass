@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -31,6 +32,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	flags.SetOutput(stderr)
 	backend := flags.String("backend", "keepassxc-cli", "KeePassXC CLI executable")
 	showVersion := flags.Bool("version", false, "print version and exit")
+	logPath := flags.String("log-file", "", "write private vault-open diagnostics to this file")
 	readOnly := flags.Bool("read-only", false, "open vaults read only")
 	idle := flags.Duration("idle-timeout", 0, "vault lock timeout without a PIN (default 15m or config)")
 	clipTimeout := flags.Duration("clipboard-timeout", 0, "clipboard timeout (default 10s or config)")
@@ -92,6 +94,19 @@ func run(args []string, stdout, stderr io.Writer) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	vaultBackend := vault.NewInteractiveCLI(*backend)
+	if *logPath != "" {
+		file, err := os.OpenFile(*logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+		if err != nil {
+			return fmt.Errorf("could not open diagnostic log: %w", err)
+		}
+		defer file.Close()
+		if err := file.Chmod(0600); err != nil {
+			return fmt.Errorf("could not make diagnostic log private: %w", err)
+		}
+		logger := slog.New(slog.NewJSONHandler(file, nil))
+		logger.Info("app_started", "version", version)
+		vaultBackend.SetLogger(logger)
+	}
 	m := ui.New(ui.Options{Backend: vaultBackend, Store: store, InitialPath: path, Context: ctx, Settings: settings, ReadOnly: *readOnly, Clipboard: clipboard.New(clipboard.NewSystem()), Warning: warning, SaveSettings: saveSettings})
 	defer func() {
 		m.Close()

@@ -5,8 +5,8 @@ run *args:
     go run ./cmd/bypass {{args}}
 
 # Open and unlock the local development vault; excluded from normal builds.
-debug:
-    @go run -tags debug ./cmd/bypass --debug-env .env
+debug *args:
+    @go run -tags debug ./cmd/bypass --debug-env .env {{args}}
 
 build:
     go build -trimpath -o bin/bypass ./cmd/bypass
