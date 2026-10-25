@@ -122,7 +122,7 @@ func (d *actionDialog) filteredGroups() []vault.Group {
 }
 
 func (d *actionDialog) destinationViewport(height int, groups []vault.Group) (start, capacity int) {
-	capacity = max(1, height-15)
+	capacity = max(1, height-17)
 	start = viewportOffset(d.selected, len(groups), capacity, d.offset)
 	return start, capacity
 }
@@ -303,6 +303,7 @@ func (m *Model) dialogLines() []string {
 	case "destination":
 		groups := d.filteredGroups()
 		start, capacity := d.destinationViewport(m.height, groups)
+		body = append(body, secondary.Render(" Move item to:"), "")
 		rows := make([]listComponentRow, 0, capacity)
 		for i := start; i < len(groups) && i < start+capacity; i++ {
 			rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: groupLabel(groups[i].Path), selected: i == d.selected, activeFill: true, pillSelected: true, classicInset: true})
@@ -310,7 +311,7 @@ func (m *Model) dialogLines() []string {
 		if len(groups) == 0 {
 			body = append(body, "No matching groups")
 		} else {
-			width := max(1, min(m.width-6, 82)-4)
+			width := max(1, min(m.width-6, 60)-4)
 			for _, row := range m.renderListComponent(rows, listComponentOptions{width: width, compact: compact, ascii: m.settings.ASCII, focused: true, sidebar: true}) {
 				body = append(body, row.text)
 			}
@@ -341,6 +342,9 @@ func (m *Model) dialogLines() []string {
 		footer = m.notice
 	}
 	if d.kind == "delete" {
+		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 60), false)
+	}
+	if d.kind == "destination" {
 		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 60), false)
 	}
 	return m.box(d.title, body, footer)

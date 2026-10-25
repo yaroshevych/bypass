@@ -159,7 +159,7 @@ func (m *Model) commands() []command {
 	if m.editor != nil {
 		deleteReason = "Finish editing first"
 	}
-	add("delete", "Entry", "Delete", "d", deleteReason, "", func() tea.Cmd { m.confirmDelete(); return nil })
+	add("delete", "Entry", "Delete", "Ctrl+D", deleteReason, "", func() tea.Cmd { m.confirmDelete(); return nil })
 	focusedCopyReason := needEntry
 	if m.editor != nil {
 		focusedCopyReason = "Finish editing before copying stored fields"

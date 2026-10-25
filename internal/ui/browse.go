@@ -326,7 +326,7 @@ func (m *Model) destinationPointer(msg tea.MouseMsg) {
 	if len(groups) == 0 {
 		return
 	}
-	boxWidth := min(m.width-6, 82)
+	boxWidth := min(m.width-6, 60)
 	left := max(0, (m.width-boxWidth)/2)
 	if msg.X < left || msg.X >= left+boxWidth {
 		return
@@ -337,7 +337,7 @@ func (m *Model) destinationPointer(msg tea.MouseMsg) {
 	for top < len(lines) && strings.TrimSpace(ansi.Strip(ansi.Cut(lines[top], left+2, left+boxWidth-2))) != title {
 		top++
 	}
-	firstGroupRow := top + 2 + len(d.message)
+	firstGroupRow := top + 4 + len(d.message)
 	index := msg.Y - firstGroupRow + start
 	visible := min(capacity, len(groups)-start)
 	if index >= start && index < start+visible {

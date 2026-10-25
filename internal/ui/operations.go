@@ -128,22 +128,18 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		m.hideReveal()
 		m.dialog = &actionDialog{kind: "group", title: "New Group", sessionID: s.ID, groupUUID: group}
 		return nil, true
-	case "d", "delete":
+	case "ctrl+d", "delete":
 		if !m.writable() {
 			return nil, true
 		}
 		m.confirmDelete()
 		return nil, true
-	case "m", "r":
+	case "m":
 		if !m.writable() {
 			return nil, true
 		}
 		e := m.selected()
 		if e == nil {
-			return nil, true
-		}
-		if k.String() == "r" && !e.Recycled {
-			m.setNotice("Restore is available for recycled entries.", true)
 			return nil, true
 		}
 		m.chooseDestination(e)
