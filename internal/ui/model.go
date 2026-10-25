@@ -62,6 +62,7 @@ type Model struct {
 	pinInput                                input
 	pinError                                string
 	pinFullLock                             bool
+	pinLastActivity                         time.Time
 	pinFocus                                int
 	saveSettings                            func(platform.Settings) error
 	helpQuery                               input
@@ -198,6 +199,9 @@ func New(opts Options) *Model {
 	m.saveSettings = opts.SaveSettings
 	if m.settings.IdleTimeout <= 0 {
 		m.settings.IdleTimeout = 15 * time.Minute
+	}
+	if m.settings.PINIdleTimeout <= 0 {
+		m.settings.PINIdleTimeout = 5 * time.Minute
 	}
 	if m.settings.ClipboardTimeout <= 0 {
 		m.settings.ClipboardTimeout = 10 * time.Second
@@ -442,6 +446,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) touchActive() {
 	m.syncPrivacyState()
+	if m.gate.Configured() && !m.gate.Protected() {
+		m.pinLastActivity = m.now()
+	}
 	if s := m.ws.ActiveSession(); s != nil && s.DB != nil && m.screen == browse && !m.gate.Protected() {
 		s.LastActivity = m.now()
 	}

@@ -12,6 +12,7 @@ import (
 
 const (
 	defaultIdleTimeout      = 15 * time.Minute
+	defaultPINIdleTimeout   = 5 * time.Minute
 	defaultClipboardTimeout = 10 * time.Second
 	maxIdleTimeout          = 24 * time.Hour
 	maxClipboardTimeout     = 10 * time.Minute
@@ -20,6 +21,7 @@ const (
 
 type Settings struct {
 	IdleTimeout        time.Duration
+	PINIdleTimeout     time.Duration
 	ClipboardTimeout   time.Duration
 	BackupDir          string
 	Theme              string
@@ -33,6 +35,7 @@ type Settings struct {
 type settingsFile struct {
 	GrandViewGroupSize      *int    `json:"grand_view_group_size"`
 	IdleTimeoutSeconds      *int64  `json:"idle_timeout_seconds"`
+	PINIdleTimeoutMinutes   *int64  `json:"pin_idle_timeout_minutes"`
 	ClipboardTimeoutSeconds *int64  `json:"clipboard_timeout_seconds"`
 	FullLockTimeoutSeconds  *int64  `json:"full_lock_timeout_seconds"`
 	BackupDir               *string `json:"backup_dir"`
@@ -51,6 +54,7 @@ func DefaultSettings(paths Paths) Settings {
 	}
 	return Settings{
 		IdleTimeout:        defaultIdleTimeout,
+		PINIdleTimeout:     defaultPINIdleTimeout,
 		ClipboardTimeout:   defaultClipboardTimeout,
 		BackupDir:          filepath.Clean(backupDir),
 		Theme:              "macchiato",
@@ -89,6 +93,12 @@ func LoadSettings(paths Paths) (Settings, error) {
 		return defaults, fmt.Errorf("invalid settings file: %w", err)
 	}
 	settings := defaults
+	if file.PINIdleTimeoutMinutes != nil {
+		if *file.PINIdleTimeoutMinutes < 1 || *file.PINIdleTimeoutMinutes > 60 {
+			return defaults, errors.New("PIN idle timeout must be between 1 and 60 minutes")
+		}
+		settings.PINIdleTimeout = time.Duration(*file.PINIdleTimeoutMinutes) * time.Minute
+	}
 	if file.IdleTimeoutSeconds != nil {
 		idle, err := durationSeconds(*file.IdleTimeoutSeconds, maxIdleTimeout)
 		if err != nil {
@@ -146,6 +156,9 @@ func durationSeconds(seconds int64, maximum time.Duration) (time.Duration, error
 }
 
 func validateSettings(settings Settings) error {
+	if settings.PINIdleTimeout < time.Minute || settings.PINIdleTimeout > time.Hour || settings.PINIdleTimeout%time.Minute != 0 {
+		return errors.New("PIN idle timeout must be a whole number between 1 and 60 minutes")
+	}
 	if settings.GrandViewGroupSize < 1 {
 		return errors.New("grand view group size must be a positive integer")
 	}
@@ -213,6 +226,7 @@ func SaveSettings(paths Paths, settings Settings) error {
 	values := map[string]any{
 		"grand_view_group_size":     settings.GrandViewGroupSize,
 		"idle_timeout_seconds":      int64(settings.IdleTimeout / time.Second),
+		"pin_idle_timeout_minutes":  int64(settings.PINIdleTimeout / time.Minute),
 		"clipboard_timeout_seconds": int64(settings.ClipboardTimeout / time.Second),
 		"full_lock_timeout_seconds": int64(settings.FullLockTimeout / time.Second),
 		"backup_dir":                settings.BackupDir,

@@ -32,7 +32,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	backend := flags.String("backend", "keepassxc-cli", "KeePassXC CLI executable")
 	showVersion := flags.Bool("version", false, "print version and exit")
 	readOnly := flags.Bool("read-only", false, "open vaults read only")
-	idle := flags.Duration("idle-timeout", 0, "idle protection timeout (default 15m or config)")
+	idle := flags.Duration("idle-timeout", 0, "vault lock timeout without a PIN (default 15m or config)")
 	clipTimeout := flags.Duration("clipboard-timeout", 0, "clipboard timeout (default 10s or config)")
 	debugStartup := configureDebug(flags)
 	flags.Usage = func() {
@@ -54,7 +54,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 	var store ui.RecentStore
 	var saveSettings func(platform.Settings) error
-	settings := platform.Settings{IdleTimeout: 15 * time.Minute, ClipboardTimeout: 10 * time.Second}
+	settings := platform.Settings{IdleTimeout: 15 * time.Minute, PINIdleTimeout: 5 * time.Minute, ClipboardTimeout: 10 * time.Second}
 	warning := ""
 	if paths, err := platform.Resolve(); err == nil {
 		store = platform.NewStore(paths)

@@ -3,17 +3,37 @@ package platform
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
 
+func TestPINIdleTimeoutConfigBoundaries(t *testing.T) {
+	root := t.TempDir()
+	paths := Paths{Config: filepath.Join(root, "config"), State: filepath.Join(root, "state")}
+	if err := os.Mkdir(paths.Config, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, minutes := range []int{1, 5, 60} {
+		data := []byte(fmt.Sprintf(`{"pin_idle_timeout_minutes":%d}`, minutes))
+		if err := os.WriteFile(filepath.Join(paths.Config, "config.json"), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		settings, err := LoadSettings(paths)
+		if err != nil || settings.PINIdleTimeout != time.Duration(minutes)*time.Minute {
+			t.Fatalf("PIN timeout %d minutes: got %s, error %v", minutes, settings.PINIdleTimeout, err)
+		}
+	}
+}
+
 func TestDefaultSettingsAndMissingFileDoNotWrite(t *testing.T) {
 	root := t.TempDir()
 	paths := Paths{Config: filepath.Join(root, "config"), State: filepath.Join(root, "state")}
 	want := Settings{
 		IdleTimeout:        15 * time.Minute,
+		PINIdleTimeout:     5 * time.Minute,
 		ClipboardTimeout:   10 * time.Second,
 		BackupDir:          filepath.Join(paths.State, "backups"),
 		Theme:              "macchiato",
@@ -47,7 +67,7 @@ func TestLoadSettingsValidConfigAndUnknownFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Settings{IdleTimeout: 15 * time.Minute, ClipboardTimeout: 20 * time.Second, BackupDir: backup, Theme: "nord", Appearance: "compact", ASCII: true, FullLockTimeout: time.Hour, GrandViewGroupSize: 3}
+	want := Settings{IdleTimeout: 15 * time.Minute, PINIdleTimeout: 5 * time.Minute, ClipboardTimeout: 20 * time.Second, BackupDir: backup, Theme: "nord", Appearance: "compact", ASCII: true, FullLockTimeout: time.Hour, GrandViewGroupSize: 3}
 	if got != want {
 		t.Fatalf("LoadSettings() = %#v, want %#v", got, want)
 	}
@@ -62,6 +82,11 @@ func TestInvalidSettingsReturnDefaultsWithError(t *testing.T) {
 	paths := Paths{Config: config, State: filepath.Join(root, "state")}
 	defaults := DefaultSettings(paths)
 	for _, contents := range []string{
+		`{"pin_idle_timeout_minutes":0}`,
+		`{"pin_idle_timeout_minutes":-1}`,
+		`{"pin_idle_timeout_minutes":61}`,
+		`{"pin_idle_timeout_minutes":1.5}`,
+		`{"pin_idle_timeout_minutes":9223372036854775807}`,
 		`{"idle_timeout_seconds":0}`,
 		`{"idle_timeout_seconds":-2}`,
 		`{"idle_timeout_seconds":86401}`,
@@ -101,6 +126,7 @@ func TestSaveSettingsPreservesUnknownKeysAndWritesPrivately(t *testing.T) {
 	}
 	settings := DefaultSettings(paths)
 	settings.IdleTimeout = 20 * time.Minute
+	settings.PINIdleTimeout = 12 * time.Minute
 	settings.ClipboardTimeout = 12 * time.Second
 	settings.FullLockTimeout = 2 * time.Hour
 	settings.Theme = "dracula"

@@ -1020,7 +1020,7 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 			idleFor = now.Sub(s.LastActivity)
 		}
 		if configuredPIN {
-			if idleFor < m.settings.IdleTimeout {
+			if idleFor < m.settings.PINIdleTimeout {
 				allUnlockedIdle = false
 			}
 			if m.settings.FullLockTimeout > 0 && idleFor >= m.settings.FullLockTimeout {
@@ -1047,7 +1047,8 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 			m.showExternal(id)
 		}
 	}
-	if configuredPIN && hasUnlocked && allUnlockedIdle && !m.gate.Protected() {
+	pinInputIdle := m.pinLastActivity.IsZero() || !now.Before(m.pinLastActivity.Add(m.settings.PINIdleTimeout))
+	if configuredPIN && hasUnlocked && allUnlockedIdle && pinInputIdle && !m.gate.Protected() {
 		m.concealForPIN()
 		m.pinInput.clear()
 		m.pinError = ""
