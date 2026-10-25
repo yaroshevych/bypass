@@ -34,7 +34,15 @@ func (m *Model) recordItemUse() {
 func (m *Model) sidebarRows() []sidebarRow {
 	items := m.navigation()
 	var rows []sidebarRow
-	for _, section := range []string{"Views", "Tags", "Groups"} {
+	sections := []string{"Views"}
+	for _, item := range items {
+		if item.kind == "tag" {
+			sections = append(sections, "Tags")
+			break
+		}
+	}
+	sections = append(sections, "Groups")
+	for _, section := range sections {
 		if section != "Views" {
 			rows = append(rows, sidebarRow{index: -1})
 		}
@@ -84,7 +92,10 @@ func (m *Model) allNavigation() []navItem {
 	for _, e := range s.DB.Entries {
 		if !e.Recycled {
 			for _, tag := range e.Tags {
-				tags[tag] = true
+				tag = strings.TrimSpace(tag)
+				if tag != "" && !strings.EqualFold(tag, "Favorite") {
+					tags[tag] = true
+				}
 			}
 		}
 	}

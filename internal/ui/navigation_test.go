@@ -7,6 +7,41 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func TestSidebarOmitsEmptyTagsSectionAndFavoriteTag(t *testing.T) {
+	m := New(Options{})
+	db := fixture("/tmp/sidebar-tags.kdbx")
+	db.Entries[0].Tags = []string{"Favorite"}
+	m.ws.Open(db)
+	m.normalize()
+	for _, item := range m.navigation() {
+		if item.kind == "tag" {
+			t.Fatalf("special Favorite tag appeared in tag navigation: %+v", item)
+		}
+	}
+	for _, row := range m.sidebarRows() {
+		if row.index < 0 && row.label == "Tags" {
+			t.Fatal("empty Tags section was rendered")
+		}
+	}
+
+	m.ws.ActiveSession().DB.Entries[0].Tags = []string{"Favorite", "Work"}
+	foundWork, foundTagsSection := false, false
+	for _, item := range m.navigation() {
+		if item.kind == "tag" {
+			if item.label == "Favorite" {
+				t.Fatal("Favorite appeared as a tag despite its dedicated view")
+			}
+			foundWork = foundWork || item.label == "Work"
+		}
+	}
+	for _, row := range m.sidebarRows() {
+		foundTagsSection = foundTagsSection || row.index < 0 && row.label == "Tags"
+	}
+	if !foundWork || !foundTagsSection {
+		t.Fatalf("regular tags missing: tag=%v section=%v", foundWork, foundTagsSection)
+	}
+}
+
 func TestAcceptedSearchFiltersWithoutSearchHistory(t *testing.T) {
 	m, _ := operationModel(t)
 	v := m.ws.ActiveView()
