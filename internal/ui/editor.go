@@ -443,7 +443,7 @@ func (e *entryEditor) renderLines(title string, width, height int) []editorLine 
 		}
 		return e.renderFieldLines(lines, width, height)
 	}
-	lines := []editorLine{{text: styles.accent.Render(title), focus: -1}, {text: styles.rule(width), focus: -1}}
+	lines := []editorLine{{text: styles.accent.Render(" "+title), focus: -1}, {text: styles.rule(width), focus: -1}}
 	return e.renderFieldLines(lines, width, height)
 }
 

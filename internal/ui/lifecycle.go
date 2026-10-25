@@ -427,11 +427,17 @@ func lifecycleFocusOrder(l *lifecycleState) []int {
 func (m *Model) lifecycleLines() []string {
 	l, c := m.lifecycle, m.colors()
 	title := map[string]string{"create": "New Vault", "credentials": "Change Password", "info": "Database Info"}[l.kind]
+	dialogWidth := min(84, m.width-4)
+	if l.kind == "create" || l.kind == "credentials" {
+		dialogWidth = min(60, m.width-4)
+	} else if l.kind == "info" {
+		dialogWidth = min(64, m.width-4)
+	}
 	var body []string
 	if s := m.ws.Sessions[l.sessionID]; s != nil {
 		home, _ := os.UserHomeDir()
 		path := renderVaultPath(s.Path, home, c.accent)
-		if l.kind == "credentials" {
+		if l.kind == "credentials" || l.kind == "info" {
 			path = " " + path
 			body = append(body, path)
 		} else {
@@ -442,13 +448,15 @@ func (m *Model) lifecycleLines() []string {
 		body = append(body, c.secondary.Render(" Create KeePass-compatible KDBX vault"))
 	}
 	footer := "tab focus "
-	if l.kind == "create" {
+	if l.kind == "create" || l.kind == "credentials" {
 		footer = ""
 	}
 	if l.kind == "info" {
 		var wrapped []string
 		for _, line := range l.lines {
-			wrapped = append(wrapped, strings.Split(ansi.Wrap(safe(line), max(1, min(76, m.width-8)), ""), "\n")...)
+			for _, part := range strings.Split(ansi.Wrap(safe(line), max(1, dialogWidth-5), ""), "\n") {
+				wrapped = append(wrapped, " "+part)
+			}
 		}
 		capacity := max(1, m.height-12)
 		start := min(l.offset, max(0, len(wrapped)-capacity))
@@ -474,10 +482,6 @@ func (m *Model) lifecycleLines() []string {
 		}
 		var fields []string
 		compact := strings.EqualFold(m.settings.Appearance, "compact")
-		dialogWidth := min(84, m.width-4)
-		if l.kind == "create" || l.kind == "credentials" {
-			dialogWidth = min(60, m.width-4)
-		}
 		// Overlay rows have a two-cell border and one cell of body padding
 		// on each side.
 		actionWidth := max(1, dialogWidth-4)
@@ -515,14 +519,18 @@ func (m *Model) lifecycleLines() []string {
 		body = append(body, fields[start:min(len(fields), start+capacity)]...)
 	}
 	if l.err != "" {
-		body = append(body, c.error.Render(l.err))
+		message := l.err
+		if l.kind == "info" {
+			message = " " + message
+		}
+		body = append(body, c.error.Render(message))
 	}
 	if l.busy {
-		body = append(body, c.accent.Render("Working…"))
-	}
-	dialogWidth := min(84, m.width-4)
-	if l.kind == "create" || l.kind == "credentials" {
-		dialogWidth = min(60, m.width-4)
+		message := "Working…"
+		if l.kind == "info" {
+			message = " " + message
+		}
+		body = append(body, c.accent.Render(message))
 	}
 	return m.overlay(title, body, footer, dialogWidth, -1, -1)
 }
