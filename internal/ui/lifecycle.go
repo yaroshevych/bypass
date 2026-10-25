@@ -426,6 +426,9 @@ func (m *Model) lifecycleLines() []string {
 		body = append(body, renderVaultPath(s.Path, home, c.accent), "")
 	}
 	footer := "tab focus "
+	if strings.EqualFold(m.settings.Appearance, "compact") {
+		footer += " "
+	}
 	if l.kind == "info" {
 		var wrapped []string
 		for _, line := range l.lines {
@@ -461,7 +464,7 @@ func (m *Model) lifecycleLines() []string {
 			label := labels[position]
 			value := l.inputs[index].display(index == secretStart || index == secretStart+1)
 			if index == l.focus {
-				prefix := "› "
+				prefix := "  "
 				if newVaultClassic {
 					prefix = " "
 				}
