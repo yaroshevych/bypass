@@ -442,8 +442,8 @@ func (m *Model) lifecycleLines() []string {
 		body = append(body, c.secondary.Render(" Create KeePass-compatible KDBX vault"))
 	}
 	footer := "tab focus "
-	if l.kind == "create" && strings.EqualFold(m.settings.Appearance, "compact") {
-		footer += " "
+	if l.kind == "create" {
+		footer = ""
 	}
 	if l.kind == "info" {
 		var wrapped []string

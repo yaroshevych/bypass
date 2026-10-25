@@ -1292,7 +1292,7 @@ func (m *Model) pickerLines() []string {
 	}
 	headerIndent := " "
 	rows := make([]listComponentRow, 0, m.pickerFixedRows())
-	rows = append(rows, listComponentRow{kind: listComponentItem, item: -1, text: secondary.Render(" Open KeePass-compatible KDBX vault")})
+	rows = append(rows, listComponentRow{kind: listComponentItem, item: -1, text: secondary.Render(" Bypass supports KeePass-compatible KDBX vaults")})
 	rows = append(rows, listComponentRow{kind: listComponentSpacer, item: -1})
 	recentCount := m.pickerRecentCount()
 	if recentCount > 0 {

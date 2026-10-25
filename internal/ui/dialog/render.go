@@ -302,11 +302,11 @@ func renderTitlePillWithRightSurface(title string, width int, ascii bool, style,
 	if width <= 0 {
 		return ""
 	}
-	pillWidth := min(width, lipgloss.Width(title)+4)
+	pillWidth := min(width, lipgloss.Width(title)+2)
 	if ascii {
-		return style.Render("[ " + fit(title, max(0, pillWidth-4)) + " ]")
+		return style.Render("[" + fit(title, max(0, pillWidth-2)) + "]")
 	}
-	center := style.Render(" ") + style.Render(fit(title, max(0, pillWidth-4))) + style.Render(" ")
+	center := style.Render(fit(title, max(0, pillWidth-2)))
 	left := leftSurface.Foreground(style.GetBackground()).Render("\ue0b6")
 	right := rightSurface.Foreground(style.GetBackground()).Render("\ue0b4")
 	return fit(left+center+right, pillWidth)
@@ -316,12 +316,16 @@ func renderTitlePill(title string, width int, ascii bool, style, surface lipglos
 	if width <= 0 {
 		return ""
 	}
-	pillWidth := min(width, lipgloss.Width(title)+4)
+	pillWidth := min(width, lipgloss.Width(title)+2)
 	if ascii {
-		label := fit(title, max(0, pillWidth-4))
-		return style.Render("[ " + label + " ]")
+		label := fit(title, max(0, pillWidth-2))
+		return style.Render("[" + label + "]")
 	}
-	return renderPill(title, pillWidth, style, surface)
+	if pillWidth < 2 {
+		return style.Render(fit(title, pillWidth))
+	}
+	edge := surface.Foreground(style.GetBackground())
+	return fit(edge.Render("")+style.Render(fit(title, pillWidth-2))+edge.Render(""), pillWidth)
 }
 
 func renderPill(text string, width int, style, surface lipgloss.Style) string {
