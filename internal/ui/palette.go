@@ -27,7 +27,7 @@ type paletteState struct {
 	preview          bool
 	context          bool
 	x, y             int
-	err, entryUUID   string
+	err              string
 }
 type command struct {
 	id, group, label, key, reason, next, value string
@@ -128,7 +128,7 @@ func (m *Model) commands() []command {
 	if reason := m.nativeReason("db-info"); reason != "" {
 		infoReason = reason
 	}
-	add("database-info", "Vault", "Database Info", "", infoReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.openDatabaseInfo() }) })
+	add("database-info", "Vault", "Database Info…", "", infoReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.openDatabaseInfo() }) })
 	credentialsReason := writeReason
 	if _, ok := m.backend.(credentialChanger); !ok {
 		credentialsReason = "Credential changes unavailable from this backend"
@@ -139,11 +139,11 @@ func (m *Model) commands() []command {
 	if reason := m.nativeReason("db-edit"); reason != "" {
 		credentialsReason = reason
 	}
-	add("credentials", "Vault", "Change Vault Credentials…", "", credentialsReason, "", func() tea.Cmd { return m.leaveEditor(m.openCredentials) })
+	add("credentials", "Vault", "Change Password…", "", credentialsReason, "", func() tea.Cmd { return m.leaveEditor(m.openCredentials) })
 	add("read-only", "Vault", readLabel, "Shift+R", needVault, "", invoke("R"))
-	add("new", "Entry", "New Entry", "n", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("n")) })
-	add("edit", "Entry", "Edit Entry", "e", editReason, "", invoke("e"))
-	add("group", "Entry", "New Group", "g", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("g")) })
+	add("new", "Entry", "New Entry…", "n", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("n")) })
+	add("edit", "Entry", "Edit Entry…", "e", editReason, "", invoke("e"))
+	add("group", "Entry", "New Group…", "g", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("g")) })
 	moveReason := writeReason
 	if moveReason == "" {
 		moveReason = needEntry
@@ -151,7 +151,12 @@ func (m *Model) commands() []command {
 	if m.editor != nil {
 		moveReason = "Finish editing first"
 	}
-	add("move", "Entry", "Move Entry…", "m", moveReason, "destination", nil)
+	add("move", "Entry", "Move Entry…", "m", moveReason, "", func() tea.Cmd {
+		if e := m.selected(); e != nil {
+			m.chooseDestination(e)
+		}
+		return nil
+	})
 	deleteReason := writeReason
 	if deleteReason == "" && m.currentNav().kind != "group" {
 		deleteReason = needEntry
@@ -159,7 +164,7 @@ func (m *Model) commands() []command {
 	if m.editor != nil {
 		deleteReason = "Finish editing first"
 	}
-	add("delete", "Entry", "Delete", "Ctrl+D", deleteReason, "", func() tea.Cmd { m.confirmDelete(); return nil })
+	add("delete", "Entry", "Delete…", "Ctrl+D", deleteReason, "", func() tea.Cmd { m.confirmDelete(); return nil })
 	focusedCopyReason := needEntry
 	if m.editor != nil {
 		focusedCopyReason = "Finish editing before copying stored fields"
@@ -184,13 +189,13 @@ func (m *Model) commands() []command {
 		attachmentReason = reason
 	}
 	if showNonPasswordVaultSecurity {
-		add("totp", "Field", "TOTP", "", totpReason, "", func() tea.Cmd { return m.leaveEditor(m.openTOTP) })
-		add("history-view", "Entry", "History", "", historyReason, "", func() tea.Cmd { return m.leaveEditor(m.openHistory) })
+		add("totp", "Field", "TOTP…", "", totpReason, "", func() tea.Cmd { return m.leaveEditor(m.openTOTP) })
+		add("history-view", "Entry", "History…", "", historyReason, "", func() tea.Cmd { return m.leaveEditor(m.openHistory) })
 	}
 	add("attachments", "Entry", "Attachments…", "", attachmentReason, "", func() tea.Cmd { return m.leaveEditor(m.openAttachments) })
-	add("grand-view", "Field", "Large View", "G", grandReason, "", m.openGrandView)
+	add("grand-view", "Field", "Large View…", "G", grandReason, "", m.openGrandView)
 	add("reveal", "Field", "Reveal", "v", needEntry, "", func() tea.Cmd { return m.toggleReveal() })
-	add("generator", "Field", "Password Generator", "Ctrl+G", "", "", func() tea.Cmd { m.openGenerator(); return nil })
+	add("generator", "Field", "Password Generator…", "Ctrl+G", "", "", func() tea.Cmd { m.openGenerator(); return nil })
 	saveReason := writeReason
 	if m.editor == nil {
 		saveReason = "No entry draft"
@@ -202,7 +207,7 @@ func (m *Model) commands() []command {
 	}
 	add("cancel-edit", "Editor", "Cancel", "Esc", cancelReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return nil }) })
 	add("search", "View", "Search", "", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.beginSearch(true) }) })
-	add("jump", "Entry", "Jump", "Shift+J", needEntry, "", m.beginJump)
+	add("jump", "Entry", "Jump…", "Shift+J", needEntry, "", m.beginJump)
 	add("zoom", "View", "Zoom", "z", needVault, "", func() tea.Cmd { v.Zoom = !v.Zoom; return nil })
 	newTabReason := closeReason
 	if s == nil || s.DB == nil {
@@ -225,10 +230,16 @@ func (m *Model) commands() []command {
 			return nil
 		})
 	})
-	add("theme", "Settings", "Theme", "Shift+T", "", "themes", nil)
-	add("appearance", "Settings", "Layout", "", "", "appearance", nil)
+	add("theme", "Settings", "Theme…", "Shift+T", "", "", func() tea.Cmd {
+		m.openPalette("themes", false)
+		return nil
+	})
+	add("appearance", "Settings", "Layout…", "", "", "", func() tea.Cmd {
+		m.openPalette("appearance", false)
+		return nil
+	})
 	add("ascii", "Settings", "Toggle ASCII UI", "", "", "", func() tea.Cmd { m.settings.ASCII = !m.settings.ASCII; return m.persistPreferences() })
-	add("set-pin", "Privacy", "Change PIN", "", allReason, "", func() tea.Cmd { m.configurePIN(false); return nil })
+	add("set-pin", "Privacy", "Change PIN…", "", allReason, "", func() tea.Cmd { m.configurePIN(false); return nil })
 	pinReason := allReason
 	if pinReason == "" && !m.gate.Configured() {
 		pinReason = "Set a session PIN first"
@@ -244,6 +255,15 @@ func (m *Model) openPalette(scope string, context bool) {
 	m.hideReveal()
 	m.help = false
 	m.palette = &paletteState{scope: scope, original: m.settings, originalStyles: m.styles, context: context, x: -1, y: -1}
+	if scope == "themes" {
+		current := strings.ReplaceAll(strings.ToLower(m.settings.Theme), " ", "-")
+		for i, choice := range m.paletteChoices() {
+			if choice.value == current {
+				m.palette.selected = i
+				break
+			}
+		}
+	}
 	m.refreshPalette()
 }
 func (m *Model) closePalette(commit bool) {
@@ -273,11 +293,6 @@ func (m *Model) pushPalette(scope string) {
 	p.selected = 0
 	p.offset = 0
 	p.err = ""
-	if scope == "destination" {
-		if e := m.selected(); e != nil {
-			p.entryUUID = e.UUID
-		}
-	}
 	m.refreshPalette()
 	m.previewChoice()
 }
@@ -318,25 +333,6 @@ func (m *Model) paletteChoices() []command {
 		}
 	case "appearance":
 		choices = []command{{id: "compact", group: "Appearance", label: "Compact — pills, tighter rows", value: "compact"}, {id: "classic", group: "Appearance", label: "Classic — dividers, roomier rows", value: "classic"}}
-	case "destination":
-		if s := m.ws.ActiveSession(); s != nil && s.DB != nil {
-			for _, g := range destinationGroups(s.DB, s.Destinations) {
-				if g.Recycled {
-					continue
-				}
-				g := g
-				reason := ""
-				for _, e := range s.DB.Entries {
-					if e.UUID == p.entryUUID && e.GroupUUID == g.UUID {
-						reason = "Already in this group"
-					}
-				}
-				entryID := p.entryUUID
-				choices = append(choices, command{id: g.UUID, group: "Destination", label: groupLabel(g.Path), reason: reason, run: func() tea.Cmd {
-					return m.apply(vault.Change{Kind: vault.MoveEntry, EntryUUID: entryID, GroupUUID: g.UUID})
-				}})
-			}
-		}
 	default:
 		choices = m.commands()
 		if p.context {
@@ -424,7 +420,7 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 }
 
 func (m *Model) paletteTitle() string {
-	title := map[string]string{"actions": "Commands", "themes": "Theme", "appearance": "Choose Appearance", "destination": "Move / Restore Entry"}[m.palette.scope]
+	title := map[string]string{"actions": "Commands", "themes": "Theme", "appearance": "Choose Appearance"}[m.palette.scope]
 	if m.palette.context {
 		title = "Item Actions"
 	}

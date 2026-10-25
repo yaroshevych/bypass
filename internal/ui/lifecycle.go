@@ -426,11 +426,17 @@ func lifecycleFocusOrder(l *lifecycleState) []int {
 
 func (m *Model) lifecycleLines() []string {
 	l, c := m.lifecycle, m.colors()
-	title := map[string]string{"create": "New Vault", "credentials": "Change Vault Credentials", "info": "Database Info"}[l.kind]
+	title := map[string]string{"create": "New Vault", "credentials": "Change Password", "info": "Database Info"}[l.kind]
 	var body []string
 	if s := m.ws.Sessions[l.sessionID]; s != nil {
 		home, _ := os.UserHomeDir()
-		body = append(body, renderVaultPath(s.Path, home, c.accent), "")
+		path := renderVaultPath(s.Path, home, c.accent)
+		if l.kind == "credentials" {
+			path = " " + path
+			body = append(body, path)
+		} else {
+			body = append(body, path, "")
+		}
 	}
 	footer := "tab focus "
 	if l.kind == "create" && strings.EqualFold(m.settings.Appearance, "compact") {
@@ -466,7 +472,7 @@ func (m *Model) lifecycleLines() []string {
 		var fields []string
 		compact := strings.EqualFold(m.settings.Appearance, "compact")
 		dialogWidth := min(84, m.width-4)
-		if l.kind == "create" {
+		if l.kind == "create" || l.kind == "credentials" {
 			dialogWidth = min(60, m.width-4)
 		}
 		// Overlay rows have a two-cell border and one cell of body padding
@@ -481,7 +487,7 @@ func (m *Model) lifecycleLines() []string {
 			fields = append(fields, "")
 			fields = append(fields, renderStackedInputField(field, actionWidth, compact, &m.styles)...)
 		}
-		if l.kind == "create" {
+		if l.kind == "create" || l.kind == "credentials" {
 			fields = append(fields, dialogrender.BodyRule)
 		} else {
 			fields = append(fields, c.rule(actionWidth))
@@ -512,7 +518,7 @@ func (m *Model) lifecycleLines() []string {
 		body = append(body, c.accent.Render("Working…"))
 	}
 	dialogWidth := min(84, m.width-4)
-	if l.kind == "create" {
+	if l.kind == "create" || l.kind == "credentials" {
 		dialogWidth = min(60, m.width-4)
 	}
 	return m.overlay(title, body, footer, dialogWidth, -1, -1)
