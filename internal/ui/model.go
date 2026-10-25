@@ -119,6 +119,7 @@ type Model struct {
 	noticeExpires                           time.Time
 	revealEntry, revealField, revealSession string
 	revealUntil                             time.Time
+	totpRefreshAt                           time.Time
 	revealValue                             []byte
 	revealGeneration                        uint64
 	revealCancel                            context.CancelFunc

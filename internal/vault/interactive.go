@@ -113,6 +113,10 @@ func (c *InteractiveCLI) Open(ctx context.Context, path string, creds Credential
 }
 
 func (c *InteractiveCLI) ResolveField(ctx context.Context, db *Database, _ Credentials, entryUUID, field string) ([]byte, error) {
+	if field == "TOTP" {
+		result, err := c.TOTP(ctx, db, Credentials{}, entryUUID)
+		return result.Code, err
+	}
 	if db == nil || db.interactive == nil {
 		return nil, ErrUnlock
 	}
@@ -652,5 +656,13 @@ func (c *InteractiveCLI) EntryDetails(ctx context.Context, db *Database, entryID
 		return nil, err
 	}
 	defer zero(notes)
-	return []Field{{Name: "Notes", Value: string(notes)}}, nil
+	fields := []Field{{Name: "Notes", Value: string(notes)}}
+	result, err := c.TOTP(ctx, db, Credentials{}, entryID)
+	zero(result.Code)
+	if err == nil {
+		fields = append(fields, Field{Name: "TOTP", Protected: true})
+	} else if err != ErrUnsupported {
+		return nil, err
+	}
+	return fields, nil
 }

@@ -89,6 +89,13 @@ func applyEntryDetails(entry *vault.Entry, fields []vault.Field) {
 		if value.Name == "Password" {
 			continue
 		}
+		if value.Name == "TOTP" {
+			entry.HasTOTP = true
+			if !entry.IsProtected("TOTP") {
+				entry.Fields = append(entry.Fields, vault.Field{Name: "TOTP", Protected: true})
+			}
+			continue
+		}
 		for index := range entry.Fields {
 			if entry.Fields[index].Name == value.Name {
 				entry.Fields[index] = value

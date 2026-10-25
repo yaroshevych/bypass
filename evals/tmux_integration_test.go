@@ -918,6 +918,9 @@ while True:
     elif args[0] == "ls":
         print("Eval Entry")
     elif args[0] == "show":
+        if "--totp" in args:
+            print("Entry has no TOTP set up.")
+            continue
         field = args[args.index("-a") + 1]
         print({"Uuid": "{00000000-0000-0000-0000-000000000002}", "UserName": "eval-user", "Password": "` + secretSentinel + `"}.get(field, ""))
     else:

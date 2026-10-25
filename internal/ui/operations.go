@@ -645,7 +645,16 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		clear(m.revealValue)
 		m.revealValue = append([]byte(nil), msg.value...)
-		m.revealUntil = m.now().Add(5 * time.Second)
+		if m.revealField == "TOTP" && !m.revealUntil.IsZero() && !m.now().Before(m.revealUntil) {
+			m.hideReveal()
+			return nil, true
+		}
+		if m.revealField != "TOTP" || m.revealUntil.IsZero() {
+			m.revealUntil = m.now().Add(5 * time.Second)
+		}
+		if m.revealField == "TOTP" {
+			m.totpRefreshAt = m.now().Add(time.Second)
+		}
 		return nil, true
 	case clipboardExpiryMsg:
 		if msg.id != m.clipGeneration {
@@ -739,7 +748,10 @@ func (m *Model) fieldNames() []string {
 		return nil
 	}
 	names := []string{"UserName", "Password", "URL", "Notes"}
-	seen := map[string]bool{"Title": true, "UserName": true, "Password": true, "URL": true, "Notes": true}
+	if e.HasTOTP {
+		names = append(names, "TOTP")
+	}
+	seen := map[string]bool{"TOTP": true, "Title": true, "UserName": true, "Password": true, "URL": true, "Notes": true}
 	if showNonPasswordVaultSecurity {
 		for _, f := range e.Fields {
 			if !seen[f.Name] {
@@ -780,7 +792,7 @@ func (m *Model) copyField(name string) tea.Cmd {
 	if label == "UserName" {
 		label = "Username"
 	}
-	if strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Interactive() && name == "Notes" && !e.DetailsLoaded) {
+	if name == "TOTP" || strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Interactive() && name == "Notes" && !e.DetailsLoaded) {
 		resolver, ok := m.backend.(interface {
 			ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
 		})
@@ -894,37 +906,47 @@ func (m *Model) toggleReveal() tea.Cmd {
 		m.hideReveal()
 		return nil
 	}
+	m.hideReveal()
 	m.recordItemUse()
 	m.revealEntry = e.UUID
 	m.revealField = name
 	m.revealSession = s.ID
-	if strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Interactive() && (name == "Password" || (name == "Notes" && !e.DetailsLoaded))) {
-		resolver, ok := m.backend.(interface {
-			ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
-		})
-		if !ok {
-			m.hideReveal()
-			m.setNotice("backend doesn't support field references", true)
-			return nil
-		}
-		ctx, cancel := context.WithCancel(m.ctx)
-		m.revealCancel = cancel
-		m.revealGeneration++
-		id := m.revealGeneration
-		db := s.DB.Clone()
-		creds := s.Credentials.Clone()
-		entryID := e.UUID
-		return func() tea.Msg {
-			defer db.Clear()
-			defer creds.Clear()
-			value, err := resolver.ResolveField(ctx, db, creds, entryID, name)
-			return resolvedRevealMsg{id, value, err}
-		}
+	if name == "TOTP" || strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Interactive() && (name == "Password" || (name == "Notes" && !e.DetailsLoaded))) {
+		return m.requestRevealField()
 	}
 	clear(m.revealValue)
 	m.revealValue = []byte(e.Get(name))
 	m.revealUntil = m.now().Add(5 * time.Second)
 	return nil
+}
+
+func (m *Model) requestRevealField() tea.Cmd {
+	e, s, name := m.selected(), m.ws.ActiveSession(), m.revealField
+	if e == nil || s == nil || e.UUID != m.revealEntry || s.ID != m.revealSession {
+		m.hideReveal()
+		return nil
+	}
+	resolver, ok := m.backend.(interface {
+		ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
+	})
+	if !ok {
+		m.hideReveal()
+		m.setNotice("backend doesn't support field references", true)
+		return nil
+	}
+	ctx, cancel := context.WithCancel(m.ctx)
+	m.revealCancel = cancel
+	m.revealGeneration++
+	id := m.revealGeneration
+	db := s.DB.Clone()
+	creds := s.Credentials.Clone()
+	entryID := e.UUID
+	return func() tea.Msg {
+		defer db.Clear()
+		defer creds.Clear()
+		value, err := resolver.ResolveField(ctx, db, creds, entryID, name)
+		return resolvedRevealMsg{id, value, err}
+	}
 }
 func (m *Model) hideReveal() {
 	m.grand = false
@@ -940,6 +962,7 @@ func (m *Model) hideReveal() {
 	m.revealField = ""
 	m.revealSession = ""
 	m.revealUntil = time.Time{}
+	m.totpRefreshAt = time.Time{}
 }
 func (m *Model) fieldValue(e vault.Entry, name string) string {
 	if m.revealed(e.UUID, name) {
@@ -1050,6 +1073,9 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 	}
 	if !m.grand && !m.revealUntil.IsZero() && !now.Before(m.revealUntil) {
 		m.hideReveal()
+	}
+	if m.revealField == "TOTP" && m.revealCancel == nil && !m.totpRefreshAt.IsZero() && !now.Before(m.totpRefreshAt) {
+		cmds = append(cmds, m.requestRevealField())
 	}
 	configuredPIN := m.gate.Configured()
 	allUnlockedIdle := true
