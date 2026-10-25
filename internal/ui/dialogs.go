@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -16,6 +17,7 @@ type actionDialog struct {
 	selected, offset                int
 	input                           input
 	err                             string
+	applyToPassword                 bool
 	sessionID, entryUUID, groupUUID string
 	groups                          []vault.Group
 	change                          vault.Change
@@ -168,25 +170,88 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	if d.kind == "generator" {
+		maxFocus := 2
+		if len(d.secret) > 0 {
+			maxFocus = 2
+			if d.applyToPassword {
+				maxFocus++
+			}
+		}
+		if key == "up" {
+			d.selected = max(0, d.selected-1)
+			return nil
+		}
+		if key == "down" {
+			d.selected = min(maxFocus, d.selected+1)
+			return nil
+		}
+		if key == "tab" || key == "shift+tab" {
+			delta := 1
+			if key == "shift+tab" {
+				delta = -1
+			}
+			d.selected = (d.selected + maxFocus + 1 + delta) % (maxFocus + 1)
+			return nil
+		}
 		if len(d.secret) == 0 {
 			if key == "enter" {
+				if d.selected == 2 {
+					m.clearDialog()
+					return nil
+				}
 				return m.generate()
 			}
-			d.input.update(k)
+			if d.selected != 0 {
+				return nil
+			}
+			if k.Type == tea.KeyRunes {
+				digits := make([]rune, 0, len(k.Runes))
+				for _, r := range k.Runes {
+					if r >= '0' && r <= '9' {
+						digits = append(digits, r)
+					}
+				}
+				if len(digits) > 0 {
+					d.input.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: digits})
+				}
+			} else if k.Type != tea.KeySpace {
+				d.input.update(k)
+			}
+			d.err = ""
 			return nil
 		}
 		switch key {
 		case "enter":
-			if m.editor != nil {
-				m.editor.setPassword(d.secret)
-				m.clearDialog()
-				m.setNotice("Generated password added to draft.", false)
-				return nil
+			if d.applyToPassword {
+				switch d.selected {
+				case 0:
+					if m.editor != nil {
+						m.editor.setPassword(d.secret)
+						m.clearDialog()
+						m.setNotice("Generated password added to draft.", false)
+					}
+					return nil
+				case 1:
+					return m.copyValue(append([]byte(nil), d.secret...), "Generated password")
+				case 2:
+					return m.generate()
+				case 3:
+					m.clearDialog()
+					return nil
+				}
+			} else {
+				switch d.selected {
+				case 0:
+					return m.copyValue(append([]byte(nil), d.secret...), "Generated password")
+				case 1:
+					return m.generate()
+				case 2:
+					m.clearDialog()
+					return nil
+				}
 			}
-			return m.copyValue(append([]byte(nil), d.secret...), "Generated password")
+			return nil
 		case "g":
-			clear(d.secret)
-			d.secret = nil
 			return m.generate()
 		case "c":
 			return m.copyValue(append([]byte(nil), d.secret...), "Generated password")
@@ -291,14 +356,28 @@ func (m *Model) dialogLines() []string {
 	case "generator":
 		if len(d.secret) == 0 {
 			body = append(body, "")
-			body = append(body, renderStackedInputField(inputFieldView{label: "Length (8–128)", value: &d.input, focused: true, indent: 1}, dialogBoxInputWidth(m.width), compact, c)...)
+			dialogWidth := min(m.width-6, 72)
+			actionWidth := max(1, dialogWidth-4)
+			body = append(body, renderStackedInputField(inputFieldView{label: "Length (8–64)", value: &d.input, focused: d.selected == 0, indent: 1}, actionWidth, compact, c)...)
+			body = append(body, dialogrender.BodyRule)
+			body = append(body,
+				renderDialogAction("Generate", "enter", actionWidth, compact, m.settings.ASCII, d.selected == 1, c),
+				renderDialogAction("Cancel", "esc", actionWidth, compact, m.settings.ASCII, d.selected == 2, c),
+			)
 			footer = ""
 		} else {
-			body = append(body, "Generated password", accent.Render(safe(string(d.secret))))
-			footer = "c copy · g regenerate · esc close"
-			if m.editor != nil {
-				footer = "c copy · g regenerate · esc close"
+			body = append(body, " Generated password", accent.Render(" "+safe(string(d.secret))))
+			dialogWidth := min(m.width-6, 72)
+			actionWidth := max(1, dialogWidth-4)
+			body = append(body, dialogrender.BodyRule)
+			actions := []struct{ label, shortcut string }{{"Copy", "c"}, {"Regenerate", "g"}, {"Close", "esc"}}
+			if d.applyToPassword {
+				actions = append([]struct{ label, shortcut string }{{"Apply", "enter"}}, actions...)
 			}
+			for i, action := range actions {
+				body = append(body, renderDialogAction(action.label, action.shortcut, actionWidth, compact, m.settings.ASCII, d.selected == i, c))
+			}
+			footer = ""
 		}
 	case "destination":
 		groups := d.filteredGroups()
@@ -339,17 +418,17 @@ func (m *Model) dialogLines() []string {
 	if d.err != "" {
 		body = append(body, error.Render(d.err))
 	}
-	if m.writing {
+	if m.writing && d.kind != "generator" {
 		body = append(body, accent.Render("Working…"))
-	}
-	if m.notice != "" && d.kind == "generator" {
-		footer = m.notice
 	}
 	if d.kind == "unsaved" {
 		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 42), false)
 	}
 	if d.kind == "delete" {
 		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 60), false)
+	}
+	if d.kind == "generator" {
+		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 72), false)
 	}
 	if d.kind == "destination" {
 		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 60), false)

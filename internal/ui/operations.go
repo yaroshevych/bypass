@@ -989,7 +989,8 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 
 func (m *Model) openGenerator() {
 	m.hideReveal()
-	m.dialog = &actionDialog{kind: "generator", title: "Password Generator"}
+	applyToPassword := m.editor != nil && m.editor.focus == editPassword
+	m.dialog = &actionDialog{kind: "generator", title: "Password Generator", applyToPassword: applyToPassword}
 	if s := m.ws.ActiveSession(); s != nil {
 		m.dialog.sessionID = s.ID
 	}
@@ -1004,8 +1005,8 @@ func (m *Model) generate() tea.Cmd {
 		return nil
 	}
 	length, err := strconv.Atoi(m.dialog.input.value())
-	if err != nil || length < 8 || length > 128 {
-		m.dialog.err = "Choose length from 8 to 128."
+	if err != nil || length < 8 || length > 64 {
+		m.dialog.err = "Choose length from 8 to 64."
 		return nil
 	}
 	id := m.beginOperation("")
