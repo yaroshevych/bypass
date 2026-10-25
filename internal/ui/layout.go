@@ -47,7 +47,7 @@ func (m *Model) layout() viewLayout {
 		nav, center, detail := m.widePaneWidths(w, v)
 		if zoomed {
 			l.Breadcrumb = true
-			l.Panes = []paneRect{{Focus: focus, X: 0, Y: l.BodyY + 1, Width: w, Height: max(1, l.BodyHeight-1)}}
+			l.Panes = []paneRect{{Focus: focus, X: 0, Y: l.BodyY + 2, Width: w, Height: max(1, l.BodyHeight-2)}}
 			return l
 		}
 		l.Panes = []paneRect{
@@ -61,7 +61,7 @@ func (m *Model) layout() viewLayout {
 		l.Mode = "medium"
 		if zoomed {
 			l.Breadcrumb = true
-			l.Panes = []paneRect{{Focus: focus, X: 0, Y: l.BodyY + 1, Width: w, Height: max(1, l.BodyHeight-1)}}
+			l.Panes = []paneRect{{Focus: focus, X: 0, Y: l.BodyY + 2, Width: w, Height: max(1, l.BodyHeight-2)}}
 			return l
 		}
 		nav := m.sidebarWidth(w, v)
@@ -74,7 +74,11 @@ func (m *Model) layout() viewLayout {
 	}
 	l.Mode = "narrow"
 	l.Breadcrumb = true
-	l.Panes = []paneRect{{Focus: focus, X: 0, Y: l.BodyY + 1, Width: w, Height: max(1, l.BodyHeight-1)}}
+	if zoomed {
+		l.Panes = []paneRect{{Focus: focus, X: 0, Y: l.BodyY + 2, Width: w, Height: max(1, l.BodyHeight-2)}}
+	} else {
+		l.Panes = []paneRect{{Focus: focus, X: 0, Y: l.BodyY + 1, Width: w, Height: max(1, l.BodyHeight-1)}}
+	}
 	return l
 }
 

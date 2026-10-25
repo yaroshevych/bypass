@@ -643,6 +643,13 @@ func (m *Model) layoutBody(layout viewLayout) []string {
 	if layout.Breadcrumb {
 		body[0] = styles.secondary.Render(fit(m.layoutBreadcrumb(layout), m.width))
 	}
+	if layout.Zoomed && len(body) > 1 {
+		rule := "─"
+		if m.settings.ASCII {
+			rule = "-"
+		}
+		body[1] = styles.divider.Render(strings.Repeat(rule, m.width))
+	}
 	contents := make([][]string, len(layout.Panes))
 	for i, pane := range layout.Panes {
 		focused := false
@@ -665,6 +672,9 @@ func (m *Model) layoutBody(layout viewLayout) []string {
 	startRow := 0
 	if layout.Breadcrumb {
 		startRow = 1
+	}
+	if layout.Zoomed {
+		startRow = 2
 	}
 	for row := startRow; row < len(body); row++ {
 		contentRow := row - startRow
@@ -733,7 +743,7 @@ func (m *Model) layoutBreadcrumb(layout viewLayout) string {
 		back = "<"
 	}
 	if layout.Zoomed {
-		return "  " + location + "  ·  Zoomed  ·  esc restore layout"
+		return "  " + location + "  ·  esc restore layout"
 	}
 	return "  " + back + " " + location + "  ·  Tab next pane"
 }

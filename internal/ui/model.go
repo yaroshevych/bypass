@@ -675,13 +675,14 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	case "/", "ctrl+f":
 		return m.beginSearch(key == "ctrl+f")
 	case "esc":
-		if m.clearFilter() {
-			break
+		if v.Zoom {
+			v.Zoom = false
+		} else {
+			if !m.clearFilter() && m.layout().Mode != "wide" && v.Focus > 0 {
+				v.Focus--
+			}
+			m.normalize()
 		}
-		if m.layout().Mode != "wide" && v.Focus > 0 {
-			v.Focus--
-		}
-		m.normalize()
 	case "G":
 		return m.openGrandView()
 	case "J":
