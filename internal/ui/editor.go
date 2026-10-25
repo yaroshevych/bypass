@@ -242,10 +242,6 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 		return editorCancel
 	case "ctrl+s":
 		return editorSave
-	case "ctrl+l":
-		if !e.isNew {
-			return editorMove
-		}
 	case "tab":
 		e.moveFocus(1)
 		return editorNone
@@ -254,6 +250,9 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 		return editorNone
 	}
 	if e.focus >= editGenerate {
+		if key == "m" && e.focus == editMove {
+			return editorMove
+		}
 		order := e.focusOrder()
 		position := 0
 		for i, focus := range order {
@@ -443,7 +442,7 @@ func (e *entryEditor) renderLines(title string, width, height int) []editorLine 
 		}
 		return e.renderFieldLines(lines, width, height)
 	}
-	lines := []editorLine{{text: styles.accent.Render(" "+title), focus: -1}, {text: styles.rule(width), focus: -1}}
+	lines := []editorLine{{text: styles.accent.Render(" " + title), focus: -1}, {text: styles.rule(width), focus: -1}}
 	return e.renderFieldLines(lines, width, height)
 }
 
@@ -508,7 +507,7 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 			label    string
 			index    int
 			shortcut string
-		}{"Move…", editMove, "ctrl+l"})
+		}{"Move…", editMove, "m"})
 		actions = append(actions, struct {
 			label    string
 			index    int

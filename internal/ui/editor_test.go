@@ -329,7 +329,7 @@ func TestExistingEntryActionsShowShortcutsAndMoveDialog(t *testing.T) {
 		}
 		return out
 	}(), "\n")
-	for _, want := range []string{"Generate Password…", "ctrl+g", "Move…", "ctrl+l", "Add to favorites", "ctrl+s", "esc"} {
+	for _, want := range []string{"Generate Password…", "ctrl+g", "Move…", "m", "Add to favorites", "ctrl+s", "esc"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("edit actions missing %q:\n%s", want, joined)
 		}
@@ -351,7 +351,7 @@ func TestExistingEntryActionsShowShortcutsAndMoveDialog(t *testing.T) {
 	if action := e.key(editorTeaKey("enter")); action != editorMove {
 		t.Fatalf("Enter on Move = %v", action)
 	}
-	if action := e.key(tea.KeyMsg{Type: tea.KeyCtrlL}); action != editorMove {
+	if action := e.key(editorTeaKey("m")); action != editorMove {
 		t.Fatalf("Move shortcut = %v", action)
 	}
 }
