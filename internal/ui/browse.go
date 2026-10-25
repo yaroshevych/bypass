@@ -126,22 +126,20 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		if m.busy {
 			return nil
 		}
-		labels := []string{"Password", "Key file (optional)", "Hardware slot (optional, e.g. 1)"}
-		if m.width < 70 {
-			labels = []string{"Password", "Key file", "Hardware slot"}
-		}
+		labels := []string{"Password"}
 		for row, line := range m.unlockLines() {
 			plain := ansi.Strip(line)
+			if msg.Y == row && strings.Contains(plain, "Open") {
+				return m.startOpen()
+			}
+			if msg.Y == row && strings.Contains(plain, "Cancel") {
+				return m.unlockKey(tea.KeyMsg{Type: tea.KeyEscape})
+			}
 			for index, label := range labels {
 				if (msg.Y == row || msg.Y == row+1) && strings.Contains(plain, label) {
 					m.inputFocus = index
 					return nil
 				}
-			}
-			if msg.Y == row && (strings.Contains(plain, "Password authentication") || strings.Contains(plain, "Password auth")) {
-				m.inputFocus = 3
-				m.noPassword = !m.noPassword
-				return nil
 			}
 		}
 		return nil
@@ -155,7 +153,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 			m.pickerRecent = false
 			return nil
 		}
-		boxWidth := min(m.width-6, 82)
+		boxWidth := min(m.width-6, 60)
 		left := max(0, (m.width-boxWidth)/2)
 		if msg.X < left || msg.X >= left+boxWidth {
 			return nil
@@ -277,7 +275,7 @@ func (m *Model) fileViewport() (start, capacity int) {
 	if m.err != "" {
 		available--
 	}
-	capacity = min(16, max(0, available))
+	capacity = max(0, available)
 	start = viewportOffset(m.fileIndex, len(m.files), max(1, capacity), m.fileOffset)
 	return start, capacity
 }

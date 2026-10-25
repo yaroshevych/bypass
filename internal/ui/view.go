@@ -236,9 +236,12 @@ func (m *Model) welcomeLines() []string {
 		statusBar = m.recentRemovalStatusBar()
 	}
 	lines := m.boxWithBodyRowsOnBackdrop("Bypass - Secrets Manager", body, statusBar, m.landingBodyRows(), make([]string, m.height))
+	theme := colorsForTheme(m.settings.Theme)
 	if len(lines) > 0 {
-		theme := colorsForTheme(m.settings.Theme)
-		lines[len(lines)-1] = restoreThemeResets(m.footerLine("", "q quit"), theme.primary, theme.background)
+		lines[len(lines)-1] = m.footerLine("", "q quit")
+	}
+	for i := range lines {
+		lines[i] = restoreThemeResets(lines[i], theme.primary, theme.background)
 	}
 	return lines
 }
@@ -1203,10 +1206,18 @@ func (m *Model) boxWithWidth(title string, body []string, statusBar string, widt
 }
 
 func (m *Model) boxWithBodyRows(title string, body []string, statusBar string, bodyRows int, header ...dialogrender.Header) []string {
-	return m.boxWithBodyRowsOnBackdrop(title, body, statusBar, bodyRows, m.modalBackdrop(), header...)
+	return m.boxWithBodyRowsWidth(title, body, statusBar, bodyRows, min(m.width-6, 82), header...)
 }
 
 func (m *Model) boxWithBodyRowsOnBackdrop(title string, body []string, statusBar string, bodyRows int, backdrop []string, header ...dialogrender.Header) []string {
+	return m.boxWithBodyRowsWidthOnBackdrop(title, body, statusBar, bodyRows, min(m.width-6, 82), backdrop, header...)
+}
+
+func (m *Model) boxWithBodyRowsWidth(title string, body []string, statusBar string, bodyRows, width int, header ...dialogrender.Header) []string {
+	return m.boxWithBodyRowsWidthOnBackdrop(title, body, statusBar, bodyRows, width, m.modalBackdrop(), header...)
+}
+
+func (m *Model) boxWithBodyRowsWidthOnBackdrop(title string, body []string, statusBar string, bodyRows, width int, backdrop []string, header ...dialogrender.Header) []string {
 	c := m.colors()
 	theme := colorsForTheme(m.settings.Theme)
 	restoreResets := func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) }
@@ -1216,7 +1227,7 @@ func (m *Model) boxWithBodyRowsOnBackdrop(title string, body []string, statusBar
 	}
 	return dialogrender.Render(dialogrender.Options{
 		Mode: dialogrender.Box, Title: title, HeaderContent: headerContent, HeaderDivider: headerDivider, Body: body, BodyRows: bodyRows, StatusBar: statusBar,
-		Backdrop: backdrop, Width: min(m.width-6, 82), ScreenWidth: m.width,
+		Backdrop: backdrop, Width: min(m.width-6, width), ScreenWidth: m.width,
 		Height: m.height, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
 		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, Pill: c.active, Divider: c.divider,
 		RestoreResets: restoreResets,
@@ -1233,52 +1244,39 @@ func (m *Model) dialogTitle(title string) string {
 func (m *Model) unlockLines() []string {
 	styles := m.colors()
 	accent, secondary, error := styles.accent, styles.secondary, styles.error
+	dialogWidth := min(m.width-6, 60)
+	contentWidth := max(1, dialogWidth-4)
 	path := safe(m.path)
-	pathWidth := max(1, min(m.width-6, 82)-4)
+	pathWidth := max(1, contentWidth-1)
 	if cells := lipgloss.Width(path); cells > pathWidth {
 		path = "…" + ansi.Cut(path, cells-pathWidth+1, cells)
 	}
-	body := []string{secondary.Render(path)}
-	if m.width >= 70 {
-		body = append(body, "")
-	}
-	labels := []string{"Password", "Key file (optional)", "Hardware slot (optional, e.g. 1)", "Password authentication"}
-	footer := "tab next · space toggle"
-	if m.width < 70 {
-		labels = []string{"Password", "Key file", "Hardware slot", "Password auth"}
-		footer = "tab next"
-	}
+	body := []string{secondary.Render(" " + path)}
+	body = append(body, "")
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	fieldWidth := dialogBoxInputWidth(m.width)
-	for i, label := range labels {
-		if i < 3 {
-			body = append(body, "")
-			body = append(body, renderStackedInputField(inputFieldView{
-				label: label, value: &m.inputs[i], secret: i == 0,
-				focused: i == m.inputFocus, indent: 1,
-			}, fieldWidth, compact, styles)...)
-			continue
-		}
-		toggle := "[x] enabled"
-		if m.noPassword {
-			toggle = "[ ] disabled"
-		}
-		body = append(body, "", renderDialogChoice(label+": "+toggle, compact, m.settings.ASCII, i == m.inputFocus, styles))
-	}
+	body = append(body, renderStackedInputField(inputFieldView{
+		label: "Password", value: &m.inputs[0], secret: true,
+		focused: m.inputFocus == 0, indent: 1,
+	}, contentWidth, compact, styles)...)
 	if m.busy {
 		body = append(body, accent.Render("Unlocking… esc cancels"))
 	}
 	if m.err != "" {
 		body = append(body, error.Render(m.err))
 	}
-	return m.box("Unlock Vault", body, footer)
+	body = append(body, dialogrender.BodyRule,
+		renderDialogAction("Open", "enter", contentWidth, compact, m.settings.ASCII, m.inputFocus == 1, styles),
+		renderDialogAction("Cancel", "esc", contentWidth, compact, m.settings.ASCII, m.inputFocus == 2, styles),
+	)
+	return m.boxWithWidth("Unlock Vault", body, "", dialogWidth, false)
 }
 
 func (m *Model) pickerLines() []string {
 	styles := m.colors()
 	secondary, error := styles.secondary, styles.error
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	listWidth := max(1, min(m.width-6, 82)-4)
+	dialogWidth := min(m.width-6, 60)
+	listWidth := max(1, dialogWidth-4)
 	pathIndent := " "
 	if compact {
 		pathIndent = " "
@@ -1311,7 +1309,6 @@ func (m *Model) pickerLines() []string {
 	)
 	rows = append(rows, listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "BROWSE ", divider: true})
 	start, capacity := m.fileViewport()
-	browseRows := 0
 	for i := start; i < len(m.files) && i < start+capacity; i++ {
 		f := m.files[i]
 		name := safe(f.name)
@@ -1322,11 +1319,13 @@ func (m *Model) pickerLines() []string {
 			name = " " + name
 		}
 		rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: name, selected: !m.pickerEditing && !m.pickerRecent && i == m.fileIndex, activeFill: true, pillSelected: true})
-		browseRows++
 	}
 	if len(m.files) == 0 && capacity > 0 {
 		rows = append(rows, listComponentRow{kind: listComponentItem, item: -1, text: secondary.Render("No vault files here. Enter another path.")})
-		browseRows++
+	}
+	browseRows := min(max(0, len(m.files)-start), capacity)
+	if len(m.files) == 0 && capacity > 0 {
+		browseRows = 1
 	}
 	for browseRows < capacity {
 		rows = append(rows, listComponentRow{kind: listComponentSpacer, item: -1})
@@ -1342,7 +1341,7 @@ func (m *Model) pickerLines() []string {
 	if m.err != "" {
 		body = append(body, error.Render(m.err))
 	}
-	return m.boxWithBodyRows("Open Vault", body, m.pickerStatusBar(), m.pickerBodyRows())
+	return m.boxWithBodyRowsWidth("Open Vault", body, m.pickerStatusBar(), m.pickerBodyRows(), dialogWidth)
 }
 
 func (m *Model) helpLines() []string {

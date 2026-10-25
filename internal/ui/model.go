@@ -763,20 +763,25 @@ func (m *Model) unlockKey(k tea.KeyMsg) tea.Cmd {
 	}
 	switch key {
 	case "tab":
-		m.inputFocus = (m.inputFocus + 1) % 4
+		m.inputFocus = (m.inputFocus + 1) % 3
 	case "shift+tab":
-		m.inputFocus = (m.inputFocus + 3) % 4
+		m.inputFocus = (m.inputFocus + 2) % 3
+	case "up":
+		m.inputFocus = max(0, m.inputFocus-1)
+	case "down":
+		m.inputFocus = min(2, m.inputFocus+1)
 	case " ":
-		if m.inputFocus == 3 {
-			m.noPassword = !m.noPassword
-			return nil
+		if m.inputFocus == 0 {
+			m.inputs[0].update(k)
 		}
-		m.inputs[m.inputFocus].update(k)
 	case "enter":
+		if m.inputFocus == 2 {
+			return m.unlockKey(tea.KeyMsg{Type: tea.KeyEscape})
+		}
 		return m.startOpen()
 	default:
-		if m.inputFocus < 3 {
-			m.inputs[m.inputFocus].update(k)
+		if m.inputFocus == 0 {
+			m.inputs[0].update(k)
 		}
 	}
 	return nil
