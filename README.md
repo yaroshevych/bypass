@@ -68,4 +68,10 @@ protect stored passwords. When a vault is unlocked, passwords can appear in the
 interface. The clipboard clears after 10 seconds by default.
 
 KeePassXC opens and saves the vault directly. Before an edit, Bypass copies the
-encrypted vault file to the backup directory.
+encrypted vault file to the backup directory. Bypass keeps the five newest backups
+in total across all vaults.
+
+## License
+
+Bypass uses the [MIT License](LICENSE). KeePassXC is a separate program with its
+own license.

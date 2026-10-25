@@ -11,9 +11,9 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parent.parent
-FIXTURE = re.compile(r"/(?:bypass|keepassui)-tmux-eval-")
-BUILD = re.compile(r"/(?:bypass|keepassui)-evals-build-[^/]+/(?:bypass|keepassui)(?: |$)")
-TEMP_PREFIXES = ("bypass-readback-", "bypass-tmux-eval-", "keepassui-tmux-eval-", "bypass-evals-build-", "keepassui-evals-build-")
+FIXTURE = re.compile(r"/bypass-tmux-eval-")
+BUILD = re.compile(r"/bypass-evals-build-[^/]+/bypass(?: |$)")
+TEMP_PREFIXES = ("bypass-readback-", "bypass-tmux-eval-", "bypass-evals-build-")
 
 
 def processes():

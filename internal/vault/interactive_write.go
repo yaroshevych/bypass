@@ -8,7 +8,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
+	"sync"
 )
 
 var _ Writer = (*InteractiveCLI)(nil)
@@ -115,9 +118,15 @@ func (c *InteractiveCLI) Apply(ctx context.Context, db *Database, _ Credentials,
 	return updated, nil
 }
 
+var backupMu sync.Mutex
+var backupName = regexp.MustCompile(`^.+-[0-9]+\.kdbx$`)
+
 // backupInteractiveVault is a plain copy of the encrypted file. KeePassXC alone
 // owns the save; this copy is not used for staging, validation, or publication.
 func backupInteractiveVault(path, directory string) error {
+	// Different unlocked vaults can edit concurrently and share this directory.
+	backupMu.Lock()
+	defer backupMu.Unlock()
 	if directory == "" {
 		return ErrBackup
 	}
@@ -147,6 +156,43 @@ func backupInteractiveVault(path, directory string) error {
 		return err
 	}
 	complete = true
+	return pruneBackups(directory, backup.Name())
+}
+
+// Keep five completed Bypass copies across all vaults in this directory.
+// Unrelated files, symlinks, and directories are left alone.
+func pruneBackups(directory, newest string) error {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return err
+	}
+	var backups []os.FileInfo
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() || !backupName.MatchString(entry.Name()) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		backups = append(backups, info)
+	}
+	newest = filepath.Base(newest)
+	sort.Slice(backups, func(i, j int) bool {
+		left, right := backups[i], backups[j]
+		if left.Name() == newest || right.Name() == newest {
+			return left.Name() == newest
+		}
+		if left.ModTime().Equal(right.ModTime()) {
+			return left.Name() > right.Name()
+		}
+		return left.ModTime().After(right.ModTime())
+	})
+	for _, backup := range backups[min(5, len(backups)):] {
+		if err := os.Remove(filepath.Join(directory, backup.Name())); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

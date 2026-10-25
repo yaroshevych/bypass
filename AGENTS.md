@@ -26,7 +26,8 @@
   data after a lock. PIN protection covers the UI; full lock clears authentication.
 - The default backend opens the original vault in KeePassXC and sends native
   commands over stdin. KeePassXC owns encryption, saving, and conflict handling.
-  Backups are plain copies of the encrypted file before an edit. Do not add custom
+  Backups are plain copies of the encrypted file before an edit. Keep at most five
+  backups in total across vaults. Do not add custom
   staging, publication, cryptographic validation, or XML export/import rewrites.
 - Never put passwords in process arguments, logs, notices, or test diagnostics.
   Use disposable vaults and the isolated clipboard for tests. Do not commit `.env`,

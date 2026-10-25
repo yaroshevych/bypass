@@ -6,30 +6,6 @@ import (
 	"testing"
 )
 
-func TestExistingLegacyDirectoryPreservesSettingsWithoutMovingFiles(t *testing.T) {
-	root := t.TempDir()
-	current := filepath.Join(root, "bypass", "config")
-	legacy := filepath.Join(root, "keepassui", "config")
-	if got := existingLegacyDir(current); got != current {
-		t.Fatal("fresh install did not use Bypass namespace")
-	}
-	if err := os.MkdirAll(legacy, 0700); err != nil {
-		t.Fatal(err)
-	}
-	if got := existingLegacyDir(current); got != legacy {
-		t.Fatal("existing install lost its settings directory")
-	}
-	if _, err := os.Stat(current); !os.IsNotExist(err) {
-		t.Fatal("path resolution unexpectedly created a directory")
-	}
-	if err := os.MkdirAll(current, 0700); err != nil {
-		t.Fatal(err)
-	}
-	if got := existingLegacyDir(current); got != current {
-		t.Fatal("legacy directory overrode existing Bypass settings")
-	}
-}
-
 func env(values map[string]string) func(string) string {
 	return func(key string) string { return values[key] }
 }

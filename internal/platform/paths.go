@@ -22,35 +22,7 @@ func Resolve() (Paths, error) {
 	if err != nil {
 		return Paths{}, err
 	}
-	paths, err := resolveFor(runtime.GOOS, home, os.Getenv, os.UserConfigDir, os.UserCacheDir)
-	if err != nil {
-		return paths, err
-	}
-	// Existing development installs retain their preferences and backups.
-	// Fresh installs use the Bypass namespace; no files are moved implicitly.
-	paths.Config = existingLegacyDir(paths.Config)
-	paths.State = existingLegacyDir(paths.State)
-	paths.Cache = existingLegacyDir(paths.Cache)
-	return paths, nil
-}
-
-func existingLegacyDir(path string) string {
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		return path
-	}
-	separator := string(filepath.Separator)
-	parts := strings.Split(path, separator)
-	for i := len(parts) - 1; i >= 0; i-- {
-		if parts[i] == "bypass" {
-			parts[i] = "keepassui"
-			legacy := strings.Join(parts, separator)
-			if info, err := os.Stat(legacy); err == nil && info.IsDir() {
-				return legacy
-			}
-			break
-		}
-	}
-	return path
+	return resolveFor(runtime.GOOS, home, os.Getenv, os.UserConfigDir, os.UserCacheDir)
 }
 
 // ResolveFor is the deterministic form of Resolve, useful to applications
