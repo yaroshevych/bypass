@@ -80,6 +80,23 @@ func (m *Model) pill(text string, width int, focused bool) string {
 	return m.pillOn(text, width, focused, m.colors().primary)
 }
 
+func (m *Model) listPill(text string, width int, focused bool) string {
+	c := m.colors()
+	style := c.inactive
+	if focused {
+		style = c.active
+	}
+	return renderPillTight(text, width, style, c.primary)
+}
+
+func renderPillTight(text string, width int, style, surface lipgloss.Style) string {
+	if width < 2 {
+		return style.Render(fit(text, width))
+	}
+	edge := surface.Foreground(style.GetBackground())
+	return fit(edge.Render("\ue0b6")+style.Render(fit(text, width-2))+edge.Render("\ue0b4"), width)
+}
+
 func (m *Model) pillOn(text string, width int, focused bool, surface lipgloss.Style) string {
 	c := m.colors()
 	style := c.inactive

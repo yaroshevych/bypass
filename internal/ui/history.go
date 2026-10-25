@@ -50,6 +50,7 @@ func (m *Model) historyLines(state *extraState) []string {
 	body := []string{m.colors().secondary.Render("Read-only history · snapshots cannot be restored from this view."), ""}
 	capacity := max(1, m.height-12)
 	start := viewportOffset(state.historyIndex, len(state.history), capacity, state.offset)
+	rows := make([]listComponentRow, 0, capacity)
 	for i := start; i < len(state.history) && i < start+capacity; i++ {
 		snapshot := state.history[i]
 		title := historyTitle(snapshot)
@@ -58,10 +59,23 @@ func (m *Model) historyLines(state *extraState) []string {
 			when = snapshot.Created
 		}
 		label := fmt.Sprintf("%s  %s", title, historyDate(when))
-		if i == state.historyIndex {
-			label = m.colors().active.Render("› " + label)
+		rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: label, selected: i == state.historyIndex, activeFill: true, pillSelected: true})
+	}
+	if strings.EqualFold(m.settings.Appearance, "compact") {
+		for _, row := range m.renderListComponent(rows, listComponentOptions{
+			width: max(1, min(74, m.width-8)), compact: true, ascii: m.settings.ASCII,
+			focused: true, sidebar: true,
+		}) {
+			body = append(body, row.text)
 		}
-		body = append(body, label)
+	} else {
+		for _, row := range rows {
+			label := row.text
+			if row.item == state.historyIndex {
+				label = m.colors().active.Render("› " + label)
+			}
+			body = append(body, label)
+		}
 	}
 	if len(state.history) == 0 {
 		body = append(body, "No history snapshots")

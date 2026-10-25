@@ -194,10 +194,7 @@ func restoreThemeResets(text, foreground, background string) string {
 
 func (m *Model) welcomeLines() []string {
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	headerIndent := "  "
-	if !compact {
-		headerIndent = " "
-	}
+	headerIndent := " "
 	rows := make([]listComponentRow, 0, m.landingBodyRows())
 	recentCount := m.landingRecentCount()
 	if recentCount > 0 {
@@ -941,7 +938,11 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 			if row.label == "" {
 				componentRows = append(componentRows, listComponentRow{kind: listComponentSpacer, item: -1})
 			} else {
-				label := "  " + strings.ToUpper(row.label) + " "
+				headerIndent := "  "
+				if compact {
+					headerIndent = " "
+				}
+				label := headerIndent + strings.ToUpper(row.label) + " "
 				componentRows = append(componentRows, listComponentRow{kind: listComponentHeader, item: -1, text: label, divider: row.label != "Views" || compact})
 			}
 			continue
@@ -984,10 +985,7 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 	styles := m.colors()
 	secondary, active, inactive := styles.secondary, styles.active, styles.inactive
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	contentWidth := width
-	if compact {
-		contentWidth = max(0, width-4)
-	}
+	contentWidth := max(0, width-2)
 	available := max(0, contentWidth-2)
 	tw := min(available, max(7, available*40/100))
 	uw := min(available-tw, max(5, available*27/100))
@@ -997,9 +995,7 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 	}
 	row := func(a, b, c string) string { return fit(cell(a, tw)+" "+cell(b, uw)+" "+cell(c, urlw), contentWidth) }
 	heading := row("TITLE", "USERNAME", "WEBSITE")
-	if compact {
-		heading = fit("  "+heading, width)
-	}
+	heading = fit(" "+heading+" ", width)
 	heading = secondary.Render(heading)
 	lines := []string{heading}
 	entries := m.entries()
@@ -1009,7 +1005,7 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 		if v.Query != "" {
 			text = "No matches"
 		}
-		lines = append(lines, "", secondary.Render(" "+text))
+		lines = append(lines, "", secondary.Render(" "+text+" "))
 		if v.Query != "" {
 			lines = append(lines, secondary.Render(" esc clears filter"))
 		} else {
@@ -1055,22 +1051,25 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 		text := row(title, username, url)
 		if compact {
 			if selected && !m.settings.ASCII {
-				text = m.pill(text, width, focused)
+				text = m.listPill(text, width, focused)
 			} else if selected {
 				style := inactive
 				if focused {
 					style = active
 				}
-				text = style.Render("[ " + text + " ]")
+				text = style.Render(fit("["+text+"]", width))
 			} else {
-				text = fit("  "+text, width)
+				text = fit(" "+text+" ", width)
 			}
 		} else if selected {
+			text = fit(" "+text+" ", width)
 			if focused {
 				text = active.Render(text)
 			} else {
 				text = inactive.Render(text)
 			}
+		} else {
+			text = fit(" "+text+" ", width)
 		}
 		lines = append(lines, text)
 	}
@@ -1265,19 +1264,16 @@ func (m *Model) pickerLines() []string {
 	listWidth := max(1, min(m.width-6, 82)-4)
 	pathIndent := " "
 	if compact {
-		pathIndent = "  "
+		pathIndent = " "
 	}
 	pathText := pathIndent + m.inputs[0].display(false)
 	pathLine := secondary.Render(pathText)
 	if m.pickerEditing {
 		pathLine = renderInputBox(inputFieldView{
 			value: &m.inputs[0], focused: true, indent: 1,
-		}, listWidth, compact, 1, styles)
+		}, listWidth, compact, 0, styles)
 	}
-	headerIndent := "  "
-	if !compact {
-		headerIndent = " "
-	}
+	headerIndent := " "
 	rows := make([]listComponentRow, 0, m.pickerFixedRows())
 	recentCount := m.pickerRecentCount()
 	if recentCount > 0 {
@@ -1293,7 +1289,7 @@ func (m *Model) pickerLines() []string {
 	}
 	rows = append(rows,
 		listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "PATH ", divider: true},
-		listComponentRow{kind: listComponentItem, item: -1, text: pathLine},
+		listComponentRow{kind: listComponentItem, item: -1, text: pathLine, edgeToEdge: m.pickerEditing},
 		listComponentRow{kind: listComponentSpacer, item: -1},
 	)
 	rows = append(rows, listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "BROWSE ", divider: true})

@@ -116,6 +116,10 @@ func BodyCapacity(height int, statusBar string) int {
 
 func renderOverlay(o Options, background []string, width int, border, horizontal, tl, tr, bl, br, leftRule, rightRule, title, footer string) []string {
 	wrap := func(text string, right bool) string {
+		if right && o.Compact {
+			content := fitRight(text, width-3)
+			return o.Divider.Render(border) + o.Surface.Render(" "+content) + o.Divider.Render(border)
+		}
 		content := fit(text, width-4)
 		if right {
 			content = fitRight(text, width-4)
@@ -189,6 +193,7 @@ func ruleWithDivider(width int, left, right, horizontal string, divider int, joi
 func renderBox(o Options, background []string, width int, border, horizontal, tl, tr, bl, br, leftRule, rightRule, title, footer string) []string {
 	inner := width - 4
 	var content []string
+	footerRow := -1
 	if !o.Compact {
 		header := o.Accent.Render("  " + title)
 		if o.HeaderContent != "" {
@@ -200,6 +205,7 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 		content = append(content, "  "+fit(line, inner))
 	}
 	if footer != "" {
+		footerRow = len(content)
 		content = append(content, o.Secondary.Render("  "+fitRight(footer, inner)))
 	}
 	for i := range content {
@@ -236,6 +242,14 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 				rule = ruleWithDivider(width, leftRule, rightRule, horizontal, o.HeaderDivider, join)
 			}
 			frame(top+i, o.Divider.Render(rule))
+			continue
+		}
+		if o.Compact && i == footerRow {
+			footerContent := o.Secondary.Render(fitRight(footer, inner+1))
+			if o.RestoreResets != nil {
+				footerContent = o.RestoreResets(footerContent)
+			}
+			frame(top+i, o.Divider.Render(border)+o.Surface.Render(" "+footerContent)+o.Divider.Render(border))
 			continue
 		}
 		frame(top+i, o.Divider.Render(border)+o.Surface.Render(" "+fit(ansi.Cut(line, 2, width-2), inner)+" ")+o.Divider.Render(border))

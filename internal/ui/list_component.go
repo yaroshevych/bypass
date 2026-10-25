@@ -15,9 +15,9 @@ const (
 	listComponentSpacer
 )
 
-// listComponentRow is the shared row model for grouped navigation and picker lists.
-// Text fields may already contain ANSI styling; the component owns alignment,
-// truncation, group rules, and layout-specific count/shortcut placement.
+// listComponentRow is the shared row model for selectable lists. Text fields may
+// already contain ANSI styling; the component owns one-cell insets, alignment,
+// truncation, group rules, and count/shortcut placement.
 type listComponentRow struct {
 	kind         listComponentRowKind
 	item         int
@@ -30,6 +30,8 @@ type listComponentRow struct {
 	pillSelected bool
 	activeFill   bool
 	countLine    bool
+	edgeToEdge   bool
+	classicInset bool
 	bold         bool
 	divider      bool
 }
@@ -69,7 +71,7 @@ func (m *Model) renderListComponent(rows []listComponentRow, opts listComponentO
 			if row.divider {
 				endPad := opts.ruleEndPad
 				if opts.compact && opts.sidebar {
-					endPad = 2
+					endPad = 1
 				}
 				label += styles.divider.Render(strings.Repeat(rule, max(0, opts.width-lipgloss.Width(row.text)-endPad)))
 			}
@@ -96,7 +98,9 @@ func (m *Model) renderListComponent(rows []listComponentRow, opts listComponentO
 				continue
 			}
 			text = strings.Repeat("  ", min(row.indent, 5)) + text
-			if opts.compact && ((opts.sidebar && row.count != "") || row.pillSelected) {
+			if row.edgeToEdge {
+				text = fit(text, opts.width)
+			} else if opts.compact && ((opts.sidebar && row.count != "") || row.pillSelected) {
 				selected := row.selected
 				selection := styles.inactive
 				if selected && opts.focused {
@@ -106,40 +110,66 @@ func (m *Model) renderListComponent(rows []listComponentRow, opts listComponentO
 				if selected {
 					countStyle = countStyle.Foreground(selection.GetForeground()).Background(selection.GetBackground()).Faint(true).Bold(false)
 				}
-				inner := max(0, opts.width-4)
+				inner := max(0, opts.width-2)
 				right := row.count
 				if right == "" {
 					right = row.right
 				}
 				rightText := countStyle.Render(right)
-				labelWidth := max(0, inner-lipgloss.Width(rightText)-1)
+				labelWidth := inner
+				if right != "" {
+					labelWidth = max(0, inner-lipgloss.Width(rightText)-1)
+				}
 				body := fit(ansi.Truncate(text, labelWidth, "…"), labelWidth)
 				if right != "" {
 					body += " " + rightText
 				}
 				if selected && !opts.ascii {
-					text = m.pill(body, opts.width, opts.focused)
+					text = m.listPill(body, opts.width, opts.focused)
 				} else if selected {
-					text = selection.Render("[ " + body + " ]")
+					text = selection.Render(fit("["+body+"]", opts.width))
 				} else {
-					text = fit("  "+body+"  ", opts.width)
+					text = fit(" "+body+" ", opts.width)
 				}
 			} else if row.activeFill && row.selected {
 				rightText := styles.secondary.Foreground(styles.active.GetForeground()).Background(styles.active.GetBackground()).Render(row.right)
 				available := max(0, opts.width-lipgloss.Width(rightText)-1)
+				if row.classicInset {
+					available = max(0, opts.width-lipgloss.Width(rightText)-3)
+					if row.right == "" {
+						available = max(0, opts.width-2)
+					}
+				}
 				left := ansi.Truncate(text, available, "…")
 				if row.right != "" {
-					left = fit(left, available) + " " + rightText
+					if row.classicInset {
+						left = " " + fit(left, available) + " " + rightText + " "
+					} else {
+						left = fit(left, available) + " " + rightText
+					}
 				} else {
-					left = fit(left, opts.width)
+					if row.classicInset {
+						left = fit(" "+left+" ", opts.width)
+					} else {
+						left = fit(left, opts.width)
+					}
 				}
 				text = styles.active.Render(fit(left, opts.width))
 			} else if row.right != "" {
 				right := styles.secondary.Render(row.right)
 				available := max(0, opts.width-lipgloss.Width(right)-1)
-				text = fit(ansi.Truncate(text, available, "…"), available) + " " + right
+				if row.classicInset {
+					available = max(0, opts.width-lipgloss.Width(right)-3)
+					text = " " + fit(ansi.Truncate(text, available, "…"), available) + " " + right + " "
+				} else {
+					text = fit(ansi.Truncate(text, available, "…"), available) + " " + right
+				}
 			} else {
-				text = fit(text, opts.width)
+				if row.classicInset {
+					text = fit(" "+text+" ", opts.width)
+				} else {
+					text = fit(text, opts.width)
+				}
 			}
 			result = append(result, listComponentOutput{text: text, item: row.item})
 		}

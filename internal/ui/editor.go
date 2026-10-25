@@ -529,7 +529,7 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 
 func renderEditorAction(label, shortcut string, width int, compact, ascii, selected bool, styles *styleSet) string {
 	if compact {
-		innerWidth := max(0, width-4)
+		innerWidth := max(0, width-2)
 		labelWidth := innerWidth
 		if shortcut != "" {
 			labelWidth = max(0, innerWidth-ansi.StringWidth(shortcut)-1)
@@ -541,11 +541,11 @@ func renderEditorAction(label, shortcut string, width int, compact, ascii, selec
 		body = fit(body, innerWidth)
 		if selected {
 			if ascii {
-				return styles.active.Render(fit("[ "+body+" ]", width))
+				return styles.active.Render(fit("["+body+"]", width))
 			}
-			return renderPill(body, width, styles.active, styles.primary)
+			return renderPillTight(body, width, styles.active, styles.primary)
 		}
-		return styles.secondary.Render(fit("  "+body+"  ", width))
+		return styles.secondary.Render(fit(" "+body+" ", width))
 	}
 	left := "  " + label
 	rowWidth := width

@@ -53,17 +53,33 @@ func (m *Model) attachmentLines(state *extraState) []string {
 		capacity := m.attachmentListCapacity()
 		items := len(entry.AttachmentNames) + 1
 		start := viewportOffset(state.selected, items, capacity, state.offset)
+		rows := make([]listComponentRow, 0, capacity)
 		for i := start; i < items && i < start+capacity; i++ {
 			label := ""
 			if i == 0 {
-				label = "  Add Attachment…"
+				label = "Add Attachment…"
 			} else {
-				label = "  " + safe(entry.AttachmentNames[i-1])
+				label = safe(entry.AttachmentNames[i-1])
 			}
-			if state.selected == i {
-				label = m.colors().active.Render("› " + strings.TrimPrefix(label, "  "))
+			rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: label, selected: state.selected == i, activeFill: true, pillSelected: true})
+		}
+		if strings.EqualFold(m.settings.Appearance, "compact") {
+			for _, row := range m.renderListComponent(rows, listComponentOptions{
+				width: max(1, min(72, m.width-8)), compact: true, ascii: m.settings.ASCII,
+				focused: true, sidebar: true,
+			}) {
+				body = append(body, row.text)
 			}
-			body = append(body, label)
+		} else {
+			for _, row := range rows {
+				label := row.text
+				if row.selected {
+					label = m.colors().active.Render("› " + label)
+				} else {
+					label = "  " + label
+				}
+				body = append(body, label)
+			}
 		}
 		if !writable {
 			body = append(body, "", m.colors().secondary.Render("Read only · R enables writes"))

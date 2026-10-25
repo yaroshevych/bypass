@@ -259,7 +259,7 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 
 func (m *Model) dialogLines() []string {
 	c := m.colors()
-	accent, secondary, active, error := c.accent, c.secondary, c.active, c.error
+	accent, secondary, error := c.accent, c.secondary, c.error
 	d := m.dialog
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	body := append([]string(nil), d.message...)
@@ -288,15 +288,17 @@ func (m *Model) dialogLines() []string {
 	case "destination":
 		groups := d.filteredGroups()
 		start, capacity := d.destinationViewport(m.height, groups)
+		rows := make([]listComponentRow, 0, capacity)
 		for i := start; i < len(groups) && i < start+capacity; i++ {
-			label := "  " + groupLabel(groups[i].Path)
-			if i == d.selected {
-				label = active.Render("› " + groupLabel(groups[i].Path))
-			}
-			body = append(body, label)
+			rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: groupLabel(groups[i].Path), selected: i == d.selected, activeFill: true, pillSelected: true, classicInset: true})
 		}
 		if len(groups) == 0 {
 			body = append(body, "No matching groups")
+		} else {
+			width := max(1, min(m.width-6, 82)-4)
+			for _, row := range m.renderListComponent(rows, listComponentOptions{width: width, compact: compact, ascii: m.settings.ASCII, focused: true, sidebar: true}) {
+				body = append(body, row.text)
+			}
 		}
 		footer = ""
 	default:

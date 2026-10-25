@@ -391,10 +391,7 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 			if group != "" {
 				source = append(source, listComponentRow{kind: listComponentSpacer, item: -1})
 			}
-			headerIndent := "  "
-			if !strings.EqualFold(m.settings.Appearance, "compact") {
-				headerIndent = " "
-			}
+			headerIndent := " "
 			source = append(source, listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + section + " ", divider: true})
 			group = section
 		}
