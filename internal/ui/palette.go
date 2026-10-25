@@ -190,15 +190,10 @@ func (m *Model) commands() []command {
 	if reason := m.nativeReason("show"); reason != "" {
 		totpReason = reason
 	}
-	attachmentReason := needEntry
-	if reason := m.nativeReason("attachment-import", "attachment-export", "attachment-rm"); reason != "" {
-		attachmentReason = reason
-	}
 	if showNonPasswordVaultSecurity {
 		add("totp", "Field", "TOTP…", "", totpReason, "", func() tea.Cmd { return m.leaveEditor(m.openTOTP) })
 		add("history-view", "Entry", "History…", "", historyReason, "", func() tea.Cmd { return m.leaveEditor(m.openHistory) })
 	}
-	add("attachments", "Entry", "Attachments…", "", attachmentReason, "", func() tea.Cmd { return m.leaveEditor(m.openAttachments) })
 	add("grand-view", "Field", "Large View…", "G", grandReason, "", m.openGrandView)
 	add("reveal", "Field", "Reveal", "v", needEntry, "", func() tea.Cmd { return m.toggleReveal() })
 	add("generator", "Field", "Password Generator…", "Ctrl+G", "", "", func() tea.Cmd { m.openGenerator(); return nil })
@@ -244,7 +239,6 @@ func (m *Model) commands() []command {
 		m.openPalette("appearance", false)
 		return nil
 	})
-	add("ascii", "Settings", "Toggle ASCII UI", "", "", "", func() tea.Cmd { m.settings.ASCII = !m.settings.ASCII; return m.persistPreferences() })
 	add("set-pin", "Privacy", "Change PIN…", "", allReason, "", func() tea.Cmd { m.configurePIN(false); return nil })
 	pinReason := allReason
 	if pinReason == "" && !m.gate.Configured() {

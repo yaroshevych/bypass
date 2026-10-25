@@ -107,7 +107,7 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 		"VIEW":     {"duplicate", "close-view", "previous-tab"},
 		"ENTRIES":  {"new", "edit", "group"},
 		"SECRETS":  {"copy-focused", "reveal", "generator"},
-		"SETTINGS": {"theme", "appearance", "ascii"},
+		"SETTINGS": {"theme", "appearance"},
 	}
 	for section, want := range wantStarts {
 		var got []string
@@ -148,6 +148,9 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 		t.Fatalf("unsupported TOTP command remains in SECRETS: %v", secrets)
 	}
 	for _, choice := range choices {
+		if choice.id == "attachments" || choice.id == "ascii" {
+			t.Fatalf("hidden command remains in palette: %#v", choice)
+		}
 		if strings.HasPrefix(choice.id, "tab:") || strings.HasPrefix(choice.label, "Switch to ") {
 			t.Fatalf("numbered tab-switch command remains in palette: %#v", choice)
 		}

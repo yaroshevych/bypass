@@ -88,11 +88,10 @@ func resolveFor(goos, home string, getenv func(string) string, userConfigDir, us
 	}
 
 	if goos == "darwin" {
-		appSupport := filepath.Join(home, "Library", "Application Support", "bypass")
 		cache := filepath.Join(home, "Library", "Caches", "bypass")
 		return Paths{
-			Config: xdgAppDir(getenv("XDG_CONFIG_HOME"), filepath.Join(appSupport, "config")),
-			State:  xdgAppDir(getenv("XDG_STATE_HOME"), filepath.Join(appSupport, "state")),
+			Config: xdgAppDir(getenv("XDG_CONFIG_HOME"), filepath.Join(home, ".config", "bypass")),
+			State:  xdgAppDir(getenv("XDG_STATE_HOME"), filepath.Join(home, ".local", "state", "bypass")),
 			Cache:  xdgAppDir(getenv("XDG_CACHE_HOME"), cache),
 		}, nil
 	}

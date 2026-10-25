@@ -20,8 +20,8 @@ just eval # deterministic terminal integration tests; requires tmux
 `z` zooms a pane; `[`/`]` resize it. Choose themes and Compact/Classic in commands.
 `Ctrl+K` protects the screen with a session PIN after vault authentication.
 Clipboard defaults to 10s; idle protection to 15m (PIN when set, otherwise full lock).
-Secrets stay in memory; backups remain encrypted. Config uses platform/XDG
-config storage (`config.json`); recent paths and backups use state storage.
+Secrets stay in memory; backups remain encrypted. Config uses XDG config storage
+(`config.json`); recent paths and backups use XDG state storage on all platforms.
 
 Grand View alternates character backgrounds in groups of two. Set
 `"grand_view_group_size": 2` in `config.json` to change the group size (positive integer).

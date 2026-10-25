@@ -60,8 +60,8 @@ func TestResolveForDarwinAndWindows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if darwin.Config != filepath.Join(home, "Library", "Application Support", "bypass", "config") ||
-		darwin.State != filepath.Join(home, "Library", "Application Support", "bypass", "state") ||
+	if darwin.Config != filepath.Join(home, ".config", "bypass") ||
+		darwin.State != filepath.Join(home, ".local", "state", "bypass") ||
 		darwin.Cache != filepath.Join(home, "Library", "Caches", "bypass") {
 		t.Fatalf("unexpected macOS paths: %#v", darwin)
 	}
