@@ -427,6 +427,9 @@ func (m *Model) lifecycleLines() []string {
 		body = append(body, renderVaultPath(s.Path, home, c.accent), "")
 	}
 	footer := "tab focus "
+	if l.kind == "create" && strings.EqualFold(m.settings.Appearance, "compact") {
+		footer += " "
+	}
 	if l.kind == "info" {
 		var wrapped []string
 		for _, line := range l.lines {
