@@ -65,6 +65,7 @@ func (m *Model) configurePIN(protectAfter bool) {
 		m.dialog.sessionID = s.ID
 	}
 	if protectAfter {
+		m.dialog.selected = 0
 		m.dialog.after = m.protectScreen
 	}
 }
@@ -83,6 +84,7 @@ func (m *Model) protectScreen() tea.Cmd {
 	m.pinInput.clear()
 	m.pinError = ""
 	m.pinFullLock = false
+	m.pinFocus = 0
 	m.gate.Protect()
 	return m.clearClipboard()
 }
@@ -103,6 +105,20 @@ func (m *Model) pinSetupKey(k tea.KeyMsg) tea.Cmd {
 		m.clearDialog()
 		return nil
 	}
+	if k.String() == "tab" || k.String() == "shift+tab" || k.String() == "up" || k.String() == "down" {
+		delta := 1
+		if k.String() == "shift+tab" || k.String() == "up" {
+			delta = -1
+		}
+		d.selected = (d.selected + 3 + delta) % 3
+		return nil
+	}
+	if d.selected == 2 {
+		if k.String() == "enter" {
+			m.clearDialog()
+		}
+		return nil
+	}
 	if k.String() == "enter" {
 		value := []byte(d.input.value())
 		defer clear(value)
@@ -115,6 +131,7 @@ func (m *Model) pinSetupKey(k tea.KeyMsg) tea.Cmd {
 			d.input.clear()
 			d.kind = "pin-confirm"
 			d.title = "Confirm Session PIN"
+			d.selected = 0
 			d.err = ""
 			return nil
 		}
@@ -133,6 +150,9 @@ func (m *Model) pinSetupKey(k tea.KeyMsg) tea.Cmd {
 		if after != nil {
 			return after()
 		}
+		return nil
+	}
+	if d.selected == 1 {
 		return nil
 	}
 	if k.Type == tea.KeyRunes {
@@ -157,12 +177,27 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 		return tea.Quit
 	}
 	if m.pinFullLock {
+		if key == "tab" || key == "shift+tab" || key == "up" || key == "down" {
+			delta := 1
+			if key == "shift+tab" || key == "up" {
+				delta = -1
+			}
+			m.pinFocus = (m.pinFocus + 2 + delta) % 2
+			return nil
+		}
 		if key == "esc" {
 			m.pinFullLock = false
+			m.pinFocus = 0
 			return nil
 		}
 		if key == "enter" {
+			if m.pinFocus == 1 {
+				m.pinFullLock = false
+				m.pinFocus = 0
+				return nil
+			}
 			m.pinFullLock = false
+			m.pinFocus = 0
 			return m.lockCurrent(true)
 		}
 		return nil
@@ -170,9 +205,18 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 	if key == "ctrl+l" {
 		m.pinInput.clear()
 		m.pinFullLock = true
+		m.pinFocus = 0
 		return nil
 	}
-	if key == "enter" {
+	if key == "tab" || key == "shift+tab" || key == "up" || key == "down" {
+		delta := 1
+		if key == "shift+tab" || key == "up" {
+			delta = -1
+		}
+		m.pinFocus = (m.pinFocus + 4 + delta) % 4
+		return nil
+	}
+	if key == "enter" && m.pinFocus != 2 && m.pinFocus != 3 {
 		value := []byte(m.pinInput.value())
 		defer clear(value)
 		m.pinInput.clear()
@@ -190,6 +234,19 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 				s.LastActivity = m.now()
 			}
 		}
+		return nil
+	}
+	if key == "enter" && m.pinFocus == 2 {
+		m.pinInput.clear()
+		m.pinFullLock = true
+		m.pinFocus = 0
+		return nil
+	}
+	if key == "enter" && m.pinFocus == 3 {
+		m.Close()
+		return tea.Quit
+	}
+	if m.pinFocus != 0 {
 		return nil
 	}
 	if k.Type == tea.KeyRunes {
@@ -210,22 +267,34 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 }
 func (m *Model) pinLines() []string {
 	c := m.colors()
-	body := []string{c.accent.Render("◇"), "", c.accent.Render("Screen protected"), c.secondary.Render("Vault sessions remain unlocked in memory."), "", c.accent.Render(m.pinInput.display(true) + "▏"), "", c.secondary.Render("Enter unlock · Ctrl+L full lock · Ctrl+C quit")}
-	if m.pinError != "" {
-		body = append(body, c.error.Render(m.pinError))
-	}
-	if delay := m.gate.NextAttempt().Sub(m.now()); delay > 0 {
-		body = append(body, c.secondary.Render(fmt.Sprintf("Try again in %ds", int(delay.Seconds())+1)))
-	}
+	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	width := min(m.width-6, 52)
+	actionWidth := max(1, width-4)
+	var body []string
 	if m.pinFullLock {
-		body = []string{c.accent.Render("Full lock all vaults?"), "", c.secondary.Render("Unsaved drafts will be discarded."), c.secondary.Render("Vault credentials will be required."), "", c.accent.Render("Enter full lock · Esc cancel")}
+		body = []string{c.accent.Render(" Full lock all vaults?"), "", c.secondary.Render(" Unsaved drafts will be discarded."), c.secondary.Render(" Vault credentials will be required."), dialogrender.BodyRule,
+			renderDialogAction("Lock All", "enter", actionWidth, compact, m.settings.ASCII, m.pinFocus == 0, c),
+			renderDialogAction("Cancel", "esc", actionWidth, compact, m.settings.ASCII, m.pinFocus == 1, c),
+		}
+	} else {
+		body = []string{c.secondary.Render(" Screen protected"), c.secondary.Render(" Vault sessions remain unlocked in memory."), ""}
+		body = append(body, renderStackedInputField(inputFieldView{label: "Session PIN", value: &m.pinInput, secret: true, focused: m.pinFocus == 0, indent: 1}, actionWidth, compact, c)...)
+		if m.pinError != "" {
+			body = append(body, c.error.Render(" "+strings.ToLower(strings.TrimSuffix(m.pinError, "."))))
+		}
+		if delay := m.gate.NextAttempt().Sub(m.now()); delay > 0 {
+			body = append(body, c.secondary.Render(fmt.Sprintf(" wait %ds", int(delay.Seconds())+1)))
+		}
+		body = append(body, dialogrender.BodyRule,
+			renderDialogAction("Unlock", "enter", actionWidth, compact, m.settings.ASCII, m.pinFocus == 1, c),
+			renderDialogAction("Full Lock", "ctrl+l", actionWidth, compact, m.settings.ASCII, m.pinFocus == 2, c),
+			renderDialogAction("Quit", "", actionWidth, compact, m.settings.ASCII, m.pinFocus == 3, c),
+		)
 	}
-	width := min(66, m.width-8)
-	left := max(0, (m.width-width)/2)
-	top := max(0, (m.height-len(body))/2)
-	lines := make([]string, top)
-	for _, line := range body {
-		lines = append(lines, strings.Repeat(" ", left)+fit(line, width))
+	lines := m.boxWithBodyRowsWidthOnBackdrop("Bypass - Secrets Manager", body, "", len(body), width, make([]string, m.height))
+	theme := colorsForTheme(m.settings.Theme)
+	for i := range lines {
+		lines[i] = restoreThemeResets(lines[i], theme.primary, theme.background)
 	}
 	return lines
 }

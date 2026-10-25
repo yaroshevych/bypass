@@ -58,6 +58,7 @@ type Model struct {
 	pinInput                                input
 	pinError                                string
 	pinFullLock                             bool
+	pinFocus                                int
 	saveSettings                            func(platform.Settings) error
 	helpQuery                               input
 	searchColumn                            int

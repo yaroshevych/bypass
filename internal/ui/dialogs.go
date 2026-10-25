@@ -406,8 +406,14 @@ func (m *Model) dialogLines() []string {
 	footer := ""
 	switch d.kind {
 	case "pin-setup", "pin-confirm":
-		body = append(body, secondary.Render("4–12 digits · current run only"), "")
-		body = append(body, renderStackedInputField(inputFieldView{label: "Session PIN", value: &d.input, secret: true, focused: true, indent: 1}, dialogBoxInputWidth(m.width), compact, c)...)
+		dialogWidth := min(m.width-6, 52)
+		actionWidth := max(1, dialogWidth-4)
+		body = append(body, secondary.Render(" 4–12 digits · current run only"), "")
+		body = append(body, renderStackedInputField(inputFieldView{label: "Session PIN", value: &d.input, secret: true, focused: d.selected == 0, indent: 1}, actionWidth, compact, c)...)
+		body = append(body, dialogrender.BodyRule,
+			renderDialogAction("Save", "enter", actionWidth, compact, m.settings.ASCII, d.selected == 1, c),
+			renderDialogAction("Cancel", "esc", actionWidth, compact, m.settings.ASCII, d.selected == 2, c),
+		)
 		footer = ""
 	case "group":
 		actionWidth := dialogBoxInputWidth(m.width)
@@ -494,6 +500,9 @@ func (m *Model) dialogLines() []string {
 	}
 	if d.kind == "unsaved" {
 		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 42), false)
+	}
+	if d.kind == "pin-setup" || d.kind == "pin-confirm" {
+		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 52), false)
 	}
 	if d.kind == "external" {
 		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 72), false)
