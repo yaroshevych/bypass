@@ -20,6 +20,7 @@ const (
 	editNotes
 	editGenerate
 	editMove
+	editFavorite
 	editSave
 	editCancel
 	editFocusCount
@@ -33,6 +34,7 @@ const (
 	editorCancel
 	editorGenerate
 	editorMove
+	editorFavorite
 )
 
 var editorFields = [...]string{"Title", "UserName", "Password", "URL", "Notes"}
@@ -56,6 +58,7 @@ type entryEditor struct {
 	isNew            bool
 	EntryUUID        string
 	GroupUUID        string
+	favorite         bool
 	header           itemHeader
 	headerNow        time.Time
 	err              string
@@ -239,6 +242,10 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 		return editorCancel
 	case "ctrl+s":
 		return editorSave
+	case "ctrl+l":
+		if !e.isNew {
+			return editorMove
+		}
 	case "tab":
 		e.moveFocus(1)
 		return editorNone
@@ -247,9 +254,6 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 		return editorNone
 	}
 	if e.focus >= editGenerate {
-		if key == "m" && !e.isNew {
-			return editorMove
-		}
 		actions := e.actionFocuses()
 		position := 0
 		for i, focus := range actions {
@@ -272,6 +276,8 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 				return editorGenerate
 			case editMove:
 				return editorMove
+			case editFavorite:
+				return editorFavorite
 			case editSave:
 				return editorSave
 			case editCancel:
@@ -330,6 +336,8 @@ func (e *entryEditor) pointer(row, width, height int) editorAction {
 		return editorGenerate
 	case editMove:
 		return editorMove
+	case editFavorite:
+		return editorFavorite
 	case editSave:
 		return editorSave
 	case editCancel:
@@ -343,6 +351,7 @@ func (e *entryEditor) actionFocuses() []int {
 	actions := []int{editGenerate}
 	if !e.isNew {
 		actions = append(actions, editMove)
+		actions = append(actions, editFavorite)
 	}
 	return append(actions, editSave, editCancel)
 }
@@ -471,7 +480,12 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 			label    string
 			index    int
 			shortcut string
-		}{"Move…", editMove, "m"})
+		}{"Move…", editMove, "ctrl+l"})
+		actions = append(actions, struct {
+			label    string
+			index    int
+			shortcut string
+		}{map[bool]string{true: "Remove from favorites", false: "Add to favorites"}[e.favorite], editFavorite, ""})
 	}
 	actions = append(actions,
 		struct {
@@ -533,7 +547,7 @@ func renderEditorAction(label, shortcut string, width int, compact, ascii, selec
 	}
 	left := "  " + label
 	rowWidth := width
-	if shortcut == "ctrl+s" || shortcut == "esc" {
+	if shortcut == "ctrl+s" || shortcut == "esc" || shortcut == "ctrl+l" {
 		rowWidth = max(0, width-1)
 	}
 	if shortcut != "" {

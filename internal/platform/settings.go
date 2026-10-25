@@ -27,6 +27,7 @@ type Settings struct {
 	ASCII              bool
 	FullLockTimeout    time.Duration
 	GrandViewGroupSize int
+	FavoriteOverrides  string
 }
 
 type settingsFile struct {
@@ -38,6 +39,7 @@ type settingsFile struct {
 	Theme                   *string `json:"theme"`
 	Appearance              *string `json:"appearance"`
 	ASCII                   *bool   `json:"ascii"`
+	FavoriteOverrides       *string `json:"favorite_overrides"`
 }
 
 func DefaultSettings(paths Paths) Settings {
@@ -127,6 +129,9 @@ func LoadSettings(paths Paths) (Settings, error) {
 	if file.ASCII != nil {
 		settings.ASCII = *file.ASCII
 	}
+	if file.FavoriteOverrides != nil {
+		settings.FavoriteOverrides = *file.FavoriteOverrides
+	}
 	if err := validateSettings(settings); err != nil {
 		return defaults, err
 	}
@@ -214,6 +219,7 @@ func SaveSettings(paths Paths, settings Settings) error {
 		"theme":                     settings.Theme,
 		"appearance":                settings.Appearance,
 		"ascii":                     settings.ASCII,
+		"favorite_overrides":        settings.FavoriteOverrides,
 	}
 	for key, value := range values {
 		encoded, err := json.Marshal(value)

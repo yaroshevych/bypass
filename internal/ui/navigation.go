@@ -248,13 +248,7 @@ func (m *Model) filterEntries(nav navItem, query string) []vault.Entry {
 				continue
 			}
 		case "favorites":
-			found := false
-			for _, tag := range e.Tags {
-				if strings.EqualFold(tag, "Favorite") {
-					found = true
-				}
-			}
-			if !found {
+			if !m.isFavorite(&e) {
 				continue
 			}
 		case "tag":

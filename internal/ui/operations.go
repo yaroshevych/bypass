@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -179,10 +180,74 @@ func (m *Model) startEditor(e *vault.Entry, group string) {
 	m.editor.compact = strings.EqualFold(m.settings.Appearance, "compact")
 	m.editor.ascii = m.settings.ASCII
 	m.editor.headerNow = m.now()
+	if e != nil {
+		m.editor.favorite = m.isFavorite(e)
+	}
 	m.editorSession = m.ws.ActiveSession().ID
 	m.ws.ActiveView().Focus = 2
 	m.ws.ActiveView().DetailOffset = 0
 }
+
+func favoriteKey(path, entryUUID string) string { return path + "\x00" + entryUUID }
+
+func (m *Model) favoriteOverrides() map[string]bool {
+	values := make(map[string]bool)
+	if m.settings.FavoriteOverrides != "" {
+		_ = json.Unmarshal([]byte(m.settings.FavoriteOverrides), &values)
+	}
+	if values == nil {
+		values = make(map[string]bool)
+	}
+	return values
+}
+
+func (m *Model) isFavorite(entry *vault.Entry) bool {
+	if entry == nil {
+		return false
+	}
+	if session := m.ws.ActiveSession(); session != nil {
+		if value, ok := m.favoriteOverrides()[favoriteKey(session.Path, entry.UUID)]; ok {
+			return value
+		}
+	}
+	for _, tag := range entry.Tags {
+		if strings.EqualFold(tag, "Favorite") {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Model) toggleEditorFavorite() {
+	if m.editor == nil || m.editor.isNew {
+		return
+	}
+	session := m.ws.ActiveSession()
+	if session == nil || session.DB == nil {
+		return
+	}
+	values := m.favoriteOverrides()
+	want := !m.editor.favorite
+	values[favoriteKey(session.Path, m.editor.EntryUUID)] = want
+	encoded, err := json.Marshal(values)
+	if err != nil {
+		m.setNotice("Could not update favorites.", true)
+		return
+	}
+	previous := m.settings.FavoriteOverrides
+	m.settings.FavoriteOverrides = string(encoded)
+	if m.saveSettings != nil {
+		if err := m.saveSettings(m.settings); err != nil {
+			m.settings.FavoriteOverrides = previous
+			m.setNotice("Could not save favorite.", true)
+			return
+		}
+	}
+	m.editor.favorite = want
+	m.searchCache = nil
+	m.setNotice(map[bool]string{true: "Added to favorites", false: "Removed from favorites"}[want], false)
+}
+
 func (m *Model) clearEditor() {
 	if m.editor != nil {
 		m.editor.clear()
@@ -210,6 +275,9 @@ func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 	case "ctrl+w":
 		return m.leaveEditor(func() tea.Cmd { m.ws.CloseView(); m.normalize(); return m.clearClipboard() })
 	case "ctrl+l":
+		if !m.editor.isNew {
+			return m.moveEditorEntry()
+		}
 		return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) })
 	case "L": // Uppercase text is ordinary editor input; keep the all-vault action global.
 	case "ctrl+pgup", "ctrl+pgdown":
@@ -245,6 +313,8 @@ func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 		m.openGenerator()
 	case editorMove:
 		return m.moveEditorEntry()
+	case editorFavorite:
+		m.toggleEditorFavorite()
 	}
 	return nil
 }
