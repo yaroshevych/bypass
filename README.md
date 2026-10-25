@@ -8,6 +8,8 @@ where each detail is crafted: navigation, controls, keyboard shortcuts, and them
 Bypass is using KeePassXC to manage your secrets - a hardened, independently
 reviewed open source software for KDBX vaults.
 
+<img width="2880" height="1800" alt="Image" src="https://github.com/user-attachments/assets/fbd1676b-00a6-439e-9812-50138bdd63ce" />
+
 Bypass is in **beta** for Linux and macOS.
 
 - **Commands within reach.** Press `ctrl+p` to find an action. Press `?` to see
