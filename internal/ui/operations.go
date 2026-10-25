@@ -243,8 +243,22 @@ func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd { return nil })
 	case editorGenerate:
 		m.openGenerator()
+	case editorMove:
+		return m.moveEditorEntry()
 	}
 	return nil
+}
+
+func (m *Model) moveEditorEntry() tea.Cmd {
+	if m.editor == nil {
+		return nil
+	}
+	return m.leaveEditor(func() tea.Cmd {
+		if entry := m.selected(); entry != nil {
+			m.chooseDestination(entry)
+		}
+		return nil
+	})
 }
 
 func (m *Model) saveEditor() tea.Cmd {

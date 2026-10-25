@@ -7,6 +7,7 @@ import (
 
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestEntryEditorDirtyValuesAndPasswordSeparation(t *testing.T) {
@@ -86,7 +87,7 @@ func TestEntryEditorExistingDirtyTracksPasswordAndPreservesIdentity(t *testing.T
 
 func TestEntryEditorTabActionsAndNotesEnter(t *testing.T) {
 	e := newEntryEditor(nil, "group")
-	for range editFocusCount {
+	for range e.focusOrder() {
 		if action := e.key(editorTeaKey("tab")); action != editorNone {
 			t.Fatalf("Tab returned action %v", action)
 		}
@@ -104,6 +105,11 @@ func TestEntryEditorTabActionsAndNotesEnter(t *testing.T) {
 	e.focus = editGenerate
 	if action := e.key(editorTeaKey("enter")); action != editorGenerate {
 		t.Fatalf("Enter on Generator = %v", action)
+	}
+	e.focus = editGenerate
+	e.key(editorTeaKey("down"))
+	if e.focus != editSave {
+		t.Fatalf("Down from Generator in new entry focused %d, want Save", e.focus)
 	}
 	if action := e.key(tea.KeyMsg{Type: tea.KeyCtrlS}); action != editorSave {
 		t.Fatalf("Ctrl+S = %v", action)
@@ -310,6 +316,39 @@ func TestEntryEditorPointerSharesRenderedFocusMetadata(t *testing.T) {
 	}
 	if got := valueEditor.pointer(row, 65, 22); got != editorNone {
 		t.Fatalf("clicking a field whose value says Save returned %v", got)
+	}
+}
+
+func TestExistingEntryActionsShowShortcutsAndMoveDialog(t *testing.T) {
+	e := newEntryEditor(&vault.Entry{Fields: []vault.Field{{Name: "Title", Value: "Entry"}}}, "root")
+	lines := e.layoutLines(65, 30)
+	joined := strings.Join(func() []string {
+		out := make([]string, len(lines))
+		for i := range lines {
+			out[i] = ansi.Strip(lines[i].text)
+		}
+		return out
+	}(), "\n")
+	for _, want := range []string{"Generate Password…", "ctrl+g", "Move…", "ctrl+s", "esc"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("edit actions missing %q:\n%s", want, joined)
+		}
+	}
+	e.focus = editGenerate
+	e.key(editorTeaKey("down"))
+	if e.focus != editMove {
+		t.Fatalf("Down from Generator focused %d, want Move", e.focus)
+	}
+	e.key(editorTeaKey("down"))
+	if e.focus != editSave {
+		t.Fatalf("Down from Move focused %d, want Save", e.focus)
+	}
+	e.focus = editMove
+	if action := e.key(editorTeaKey("enter")); action != editorMove {
+		t.Fatalf("Enter on Move = %v", action)
+	}
+	if action := e.key(editorTeaKey("m")); action != editorMove {
+		t.Fatalf("Move shortcut = %v", action)
 	}
 }
 

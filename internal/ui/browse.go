@@ -88,6 +88,8 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 			return m.leaveEditor(func() tea.Cmd { return nil })
 		case editorGenerate:
 			m.openGenerator()
+		case editorMove:
+			return m.moveEditorEntry()
 		}
 
 		return nil

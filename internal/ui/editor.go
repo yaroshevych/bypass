@@ -19,6 +19,7 @@ const (
 	editURL
 	editNotes
 	editGenerate
+	editMove
 	editSave
 	editCancel
 	editFocusCount
@@ -31,6 +32,7 @@ const (
 	editorSave
 	editorCancel
 	editorGenerate
+	editorMove
 )
 
 var editorFields = [...]string{"Title", "UserName", "Password", "URL", "Notes"}
@@ -238,25 +240,38 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 	case "ctrl+s":
 		return editorSave
 	case "tab":
-		e.focus = (e.focus + 1) % editFocusCount
+		e.moveFocus(1)
 		return editorNone
 	case "shift+tab":
-		e.focus = (e.focus + editFocusCount - 1) % editFocusCount
+		e.moveFocus(-1)
 		return editorNone
 	}
 	if e.focus >= editGenerate {
+		if key == "m" && !e.isNew {
+			return editorMove
+		}
+		actions := e.actionFocuses()
+		position := 0
+		for i, focus := range actions {
+			if focus == e.focus {
+				position = i
+				break
+			}
+		}
 		switch key {
 		case "up":
-			e.focus = max(editGenerate, e.focus-1)
+			e.focus = actions[max(0, position-1)]
 			return editorNone
 		case "down":
-			e.focus = min(editCancel, e.focus+1)
+			e.focus = actions[min(len(actions)-1, position+1)]
 			return editorNone
 		}
 		if key == "enter" {
 			switch e.focus {
 			case editGenerate:
 				return editorGenerate
+			case editMove:
+				return editorMove
 			case editSave:
 				return editorSave
 			case editCancel:
@@ -275,7 +290,7 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 		if e.focus == editNotes {
 			e.insertNotesNewline()
 		} else {
-			e.focus = (e.focus + 1) % editFocusCount
+			e.moveFocus(1)
 		}
 		e.clearValidation()
 		return editorNone
@@ -305,7 +320,7 @@ func (e *entryEditor) pointer(row, width, height int) editorAction {
 		return editorNone
 	}
 	focus := lines[row].focus
-	if focus < 0 || focus >= editFocusCount {
+	if focus < 0 || focus >= editFocusCount || !e.hasFocus(focus) {
 		return editorNone
 	}
 	e.focus = focus
@@ -313,6 +328,8 @@ func (e *entryEditor) pointer(row, width, height int) editorAction {
 	switch focus {
 	case editGenerate:
 		return editorGenerate
+	case editMove:
+		return editorMove
 	case editSave:
 		return editorSave
 	case editCancel:
@@ -320,6 +337,41 @@ func (e *entryEditor) pointer(row, width, height int) editorAction {
 	default:
 		return editorNone
 	}
+}
+
+func (e *entryEditor) actionFocuses() []int {
+	actions := []int{editGenerate}
+	if !e.isNew {
+		actions = append(actions, editMove)
+	}
+	return append(actions, editSave, editCancel)
+}
+
+func (e *entryEditor) focusOrder() []int {
+	order := []int{editTitle, editUserName, editPassword, editURL, editNotes}
+	return append(order, e.actionFocuses()...)
+}
+
+func (e *entryEditor) hasFocus(focus int) bool {
+	for _, candidate := range e.focusOrder() {
+		if candidate == focus {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *entryEditor) moveFocus(delta int) {
+	order := e.focusOrder()
+	position := 0
+	for i, focus := range order {
+		if focus == e.focus {
+			position = i
+			break
+		}
+	}
+	position = (position + delta + len(order)) % len(order)
+	e.focus = order[position]
 }
 
 func (e *entryEditor) render(width, height int) []string {
@@ -409,11 +461,31 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 		}
 	}
 	lines = append(lines, editorLine{text: styles.rule(width), focus: -1})
-	for _, action := range []struct {
+	actions := []struct {
 		label    string
 		index    int
 		shortcut string
-	}{{"Generate Password", editGenerate, ""}, {"Save", editSave, "ctrl+s"}, {"Cancel", editCancel, "esc"}} {
+	}{{"Generate Password…", editGenerate, "ctrl+g"}}
+	if !e.isNew {
+		actions = append(actions, struct {
+			label    string
+			index    int
+			shortcut string
+		}{"Move…", editMove, "m"})
+	}
+	actions = append(actions,
+		struct {
+			label    string
+			index    int
+			shortcut string
+		}{"Save", editSave, "ctrl+s"},
+		struct {
+			label    string
+			index    int
+			shortcut string
+		}{"Cancel", editCancel, "esc"},
+	)
+	for _, action := range actions {
 		text := renderEditorAction(action.label, action.shortcut, width, e.compact, e.ascii, action.index == e.focus, styles)
 		lines = append(lines, editorLine{text: text, focus: action.index})
 	}
