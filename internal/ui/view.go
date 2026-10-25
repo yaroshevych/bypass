@@ -1038,7 +1038,7 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 		selected := e.UUID == v.SelectedUUID
 		url := strings.TrimPrefix(strings.TrimPrefix(visibleField(e, "URL"), "https://"), "http://")
 		title, username := visibleField(e, "Title"), visibleField(e, "UserName")
-		if e.HasTOTP {
+		if showNonPasswordVaultSecurity && e.HasTOTP {
 			title += " [2FA]"
 		}
 		if len(e.AttachmentNames) > 0 {

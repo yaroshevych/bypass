@@ -144,8 +144,8 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 			secrets = append(secrets, choice.id)
 		}
 	}
-	if len(secrets) == 0 || secrets[len(secrets)-1] != "totp" {
-		t.Fatalf("TOTP is not last in SECRETS: %v", secrets)
+	if len(secrets) == 0 || secrets[len(secrets)-1] == "totp" {
+		t.Fatalf("unsupported TOTP command remains in SECRETS: %v", secrets)
 	}
 	for _, choice := range choices {
 		if strings.HasPrefix(choice.id, "tab:") || strings.HasPrefix(choice.label, "Switch to ") {

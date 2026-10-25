@@ -655,10 +655,12 @@ func (m *Model) fieldNames() []string {
 	}
 	names := []string{"UserName", "Password", "URL", "Notes"}
 	seen := map[string]bool{"Title": true, "UserName": true, "Password": true, "URL": true, "Notes": true}
-	for _, f := range e.Fields {
-		if !seen[f.Name] {
-			names = append(names, f.Name)
-			seen[f.Name] = true
+	if showNonPasswordVaultSecurity {
+		for _, f := range e.Fields {
+			if !seen[f.Name] {
+				names = append(names, f.Name)
+				seen[f.Name] = true
+			}
 		}
 	}
 	if v := m.ws.ActiveView(); v != nil && v.DetailFilter != "" {

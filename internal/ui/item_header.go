@@ -53,13 +53,13 @@ func (h itemHeader) render(styles *styleSet, width int, now time.Time, accented,
 		lines = append(lines, styles.secondary.Render("  Modified "+h.modified.Local().Format("2006-01-02")))
 	}
 	lines = append(lines, styles.secondary.Render("  "+safe(h.groupPath)))
-	if h.hasTOTP {
+	if showNonPasswordVaultSecurity && h.hasTOTP {
 		lines = append(lines, styles.secondary.Render("  TOTP configured · commands to view/copy"))
 	}
 	if h.attachmentCount > 0 {
 		lines = append(lines, styles.secondary.Render(fmt.Sprintf("  Attachments: %d", h.attachmentCount)))
 	}
-	if h.historyCount > 0 {
+	if showNonPasswordVaultSecurity && h.historyCount > 0 {
 		lines = append(lines, styles.secondary.Render(fmt.Sprintf("  History snapshots: %d", h.historyCount)))
 	}
 	if h.expiryEnabled && !h.expires.IsZero() {

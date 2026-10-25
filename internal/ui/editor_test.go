@@ -408,9 +408,9 @@ func TestEntryEditorShowsUnsupportedFieldsReadOnlyAndRevealsSecrets(t *testing.T
 	}
 	e := newEntryEditor(entry, "root")
 	view := strings.Join(e.render(65, 40), "\n")
-	for _, visible := range []string{"EMAIL (READ ONLY)", "person@example.test", "RECOVERY CODE (READ ONLY)", privateValue} {
-		if !strings.Contains(view, visible) {
-			t.Fatalf("readonly custom field missing %q:\n%s", visible, view)
+	for _, hidden := range []string{"EMAIL (READ ONLY)", "person@example.test", "RECOVERY CODE (READ ONLY)", privateValue} {
+		if strings.Contains(view, hidden) {
+			t.Fatalf("unsupported custom field rendered %q:\n%s", hidden, view)
 		}
 	}
 	if _, ok := e.values()["Email"]; ok {

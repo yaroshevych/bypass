@@ -454,18 +454,20 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 			lines = append(lines, editorLine{text: styles.error.Render(e.validation), focus: i})
 		}
 	}
-	for _, field := range e.readonlyFields {
-		lines = append(lines, editorLine{focus: -1})
-		label := "  " + strings.ToUpper(safe(field.Name)) + " (READ ONLY)"
-		lines = append(lines, editorLine{text: styles.secondary.Render(label), focus: -1})
-		value := field.Value
-		if value == "" {
-			value = "—"
-		}
-		for _, paragraph := range strings.Split(value, "\n") {
-			wrapped := ansi.Wrap(safe(paragraph), max(1, width-2), "")
-			for _, text := range strings.Split(wrapped, "\n") {
-				lines = append(lines, editorLine{text: "  " + text, focus: -1})
+	if showNonPasswordVaultSecurity {
+		for _, field := range e.readonlyFields {
+			lines = append(lines, editorLine{focus: -1})
+			label := "  " + strings.ToUpper(safe(field.Name)) + " (READ ONLY)"
+			lines = append(lines, editorLine{text: styles.secondary.Render(label), focus: -1})
+			value := field.Value
+			if value == "" {
+				value = "—"
+			}
+			for _, paragraph := range strings.Split(value, "\n") {
+				wrapped := ansi.Wrap(safe(paragraph), max(1, width-2), "")
+				for _, text := range strings.Split(wrapped, "\n") {
+					lines = append(lines, editorLine{text: "  " + text, focus: -1})
+				}
 			}
 		}
 	}

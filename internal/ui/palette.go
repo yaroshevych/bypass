@@ -188,9 +188,11 @@ func (m *Model) commands() []command {
 	if reason := m.nativeReason("attachment-import", "attachment-export", "attachment-rm"); reason != "" {
 		attachmentReason = reason
 	}
-	add("totp", "Field", "TOTP", "", totpReason, "", func() tea.Cmd { return m.leaveEditor(m.openTOTP) })
+	if showNonPasswordVaultSecurity {
+		add("totp", "Field", "TOTP", "", totpReason, "", func() tea.Cmd { return m.leaveEditor(m.openTOTP) })
+		add("history-view", "Entry", "History", "", historyReason, "", func() tea.Cmd { return m.leaveEditor(m.openHistory) })
+	}
 	add("attachments", "Entry", "Attachments…", "", attachmentReason, "", func() tea.Cmd { return m.leaveEditor(m.openAttachments) })
-	add("history-view", "Entry", "History", "", historyReason, "", func() tea.Cmd { return m.leaveEditor(m.openHistory) })
 	add("grand-view", "Field", "Large View", "G", grandReason, "", m.openGrandView)
 	add("reveal", "Field", "Reveal", "v", needEntry, "", func() tea.Cmd { return m.toggleReveal() })
 	add("generator", "Field", "Password Generator", "Ctrl+G", "", "", func() tea.Cmd { m.openGenerator(); return nil })
