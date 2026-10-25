@@ -40,6 +40,8 @@ var editorFields = [...]string{"Title", "UserName", "Password", "URL", "Notes"}
 // values map.
 type entryEditor struct {
 	styles           *styleSet
+	compact          bool
+	ascii            bool
 	inputs           [5]input
 	original         map[string]string
 	originalPassword []rune
@@ -243,6 +245,14 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 		return editorNone
 	}
 	if e.focus >= editGenerate {
+		switch key {
+		case "up":
+			e.focus = max(editGenerate, e.focus-1)
+			return editorNone
+		case "down":
+			e.focus = min(editCancel, e.focus+1)
+			return editorNone
+		}
 		if key == "enter" {
 			switch e.focus {
 			case editGenerate:
@@ -403,20 +413,16 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 	}
 	lines = append(lines, editorLine{text: styles.rule(width), focus: -1})
 	for _, action := range []struct {
-		label string
-		index int
-	}{{"Generate Password", editGenerate}, {"Save", editSave}, {"Cancel", editCancel}} {
-		text := styles.secondary.Render("  " + action.label)
-		if action.index == e.focus {
-			text = styles.active.Render("› " + action.label)
-		}
+		label    string
+		index    int
+		shortcut string
+	}{{"Generate Password", editGenerate, ""}, {"Save", editSave, "ctrl+s"}, {"Cancel", editCancel, "esc"}} {
+		text := renderEditorAction(action.label, action.shortcut, width, e.compact, e.ascii, action.index == e.focus, styles)
 		lines = append(lines, editorLine{text: text, focus: action.index})
 	}
 	if e.err != "" && e.validation == "" {
 		lines = append(lines, editorLine{text: styles.error.Render(e.err), focus: -1})
 	}
-	lines = append(lines, editorLine{text: styles.rule(width), focus: -1}, editorLine{text: styles.secondary.Render("  " + editorFooter(max(0, width-2))), focus: -1})
-
 	focusedLine := 0
 	for i, line := range lines {
 		if line.focus == e.focus && strings.Contains(line.text, "▏") {
@@ -434,6 +440,46 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 		lines = append(lines, editorLine{focus: -1})
 	}
 	return lines
+}
+
+func renderEditorAction(label, shortcut string, width int, compact, ascii, selected bool, styles *styleSet) string {
+	if compact {
+		innerWidth := max(0, width-4)
+		labelWidth := innerWidth
+		if shortcut != "" {
+			labelWidth = max(0, innerWidth-ansi.StringWidth(shortcut)-1)
+		}
+		body := ansi.Truncate(label, labelWidth, "…")
+		if shortcut != "" {
+			body += strings.Repeat(" ", max(1, innerWidth-ansi.StringWidth(body)-ansi.StringWidth(shortcut))) + shortcut
+		}
+		body = fit(body, innerWidth)
+		if selected {
+			if ascii {
+				return styles.active.Render(fit("[ "+body+" ]", width))
+			}
+			return renderPill(body, width, styles.active, styles.primary)
+		}
+		return styles.secondary.Render(fit("  "+body+"  ", width))
+	}
+	left := "  " + label
+	rowWidth := width
+	if shortcut == "ctrl+s" || shortcut == "esc" {
+		rowWidth = max(0, width-1)
+	}
+	if shortcut != "" {
+		labelWidth := max(0, rowWidth-ansi.StringWidth(shortcut)-1)
+		left = ansi.Truncate(left, labelWidth, "…")
+		left += strings.Repeat(" ", max(1, rowWidth-ansi.StringWidth(left)-ansi.StringWidth(shortcut))) + shortcut
+	}
+	left = fit(left, rowWidth)
+	if rowWidth < width {
+		left += strings.Repeat(" ", width-rowWidth)
+	}
+	if selected {
+		return styles.active.Render(left)
+	}
+	return styles.secondary.Render(left)
 }
 
 func (e *entryEditor) styleSet() *styleSet {
@@ -618,19 +664,6 @@ func dirtyMarker(dirty bool) string {
 		return " *"
 	}
 	return ""
-}
-
-func editorFooter(width int) string {
-	switch {
-	case width >= 40:
-		return "tab focus · ctrl+s save · esc cancel"
-	case width >= 24:
-		return "ctrl+s save · esc cancel"
-	case width >= 12:
-		return "ctrl+s save · esc"
-	default:
-		return "ctrl+s/esc"
-	}
 }
 
 func fieldIndex(name string) int {
