@@ -196,6 +196,8 @@ func (m *Model) welcomeLines() []string {
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	headerIndent := " "
 	rows := make([]listComponentRow, 0, m.landingBodyRows())
+	rows = append(rows, listComponentRow{kind: listComponentItem, item: -1, text: m.colors().secondary.Render(" Modern, KeePass-compatible secrets manager")})
+	rows = append(rows, listComponentRow{kind: listComponentSpacer, item: -1})
 	recentCount := m.landingRecentCount()
 	if recentCount > 0 {
 		rows = append(rows, listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "RECENT ", divider: true})
@@ -257,7 +259,7 @@ func (m *Model) recentRemovalStatusBar() string {
 }
 
 func (m *Model) landingBodyRows() int {
-	contentRows := 1 + 1 // VAULTS heading and Open action.
+	contentRows := 1 + 1 + 1 + 1 // Tagline, spacing, VAULTS heading, and Open action.
 	if m.canCreateVault() {
 		contentRows++
 	}
@@ -275,7 +277,7 @@ func (m *Model) landingRecentCount() int {
 	if m.canCreateVault() {
 		actions++
 	}
-	available := m.landingMaxBodyRows() - actions - 4 // Status row, both headings, and section spacing.
+	available := m.landingMaxBodyRows() - actions - 6 // Tagline, spacing, status row, both headings, and section spacing.
 	return min(5, min(len(m.recent), max(0, available)))
 }
 
@@ -1290,6 +1292,8 @@ func (m *Model) pickerLines() []string {
 	}
 	headerIndent := " "
 	rows := make([]listComponentRow, 0, m.pickerFixedRows())
+	rows = append(rows, listComponentRow{kind: listComponentItem, item: -1, text: secondary.Render(" Open KeePass-compatible KDBX vault")})
+	rows = append(rows, listComponentRow{kind: listComponentSpacer, item: -1})
 	recentCount := m.pickerRecentCount()
 	if recentCount > 0 {
 		rows = append(rows, listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "RECENT ", divider: true})

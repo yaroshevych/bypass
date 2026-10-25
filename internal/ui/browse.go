@@ -160,7 +160,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		}
 		recentCount := m.pickerRecentCount()
 		if recentCount > 0 {
-			recentStartY := top + 3
+			recentStartY := top + 5
 			if msg.Y >= recentStartY && msg.Y < recentStartY+recentCount {
 				m.pickerEditing = false
 				m.pickerRecent = true
@@ -302,16 +302,16 @@ func (m *Model) pickerStatusBar() string {
 
 func (m *Model) pickerFixedRows() int {
 	if count := m.pickerRecentCount(); count > 0 {
-		return count + 5
+		return count + 7
 	}
-	return 4
+	return 6
 }
 
 func (m *Model) pickerPathRow() int {
 	if m.pickerRecentCount() > 0 {
-		return m.pickerRecentCount() + 2
+		return m.pickerRecentCount() + 4
 	}
-	return 1
+	return 3
 }
 
 func (m *Model) destinationPointer(msg tea.MouseMsg) {

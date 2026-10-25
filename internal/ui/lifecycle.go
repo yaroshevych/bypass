@@ -438,6 +438,9 @@ func (m *Model) lifecycleLines() []string {
 			body = append(body, path, "")
 		}
 	}
+	if l.kind == "create" {
+		body = append(body, c.secondary.Render(" Create KeePass-compatible KDBX vault"))
+	}
 	footer := "tab focus "
 	if l.kind == "create" && strings.EqualFold(m.settings.Appearance, "compact") {
 		footer += " "
