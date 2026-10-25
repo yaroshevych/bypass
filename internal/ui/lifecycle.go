@@ -369,23 +369,52 @@ func (m *Model) lifecycleKey(k tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	}
+	inputs := lifecycleFocusOrder(l)
+	actionFocus := len(lifecycleVisibleInputs(l))
+	position := 0
+	for i, index := range inputs {
+		if index == l.focus {
+			position = i
+			break
+		}
+	}
 	switch key {
 	case "tab", "down":
-		l.focus = (l.focus + 1) % len(l.inputs)
+		l.focus = inputs[min(len(inputs)-1, position+1)]
 	case "shift+tab", "up":
-		l.focus = (l.focus + len(l.inputs) - 1) % len(l.inputs)
+		l.focus = inputs[max(0, position-1)]
 	case "enter":
-		if l.focus == len(l.inputs)-1 {
+		if l.focus == actionFocus {
 			return m.submitLifecycle()
 		}
-		l.focus++
+		if l.focus == actionFocus+1 {
+			m.clearLifecycle()
+			return nil
+		}
+		if position < actionFocus {
+			l.focus = inputs[position+1]
+		}
 	case "ctrl+s":
 		return m.submitLifecycle()
 	default:
-		l.inputs[l.focus].update(k)
-		l.err = ""
+		if l.focus < actionFocus {
+			l.inputs[l.focus].update(k)
+			l.err = ""
+		}
 	}
 	return nil
+}
+
+func lifecycleVisibleInputs(l *lifecycleState) []int {
+	if l != nil && l.kind == "create" {
+		return []int{0, 1, 2}
+	}
+	return []int{0, 1}
+}
+
+func lifecycleFocusOrder(l *lifecycleState) []int {
+	fields := lifecycleVisibleInputs(l)
+	return append(fields, len(fields), len(fields)+1)
 }
 
 func (m *Model) lifecycleLines() []string {
@@ -396,7 +425,7 @@ func (m *Model) lifecycleLines() []string {
 		home, _ := os.UserHomeDir()
 		body = append(body, renderVaultPath(s.Path, home, c.accent), "")
 	}
-	footer := "Tab next · Ctrl+S submit"
+	footer := "↑/↓ move · tab focus"
 	if l.kind == "info" {
 		var wrapped []string
 		for _, line := range l.lines {
@@ -417,17 +446,19 @@ func (m *Model) lifecycleLines() []string {
 		body = append(body, cancel+"  "+proceed)
 		footer = "←→ choose"
 	} else {
-		labels := []string{"New password (blank for key-file only)", "Confirm password", "Existing key file (optional)"}
+		labels := []string{"New password", "Confirm password"}
+		indices := []int{0, 1}
 		secretStart := 0
 		if l.kind == "create" {
-			labels = append([]string{"New .kdbx path"}, labels...)
-			labels = append(labels, "Target unlock time in ms (optional)")
+			labels = []string{"New .kdbx path", "New password", "Confirm password"}
+			indices = []int{0, 1, 2}
 			secretStart = 1
 		}
 		var fields []string
-		for i, label := range labels {
-			value := l.inputs[i].display(i == secretStart || i == secretStart+1)
-			if i == l.focus {
+		for position, index := range indices {
+			label := labels[position]
+			value := l.inputs[index].display(index == secretStart || index == secretStart+1)
+			if index == l.focus {
 				label = c.accent.Render("› " + label)
 				value += "▏"
 			} else {
@@ -435,8 +466,21 @@ func (m *Model) lifecycleLines() []string {
 			}
 			fields = append(fields, label, "  "+value)
 		}
+		actionWidth := max(1, min(84, m.width-8))
+		fields = append(fields, c.rule(actionWidth))
+		actionFocus := len(indices)
+		for _, action := range []struct {
+			label, shortcut string
+			index           int
+		}{{"Save", "ctrl+s", actionFocus}, {"Cancel", "esc", actionFocus + 1}} {
+			fields = append(fields, renderEditorAction(action.label, action.shortcut, actionWidth, strings.EqualFold(m.settings.Appearance, "compact"), m.settings.ASCII, l.focus == action.index, &m.styles))
+		}
 		capacity := max(2, m.height-12)
-		start := viewportOffset(l.focus*2+1, len(fields), capacity, l.offset)
+		focusLine := l.focus*2 + 1
+		if l.focus >= actionFocus {
+			focusLine = len(indices)*2 + 1 + l.focus - actionFocus
+		}
+		start := viewportOffset(focusLine, len(fields), capacity, l.offset)
 		body = append(body, fields[start:min(len(fields), start+capacity)]...)
 	}
 	if l.err != "" {
