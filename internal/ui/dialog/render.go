@@ -131,7 +131,7 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 	if o.Compact {
 		box = []string{compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Divider, o.Pill, o.Surface, o.CompactAccessory, o.CompactAccessoryStyle, o.CompactCount)}
 	} else {
-		header := o.Accent.Render(title)
+		header := o.Accent.Render(" " + title + " ")
 		if o.HeaderContent != "" {
 			header = o.HeaderContent
 		}
@@ -197,7 +197,7 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 	footerRow := -1
 	headerRuleRow := -1
 	if !o.Compact {
-		header := o.Accent.Render("  " + title)
+		header := o.Accent.Render("   " + title + " ")
 		if o.HeaderContent != "" {
 			header = o.HeaderContent
 		}

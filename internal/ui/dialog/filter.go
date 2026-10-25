@@ -25,7 +25,7 @@ func FilterHeader(title, value string, cursor int, placeholder, count string, wi
 		return Header{Accessory: field, AccessoryStyle: styles.Fill, Count: count}
 	}
 
-	label := styles.Accent.Render(strings.ToUpper(title))
+	label := styles.Accent.Render(" " + strings.ToUpper(title) + " ")
 	separatorText := " │"
 	if ascii {
 		separatorText = " |"
