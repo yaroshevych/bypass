@@ -42,6 +42,7 @@ type Options struct {
 	Width, ScreenWidth         int
 	Height, X, Y               int
 	Compact, ASCII             bool
+	HideHeaderRule             bool
 	Surface, Accent, Secondary lipgloss.Style
 	Pill                       lipgloss.Style
 	Divider                    lipgloss.Style
@@ -194,15 +195,24 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 	inner := width - 4
 	var content []string
 	footerRow := -1
+	headerRuleRow := -1
 	if !o.Compact {
 		header := o.Accent.Render("  " + title)
 		if o.HeaderContent != "" {
 			header = o.HeaderContent
 		}
-		content = append(content, header, o.Divider.Render(strings.Repeat(horizontal, width)))
+		content = append(content, header)
+		if !o.HideHeaderRule {
+			headerRuleRow = len(content)
+			content = append(content, o.Divider.Render(strings.Repeat(horizontal, width)))
+		}
 	}
 	for _, line := range o.Body {
-		content = append(content, "  "+fit(line, inner))
+		if line == BodyRule {
+			content = append(content, BodyRule)
+		} else {
+			content = append(content, "  "+fit(line, inner))
+		}
 	}
 	if footer != "" {
 		footerRow = len(content)
@@ -232,7 +242,11 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 	}
 	frame(top-1, topBorder)
 	for i, line := range content {
-		if i == 1 && !o.Compact {
+		if line == BodyRule {
+			frame(top+i, o.Divider.Render(leftRule+strings.Repeat(horizontal, max(0, width-2))+rightRule))
+			continue
+		}
+		if i == headerRuleRow {
 			rule := leftRule + strings.Repeat(horizontal, width-2) + rightRule
 			if o.HeaderContent != "" {
 				join := "┴"

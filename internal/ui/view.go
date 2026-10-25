@@ -1182,7 +1182,24 @@ func padLines(lines []string, height int) []string {
 }
 
 func (m *Model) box(title string, body []string, statusBar string, header ...dialogrender.Header) []string {
-	return m.boxWithBodyRows(title, body, statusBar, 0, header...)
+	return m.boxWithWidth(title, body, statusBar, min(m.width-6, 82), false, header...)
+}
+
+func (m *Model) boxWithWidth(title string, body []string, statusBar string, width int, hideHeaderRule bool, header ...dialogrender.Header) []string {
+	c := m.colors()
+	theme := colorsForTheme(m.settings.Theme)
+	restoreResets := func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) }
+	headerContent, headerDivider := "", 0
+	if len(header) > 0 {
+		headerContent, headerDivider = header[0].Content, header[0].Divider
+	}
+	return dialogrender.Render(dialogrender.Options{
+		Mode: dialogrender.Box, Title: title, HeaderContent: headerContent, HeaderDivider: headerDivider,
+		Body: body, StatusBar: statusBar, Backdrop: m.modalBackdrop(), Width: min(m.width-6, width),
+		ScreenWidth: m.width, Height: m.height, Compact: strings.EqualFold(m.settings.Appearance, "compact"),
+		ASCII: m.settings.ASCII, HideHeaderRule: hideHeaderRule, Surface: c.primary, Accent: c.accent, Secondary: c.secondary,
+		Pill: c.active, Divider: c.divider, RestoreResets: restoreResets,
+	})
 }
 
 func (m *Model) boxWithBodyRows(title string, body []string, statusBar string, bodyRows int, header ...dialogrender.Header) []string {

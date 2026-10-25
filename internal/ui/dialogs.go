@@ -6,6 +6,7 @@ import (
 
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type actionDialog struct {
@@ -263,6 +264,20 @@ func (m *Model) dialogLines() []string {
 	d := m.dialog
 	compact := strings.EqualFold(m.settings.Appearance, "compact")
 	body := append([]string(nil), d.message...)
+	if d.kind == "delete" {
+		wrapped := make([]string, 0, len(body))
+		textWidth := max(1, min(m.width-6, 60)-5)
+		for i, line := range body {
+			for _, part := range strings.Split(ansi.Wrap(safe(line), textWidth, ""), "\n") {
+				part = " " + part
+				if i == 0 {
+					part = c.accent.Bold(true).Render(part)
+				}
+				wrapped = append(wrapped, part)
+			}
+		}
+		body = wrapped
+	}
 	footer := ""
 	switch d.kind {
 	case "pin-setup", "pin-confirm":
@@ -303,7 +318,18 @@ func (m *Model) dialogLines() []string {
 		footer = ""
 	default:
 		body = append(body, "")
-		body = append(body, renderDialogChoices(d.options, d.selected, compact, m.settings.ASCII, c))
+		if d.kind == "delete" {
+			actionWidth := max(1, min(m.width-6, 60)-4)
+			for i, option := range d.options {
+				shortcut := ""
+				if strings.EqualFold(option, "Cancel") {
+					shortcut = "esc"
+				}
+				body = append(body, renderDialogAction(option, shortcut, actionWidth, compact, m.settings.ASCII, i == d.selected, c))
+			}
+		} else {
+			body = append(body, renderDialogChoices(d.options, d.selected, compact, m.settings.ASCII, c))
+		}
 	}
 	if d.err != "" {
 		body = append(body, error.Render(d.err))
@@ -313,6 +339,9 @@ func (m *Model) dialogLines() []string {
 	}
 	if m.notice != "" && d.kind == "generator" {
 		footer = m.notice
+	}
+	if d.kind == "delete" {
+		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 60), false)
 	}
 	return m.box(d.title, body, footer)
 }
