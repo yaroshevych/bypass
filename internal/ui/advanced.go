@@ -18,9 +18,9 @@ type appearanceSavedMsg struct{ err error }
 func (m *Model) updateAdvanced(msg tea.Msg) (tea.Cmd, bool) {
 	if msg, ok := msg.(appearanceSavedMsg); ok {
 		if msg.err != nil {
-			m.setNotice("Appearance applied; preferences could not be saved.", true)
+			m.setNotice("appearance applied · save failed", true)
 		} else {
-			m.setNotice("Preferences saved.", false)
+			m.setNotice("preferences saved", false)
 		}
 		return nil, true
 	}
@@ -28,7 +28,7 @@ func (m *Model) updateAdvanced(msg tea.Msg) (tea.Cmd, bool) {
 }
 func (m *Model) persistPreferences() tea.Cmd {
 	if m.saveSettings == nil {
-		m.setNotice("Appearance applied for this run.", false)
+		m.setNotice("appearance applied for this run", false)
 		return nil
 	}
 	settings := m.settings
@@ -56,7 +56,7 @@ func (m *Model) syncPrivacyState() {
 }
 func (m *Model) configurePIN(protectAfter bool) {
 	if !m.anyUnlocked() {
-		m.setNotice("Unlock a vault before setting a session PIN.", true)
+		m.setNotice("unlock a vault to set a pin", true)
 		return
 	}
 	m.hideReveal()
@@ -70,7 +70,7 @@ func (m *Model) configurePIN(protectAfter bool) {
 }
 func (m *Model) protectScreen() tea.Cmd {
 	if !m.anyUnlocked() {
-		m.setNotice("Unlock a vault first.", true)
+		m.setNotice("unlock a vault first", true)
 		return nil
 	}
 	if !m.gate.Configured() {
@@ -129,7 +129,7 @@ func (m *Model) pinSetupKey(k tea.KeyMsg) tea.Cmd {
 		}
 		after := d.after
 		m.clearDialog()
-		m.setNotice("Session PIN set. Ctrl+K protects the screen.", false)
+		m.setNotice("session pin set · ctrl+k locks screen", false)
 		if after != nil {
 			return after()
 		}
@@ -300,7 +300,7 @@ func (m *Model) resizePointer(msg tea.MouseMsg) bool {
 
 func (m *Model) beginJump() tea.Cmd {
 	if m.selected() == nil {
-		m.setNotice("Select an entry first.", false)
+		m.setNotice("select an entry first", false)
 		return nil
 	}
 	m.jump = true
@@ -334,7 +334,7 @@ func (m *Model) jumpKey(k tea.KeyMsg) tea.Cmd {
 		}
 	}
 	if !found {
-		m.setNotice("That field is not present.", false)
+		m.setNotice("field not present", false)
 		return nil
 	}
 	v.DetailFilter = ""

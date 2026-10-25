@@ -199,7 +199,7 @@ func New(opts Options) *Model {
 	}
 	m.clipboard = opts.Clipboard
 	m.readOnly = opts.ReadOnly
-	m.notice = opts.Warning
+	m.notice = compactNotice(opts.Warning)
 	m.checking = make(map[string]bool)
 	m.changeDismissed = make(map[string]bool)
 	if opts.InitialPath != "" {
@@ -305,11 +305,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.recentIndex = min(m.recentIndex, max(0, len(m.recent)-1))
 		m.landingFocus = min(m.landingFocus, m.landingMaxFocus())
 		if msg.err != nil {
-			m.notice = "Recent vaults unavailable; Open Vault still works."
+			m.notice = compactNotice("recent vaults unavailable · open vault still works")
 		}
 	case landingRecentRemovedMsg:
 		if msg.err != nil {
-			m.notice = "Could not remove this recent vault."
+			m.notice = compactNotice("couldn't remove recent vault")
 			break
 		}
 		m.recent = msg.paths
@@ -326,7 +326,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case rememberedMsg:
 		if msg.err != nil {
-			m.notice = "Vault opened; recent-file state could not be saved."
+			m.notice = compactNotice("vault opened · couldn't save recent file")
 		}
 	case listingMsg:
 		if m.screen != chooseFile || msg.directory != m.directory {

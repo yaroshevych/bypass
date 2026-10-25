@@ -62,7 +62,7 @@ func (m *Model) clearLifecycle() {
 
 func (m *Model) openCreateVault() tea.Cmd {
 	if len(m.ws.Views) >= workspace.MaxTabs {
-		m.setNotice("Maximum 9 tabs. Close a tab before creating a vault.", false)
+		m.setNotice("max 9 tabs · close one to create a vault", false)
 		return nil
 	}
 	if reason := m.nativeReason("db-create"); reason != "" {
@@ -70,11 +70,11 @@ func (m *Model) openCreateVault() tea.Cmd {
 		return nil
 	}
 	if m.readOnly {
-		m.setNotice("Read only: restart without --read-only to create a vault.", true)
+		m.setNotice("restart without --read-only to create a vault", true)
 		return nil
 	}
 	if _, ok := m.backend.(vaultCreator); !ok {
-		m.setNotice("This backend cannot create vaults.", true)
+		m.setNotice("backend can't create vaults", true)
 		return nil
 	}
 	m.hideReveal()
@@ -94,11 +94,11 @@ func (m *Model) openCredentials() tea.Cmd {
 	}
 	s := m.ws.ActiveSession()
 	if s.Credentials.YubiKey != "" {
-		m.setNotice("Hardware-factor credential changes are not supported by this backend.", true)
+		m.setNotice("backend can't change hardware-factor credentials", true)
 		return nil
 	}
 	if _, ok := m.backend.(credentialChanger); !ok {
-		m.setNotice("This backend cannot change vault credentials.", true)
+		m.setNotice("backend can't change vault credentials", true)
 		return nil
 	}
 	m.hideReveal()
@@ -120,7 +120,7 @@ func (m *Model) openDatabaseInfo() tea.Cmd {
 		return nil
 	}
 	if !ok {
-		m.setNotice("Database information is unavailable from this backend.", true)
+		m.setNotice("database info unavailable", true)
 		return nil
 	}
 	m.hideReveal()
@@ -309,10 +309,10 @@ func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
 	m.restoreGroup()
 	m.normalize()
 	if result.kind == "credentials" {
-		m.setNotice("Credentials changed and verified. Encrypted backup created.", false)
+		m.setNotice("credentials changed · backup created", false)
 		return m.clearClipboard(), true
 	}
-	m.setNotice("Vault created and unlocked.", false)
+	m.setNotice("vault created · unlocked", false)
 	if m.store != nil {
 		store := m.store
 		return func() tea.Msg {

@@ -12,18 +12,18 @@ func (m *Model) openTOTP() tea.Cmd {
 	m.hideReveal()
 	session, entry := m.extraTarget()
 	if session == nil || entry == nil {
-		m.setNotice("Select an entry first.", true)
+		m.setNotice("select an entry first", true)
 		return nil
 	}
 	if !entry.HasTOTP {
-		m.setNotice("This entry has no TOTP configuration.", false)
+		m.setNotice("no totp for this entry", false)
 		return nil
 	}
 	api, ok := m.backend.(interface {
 		TOTP(context.Context, *vault.Database, vault.Credentials, string) (vault.TOTPResult, error)
 	})
 	if !ok {
-		m.setNotice("TOTP is not supported by this backend.", true)
+		m.setNotice("backend doesn't support totp", true)
 		return nil
 	}
 	m.clearExtras()

@@ -53,7 +53,7 @@ func (m *Model) confirmDelete() {
 		return
 	}
 	if v.Focus == 0 && m.currentNav().kind != "group" {
-		m.setNotice("Focus an entry or a real group before deleting.", true)
+		m.setNotice("select an entry or group to delete", true)
 		return
 	}
 	change := vault.Change{Kind: vault.DeleteEntry}
@@ -62,7 +62,7 @@ func (m *Model) confirmDelete() {
 	if v.Focus == 0 && m.currentNav().kind == "group" {
 		groupID := m.currentNav().group
 		if groupID == s.DB.RootUUID || groupID == s.DB.RecycleBinUUID {
-			m.setNotice("Root and recycle-bin groups cannot be deleted here.", true)
+			m.setNotice("can't delete root or bin groups here", true)
 			return
 		}
 		change.Kind = vault.DeleteGroup
@@ -250,7 +250,7 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 					if m.editor != nil {
 						m.editor.setPassword(d.secret)
 						m.clearDialog()
-						m.setNotice("Generated password added to draft.", false)
+						m.setNotice("password added to draft", false)
 					}
 					return nil
 				case 1:

@@ -162,7 +162,7 @@ func (m *Model) updateExtras(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		state.phase = ""
 		state.err = ""
-		m.setNotice("Attachment exported with private file permissions.", false)
+		m.setNotice("attachment exported securely", false)
 		return nil, true
 	default:
 		return nil, false
@@ -290,9 +290,9 @@ func (m *Model) extrasKey(k tea.KeyMsg) (tea.Cmd, bool) {
 			state.offset = 0
 			state.valueOffset = 0
 		case "c":
-			m.setNotice("Open a history snapshot before copying a field.", false)
+			m.setNotice("open history before copying a field", false)
 		case "v":
-			m.setNotice("Open a history snapshot before revealing a field.", false)
+			m.setNotice("open history before revealing a field", false)
 		}
 		return nil, true
 	case extraHistoryEntry:

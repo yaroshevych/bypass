@@ -70,20 +70,21 @@ func (m *Model) writable() bool {
 	if s == nil || s.DB == nil {
 		return false
 	}
+	if s.Stale {
+		m.showExternal(s.ID)
+		m.setNotice("reload required", true)
+		return false
+	}
 	if s.ReadOnly {
-		m.setNotice("Read only: enable writes with shift+r first.", true)
+		m.setNotice("read-only · press shift+r to enable", true)
 		return false
 	}
 	if m.settings.BackupDir == "" {
-		m.setNotice("Backup location unavailable. Check local state settings.", true)
-		return false
-	}
-	if s.Stale {
-		m.showExternal(s.ID)
+		m.setNotice("backup folder unavailable", true)
 		return false
 	}
 	if _, ok := m.backend.(vault.Writer); !ok {
-		m.setNotice("This backend does not support writes.", true)
+		m.setNotice("backend does not support writes", true)
 		return false
 	}
 	return true
@@ -153,14 +154,14 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		return nil, true
 	case "R":
 		if s.Stale {
-			m.setNotice("Reload the vault before changing read-only mode.", true)
+			m.setNotice("reload required", true)
 			return nil, true
 		}
 		s.ReadOnly = !s.ReadOnly
 		if s.ReadOnly {
-			m.setNotice("Read only enabled.", false)
+			m.setNotice("read-only enabled", false)
 		} else {
-			m.setNotice("Writes enabled; encrypted backup before every change.", false)
+			m.setNotice("writes enabled · encrypted backup each change", false)
 		}
 		return nil, true
 	case "ctrl+r":
@@ -231,7 +232,7 @@ func (m *Model) toggleEditorFavorite() {
 	values[favoriteKey(session.Path, m.editor.EntryUUID)] = want
 	encoded, err := json.Marshal(values)
 	if err != nil {
-		m.setNotice("Could not update favorites.", true)
+		m.setNotice("favorite update failed", true)
 		return
 	}
 	previous := m.settings.FavoriteOverrides
@@ -239,13 +240,13 @@ func (m *Model) toggleEditorFavorite() {
 	if m.saveSettings != nil {
 		if err := m.saveSettings(m.settings); err != nil {
 			m.settings.FavoriteOverrides = previous
-			m.setNotice("Could not save favorite.", true)
+			m.setNotice("favorite save failed", true)
 			return
 		}
 	}
 	m.editor.favorite = want
 	m.searchCache = nil
-	m.setNotice(map[bool]string{true: "Added to favorites", false: "Removed from favorites"}[want], false)
+	m.setNotice(map[bool]string{true: "added to favorites", false: "removed from favorites"}[want], false)
 }
 
 func (m *Model) clearEditor() {
@@ -340,7 +341,7 @@ func (m *Model) saveEditor() tea.Cmd {
 	}
 	if !m.editor.isNew && !m.editor.dirty() {
 		m.clearEditor()
-		m.setNotice("No changes.", false)
+		m.setNotice("no changes", false)
 		return nil
 	}
 	change := vault.Change{Kind: vault.EditEntry, EntryUUID: m.editor.EntryUUID, GroupUUID: m.editor.GroupUUID, Values: m.editor.values(), PasswordChanged: m.editor.passwordChanged()}
@@ -475,7 +476,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		m.restoreGroup()
 		m.normalize()
 		m.selectResult(msg.change)
-		m.setNotice("Saved. Encrypted backup created.", false)
+		m.setNotice("saved · backup created", false)
 		if after != nil {
 			return after(), true
 		}
@@ -489,7 +490,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		m.cancelOperation()
 		if msg.err != nil {
-			m.setNotice("Reload failed. Check file access; lock and unlock again if credentials changed.", true)
+			m.setNotice("reload failed · check file access or credentials", true)
 			return nil, true
 		}
 		if m.extras != nil && m.extras.sessionID == msg.sessionID {
@@ -505,7 +506,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		m.changeDismissed[msg.sessionID] = false
 		m.restoreGroup()
 		m.normalize()
-		m.setNotice("Vault reloaded.", false)
+		m.setNotice("vault reloaded", false)
 		return nil, true
 	case generatedMsg:
 		defer clear(msg.value)
@@ -529,11 +530,11 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		if msg.err != nil {
-			m.setNotice("Copy failed. System clipboard unavailable.", true)
+			m.setNotice("copy failed · clipboard unavailable", true)
 			return nil, true
 		}
 		m.clipboardExpires = msg.expires
-		m.setNotice(msg.label+" copied.", false)
+		m.setNotice(msg.label+" copied", false)
 		id := msg.id
 		delay := max(time.Duration(0), msg.expires.Sub(m.now()))
 		return tea.Tick(delay, func(now time.Time) tea.Msg { return clipboardExpiryMsg{id, now} }), true
@@ -544,7 +545,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		if msg.err != nil {
 			clear(msg.value)
-			m.setNotice("Could not resolve field. Reload if vault changed.", true)
+			m.setNotice("field unavailable · reload if vault changed", true)
 			return nil, true
 		}
 		return m.copyValue(msg.value, msg.label), true
@@ -559,7 +560,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		if msg.err != nil {
 			m.hideReveal()
-			m.setNotice("Could not resolve field. Reload if vault changed.", true)
+			m.setNotice("field unavailable · reload if vault changed", true)
 			return nil, true
 		}
 		clear(m.revealValue)
@@ -580,7 +581,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		}, true
 	case clipboardClearedMsg:
 		if msg.err != nil {
-			m.setNotice("Could not clear clipboard; clear it manually.", true)
+			m.setNotice("clipboard clear failed · clear it manually", true)
 		}
 		return nil, true
 	case tickMsg:
@@ -603,19 +604,19 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 func writeError(err error) string {
 	switch {
 	case errors.Is(err, vault.ErrExternalChanged):
-		return "File changed externally. Reload before saving."
+		return "file changed externally · reload before saving"
 	case errors.Is(err, vault.ErrAmbiguous):
-		return "Cannot safely select this item: duplicate or ambiguous path."
+		return "can't select item · duplicate path"
 	case errors.Is(err, vault.ErrUnsupported):
-		return "Unsupported change. Check field values and item names."
+		return "unsupported change · check fields and item names"
 	case errors.Is(err, vault.ErrReadOnly):
-		return "Vault file is read only."
+		return "vault file is read-only"
 	case errors.Is(err, vault.ErrBackup):
-		return "Backup failed. Vault was not changed. Check backup location."
+		return "backup failed · vault unchanged"
 	case errors.Is(err, vault.ErrCanceled):
-		return "Operation canceled. Reload to check current state."
+		return "operation canceled · reload to check status"
 	default:
-		return "Save failed. Draft retained; check access, credentials and backend support."
+		return "save failed · draft kept · check access or credentials"
 	}
 }
 
@@ -699,7 +700,7 @@ func (m *Model) copyField(name string) tea.Cmd {
 			ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
 		})
 		if !ok {
-			m.setNotice("Field references are not supported by this backend.", true)
+			m.setNotice("backend doesn't support field references", true)
 			return nil
 		}
 		if m.clipCancel != nil {
@@ -725,7 +726,7 @@ func (m *Model) copyField(name string) tea.Cmd {
 func (m *Model) copyValue(value []byte, label string) tea.Cmd {
 	if m.clipboard == nil {
 		clear(value)
-		m.setNotice("System clipboard unavailable.", true)
+		m.setNotice("clipboard unavailable", true)
 		return nil
 	}
 	if m.clipCancel != nil {
@@ -790,7 +791,7 @@ func (m *Model) toggleReveal() tea.Cmd {
 		})
 		if !ok {
 			m.hideReveal()
-			m.setNotice("Field references are not supported by this backend.", true)
+			m.setNotice("backend doesn't support field references", true)
 			return nil
 		}
 		ctx, cancel := context.WithCancel(m.ctx)
@@ -848,11 +849,16 @@ func (m *Model) requestReload(id string) tea.Cmd {
 	return m.reload(id)
 }
 func (m *Model) setNotice(text string, persistent bool) {
-	m.notice = safe(text)
+	m.notice = compactNotice(text)
 	m.noticeExpires = time.Time{}
 	if !persistent {
 		m.noticeExpires = m.now().Add(3 * time.Second)
 	}
+}
+
+func compactNotice(text string) string {
+	text = strings.ToLower(strings.TrimSpace(safe(text)))
+	return strings.TrimRight(text, ".! ")
 }
 
 func (m *Model) lockCurrent(all bool) tea.Cmd {

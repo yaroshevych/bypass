@@ -246,7 +246,7 @@ func (m *Model) duplicateTab() tea.Cmd {
 		return nil
 	}
 	if !m.ws.Duplicate() && len(m.ws.Views) >= workspace.MaxTabs {
-		m.setNotice("Maximum 9 tabs. Close a tab to add another.", false)
+		m.setNotice("max 9 tabs · close one to add another", false)
 	}
 	m.normalize()
 	return nil

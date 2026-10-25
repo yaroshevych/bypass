@@ -15,11 +15,11 @@ func (m *Model) openHistory() tea.Cmd {
 	m.hideReveal()
 	session, entry := m.extraTarget()
 	if session == nil || entry == nil {
-		m.setNotice("Select an entry first.", true)
+		m.setNotice("select an entry first", true)
 		return nil
 	}
 	if len(entry.History) == 0 {
-		m.setNotice("This entry has no history snapshots.", false)
+		m.setNotice("no history for this entry", false)
 		return nil
 	}
 	m.clearExtras()
@@ -176,11 +176,11 @@ func (m *Model) copyHistoryField(state *extraState) tea.Cmd {
 	}
 	field := entry.Fields[state.fieldIndex]
 	if isTOTPSeedField(field.Name) {
-		m.setNotice("TOTP seeds stay hidden; use Show / Copy TOTP for a current code.", false)
+		m.setNotice("totp seed hidden · use show / copy for a current code", false)
 		return nil
 	}
 	if strings.Contains(field.Value, "{REF:") {
-		m.setNotice("Historical field references cannot be resolved here.", false)
+		m.setNotice("can't resolve historical field here", false)
 		return nil
 	}
 	return m.copyValue([]byte(field.Value), field.Name+" from history")
@@ -193,11 +193,11 @@ func (m *Model) revealHistoryField(state *extraState) tea.Cmd {
 	}
 	field := entry.Fields[state.fieldIndex]
 	if isTOTPSeedField(field.Name) {
-		m.setNotice("TOTP seeds stay hidden; use Show / Copy TOTP for a current code.", false)
+		m.setNotice("totp seed hidden · use show / copy for a current code", false)
 		return nil
 	}
 	if strings.Contains(field.Value, "{REF:") {
-		m.setNotice("Historical field references cannot be resolved here.", false)
+		m.setNotice("can't resolve historical field here", false)
 		return nil
 	}
 	if state.revealedField == field.Name && len(state.revealedValue) != 0 {

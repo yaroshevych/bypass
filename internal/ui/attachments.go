@@ -20,7 +20,7 @@ func (m *Model) openAttachments() tea.Cmd {
 	m.hideReveal()
 	session, entry := m.extraTarget()
 	if session == nil || entry == nil {
-		m.setNotice("Select an entry first.", true)
+		m.setNotice("select an entry first", true)
 		return nil
 	}
 	m.clearExtras()
