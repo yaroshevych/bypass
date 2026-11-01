@@ -79,6 +79,9 @@ rules, permissions, and timeout configuration.
 
 ## Security
 
+**Bypass relies on KeePassXC for vault encryption and saving rather than
+reimplementing them.**
+
 Vaults and backups remain encrypted on disk. KeePassXC saves vaults directly;
 Bypass keeps the five newest encrypted backups across all vaults.
 
