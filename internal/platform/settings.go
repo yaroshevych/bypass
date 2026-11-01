@@ -20,6 +20,7 @@ const (
 )
 
 type Settings struct {
+	RunTimeout         time.Duration
 	IdleTimeout        time.Duration
 	PINIdleTimeout     time.Duration
 	ClipboardTimeout   time.Duration
@@ -33,6 +34,7 @@ type Settings struct {
 }
 
 type settingsFile struct {
+	RunTimeoutSeconds       *int64  `json:"run_timeout_seconds"`
 	GrandViewGroupSize      *int    `json:"grand_view_group_size"`
 	IdleTimeoutSeconds      *int64  `json:"idle_timeout_seconds"`
 	PINIdleTimeoutMinutes   *int64  `json:"pin_idle_timeout_minutes"`
@@ -93,6 +95,12 @@ func LoadSettings(paths Paths) (Settings, error) {
 		return defaults, fmt.Errorf("invalid settings file: %w", err)
 	}
 	settings := defaults
+	if file.RunTimeoutSeconds != nil {
+		if *file.RunTimeoutSeconds <= 0 || *file.RunTimeoutSeconds > int64((1<<63-1)/int64(time.Second)) {
+			return defaults, errors.New("invalid run timeout")
+		}
+		settings.RunTimeout = time.Duration(*file.RunTimeoutSeconds) * time.Second
+	}
 	if file.PINIdleTimeoutMinutes != nil {
 		if *file.PINIdleTimeoutMinutes < 1 || *file.PINIdleTimeoutMinutes > 60 {
 			return defaults, errors.New("PIN idle timeout must be between 1 and 60 minutes")
