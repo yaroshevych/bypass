@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -80,6 +81,23 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	command[0] = executable
+	if len(command) > 1 && !strings.HasPrefix(command[1], "-") {
+		name := strings.ToLower(filepath.Base(executable))
+		interpreter := false
+		for _, prefix := range []string{"sh", "bash", "zsh", "dash", "fish", "python", "node", "ruby", "perl", "php", "deno", "bun", "lua", "pwsh"} {
+			if strings.HasPrefix(name, prefix) {
+				interpreter = true
+			}
+		}
+		if interpreter {
+			script, err := runpkg.PlainPath(command[1])
+			if err != nil {
+				return err
+			}
+			command[1] = script
+		}
+	}
+
 	var readers []io.Reader
 	for _, path := range files {
 		path, err = runpkg.PlainPath(path)

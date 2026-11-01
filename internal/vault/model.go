@@ -206,6 +206,15 @@ func (d *Database) TransferInteractive(other *Database) {
 	}
 }
 
+// BorrowInteractiveOwnership marks an update as a borrowed model while its
+// original workspace session retains ownership of the native process. Callers
+// must use this only on private results, never on a live workspace database.
+func (d *Database) BorrowInteractiveOwnership() {
+	if d != nil {
+		d.interactiveOwner = false
+	}
+}
+
 // Interactive reports whether this database uses a live, credential-free CLI session.
 func (d *Database) Interactive() bool { return d != nil && d.interactive != nil }
 

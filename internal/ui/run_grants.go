@@ -97,7 +97,7 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 					if err != nil {
 						return err
 					}
-					updated.TransferInteractive(target.database)
+					updated.BorrowInteractiveOwnership()
 					db.Clear()
 					db = updated
 					snapshots[target.session] = db
