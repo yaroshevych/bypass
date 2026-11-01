@@ -77,3 +77,56 @@ in total across all vaults.
 
 Bypass uses the [MIT License](LICENSE). KeePassXC is a separate program with its
 own license.
+
+### Run a command with secrets
+
+Open Bypass and unlock the vault first. Put references in the environment or a
+file, then run the command:
+
+```sh
+bypass run --env-file .env -- codex
+```
+
+```dotenv
+API_KEY=bypass://OpenAI#password
+DATABASE_URL=postgres://${bypass://work.kdbx/Database#password}@localhost/db
+```
+
+Use `#field` for a standard or custom field. The default is `password`. Use
+`${bypass://...}` when a reference is part of a larger value. A vault qualifier
+can be a filename or an absolute file path, for example
+`bypass:///Users/me/vaults/work/Work/OpenAI#password`. Absolute paths do not
+require a file extension. Percent-encode reserved characters within names.
+Later `--env-file` files override earlier files and the inherited environment.
+Environment files support `KEY=value` and single or double quoted values;
+values are literal and do not undergo shell expansion.
+
+Press `ctrl+r` in the TUI to view pending requests. Select a request and press
+Enter to review it. Use `a` to allow once, `p` to allow in the current directory,
+`w` to allow that recipient across directories, or `d` to deny. Choose a vault
+in the TUI if a reference has more than one match. Press Esc to return to the
+vault, for example to unlock another vault while the request waits.
+
+Persistent grants are metadata entries in the vault's **Bypass Run Permissions**
+group. They require a writable vault. From the pending requests screen, press
+`g` to open that group in the current vault. Delete a permission entry to revoke
+it, or delete the group to revoke all its permissions. A rename or move of the
+secret entry requires approval again. Changing its value retains approval.
+Shells and known interpreters currently support Allow once only.
+
+The default approval timeout is 60 seconds. Set `--timeout 2m` for one command,
+or set `"run_timeout_seconds": 120` in the Bypass `config.json` file. The command
+line takes precedence. The timeout must be positive and applies only before
+launch. Once launched, **Bypass never interrupts the child**, including when a
+vault locks or the TUI closes. The child keeps the environment it received.
+Output is not masked.
+
+Only plain paths are supported. Bypass rejects observable symlinks in vault,
+command, environment-file and working-directory paths. Use the physical
+executable path if a command on PATH is a symlink.
+
+IPC uses a private Unix socket, verifies the peer UID, and compares executable
+content with the running Bypass binary. This is best-effort local authentication.
+It does not create a strong boundary against malicious software running as the
+same user. Recipient permissions trust the authenticated Bypass client to launch
+the command it reports. The child receives plaintext secrets in its environment.
