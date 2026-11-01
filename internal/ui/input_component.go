@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 
+	"bypass/internal/ui/glyphs"
+
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -51,7 +53,7 @@ func renderDialogAction(label, shortcut string, width int, compact, ascii, selec
 				return styles.active.Render(fit("["+body+"]", width))
 			}
 			edge := styles.primary.Foreground(styles.active.GetBackground())
-			return fit(edge.Render("\ue0b6")+styles.active.Render(body)+edge.Render("\ue0b4"), width)
+			return fit(edge.Render(glyphs.Left())+styles.active.Render(body)+edge.Render(glyphs.Right()), width)
 		}
 		return styles.secondary.Render(fit(" "+body+" ", width))
 	}
@@ -127,7 +129,7 @@ func renderInputBox(field inputFieldView, width int, compact bool, innerPadding 
 		pad := strings.Repeat(" ", innerPadding)
 		center := styles.inactive.Render(pad+before) + styles.active.Render(caret) + styles.inactive.Render(after+strings.Repeat(" ", padding)+pad)
 		edge := styles.primary.Foreground(styles.inactive.GetBackground())
-		return fit(edge.Render("\ue0b6")+center+edge.Render("\ue0b4"), width)
+		return fit(edge.Render(glyphs.Left())+center+edge.Render(glyphs.Right()), width)
 	}
 	indent := max(0, field.indent)
 	budget := max(0, width-indent-2)

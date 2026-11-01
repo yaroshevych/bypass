@@ -34,10 +34,12 @@ THEME_COLORS = {
 
 def capture(args, fixture, cli, output):
     name = f'{args.screen}-{args.appearance}-{args.theme}-{args.width}x{args.height}'
+    if args.color_mode == '256':
+        name += '-256'
     with tempfile.TemporaryDirectory(prefix='bypass-visual-') as directory:
         root = Path(directory)
         env = os.environ.copy()
-        env.update(TMUX='', TERM='xterm-256color', COLORTERM='truecolor',
+        env.update(TMUX='', TERM='xterm-256color', COLORTERM='truecolor' if args.color_mode == 'truecolor' else '',
                    CLICOLOR_FORCE='1', NO_COLOR='', TZ='UTC', LC_ALL='C.UTF-8')
         for key in ('HOME', 'XDG_CONFIG_HOME', 'XDG_STATE_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME'):
             path = root / key.lower()
@@ -105,10 +107,10 @@ def capture(args, fixture, cli, output):
         try:
             tmux('-f', tmux_config, 'new-session', '-d', '-x', 120, '-y', 35,
                  '-s', 'visual', '-c', PROJECT, str(launcher))
-            wait('Open Vault')
+            wait('VAULTS')
             if args.screen != 'welcome':
                 key('C-o')
-                wait('Path ·')
+                wait('OPEN VAULT')
                 if args.screen != 'file-picker':
                     key('C-u')
                     text(str(vault))
@@ -178,7 +180,8 @@ def capture(args, fixture, cli, output):
             metadata = vars(args).copy()
             metadata.update(font_sha256=hashlib.sha256(Path(args.font).read_bytes()).hexdigest(),
                             pillow=PIL.__version__, capture='tmux SGR rasterization',
-                            fixture='synthetic native KeePassXC vault', baseline=False)
+                            fixture='synthetic native KeePassXC vault', baseline=False,
+                            color_note='256-color terminal environment' if args.color_mode == '256' else 'truecolor')
             (output / (name + '.json')).write_text(json.dumps(metadata, indent=2))
             print(output / (name + '.png'), flush=True)
         finally:
@@ -194,6 +197,8 @@ def main():
     parser.add_argument('--height', type=int, default=35)
     parser.add_argument('--font', default=os.environ.get('BYPASS_SCREENSHOT_FONT', '/System/Library/Fonts/Menlo.ttc'))
     parser.add_argument('--output', default=str(PROJECT / 'evals/artifacts/screenshots'))
+    parser.add_argument('--color-mode', choices=('truecolor', '256'), default='truecolor',
+                        help='terminal color capability to capture')
     parser.add_argument('--all', action='store_true')
     parser.add_argument('--list', action='store_true')
     args = parser.parse_args()
@@ -220,7 +225,7 @@ def main():
         else:
             capture(args, fixture, cli, output)
     images = sorted(output.glob('*.png'))
-    gallery = '<!doctype html><meta charset="utf-8"><title>Bypass visual review</title><style>body{background:#181926;color:#cad3f5;font:16px monospace}img{max-width:100%;display:block}figure{margin:24px 0}</style><h1>Visual review — synthetic data</h1><p>tmux captures rasterized with a fixed font. No approved pixel baselines yet.</p>'
+    gallery = '<!doctype html><meta charset="utf-8"><title>Bypass visual review</title><style>body{background:#181926;color:#cad3f5;font:16px monospace}img{max-width:100%;display:block}figure{margin:24px 0}</style><h1>Visual review — synthetic data</h1><p>tmux captures rasterized with a fixed font. Captures show the application output in the selected terminal color environment. No approved pixel baselines yet.</p>'
     for path in images:
         gallery += f'<figure><figcaption>{html.escape(path.stem)}</figcaption><a href="{path.name}"><img loading="lazy" src="{path.name}"></a></figure>'
     (output / 'index.html').write_text(gallery)

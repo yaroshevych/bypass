@@ -5,6 +5,8 @@ package dialog
 import (
 	"strings"
 
+	"bypass/internal/ui/glyphs"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -285,7 +287,7 @@ func compactTopBorder(width int, title string, ascii bool, horizontal, leftCorne
 			accessory += accessoryStyle.Render("]")
 		} else {
 			edge := surface.Foreground(accessoryStyle.GetBackground())
-			accessory += edge.Render("\ue0b4")
+			accessory += edge.Render(glyphs.Right())
 		}
 		remaining := max(0, budget-lipgloss.Width(accessory))
 		return prefix + accessory + line.Render(strings.Repeat(horizontal, remaining)) + suffix
@@ -307,8 +309,8 @@ func renderTitlePillWithRightSurface(title string, width int, ascii bool, style,
 		return style.Render("[" + fit(title, max(0, pillWidth-2)) + "]")
 	}
 	center := style.Render(fit(title, max(0, pillWidth-2)))
-	left := leftSurface.Foreground(style.GetBackground()).Render("\ue0b6")
-	right := rightSurface.Foreground(style.GetBackground()).Render("\ue0b4")
+	left := leftSurface.Foreground(style.GetBackground()).Render(glyphs.Left())
+	right := rightSurface.Foreground(style.GetBackground()).Render(glyphs.Right())
 	return fit(left+center+right, pillWidth)
 }
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 )
 
 func TestThemeCatalogAndFallback(t *testing.T) {
@@ -42,6 +43,63 @@ func TestRestoreThemeResetsKeepsSurfaceAfterNestedStyles(t *testing.T) {
 	want := "\x1b[38;2;1;2;3mX\x1b[38;2;248;248;242mY\x1b[48;2;40;42;54mZ\x1b[0;38;2;248;248;242;48;2;40;42;54m"
 	if got := restoreThemeResets(input, "#f8f8f2", "#282a36"); got != want {
 		t.Fatalf("theme resets were not restored: %q", got)
+	}
+}
+
+func Test256ThemesMaintainContrast(t *testing.T) {
+	for _, name := range themeNames() {
+		c := colors256(trueColorsForTheme(name))
+		for role, pair := range map[string]struct {
+			fg, bg  string
+			minimum float64
+		}{
+			"primary": {c.primary, c.background, 4.5}, "secondary": {c.secondary, c.background, 3},
+			"divider": {c.divider, c.background, 3}, "accent": {c.accent, c.background, 4.5},
+			"error": {c.error, c.background, 4.5}, "selection": {c.selectedForeground, c.selectedBackground, 4.5},
+			"inactive": {c.primary, c.inactiveBackground, 4.5},
+		} {
+			if got := contrast256(parseThemeRGB(pair.fg), parseThemeRGB(pair.bg)); got < pair.minimum {
+				t.Errorf("%s %s contrast %.2f < %.2f", name, role, got, pair.minimum)
+			}
+		}
+	}
+}
+
+func TestCompactEdgesFollowColorProfile(t *testing.T) {
+	previous := lipgloss.ColorProfile()
+	defer lipgloss.SetColorProfile(previous)
+	for _, tc := range []struct {
+		profile termenv.Profile
+		want    string
+	}{{termenv.ANSI256, "█"}, {termenv.ANSI, "█"}, {termenv.TrueColor, "\ue0b6"}} {
+		lipgloss.SetColorProfile(tc.profile)
+		m := New(Options{})
+		m.settings.Appearance = "compact"
+		m.ws.Open(fixture("/tmp/edges.kdbx"))
+		m.width, m.height = 120, 35
+		if view := m.View(); !strings.Contains(view, tc.want) {
+			t.Errorf("profile %v missing edge %q", tc.profile, tc.want)
+		}
+	}
+}
+
+func TestRestoreThemeResetsUsesTerminalPalette(t *testing.T) {
+	previous := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.ANSI256)
+	defer lipgloss.SetColorProfile(previous)
+	for _, name := range themeNames() {
+		colors := colorsForTheme(name)
+		// Both nested styles and restored surfaces must emit the same palette entry.
+		style := stylesForTheme(name).primary.Render("x")
+		sequence := "\x1b[" + termenv.ANSI256.Color(string(paletteColor(colors.background))).Sequence(true) + "m"
+		if !strings.Contains(style, strings.TrimPrefix(sequence, "\x1b[")) {
+			t.Errorf("%s style missing background %q: %q", name, sequence, style)
+		}
+		got := restoreThemeResets("\x1b[49m", colors.primary, colors.background)
+		want := "\x1b[" + termenv.ANSI256.Color(string(paletteColor(colors.background))).Sequence(true) + "m"
+		if got != want {
+			t.Errorf("%s background reset = %q, want %q", name, got, want)
+		}
 	}
 }
 

@@ -3,8 +3,11 @@ package ui
 import (
 	"strings"
 
+	"bypass/internal/ui/glyphs"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 )
 
 var shortcutLabelCaser = strings.NewReplacer(
@@ -39,19 +42,27 @@ func themeNames() []string {
 
 func stylesForTheme(name string) styleSet {
 	c := colorsForTheme(name)
-	background := lipgloss.Color(c.background)
+	background := paletteColor(c.background)
 	return styleSet{
-		primary:   lipgloss.NewStyle().Foreground(lipgloss.Color(c.primary)).Background(background),
-		secondary: lipgloss.NewStyle().Foreground(lipgloss.Color(c.secondary)).Background(background),
-		accent:    lipgloss.NewStyle().Foreground(lipgloss.Color(c.accent)).Background(background).Bold(true),
-		error:     lipgloss.NewStyle().Foreground(lipgloss.Color(c.error)).Background(background),
-		divider:   lipgloss.NewStyle().Foreground(lipgloss.Color(c.divider)).Background(background),
-		active:    lipgloss.NewStyle().Foreground(lipgloss.Color(c.selectedForeground)).Background(lipgloss.Color(c.selectedBackground)).Bold(true),
-		inactive:  lipgloss.NewStyle().Foreground(lipgloss.Color(c.primary)).Background(lipgloss.Color(c.inactiveBackground)),
+		primary:   lipgloss.NewStyle().Foreground(paletteColor(c.primary)).Background(background),
+		secondary: lipgloss.NewStyle().Foreground(paletteColor(c.secondary)).Background(background),
+		accent:    lipgloss.NewStyle().Foreground(paletteColor(c.accent)).Background(background).Bold(true),
+		error:     lipgloss.NewStyle().Foreground(paletteColor(c.error)).Background(background),
+		divider:   lipgloss.NewStyle().Foreground(paletteColor(c.divider)).Background(background),
+		active:    lipgloss.NewStyle().Foreground(paletteColor(c.selectedForeground)).Background(paletteColor(c.selectedBackground)).Bold(true),
+		inactive:  lipgloss.NewStyle().Foreground(paletteColor(c.primary)).Background(paletteColor(c.inactiveBackground)),
 	}
 }
 
 func colorsForTheme(name string) themeColors {
+	c := trueColorsForTheme(name)
+	if lipgloss.ColorProfile() == termenv.ANSI256 {
+		return colors256(c)
+	}
+	return c
+}
+
+func trueColorsForTheme(name string) themeColors {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "mocha":
 		return themeColors{"#1e1e2e", "#cdd6f4", "#cba6f7", "#a6adc8", "#585b70", "#1e1e2e", "#cdd6f4", "#45475a", "#f38ba8"}
@@ -94,7 +105,7 @@ func renderPillTight(text string, width int, style, surface lipgloss.Style) stri
 		return style.Render(fit(text, width))
 	}
 	edge := surface.Foreground(style.GetBackground())
-	return fit(edge.Render("\ue0b6")+style.Render(fit(text, width-2))+edge.Render("\ue0b4"), width)
+	return fit(edge.Render(glyphs.Left())+style.Render(fit(text, width-2))+edge.Render(glyphs.Right()), width)
 }
 
 func (m *Model) pillOn(text string, width int, focused bool, surface lipgloss.Style) string {
@@ -117,7 +128,7 @@ func renderPillWithRightSurface(text string, width int, style, leftSurface, righ
 	center := style.Render(" ") + style.Render(fit(text, max(0, width-4))) + style.Render(" ")
 	leftEdge := leftSurface.Foreground(style.GetBackground())
 	rightEdge := rightSurface.Foreground(style.GetBackground())
-	return fit(leftEdge.Render("\ue0b6")+center+rightEdge.Render("\ue0b4"), width)
+	return fit(leftEdge.Render(glyphs.Left())+center+rightEdge.Render(glyphs.Right()), width)
 }
 
 func renderPillWithCaret(text, caret string, width int, style, caretStyle, surface lipgloss.Style) string {
@@ -129,7 +140,7 @@ func renderPillWithCaret(text, caret string, width int, style, caretStyle, surfa
 	padding := max(0, contentWidth-lipgloss.Width(text)-lipgloss.Width(caret))
 	center := style.Render(" ") + style.Render(text) + caretStyle.Render(caret) + style.Render(strings.Repeat(" ", padding)) + style.Render(" ")
 	edge := surface.Foreground(style.GetBackground())
-	return fit(edge.Render("\ue0b6")+center+edge.Render("\ue0b4"), width)
+	return fit(edge.Render(glyphs.Left())+center+edge.Render(glyphs.Right()), width)
 }
 
 func (m *Model) themedRule(width int) string {

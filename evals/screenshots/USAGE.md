@@ -7,6 +7,7 @@ just screenshot palette compact latte
 just screenshot editor compact macchiato 60 20
 just screenshot-list
 just screenshot-check
+python3 evals/screenshots/capture.py workspace --theme latte --color-mode 256 --output evals/artifacts/screenshots-256-preview
 ```
 
 Requires Python/Pillow, tmux, keepassxc-cli, Go, just, and Menlo on macOS.
@@ -20,3 +21,6 @@ paths and cursor state can vary; no approved reference images or pixel compariso
 exist yet. Add those after manual polish. The renderer covers the SGR and simple
 Unicode used in these fixtures; it does not reproduce every terminal/font engine.
 Powerline pill caps use explicit cell geometry because Menlo lacks those glyphs.
+
+The `256` mode captures application output with `TERM=xterm-256color` and
+`COLORTERM` unset. Images are rendered from the captured terminal sequences.

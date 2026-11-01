@@ -9,10 +9,13 @@ import (
 	"unicode"
 
 	dialogrender "bypass/internal/ui/dialog"
+	"bypass/internal/ui/glyphs"
 	"bypass/internal/workspace"
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 )
 
 // safe prevents vault text or filenames from injecting terminal control sequences.
@@ -136,6 +139,11 @@ func restoreThemeResets(text, foreground, background string) string {
 	fg, bg := parse(foreground), parse(background)
 	restoreFG := []string{"38", "2", fg[0], fg[1], fg[2]}
 	restoreBG := []string{"48", "2", bg[0], bg[1], bg[2]}
+	profile := lipgloss.ColorProfile()
+	if profile == termenv.ANSI256 || profile == termenv.ANSI {
+		restoreFG = strings.Split(profile.Color(string(paletteColor(foreground))).Sequence(false), ";")
+		restoreBG = strings.Split(profile.Color(string(paletteColor(background))).Sequence(true), ";")
+	}
 	var out strings.Builder
 	for i := 0; i < len(text); {
 		if text[i] != '\x1b' || i+1 >= len(text) || text[i+1] != '[' {
@@ -414,7 +422,7 @@ func (m *Model) workspaceLines() []string {
 	}
 	if compact && !m.settings.ASCII {
 		edge := styles.primary.Foreground(styles.inactive.GetBackground())
-		tabLine = edge.Render("\ue0b6") + tabLine + edge.Render("\ue0b4")
+		tabLine = edge.Render(glyphs.Left()) + tabLine + edge.Render(glyphs.Right())
 	}
 	lines = append(lines, fit(tabLine, w))
 	if !compact {
@@ -576,13 +584,13 @@ func (m *Model) searchFooterLine(text, contextual string, applied bool) string {
 		}
 		width := lipgloss.Width(content) + 2 // one cell of inner padding per side plus caps
 		edge := c.primary.Foreground(style.GetBackground())
-		control := fit(edge.Render("\ue0b6")+content+edge.Render("\ue0b4"), width)
+		control := fit(edge.Render(glyphs.Left())+content+edge.Render(glyphs.Right()), width)
 		badge := m.footerBadge() + " "
 		if m.settings.ASCII {
 			control = fit(style.Render("[")+content+style.Render("]"), width)
 		} else {
 			badge = m.footerBadgeJoinedTo(c.inactive) + c.inactive.Render(" ")
-			control = fit(c.inactive.Render(" ")+content+edge.Render("\ue0b4"), width)
+			control = fit(c.inactive.Render(" ")+content+edge.Render(glyphs.Right()), width)
 		}
 		left := badge + control
 		if contextual != "" {

@@ -117,7 +117,9 @@ def render(capture, destination, columns, rows, font_path, font_size, foreground
             draw.rectangle((x, y, x + cw * width - 1, y + ch - 1), fill=paper)
             baseline = y + (ch - ascent - descent) // 2 + ascent
             face = bold if weight else regular
-            if char in ('\ue0b6', '\ue0b4'):
+            if char == '█':
+                draw.rectangle((x, y, x + cw - 1, y + ch - 1), fill=ink)
+            elif char in ('\ue0b6', '\ue0b4'):
                 # Powerline caps are terminal cell geometry; Menlo has no PUA
                 # glyphs. Render the same full-height half circles explicitly.
                 cap = Image.new('RGB', (cw * 2, ch), paper)
