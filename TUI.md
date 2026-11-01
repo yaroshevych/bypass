@@ -7,6 +7,8 @@ request secrets. Start it with `bypass`, or open a vault with
 
 ## Command palette
 
+<img width="1271" height="739" alt="Image" src="https://github.com/user-attachments/assets/6abc6b97-3920-411e-917f-934b32175dc8" />
+
 Press `ctrl+p` to open the command palette. Type to filter actions, move with
 Up/Down or Tab/Shift+Tab, and press Enter to select. Esc goes back or closes the
 palette. Disabled actions show a reason, such as **Unlock a vault first** or
@@ -16,6 +18,8 @@ The following tables follow the palette's sections. Shortcuts apply in the
 relevant workspace context; inputs and dialogs have their own bindings. An em
 dash means the action has no dedicated shortcut. The **Shortcuts** action opens
 the in-app reference.
+
+<img width="1277" height="735" alt="Image" src="https://github.com/user-attachments/assets/3478d32d-f369-4979-90d8-731cde29d40c" />
 
 ## Vaults
 
