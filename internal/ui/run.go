@@ -404,8 +404,10 @@ func (m *Model) runLines() []string {
 				}
 			}
 			sessions := map[string]bool{}
-			for _, target := range r.targets {
-				sessions[target.session] = true
+			for id, session := range m.ws.Sessions {
+				if session.DB != nil {
+					sessions[id] = true
+				}
 			}
 			if len(sessions) > 1 {
 				label = t.database.Path + " / " + label
