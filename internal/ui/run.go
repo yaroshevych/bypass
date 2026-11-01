@@ -107,7 +107,9 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				break
 			}
 		}
+		savedVaults := []string{}
 		for id, db := range msg.updated {
+			savedVaults = append(savedVaults, db.Path)
 			session := m.ws.Sessions[id]
 			valid := false
 			for _, target := range msg.targets {
@@ -122,7 +124,13 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			}
 		}
 		if msg.err != nil {
-			msg.pending.Reply(runpkg.Response{Error: "could not resolve requested secrets: " + msg.err.Error()})
+			message := "could not resolve requested secrets: " + msg.err.Error()
+			if len(savedVaults) > 0 {
+				sort.Strings(savedVaults)
+				message += "; permissions already saved in: " + strings.Join(savedVaults, ", ")
+				m.setNotice("request failed; some permissions were saved", true)
+			}
+			msg.pending.Reply(runpkg.Response{Error: message})
 		} else {
 			msg.pending.Reply(runpkg.Response{Values: msg.values})
 		}
