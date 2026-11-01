@@ -28,7 +28,8 @@ bypass work.kdbx
 ```
 
 Or run `bypass` to open or create a vault. The command menu (`ctrl+p`) provides
-vault actions, themes, and layout settings.
+vault actions, themes, and layout settings. See the [TUI reference](TUI.md) for
+the available actions.
 
 ## Let agents run commands that need secrets
 
