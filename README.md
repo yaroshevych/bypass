@@ -73,7 +73,7 @@ References can also come from the inherited environment. Files override inherite
 variables. The default field is `password`; append `#field` to select another.
 Commands and other received paths must not contain symlinks.
 
-See the [full command reference](docs/run.md) for reference syntax, environment
+See the [full command reference](CLI.md) for reference syntax, environment
 rules, permissions, and timeout configuration.
 
 ## Security
