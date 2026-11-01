@@ -16,7 +16,7 @@ func TestRunAmbiguityRequiresExplicitSelection(t *testing.T) {
 	}
 	p := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{"/bin/sh"}, References: []string{"bypass://Seed Entry"}}}
 	m.Update(RunRequestMsg{p})
-	m.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	m.Update(tea.KeyMsg{Type: tea.KeyCtrlB})
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if len(m.runs.choices) != 2 || len(m.runs.targets) != 0 {
 		t.Fatalf("ambiguity skipped: choices=%d targets=%d", len(m.runs.choices), len(m.runs.targets))
@@ -58,7 +58,7 @@ func TestRunLockInvalidatesReviewedApproval(t *testing.T) {
 	m.ws.Open(&vault.Database{Path: "/vault", RootUUID: "root", Entries: []vault.Entry{{UUID: "entry", GroupPath: "Passwords", Fields: []vault.Field{{Name: "Title", Value: "Secret"}}}}})
 	p := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{"/bin/sh"}, References: []string{"bypass://Secret"}}}
 	m.Update(RunRequestMsg{p})
-	m.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	m.Update(tea.KeyMsg{Type: tea.KeyCtrlB})
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if len(m.runs.targets) != 1 {
 		t.Fatal("request was not reviewed")
@@ -67,5 +67,26 @@ func TestRunLockInvalidatesReviewedApproval(t *testing.T) {
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	if cmd != nil || len(m.runs.targets) != 0 {
 		t.Fatal("locked vault retained an actionable approval")
+	}
+}
+
+func TestRunPaletteEntryAndReloadShortcut(t *testing.T) {
+	m := New(Options{})
+	found := false
+	for _, command := range m.commands() {
+		if command.id == "run-requests" {
+			found = true
+			if command.reason != "" {
+				t.Fatal("pending requests require an unlocked vault")
+			}
+			command.run()
+		}
+	}
+	if !found || m.runs == nil || !m.runs.visible {
+		t.Fatal("palette did not open pending requests")
+	}
+	m.runs.visible = false
+	if _, handled := m.updateRun(tea.KeyMsg{Type: tea.KeyCtrlR}); handled {
+		t.Fatal("run requests stole vault reload shortcut")
 	}
 }

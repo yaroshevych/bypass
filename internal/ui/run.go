@@ -84,7 +84,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 	case RunRequestMsg:
 		if msg.Pending != nil && msg.Pending.Context.Err() == nil {
 			r.pending = append(r.pending, msg.Pending)
-			m.setNotice("secret request pending · ctrl+r to review", false)
+			m.setNotice("secret request pending · ctrl+b to review", false)
 			if grantEligible(msg.Pending.Request.Command) {
 				choices, choiceIndex := r.choices, r.choiceIndex
 				targets, err := m.resolveRunTargets(msg.Pending)
@@ -140,13 +140,17 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		if m.gate.Protected() {
 			return nil, false
 		}
-		if msg.String() == "ctrl+r" && m.editor == nil && m.dialog == nil {
+		if msg.String() == "ctrl+b" && m.editor == nil && m.dialog == nil {
 			r.visible = !r.visible
 			r.targets = nil
 			r.choices = nil
 			return nil, true
 		}
 		if !r.visible {
+			return nil, false
+		}
+		if msg.String() == "ctrl+p" {
+			r.visible = false
 			return nil, false
 		}
 		m.pruneRuns()
@@ -203,25 +207,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			r.targets = targets
 			r.err = ""
 		case "g":
-			session := m.ws.ActiveSession()
-			view := m.ws.ActiveView()
-			if session != nil && session.DB != nil && view != nil {
-				for _, g := range session.DB.Groups {
-					if g.Name == runpkg.GrantGroup && g.ParentUUID == session.DB.RootUUID {
-						view.NavFilter = ""
-						for index, item := range m.navigation() {
-							if item.kind == "group" && item.group == g.UUID {
-								m.selectNav(index)
-								break
-							}
-						}
-						view.Focus = 1
-						r.visible = false
-						m.setNotice("delete permission entries to revoke; delete group to revoke all", false)
-						break
-					}
-				}
-			}
+			m.openRunPermissions()
 		case "d":
 			if len(r.pending) > 0 {
 				p := r.pending[r.index]
@@ -440,7 +426,7 @@ func (m *Model) runLines() []string {
 	if r.err != "" {
 		lines = append(lines, r.err)
 	}
-	return append(lines, "", "[esc] Return to vault · [ctrl+r] Pending requests")
+	return append(lines, "", "[esc] Return to vault · [ctrl+b] Pending requests")
 }
 
 func osStatPlain(path string) (bool, error) {
@@ -476,4 +462,30 @@ func (m *Model) runCompactLines() []string {
 		lines[2] = r.err
 	}
 	return append(lines, "esc return")
+}
+
+func (m *Model) openRunPermissions() {
+	if m.runs == nil {
+		m.runs = &runState{}
+	}
+	r := m.runs
+	session := m.ws.ActiveSession()
+	view := m.ws.ActiveView()
+	if session != nil && session.DB != nil && view != nil {
+		for _, g := range session.DB.Groups {
+			if g.Name == runpkg.GrantGroup && g.ParentUUID == session.DB.RootUUID {
+				view.NavFilter = ""
+				for index, item := range m.navigation() {
+					if item.kind == "group" && item.group == g.UUID {
+						m.selectNav(index)
+						break
+					}
+				}
+				view.Focus = 1
+				r.visible = false
+				m.setNotice("delete permission entries to revoke; delete group to revoke all", false)
+				break
+			}
+		}
+	}
 }

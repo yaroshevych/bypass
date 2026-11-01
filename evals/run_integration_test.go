@@ -47,7 +47,9 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 	}
 	cmd, out := launch()
 	e.mustShow("secret request pending")
-	e.key("C-r")
+	e.key("C-p")
+	e.typeText("Pending Secret Requests")
+	e.key("Enter")
 	e.mustShow("Pending secret requests")
 	e.key("Enter")
 	e.mustShow("Allow once")
@@ -62,7 +64,7 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "SECRET REQUESTS") })
 	cmd, out = launch()
 	e.mustShow("secret request pending")
-	e.key("C-r")
+	e.key("C-b")
 	e.mustShow("Pending secret requests")
 	e.key("d")
 	if err := cmd.Wait(); err == nil {
@@ -127,7 +129,7 @@ func TestRunPersistentGrantAndTimeoutTmux(t *testing.T) {
 	}
 	cmd, out := launch("15s")
 	e.mustShow("secret request pending")
-	e.key("C-r")
+	e.key("C-b")
 	e.mustShow("Pending secret requests")
 	e.key("Enter")
 	e.mustShow("Allow for this path")
@@ -154,7 +156,9 @@ func TestRunPersistentGrantAndTimeoutTmux(t *testing.T) {
 		t.Fatalf("expected timeout: %s", e.redact(out.String()))
 	}
 	directory = e.pickerRoot
-	e.key("g")
+	e.key("C-p")
+	e.typeText("Saved Run Permissions")
+	e.key("Enter")
 	e.mustShow("Bypass Run Permissions")
 	e.key("C-d")
 	e.mustShow("DELETE")
@@ -221,7 +225,7 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 	}
 	cmd, out := launch([]string{"ONE=bypass://Seed Entry", "TWO=bypass://real-cli.kdbx/Seed Entry"})
 	e.mustShow("secret request pending")
-	e.key("C-r")
+	e.key("C-b")
 	e.mustShow("Pending secret requests")
 	e.key("Enter")
 	e.mustShow("Select vault:")
@@ -238,7 +242,7 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "SECRET REQUESTS") })
 	cmd, out = launch([]string{"ONE=bypass://second.kdbx/Seed Entry", "TWO=bypass://real-cli.kdbx/Seed Entry"})
 	e.mustShow("secret request pending")
-	e.key("C-r")
+	e.key("C-b")
 	e.mustShow("Pending secret requests")
 	e.key("Enter")
 	e.mustShow("Allow once")
@@ -282,7 +286,7 @@ func TestRunChildSurvivesVaultLockAndTUIClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mustShow("secret request pending")
-	e.key("C-r")
+	e.key("C-b")
 	e.mustShow("Pending secret requests")
 	e.key("Enter")
 	e.mustShow("Allow once")

@@ -101,7 +101,9 @@ Later `--env-file` files override earlier files and the inherited environment.
 Environment files support `KEY=value` and single or double quoted values;
 values are literal and do not undergo shell expansion.
 
-Press `ctrl+r` in the TUI to view pending requests. Select a request and press
+Press `ctrl+b` in the TUI to view pending requests, or open `ctrl+p` and select
+**Pending Secret Requests**. Use **Saved Run Permissions** in the palette to
+review grants in the current vault. Select a request and press
 Enter to review it. Use `a` to allow once, `p` to allow in the current directory,
 `w` to allow that recipient across directories, or `d` to deny. Choose a vault
 in the TUI if a reference has more than one match. Press Esc to return to the

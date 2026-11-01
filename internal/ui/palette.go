@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"bypass/internal/platform"
+	runpkg "bypass/internal/run"
 	"bypass/internal/search"
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
@@ -115,6 +116,32 @@ func (m *Model) commands() []command {
 	}
 	add("lock-all", "Vault", "Lock All Vaults", "Ctrl+L", allReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) }) })
 	add("reload", "Vault", "Reload Vault", "Ctrl+R", needVault, "", func() tea.Cmd { return m.requestReload(s.ID) })
+	add("run-requests", "App", "Pending Secret Requests…", "Ctrl+B", "", "", func() tea.Cmd {
+		return m.leaveEditor(func() tea.Cmd {
+			if m.runs == nil {
+				m.runs = &runState{}
+			}
+			m.pruneRuns()
+			m.runs.visible = true
+			m.runs.targets = nil
+			m.runs.choices = nil
+			return nil
+		})
+	})
+	grantReason := needVault
+	if grantReason == "" {
+		found := false
+		for _, g := range s.DB.Groups {
+			if g.Name == runpkg.GrantGroup && g.ParentUUID == s.DB.RootUUID {
+				found = true
+			}
+		}
+		if !found {
+			grantReason = "No saved run permissions in this vault"
+		}
+	}
+	add("run-permissions", "Vault", "Saved Run Permissions…", "", grantReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.openRunPermissions(); return nil }) })
+
 	readLabel := "Enable Read Only"
 	if s != nil && s.Stale {
 		readLabel = "Read Only"
