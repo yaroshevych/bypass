@@ -48,6 +48,17 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		m.runs = &runState{}
 	}
 	r := m.runs
+	if !r.busy {
+		for _, target := range r.targets {
+			session := m.ws.Sessions[target.session]
+			if session == nil || session.DB != target.database {
+				r.targets = nil
+				r.choices = nil
+				r.err = "vault changed; unlock it and review the request again"
+				break
+			}
+		}
+	}
 	switch msg := msg.(type) {
 	case tea.MouseMsg:
 		if r.visible && !m.gate.Protected() {
@@ -241,6 +252,8 @@ func (m *Model) pruneRuns() {
 	r := m.runs
 	for i := len(r.pending) - 1; i >= 0; i-- {
 		if r.pending[i].Context.Err() != nil {
+			delete(r.chosen, r.pending[i])
+			r.choices = nil
 			r.pending = append(r.pending[:i], r.pending[i+1:]...)
 			r.targets = nil
 		}

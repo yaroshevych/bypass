@@ -52,3 +52,20 @@ func TestRunApprovalActionsRemainVisibleAcrossLayouts(t *testing.T) {
 		}
 	}
 }
+
+func TestRunLockInvalidatesReviewedApproval(t *testing.T) {
+	m := New(Options{})
+	m.ws.Open(&vault.Database{Path: "/vault", RootUUID: "root", Entries: []vault.Entry{{UUID: "entry", GroupPath: "Passwords", Fields: []vault.Field{{Name: "Title", Value: "Secret"}}}}})
+	p := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{"/bin/sh"}, References: []string{"bypass://Secret"}}}
+	m.Update(RunRequestMsg{p})
+	m.Update(tea.KeyMsg{Type: tea.KeyCtrlR})
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if len(m.runs.targets) != 1 {
+		t.Fatal("request was not reviewed")
+	}
+	m.ws.LockAll()
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	if cmd != nil || len(m.runs.targets) != 0 {
+		t.Fatal("locked vault retained an actionable approval")
+	}
+}
