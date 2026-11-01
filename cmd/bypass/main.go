@@ -13,6 +13,7 @@ import (
 
 	"bypass/internal/clipboard"
 	"bypass/internal/platform"
+	runpkg "bypass/internal/run"
 	"bypass/internal/ui"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
@@ -28,6 +29,9 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer) error {
+	if len(args) > 0 && args[0] == "run" {
+		return runCommand(args[1:], stdout, stderr)
+	}
 	flags := flag.NewFlagSet("bypass", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	backend := flags.String("backend", "keepassxc-cli", "KeePassXC CLI executable")
@@ -119,6 +123,18 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	p := tea.NewProgram(model, tea.WithContext(ctx), tea.WithOutput(stdout), tea.WithAltScreen(), tea.WithMouseAllMotion())
+	socketPath, socketErr := runpkg.SocketPath()
+	if socketErr == nil {
+		server, err := runpkg.Listen(socketPath, func(pending *runpkg.Pending) {
+			p.Send(ui.RunRequestMsg{Pending: pending})
+			go func() { <-pending.Context.Done(); p.Send(ui.RunDisconnectedMsg{}) }()
+		})
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+		} else {
+			defer server.Close()
+		}
+	}
 	if _, err := p.Run(); err != nil {
 		if ctx.Err() != nil {
 			return nil

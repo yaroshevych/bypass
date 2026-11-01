@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode"
 
+	runpkg "bypass/internal/run"
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/ui/glyphs"
 	"bypass/internal/workspace"
@@ -82,6 +83,9 @@ func (m *Model) View() string {
 		if m.editor != nil && m.editor.dirty() {
 			lines[3] = "Draft kept · resize · ctrl+c quits"
 		}
+	} else if m.runs != nil && m.runs.visible && !m.gate.Protected() {
+		lines = m.boxWithBodyRowsWidth("Secret requests", m.runLines(), "", min(len(m.runLines()), max(1, m.height-5)), min(m.width-6, 90))
+		modal = true
 	} else if advanced, ok := m.advancedScreen(); ok {
 		lines = advanced
 		modal = true
@@ -1139,6 +1143,15 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 			value = e.Get(name)
 			if m.revealed(e.UUID, name) {
 				value = string(m.revealValue)
+			}
+		}
+		if name == "Notes" && !e.IsProtected(name) && strings.HasSuffix(e.GroupPath, "/"+runpkg.GrantGroup) {
+			if grant, ok := runpkg.DecodeGrant(value); ok {
+				scope := grant.Directory
+				if scope == "" {
+					scope = "all directories"
+				}
+				value = fmt.Sprintf("Entry: %s/%s\nField: %s\nExecutable: %s\nDirectory: %s\nEntry UUID: %s", grant.Group, grant.Name, grant.Field, grant.Executable, scope, grant.Entry)
 			}
 		}
 		if value == "" {

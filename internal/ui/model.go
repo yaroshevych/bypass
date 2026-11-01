@@ -45,6 +45,7 @@ const (
 )
 
 type Model struct {
+	runs                                    *runState
 	detailRequest                           uint64
 	detailCancel                            context.CancelFunc
 	detailSession, detailEntry              string
@@ -297,6 +298,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.searchCache = nil
+	if cmd, ok := m.updateRun(msg); ok {
+		return m, cmd
+	}
 	if cmd, ok := m.updateLifecycle(msg); ok {
 		m.adjustViewport()
 		return m, cmd
