@@ -18,6 +18,7 @@ import (
 const secondVaultPassword = "workspace-second-vault-password"
 
 func TestWorkspaceNativeViewsDraftsAndSessionLocks(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
@@ -191,6 +192,7 @@ func TestWorkspaceNativeViewsDraftsAndSessionLocks(t *testing.T) {
 }
 
 func TestWorkspaceTinyResizePreservesNativeDraftAndGuardsInput(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}

@@ -15,6 +15,7 @@ import (
 )
 
 func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}

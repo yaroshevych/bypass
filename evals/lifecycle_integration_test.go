@@ -17,6 +17,7 @@ import (
 )
 
 func TestMilestone4VaultLifecycleTmux(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals use Unix process and shell behavior")
 	}

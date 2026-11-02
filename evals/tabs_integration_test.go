@@ -10,6 +10,7 @@ import (
 )
 
 func TestTabPlusAndHoverThroughTerminalMouse(t *testing.T) {
+	t.Parallel()
 	e := newEval(t)
 	defer e.close()
 	e.writeConfig(map[string]any{"appearance": "compact"})

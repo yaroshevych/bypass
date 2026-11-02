@@ -18,6 +18,7 @@ import (
 )
 
 func TestFailedWritesKeepVaultAndDraftAndAllowRetryTmux(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
@@ -124,6 +125,7 @@ func TestFailedWritesKeepVaultAndDraftAndAllowRetryTmux(t *testing.T) {
 }
 
 func TestExternalChangeDraftCancelAndDiscardReloadTmux(t *testing.T) {
+	t.Parallel()
 	t.Skip("persistent sessions require lock/unlock to reload; cached-credential reload is unsupported")
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")

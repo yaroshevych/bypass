@@ -11,6 +11,7 @@ import (
 )
 
 func TestNativeTOTPFieldRevealAndLockTmux(t *testing.T) {
+	t.Parallel()
 	backend, err := exec.LookPath("keepassxc-cli")
 	if err != nil {
 		t.Skip("keepassxc-cli required")

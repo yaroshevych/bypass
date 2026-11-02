@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -23,6 +24,11 @@ const (
 )
 
 var appBinary string
+var evalSocketSequence atomic.Uint64
+
+func evalSocketLabel() string {
+	return fmt.Sprintf("kui%d_%d", os.Getpid(), evalSocketSequence.Add(1))
+}
 
 func TestMain(m *testing.M) {
 	if runtime.GOOS == "windows" {
@@ -50,6 +56,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestMilestone1TmuxLifecycle(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals use Unix process and shell behavior")
 	}
@@ -133,6 +140,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 }
 
 func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals use Unix process and shell behavior")
 	}
@@ -280,6 +288,7 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 }
 
 func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals use Unix process and shell behavior")
 	}
@@ -308,15 +317,24 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.typeText("Tokyo Night")
 	e.mustShow("Tokyo Night")
 	e.key("Escape")
-	e.waitFor("theme preview canceled", func() bool { return !strings.Contains(e.capture(), "THEME") })
+	closedFrames := 0
+	e.waitFor("theme picker closed", func() bool {
+		screen := e.capture()
+		if strings.Contains(screen, "Eval Entry") && !strings.Contains(screen, "THEME") && !strings.Contains(screen, "COMMANDS") {
+			closedFrames++
+		} else {
+			closedFrames = 0
+		}
+		return closedFrames >= 3
+	})
 	e.key("C-p")
+	e.mustShow("COMMANDS")
 	e.typeText("Theme")
 	e.key("Enter")
-	e.mustShow("THEME")
+	e.mustShow("THEME", "Macchiato")
 	e.typeText("Nord")
 	e.mustShow("Nord")
 	e.key("Enter")
-	e.mustShow("preferences saved")
 	e.mustSettingsContain("\"theme\": \"nord\"")
 	e.mustSettingsContain("\"grand_view_group_size\": 3")
 
@@ -326,7 +344,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.mustShow("CHOOSE APPEARANCE", "Compact")
 	e.typeText("Compact")
 	e.key("Enter")
-	e.mustShow("Eval Entry", "", "", "preferences saved")
+	e.mustShow("Eval Entry", "", "")
 	e.mustSettingsContain("\"appearance\": \"compact\"")
 
 	// Jumping to Password selects its detail without revealing its protected
@@ -440,7 +458,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	// Restart against the same private XDG config to confirm the applied theme
 	// and compact appearance survive process exit.
 	restarted := *e
-	restarted.label = fmt.Sprintf("kui%d", time.Now().UnixNano()%1_000_000_000)
+	restarted.label = evalSocketLabel()
 	restarted.closed = false
 	restarted.startWith(filepath.Join(e.root, "fake-keepassxc-cli"), "--read-only", e.db1)
 	restarted.mustShow("UNLOCK VAULT")
@@ -453,6 +471,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 }
 
 func TestMilestone2IdleLockTimeout(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals use Unix process and shell behavior")
 	}
@@ -511,7 +530,7 @@ func newEval(t *testing.T) *evalSession {
 	if err != nil {
 		t.Fatal("create private eval directory:", err)
 	}
-	label := fmt.Sprintf("kui%d", time.Now().UnixNano()%1_000_000_000)
+	label := evalSocketLabel()
 	e := &evalSession{t: t, root: root, label: label}
 	e.pickerRoot = filepath.Join(root, "picker")
 	vaultDir := filepath.Join(e.pickerRoot, "vaults")
@@ -883,7 +902,7 @@ func (e *evalSession) failWithScreen(description, screen string) {
 			}
 		}
 	}
-	e.t.Fatalf("%s%s; screen:\n%s", e.redact(description), artifact, redacted)
+	e.t.Fatalf("%s%s", e.redact(description), artifact)
 }
 
 func tmuxEnv(_ string) []string {

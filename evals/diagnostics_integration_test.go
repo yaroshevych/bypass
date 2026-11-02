@@ -8,6 +8,7 @@ import (
 )
 
 func TestFailureDiagnosticsRedactSecretDisplays(t *testing.T) {
+	t.Parallel()
 	e := &evalSession{secrets: []string{"custom fixture seed"}}
 	redacted := e.redact("Failure\ncustom fixture seed\nCode 837294\n" + fixturePassword)
 	for _, secret := range []string{"custom fixture seed", "837294", fixturePassword} {

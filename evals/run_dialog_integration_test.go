@@ -15,6 +15,7 @@ import (
 )
 
 func TestRunDialogsBackDefaultAndResponsiveTmux(t *testing.T) {
+	t.Parallel()
 	backend, err := exec.LookPath("keepassxc-cli")
 	if err != nil {
 		t.Fatal(err)

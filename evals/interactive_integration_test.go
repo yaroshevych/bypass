@@ -15,6 +15,7 @@ import (
 )
 
 func TestInteractiveBackendTmuxBrowseRevealAndLock(t *testing.T) {
+	t.Parallel()
 	backend, err := exec.LookPath("keepassxc-cli")
 	if err != nil {
 		t.Skip("keepassxc-cli required")
@@ -69,6 +70,7 @@ func TestInteractiveBackendTmuxBrowseRevealAndLock(t *testing.T) {
 }
 
 func TestInteractiveBackendTmuxEditCreateAndReopen(t *testing.T) {
+	t.Parallel()
 	backend, err := exec.LookPath("keepassxc-cli")
 	if err != nil {
 		t.Skip("keepassxc-cli required")
@@ -192,6 +194,7 @@ func assertInteractiveFields(t *testing.T, path, title string, want map[string]s
 }
 
 func TestInteractiveBackendTmuxInfoDeletePasswordAndSearchShortcut(t *testing.T) {
+	t.Parallel()
 	backend, err := exec.LookPath("keepassxc-cli")
 	if err != nil {
 		t.Skip("keepassxc-cli required")

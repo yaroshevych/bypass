@@ -18,6 +18,7 @@ import (
 )
 
 func TestNativePasswordCopyAndExternalReplacementTmux(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
@@ -64,6 +65,7 @@ func TestNativePasswordCopyAndExternalReplacementTmux(t *testing.T) {
 }
 
 func TestHistoryCopyRevealAndRemaskTmux(t *testing.T) {
+	t.Parallel()
 	t.Skip("History UI is hidden in beta; retain this test for re-enablement")
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
@@ -128,6 +130,7 @@ func TestHistoryCopyRevealAndRemaskTmux(t *testing.T) {
 }
 
 func TestTOTPClipboardAndRefreshUseControlledBackendTmux(t *testing.T) {
+	t.Parallel()
 	t.Skip("TOTP UI is hidden in beta; retain this test for re-enablement")
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
@@ -186,6 +189,7 @@ func TestTOTPClipboardAndRefreshUseControlledBackendTmux(t *testing.T) {
 }
 
 func TestKeyFileUnlockAndPasswordKeyFileRotationTmux(t *testing.T) {
+	t.Parallel()
 	t.Skip("non-password authentication UI is hidden in beta; retain this test for re-enablement")
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
@@ -320,6 +324,7 @@ func TestKeyFileUnlockAndPasswordKeyFileRotationTmux(t *testing.T) {
 }
 
 func TestReadOnlyBlocksHighImpactPaletteActionsTmux(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}

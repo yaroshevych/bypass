@@ -14,6 +14,7 @@ import (
 )
 
 func TestRunIdentityNotForwardedWithoutReferences(t *testing.T) {
+	t.Parallel()
 	shell, err := filepath.EvalSymlinks("/bin/sh")
 	if err != nil {
 		t.Fatal(err)
@@ -37,6 +38,7 @@ func TestRunIdentityNotForwardedWithoutReferences(t *testing.T) {
 }
 
 func TestRunIdentityGrantIsolationTmux(t *testing.T) {
+	t.Parallel()
 	backend, err := exec.LookPath("keepassxc-cli")
 	if err != nil {
 		t.Fatal(err)

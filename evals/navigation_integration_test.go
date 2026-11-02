@@ -12,6 +12,7 @@ import (
 )
 
 func TestGrandViewGroupingCenteringNotesAndQCloseTmux(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
@@ -70,6 +71,7 @@ func TestGrandViewGroupingCenteringNotesAndQCloseTmux(t *testing.T) {
 }
 
 func TestNavigationActionsAndSessionCleanupTmux(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}

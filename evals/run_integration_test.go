@@ -14,6 +14,7 @@ import (
 )
 
 func TestRunApprovalAndDenialTmux(t *testing.T) {
+	t.Parallel()
 	backend, err := exec.LookPath("keepassxc-cli")
 	if err != nil {
 		t.Fatal(err)
@@ -100,6 +101,7 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 }
 
 func TestRunIdentityGrantAndTimeoutTmux(t *testing.T) {
+	t.Parallel()
 	backend, err := exec.LookPath("keepassxc-cli")
 	if err != nil {
 		t.Fatal(err)
@@ -199,6 +201,7 @@ func TestRunIdentityGrantAndTimeoutTmux(t *testing.T) {
 }
 
 func TestRunMultiVaultSelectionTmux(t *testing.T) {
+	t.Parallel()
 	backend, err := exec.LookPath("keepassxc-cli")
 	if err != nil {
 		t.Fatal(err)
@@ -280,6 +283,7 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 }
 
 func TestRunChildSurvivesVaultLockAndTUIClose(t *testing.T) {
+	t.Parallel()
 	backend, err := exec.LookPath("keepassxc-cli")
 	if err != nil {
 		t.Fatal(err)
