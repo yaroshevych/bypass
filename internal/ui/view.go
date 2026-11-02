@@ -93,7 +93,7 @@ func (m *Model) View() string {
 	} else if m.dialog != nil {
 		lines = m.dialogLines()
 		modal = true
-	} else if m.help {
+	} else if m.activeLayer() == layerHelp {
 		lines = m.helpLines()
 		modal = true
 	} else if m.screen == chooseFile {

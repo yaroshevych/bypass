@@ -58,6 +58,7 @@ const (
 	layerGrand
 	layerPalette
 	layerJump
+	layerHelp
 )
 
 func (m *Model) smallDialogScreen() bool {
@@ -84,6 +85,8 @@ func (m *Model) activeLayer() uiLayer {
 		return layerPalette
 	case m.jump:
 		return layerJump
+	case m.help:
+		return layerHelp
 	default:
 		return layerWorkspace
 	}
@@ -534,6 +537,10 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if m.debugAppearanceToggle(key) {
 		return nil
 	}
+	if key == "ctrl+l" && !m.gate.Protected() {
+		m.help = false
+		return m.lockCurrent(true)
+	}
 	if m.activeLayer() == layerTiny {
 		if key == "ctrl+c" {
 			m.Close()
@@ -551,10 +558,6 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if key == "ctrl+k" {
 		return m.protectScreen()
 	}
-	if key == "ctrl+l" && m.screen == unlock {
-		m.cancelPendingOpen()
-		return m.lockCurrent(true)
-	}
 	switch m.activeLayer() {
 	case layerDialog:
 		return m.dialogKey(k)
@@ -569,6 +572,8 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		return m.paletteKey(k)
 	case layerJump:
 		return m.jumpKey(k)
+	case layerHelp:
+		return m.helpKey(k)
 	}
 	if m.dialog == nil && m.screen == browse && !m.writing {
 		if key == "ctrl+p" {
@@ -597,25 +602,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if m.editor != nil {
 		return m.editorKey(k)
 	}
-	if m.help {
-		switch key {
-		case "up", "k":
-			m.helpOffset = max(0, m.helpOffset-1)
-		case "down", "j":
-			m.helpOffset++
-		case "pgup":
-			m.helpOffset = max(0, m.helpOffset-8)
-		case "pgdown":
-			m.helpOffset += 8
-		default:
-			m.helpQuery.update(k)
-			m.helpOffset = 0
-		}
-		if key == "esc" || key == "?" || key == "enter" {
-			m.help = false
-		}
-		return nil
-	}
+
 	if m.screen == chooseFile {
 		return m.fileKey(k)
 	}
@@ -825,6 +812,31 @@ func (m *Model) beginUnlock(path string) {
 	m.inputFocus = 0
 	m.noPassword = false
 	m.err = ""
+}
+
+func (m *Model) helpKey(k tea.KeyMsg) tea.Cmd {
+	key := k.String()
+	switch key {
+	case "ctrl+c":
+		return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit })
+	case "ctrl+p":
+		m.openPalette("actions", false)
+		return nil
+	case "up", "k":
+		m.helpOffset = max(0, m.helpOffset-1)
+	case "down", "j":
+		m.helpOffset++
+	case "pgup":
+		m.helpOffset = max(0, m.helpOffset-8)
+	case "pgdown":
+		m.helpOffset += 8
+	case "esc", "?", "enter":
+		m.help = false
+	default:
+		m.helpQuery.update(k)
+		m.helpOffset = 0
+	}
+	return nil
 }
 
 func (m *Model) unlockKey(k tea.KeyMsg) tea.Cmd {

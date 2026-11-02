@@ -529,3 +529,42 @@ func TestActiveLayerPrioritizesPrivacyAndModalSurfaces(t *testing.T) {
 		t.Fatal("resize screen did not cover modal layers")
 	}
 }
+
+func TestGlobalLockWorksFromModalAndTinyScreens(t *testing.T) {
+	for _, where := range []string{"palette", "help", "tiny"} {
+		t.Run(where, func(t *testing.T) {
+			m, _ := operationModel(t)
+			m.width, m.height = 120, 35
+			switch where {
+			case "palette":
+				m.openPalette("actions", false)
+			case "help":
+				m.help = true
+			case "tiny":
+				m.width, m.height = 47, 15
+			}
+			m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+			if m.ws.ActiveSession().DB != nil {
+				t.Fatal("ctrl+l did not lock the vault")
+			}
+			if m.palette != nil || m.help {
+				t.Fatal("lock left a modal open")
+			}
+		})
+	}
+}
+
+func TestHelpOwnsInputWhileEditorExists(t *testing.T) {
+	m, _ := operationModel(t)
+	m.width, m.height = 120, 35
+	m.editor = &entryEditor{}
+	m.help = true
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("x")})
+	if m.helpQuery.value() != "x" || !m.help {
+		t.Fatal("visible help did not receive input")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.help || m.editor == nil {
+		t.Fatal("closing help lost the underlying editor")
+	}
+}

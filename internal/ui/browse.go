@@ -10,7 +10,7 @@ import (
 func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	m.tabHovered = false
 	switch m.activeLayer() {
-	case layerTiny, layerRequests:
+	case layerTiny, layerRequests, layerHelp:
 		return nil
 	case layerPrivacy:
 		return m.pinPointer(msg)
