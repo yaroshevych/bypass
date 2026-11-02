@@ -24,3 +24,20 @@ func TestDialogFocusNavigatesListAndActions(t *testing.T) {
 		t.Fatal("empty list did not retain action focus")
 	}
 }
+
+func TestDialogGeometryActionHitTesting(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		m := New(Options{})
+		m.width, m.height, m.settings.Appearance = 80, 24, appearance
+		g := m.centeredDialogGeometry(40, 6)
+		for i := 0; i < 2; i++ {
+			got, ok := g.actionAt(g.x+1, g.y+g.headerRows+4+i, 4, 2)
+			if !ok || got != i {
+				t.Fatalf("%s action %d: got %d, %t", appearance, i, got, ok)
+			}
+		}
+		if _, ok := g.actionAt(g.x-1, g.y+g.headerRows+4, 4, 2); ok {
+			t.Fatalf("%s accepted click outside dialog", appearance)
+		}
+	}
+}

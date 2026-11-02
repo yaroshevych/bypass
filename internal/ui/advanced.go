@@ -448,9 +448,6 @@ func (m *Model) advancedScreen() ([]string, bool) {
 }
 
 func (m *Model) overlay(title string, body []string, footer string, width, x, y int, header ...dialogrender.Header) []string {
-	c := m.colors()
-	theme := colorsForTheme(m.settings.Theme)
-	restoreResets := func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) }
 	headerContent, headerDivider, compactAccessory, compactCount := "", 0, "", ""
 	compactAccessoryStyle := lipgloss.NewStyle()
 	if len(header) > 0 {
@@ -458,14 +455,12 @@ func (m *Model) overlay(title string, body []string, footer string, width, x, y 
 		compactAccessory, compactCount = header[0].Accessory, header[0].Count
 		compactAccessoryStyle = header[0].AccessoryStyle
 	}
-	return dialogrender.Render(dialogrender.Options{
-		Mode: dialogrender.Overlay, Title: title, HeaderContent: headerContent, HeaderDivider: headerDivider,
-		CompactAccessory: compactAccessory, CompactAccessoryStyle: compactAccessoryStyle, CompactCount: compactCount, Body: body, StatusBar: footer,
-		Backdrop: m.modalBackdrop(), Width: width, ScreenWidth: m.width,
-		Height: m.height, X: x, Y: y, Compact: strings.EqualFold(m.settings.Appearance, "compact"), ASCII: m.settings.ASCII,
-		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, Pill: c.active, Divider: c.divider,
-		RestoreResets: restoreResets,
-	})
+	opts := m.dialogOptions()
+	opts.Mode, opts.Title, opts.HeaderContent, opts.HeaderDivider = dialogrender.Overlay, title, headerContent, headerDivider
+	opts.CompactAccessory, opts.CompactAccessoryStyle, opts.CompactCount = compactAccessory, compactAccessoryStyle, compactCount
+	opts.Body, opts.StatusBar, opts.Backdrop = body, footer, m.modalBackdrop()
+	opts.Width, opts.X, opts.Y = width, x, y
+	return dialogrender.Render(opts)
 }
 
 func (m *Model) modalBackdrop() []string {

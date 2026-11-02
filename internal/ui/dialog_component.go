@@ -59,6 +59,37 @@ func (m *Model) compactAppearance() bool {
 	return strings.EqualFold(m.settings.Appearance, "compact")
 }
 
+func (m *Model) dialogOptions() dialogrender.Options {
+	c := m.colors()
+	theme := colorsForTheme(m.settings.Theme)
+	return dialogrender.Options{
+		ScreenWidth: m.width, Height: m.height, Compact: m.compactAppearance(), ASCII: m.settings.ASCII,
+		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, Pill: c.active, Divider: c.divider,
+		RestoreResets: func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) },
+	}
+}
+
+type dialogGeometry struct {
+	x, y, width, height, headerRows int
+}
+
+func (m *Model) centeredDialogGeometry(width, bodyRows int) dialogGeometry {
+	headerRows := 3
+	if m.compactAppearance() {
+		headerRows = 1
+	}
+	height := headerRows + bodyRows + 1
+	return dialogGeometry{x: max(0, (m.width-width)/2), y: max(0, (m.height-height)/2), width: width, height: height, headerRows: headerRows}
+}
+
+func (g dialogGeometry) actionAt(x, y, firstRow, count int) (int, bool) {
+	if x < g.x || x >= g.x+g.width {
+		return 0, false
+	}
+	index := y - g.y - g.headerRows - firstRow
+	return index, index >= 0 && index < count
+}
+
 func (m *Model) dialogActions(body []string, actions []dialogAction, focus, width, rows int) []string {
 	capacity := max(0, rows-len(actions)-1)
 	if len(body) > capacity {

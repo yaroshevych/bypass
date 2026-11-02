@@ -246,15 +246,8 @@ func (m *Model) runActionAt(x, y int) (int, bool) {
 		return 0, false
 	}
 	layout := m.runLayout(m.runs.review)
-	if x < layout.leftEdge || x >= layout.leftEdge+layout.width {
-		return 0, false
-	}
-	for i := range layout.actions {
-		if y == layout.actionY+i {
-			return i, true
-		}
-	}
-	return 0, false
+	g := dialogGeometry{x: layout.x, y: layout.y, width: layout.width, headerRows: layout.headerRows}
+	return g.actionAt(x, y, layout.actionStart, len(layout.actions))
 }
 
 func (m *Model) runDialogWidth(review bool) int {
@@ -300,21 +293,14 @@ func (m *Model) runRequestsLayout() runDialogLayout {
 }
 
 func (m *Model) positionRunLayout(layout runDialogLayout, review bool) runDialogLayout {
-	compact := m.compactAppearance()
-	layout.headerRows = 3
-	if compact {
-		layout.headerRows = 1
-	}
-	frameRows := layout.headerRows + len(layout.body) + 1
-	if compact {
-		frameRows = len(layout.body) + 2
-	}
-	layout.x = max(0, (m.width-layout.width)/2)
+	g := m.centeredDialogGeometry(layout.width, len(layout.body))
+	layout.headerRows = g.headerRows
+	layout.x = g.x
 	layout.leftEdge = layout.x
-	layout.y = max(0, (m.height-frameRows)/2)
+	layout.y = g.y
 	if review {
 		parentY := m.runRequestsLayout().y
-		layout.y = min(max(0, parentY+2), max(0, m.height-frameRows))
+		layout.y = min(max(0, parentY+2), max(0, m.height-g.height))
 	}
 	layout.actionStart = len(layout.body) - len(layout.actions)
 	layout.actionY = layout.y + layout.headerRows + layout.actionStart
@@ -556,16 +542,10 @@ func (m *Model) runTargetsCurrent(targets []runTarget) bool {
 }
 
 func renderRunLayer(m *Model, backdrop []string, layout runDialogLayout) []string {
-	c := m.colors()
-	theme := colorsForTheme(m.settings.Theme)
-	return dialogrender.Render(dialogrender.Options{
-		Mode: dialogrender.Overlay, Title: layout.title, Body: layout.body, Backdrop: backdrop,
-		BodyRows: len(layout.body),
-		Width:    layout.width, X: layout.x, Y: layout.y, ScreenWidth: m.width, Height: m.height, Compact: m.compactAppearance(),
-		ASCII: m.settings.ASCII, Surface: c.primary, Accent: c.accent, Secondary: c.secondary,
-		Pill: c.active, Divider: c.divider,
-		RestoreResets: func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) },
-	})
+	opts := m.dialogOptions()
+	opts.Mode, opts.Title, opts.Body, opts.Backdrop = dialogrender.Overlay, layout.title, layout.body, backdrop
+	opts.BodyRows, opts.Width, opts.X, opts.Y = len(layout.body), layout.width, layout.x, layout.y
+	return dialogrender.Render(opts)
 }
 
 func (m *Model) runDialogView() []string {
