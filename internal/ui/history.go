@@ -50,8 +50,9 @@ func (m *Model) historyLines(state *extraState) []string {
 	body := []string{m.colors().secondary.Render("Read-only history · snapshots cannot be restored from this view."), ""}
 	capacity := max(1, m.height-12)
 	start := viewportOffset(state.historyIndex, len(state.history), capacity, state.offset)
+	start, end := viewportRange(len(state.history), capacity, start)
 	rows := make([]listComponentRow, 0, capacity)
-	for i := start; i < len(state.history) && i < start+capacity; i++ {
+	for i := start; i < end; i++ {
 		snapshot := state.history[i]
 		title := historyTitle(snapshot)
 		when := snapshot.Modified

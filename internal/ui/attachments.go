@@ -53,8 +53,9 @@ func (m *Model) attachmentLines(state *extraState) []string {
 		capacity := m.attachmentListCapacity()
 		items := len(entry.AttachmentNames) + 1
 		start := viewportOffset(state.selected, items, capacity, state.offset)
+		start, end := viewportRange(items, capacity, start)
 		rows := make([]listComponentRow, 0, capacity)
-		for i := start; i < items && i < start+capacity; i++ {
+		for i := start; i < end; i++ {
 			label := ""
 			if i == 0 {
 				label = "Add Attachment…"

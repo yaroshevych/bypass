@@ -151,7 +151,8 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	case chooseFile:
 		start, capacity := m.fileViewport()
-		visible := min(len(m.files)-start, capacity)
+		start, end := viewportRange(len(m.files), capacity, start)
+		visible := end - start
 		bodyTop := m.pickerBodyTop()
 		pathY := bodyTop + m.pickerPathRow()
 		if msg.Y == pathY {

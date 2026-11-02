@@ -1338,7 +1338,8 @@ func (m *Model) pickerLines() []string {
 	)
 	rows = append(rows, listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "BROWSE ", divider: true})
 	start, capacity := m.fileViewport()
-	for i := start; i < len(m.files) && i < start+capacity; i++ {
+	start, end := viewportRange(len(m.files), capacity, start)
+	for i := start; i < end; i++ {
 		f := m.files[i]
 		name := safe(f.name)
 		if f.dir {

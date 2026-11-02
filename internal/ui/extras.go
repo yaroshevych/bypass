@@ -345,7 +345,8 @@ func (m *Model) extrasPointer(msg tea.MouseMsg) (tea.Cmd, bool) {
 	case extraHistory:
 		capacity := max(1, m.height-12)
 		start := viewportOffset(state.historyIndex, len(state.history), capacity, state.offset)
-		visible := min(capacity, len(state.history)-start)
+		start, end := viewportRange(len(state.history), capacity, start)
+		visible := end - start
 		top := max(0, (m.height-(visible+6))/2)
 		index := msg.Y - (top + 4) + start
 		boxWidth := min(max(20, min(78, m.width-4)), max(20, m.width-2))
@@ -365,7 +366,8 @@ func (m *Model) extrasPointer(msg tea.MouseMsg) (tea.Cmd, bool) {
 		capacity := m.attachmentListCapacity()
 		items := len(entry.AttachmentNames) + 1
 		start := viewportOffset(state.selected, items, capacity, state.offset)
-		visible := min(capacity, items-start)
+		start, end := viewportRange(items, capacity, start)
+		visible := end - start
 		extraRows := 0
 		if !m.extrasWritable(m.ws.Sessions[state.sessionID]) {
 			extraRows += 2
