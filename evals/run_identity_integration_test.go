@@ -105,9 +105,9 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 	e.mustShow("dev-rw")
 	assertHidden(dev)
 	e.key("Enter")
-	e.mustShow("Allow for this path")
+	e.mustShow("Allow for this identity")
 	assertHidden(dev)
-	e.key("p")
+	e.key("i")
 	if err := cmd.Wait(); err != nil || out.String() != "approved" {
 		t.Fatal("identity approval failed or bearer reached the recipient")
 	}
@@ -115,6 +115,16 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 	cmd, out = launch(dev, false)
 	if err := cmd.Wait(); err != nil || out.String() != "approved" {
 		t.Fatal("saved identity grant did not authorize a repeat request")
+	}
+	e.mustShow("Pending secret requests (0)")
+	otherRecipient := filepath.Join(filepath.Dir(recipient), "identity-recipient-second")
+	if err := os.WriteFile(otherRecipient, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	recipient = otherRecipient
+	cmd, out = launch(dev, false)
+	if err := cmd.Wait(); err != nil || out.String() != "approved" {
+		t.Fatal("identity grant did not apply to another command")
 	}
 	e.mustShow("Pending secret requests (0)")
 	for _, tc := range []struct {
@@ -129,7 +139,7 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 			assertHidden(tc.identity)
 		}
 		e.key("Enter")
-		e.mustShow("Allow once")
+		e.mustShow("REVIEW REQUEST")
 		e.key("d")
 		if err := cmd.Wait(); err == nil {
 			t.Fatal("another identity or anonymous request inherited an identity grant")

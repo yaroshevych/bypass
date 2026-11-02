@@ -39,6 +39,22 @@ the in-app reference.
 | Pending Secret Requests… | `ctrl+b` | Review requests from `bypass run`, including the readable name for an identified agent and requests waiting for vault selection or approval. |
 | Saved Run Permissions… | — | Open the current vault's saved permission entries for review or revocation. Requires an unlocked vault with saved permissions. |
 
+### Secret requests
+
+Open Requests with `ctrl+b`. Select a request and press `enter` to review it.
+The list also offers Deny all (`d`), Approve all (`a`), Reset saved permissions (`r`), and Close (`esc`). Approve all grants each resolvable request once; requests needing vault selection or unavailable secrets remain for individual review. Review opens over the request list and shows the
+requested fields without secret values. The field list is not selectable.
+
+Review actions are Deny (`d`), Allow (`a`, once), Allow for this identity (`i`,
+remember these fields across commands and directories), and Back (`esc`). Back
+is selected by default. Remembered approval requires a named identity and a
+writable vault. Use Tab or the arrow keys to focus buttons; Page Up and Page
+Down scroll the field list.
+
+Reset saved permissions removes remembered approvals from all unlocked vaults
+after confirmation. Cancel is selected by default; `ctrl+s` confirms the reset.
+Locked vaults are unchanged, and pending requests stay queued.
+
 ### Locking and PIN protection
 
 PIN protection covers the interface while authenticated vault sessions remain

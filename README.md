@@ -50,9 +50,9 @@ Approve the request in Bypass. The script receives `DEPLOY_TOKEN` through its
 environment. The agent needs only the reference and command, without retrieving
 the token or including it in the prompt or command line.
 
-Allow access once, remember it for this executable and project directory, or
-allow that executable across directories. Saved permissions stay inside the
-vault and can be reviewed or revoked from the command menu.
+Allow a request once, or remember access to its fields for that agent identity.
+Saved permissions stay inside the vault and can be reviewed or revoked from the
+command menu.
 
 Agents can use `--identity NAME-SECRET` or `BYPASS_IDENTITY` to keep saved
 permissions separate by agent.

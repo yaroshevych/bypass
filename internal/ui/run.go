@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +12,6 @@ import (
 	runpkg "bypass/internal/run"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
 )
 
 type RunRequestMsg struct{ Pending *runpkg.Pending }
@@ -31,27 +29,43 @@ type runTarget struct {
 	database *vault.Database
 }
 type runResult struct {
-	pending       *runpkg.Pending
-	targets       []runTarget
-	secrets       *runSecretValues
-	err           error
-	updated       map[string]*vault.Database
-	needsApproval bool
-	newIdentity   bool
+	pending         *runpkg.Pending
+	targets         []runTarget
+	secrets         *runSecretValues
+	err             error
+	updated         map[string]*vault.Database
+	needsApproval   bool
+	newIdentity     bool
+	permissionEpoch uint64
+	bulk            bool
 }
 type runState struct {
-	pending     []*runpkg.Pending
-	visible     bool
-	index       int
-	offset      int
-	busy        bool
-	targets     []runTarget
-	choices     []runTarget
-	choiceIndex int
-	chosen      map[*runpkg.Pending]map[string]runTarget
-	err         string
-	unavailable string
-	newIdentity map[*runpkg.Pending]bool
+	pending         []*runpkg.Pending
+	visible         bool
+	review          bool
+	reviewed        *runpkg.Pending
+	choosing        bool
+	actionFocus     int
+	buttonsFocused  bool
+	reviewFocus     int
+	index           int
+	offset          int
+	fieldOffset     int
+	busy            bool
+	busyPending     *runpkg.Pending
+	bulkRemaining   int
+	resetConfirm    bool
+	resetFocus      int
+	resetBusy       bool
+	resetErr        string
+	permissionEpoch uint64
+	targets         []runTarget
+	choices         []runTarget
+	choiceIndex     int
+	chosen          map[*runpkg.Pending]map[string]runTarget
+	err             string
+	unavailable     string
+	newIdentity     map[*runpkg.Pending]bool
 }
 
 func clearRunValues(values map[string][]byte) {
@@ -172,6 +186,9 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		m.runs = &runState{}
 	}
 	r := m.runs
+	if cmd, handled := m.updateRunPermissionReset(msg); handled {
+		return cmd, true
+	}
 	if !r.busy {
 		for _, target := range r.targets {
 			session := m.ws.Sessions[target.session]
@@ -179,6 +196,9 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				r.targets = nil
 				r.choices = nil
 				r.err = "vault changed; unlock it and review the request again"
+				if r.review {
+					m.focusRunAction("esc")
+				}
 				break
 			}
 		}
@@ -186,17 +206,9 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case tea.MouseMsg:
 		if r.visible && !m.gate.Protected() {
-			if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && !r.busy {
-				lines := strings.Split(m.View(), "\n")
-				for _, action := range []struct{ label, key string }{{"Deny", "d"}, {"Allow once", "a"}, {"Allow for this path", "p"}, {"Always allow", "w"}} {
-					for row := len(lines) - 1; row >= 0; row-- {
-						if strings.Contains(ansi.Strip(lines[row]), action.label) {
-							if msg.Y == row {
-								return m.updateRun(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(action.key)})
-							}
-							break
-						}
-					}
+			if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && !r.busy && !r.resetBusy {
+				if action, ok := m.runActionAt(msg.X, msg.Y); ok {
+					return m.activateRunAction(action), true
 				}
 			}
 			return nil, true
@@ -216,18 +228,38 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			choices, choiceIndex := r.choices, r.choiceIndex
 			targets, err := m.resolveRunTargets(msg.Pending)
 			r.choices, r.choiceIndex = choices, choiceIndex
-			if err == nil {
+			if err == nil && !r.resetBusy {
 				return m.runGrantJob(msg.Pending, targets, "check"), true
 			}
 		}
 		return nil, true
 	case runResult:
-		r.busy = false
+		if msg.bulk {
+			r.bulkRemaining--
+			if r.bulkRemaining == 0 {
+				r.busy = false
+			}
+		}
+		if r.busyPending == msg.pending {
+			r.busy = false
+			r.busyPending = nil
+		}
+		if msg.permissionEpoch != r.permissionEpoch {
+			if msg.secrets != nil {
+				msg.secrets.Clear()
+			}
+			for _, db := range msg.updated {
+				db.Clear()
+			}
+			return nil, true
+		}
 		if msg.pending != nil && msg.pending.Identity.Digest != "" {
 			if r.newIdentity == nil {
 				r.newIdentity = map[*runpkg.Pending]bool{}
 			}
-			r.newIdentity[msg.pending] = msg.newIdentity
+			if !r.review || r.reviewed != msg.pending {
+				r.newIdentity[msg.pending] = msg.newIdentity
+			}
 		}
 		if msg.needsApproval {
 			msg.secrets.Clear()
@@ -274,11 +306,22 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		m.removeRun(msg.pending)
 		return nil, true
 	case tea.KeyMsg:
+		if msg.String() == "ctrl+l" || msg.String() == "ctrl+c" {
+			return nil, false
+		}
+		if msg.String() == "ctrl+p" && r.visible {
+			if r.busy || r.resetBusy {
+				return nil, true
+			}
+			r.visible, r.review, r.choosing, r.reviewed, r.resetConfirm = false, false, false, nil, false
+			return nil, false
+		}
 		if m.gate.Protected() {
 			return nil, false
 		}
 		if msg.String() == "ctrl+b" && m.editor == nil && m.dialog == nil {
 			r.visible = !r.visible
+			r.review, r.choosing, r.reviewed = false, false, nil
 			r.targets = nil
 			r.choices = nil
 			r.err, r.unavailable = "", ""
@@ -287,16 +330,77 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		if !r.visible {
 			return nil, false
 		}
-		if msg.String() == "ctrl+p" {
-			r.visible = false
-			return nil, false
-		}
 		m.pruneRuns()
-		if msg.String() == "esc" {
-			r.visible = false
+		if r.busy {
 			return nil, true
 		}
-		if r.busy {
+		if r.resetConfirm {
+			if r.resetBusy {
+				return nil, true
+			}
+			switch msg.String() {
+			case "esc":
+				r.resetConfirm = false
+				r.resetErr = ""
+			case "tab":
+				r.resetFocus = (r.resetFocus + 1) % len(m.runResetActions())
+			case "shift+tab":
+				r.resetFocus = (r.resetFocus + len(m.runResetActions()) - 1) % len(m.runResetActions())
+			case "up":
+				r.resetFocus = max(0, r.resetFocus-1)
+			case "down":
+				r.resetFocus = min(len(m.runResetActions())-1, r.resetFocus+1)
+			case "enter":
+				return m.activateRunAction(r.resetFocus), true
+			case "ctrl+s", "r":
+				return m.activateRunAction(1), true
+			}
+			return nil, true
+		}
+		if r.review {
+			if r.choosing && (msg.String() == "up" || msg.String() == "down") {
+				if msg.String() == "up" {
+					r.choiceIndex = max(0, r.choiceIndex-1)
+				} else {
+					r.choiceIndex = min(len(r.choices)-1, r.choiceIndex+1)
+				}
+				return nil, true
+			}
+			switch msg.String() {
+			case "esc":
+				r.review = false
+				r.choosing = false
+				r.reviewed = nil
+				r.reviewFocus = 0
+			case "tab":
+				r.reviewFocus = (r.reviewFocus + 1) % len(m.runReviewActions())
+			case "shift+tab":
+				r.reviewFocus = (r.reviewFocus + len(m.runReviewActions()) - 1) % len(m.runReviewActions())
+			case "up":
+				r.reviewFocus = max(0, r.reviewFocus-1)
+			case "down":
+				r.reviewFocus = min(len(m.runReviewActions())-1, r.reviewFocus+1)
+			case "enter":
+				return m.activateRunAction(r.reviewFocus), true
+			case "d", "a", "i":
+				if action := m.runActionForKey(msg.String()); action >= 0 {
+					return m.activateRunAction(action), true
+				}
+			case "pgdown":
+				size := m.runFieldPageSize()
+				r.fieldOffset = min(max(0, len(r.targets)-size), r.fieldOffset+size)
+				r.err = ""
+			case "pgup":
+				r.fieldOffset = max(0, r.fieldOffset-m.runFieldPageSize())
+				r.err = ""
+			}
+			return nil, true
+		}
+		if msg.String() == "esc" {
+			r.visible = false
+			r.choosing = false
+			r.review = false
+			r.reviewed = nil
 			return nil, true
 		}
 		switch msg.String() {
@@ -305,80 +409,52 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		case "pgup":
 			r.offset = max(0, r.offset-4)
 		case "up", "shift+tab":
-			r.err, r.unavailable = "", ""
-			if len(r.choices) > 0 {
-				r.choiceIndex = max(0, r.choiceIndex-1)
-				return nil, true
+			if r.buttonsFocused {
+				if r.actionFocus > 0 {
+					r.actionFocus--
+				} else if len(r.pending) > 0 {
+					r.buttonsFocused = false
+					r.index = len(r.pending) - 1
+				} else if msg.String() == "shift+tab" {
+					r.actionFocus = len(m.runRequestActions()) - 1
+				}
+			} else if r.index > 0 {
+				r.index--
+			} else if msg.String() == "shift+tab" {
+				r.buttonsFocused = true
+				r.actionFocus = len(m.runRequestActions()) - 1
 			}
-			r.index = max(0, r.index-1)
-			r.targets = nil
-			r.offset = 0
 		case "down", "tab":
-			r.err, r.unavailable = "", ""
-			if len(r.choices) > 0 {
-				r.choiceIndex = min(len(r.choices)-1, r.choiceIndex+1)
-				return nil, true
+			if !r.buttonsFocused && r.index+1 < len(r.pending) {
+				r.index++
+			} else if !r.buttonsFocused {
+				r.buttonsFocused = true
+				r.actionFocus = 0
+			} else if r.actionFocus+1 < len(m.runRequestActions()) {
+				r.actionFocus++
+			} else if msg.String() == "tab" {
+				if len(r.pending) > 0 {
+					r.buttonsFocused = false
+					r.index = 0
+				} else {
+					r.actionFocus = 0
+				}
 			}
-			r.index = min(max(0, len(r.pending)-1), r.index+1)
-			r.targets = nil
-			r.offset = 0
 		case "enter":
-			if len(r.pending) == 0 {
+			if !r.buttonsFocused && len(r.pending) > 0 {
+				m.enterRunReview()
 				return nil, true
 			}
-			p := r.pending[r.index]
-			if len(r.choices) > 0 {
-				if r.chosen == nil {
-					r.chosen = map[*runpkg.Pending]map[string]runTarget{}
-				}
-				if r.chosen[p] == nil {
-					r.chosen[p] = map[string]runTarget{}
-				}
-				choice := r.choices[r.choiceIndex]
-				r.chosen[p][choice.ref] = choice
-				r.choices = nil
-				r.choiceIndex = 0
-			}
-			targets, err := m.resolveRunTargets(p)
-			r.unavailable = ""
-			if err != nil {
-				r.err = err.Error()
-				var missing *unavailableRunReference
-				if errors.As(err, &missing) {
-					r.unavailable = missing.reference
-				}
+			return m.activateRunAction(r.actionFocus), true
+		case "r":
+			if r.busy {
+				r.resetErr = "finish the current approval before resetting"
 				return nil, true
 			}
-			r.targets = targets
-			r.err = ""
-		case "g":
-			m.openRunPermissions()
-		case "d":
-			if len(r.pending) > 0 {
-				p := r.pending[r.index]
-				p.Reply(runpkg.Response{Error: "secret request denied"})
-				m.removeRun(p)
-			}
-		case "a":
-			if len(r.targets) == 0 || len(r.pending) == 0 {
-				return nil, true
-			}
-			p := r.pending[r.index]
-			targets := append([]runTarget(nil), r.targets...)
-			r.busy = true
-			return m.runGrantJob(p, targets, "a"), true
-		case "p", "w":
-			if len(r.targets) == 0 || len(r.pending) == 0 {
-				return nil, true
-			}
-			p := r.pending[r.index]
-			if !grantEligible(p.Request.Command) {
-				r.err = "this recipient supports allow once only"
-				return nil, true
-			}
-			r.busy = true
-			return m.runGrantJob(p, append([]runTarget(nil), r.targets...), msg.String()), true
-
+			r.resetConfirm = true
+			r.resetFocus = 0
+		case "d", "a":
+			return m.activateRunKey(msg.String()), true
 		}
 		return nil, true
 	}
@@ -391,27 +467,68 @@ func (m *Model) pruneRuns() {
 	r := m.runs
 	for i := len(r.pending) - 1; i >= 0; i-- {
 		if r.pending[i].Context.Err() != nil {
-			delete(r.chosen, r.pending[i])
-			delete(r.newIdentity, r.pending[i])
-			r.choices = nil
+			removed := r.pending[i]
+			if r.reviewed == removed {
+				r.review = false
+				r.choosing = false
+				r.reviewed = nil
+				r.targets = nil
+				r.err, r.unavailable = "", ""
+			}
+			if i == r.index {
+				if !r.review {
+					r.choosing = false
+				}
+			}
+			delete(r.chosen, removed)
+			delete(r.newIdentity, removed)
+			if !r.review {
+				r.choices = nil
+			}
 			r.pending = append(r.pending[:i], r.pending[i+1:]...)
-			r.targets = nil
-			r.err, r.unavailable = "", ""
+			if !r.review {
+				r.targets = nil
+				r.err, r.unavailable = "", ""
+			}
+		}
+	}
+	if r.review {
+		for i, p := range r.pending {
+			if p == r.reviewed {
+				r.index = i
+				break
+			}
 		}
 	}
 	r.index = min(r.index, max(0, len(r.pending)-1))
 }
 func (m *Model) removeRun(p *runpkg.Pending) {
 	r := m.runs
+	removedReview := r.review && r.reviewed == p
 	for i, v := range r.pending {
 		if v == p {
 			r.pending = append(r.pending[:i], r.pending[i+1:]...)
 			break
 		}
 	}
-	r.index = min(r.index, max(0, len(r.pending)-1))
-	r.targets = nil
-	r.choices = nil
+	if removedReview {
+		r.review, r.reviewed, r.choosing = false, nil, false
+		r.targets, r.choices = nil, nil
+		r.actionFocus = 0
+		r.buttonsFocused = false
+	} else if r.review {
+		for i, pending := range r.pending {
+			if pending == r.reviewed {
+				r.index = i
+				break
+			}
+		}
+	} else {
+		r.index = min(r.index, max(0, len(r.pending)-1))
+		r.targets, r.choices = nil, nil
+		r.actionFocus = 0
+		r.buttonsFocused = false
+	}
 	delete(r.chosen, p)
 	delete(r.newIdentity, p)
 	r.offset = 0
@@ -505,103 +622,13 @@ func (m *Model) resolveRunTargets(p *runpkg.Pending) ([]runTarget, error) {
 	return targets, nil
 }
 func (m *Model) runLines() []string {
-	r := m.runs
-	if r.unavailable != "" && r.index < len(r.pending) {
-		return m.runUnavailableLines()
+	if m.runs == nil {
+		return nil
 	}
-	if m.height < 30 && len(r.targets) > 0 {
-		return m.runCompactLines()
+	if m.runs.review {
+		return m.runReviewBody()
 	}
-	lines := []string{fmt.Sprintf("Pending secret requests (%d)", len(r.pending)), "[g] Review saved permissions in current vault", ""}
-	for i, p := range r.pending {
-		if i < max(0, r.index-1) || i > r.index+1 {
-			continue
-		}
-		if p.Context.Err() != nil {
-			continue
-		}
-		prefix := "  "
-		if i == r.index {
-			prefix = "> "
-		}
-		lines = append(lines, prefix+safe(strings.Join(p.Request.Command, " ")), "  "+safe(p.Request.Directory))
-		if p.Identity.Digest != "" {
-			lines = append(lines, "  "+runIdentityLabel(p, r.newIdentity[p]))
-		}
-	}
-	if len(r.choices) > 0 {
-		lines = append(lines, "", "Select vault: ")
-		for i, choice := range r.choices {
-			prefix := "  "
-			if i == r.choiceIndex {
-				prefix = "> "
-			}
-			lines = append(lines, prefix+safe(choice.database.Path))
-		}
-		return append(lines, "[enter] Select vault · [esc] Return")
-	}
-	if len(r.pending) == 0 {
-		lines = append(lines, "No pending requests")
-	}
-	if len(r.targets) > 0 {
-		if len(r.pending) > r.index && len(r.pending[r.index].Caller) > 0 {
-			lines = append(lines, "", "Caller (informational): "+safe(strings.Join(r.pending[r.index].Caller, " ← ")))
-		}
-		lines = append(lines, "", "Requested secrets:")
-		for i, t := range r.targets {
-			if i < r.offset || i >= r.offset+4 {
-				continue
-			}
-			label := t.field
-			for _, entry := range t.database.Entries {
-				if entry.UUID == t.entry {
-					label = entry.Get("Title") + " #" + t.field
-				}
-			}
-			sessions := map[string]bool{}
-			for id, session := range m.ws.Sessions {
-				if session.DB != nil {
-					sessions[id] = true
-				}
-			}
-			if len(sessions) > 1 {
-				label = t.database.Path + " / " + label
-			}
-			lines = append(lines, "  "+safe(label))
-		}
-		lines = append(lines, "", "pgup/pgdown to inspect all requested fields",
-			renderDialogAction("Deny", "d", max(1, min(m.width-10, 86)), m.settings.Appearance == "compact", m.settings.ASCII, true, m.colors()),
-			renderDialogAction("Allow once", "a", max(1, min(m.width-10, 86)), m.settings.Appearance == "compact", m.settings.ASCII, false, m.colors()),
-			renderDialogAction("Allow for this path", "p", max(1, min(m.width-10, 86)), m.settings.Appearance == "compact", m.settings.ASCII, false, m.colors()),
-			renderDialogAction("Always allow", "w", max(1, min(m.width-10, 86)), m.settings.Appearance == "compact", m.settings.ASCII, false, m.colors()))
-	} else {
-		lines = append(lines, "", "[enter] Review request", "[d] Deny")
-	}
-	if r.busy {
-		lines = append(lines, "Resolving secrets…")
-	}
-	if r.err != "" {
-		lines = append(lines, r.err)
-	}
-	return append(lines, "", "[esc] Return to vault · [ctrl+b] Pending requests")
-}
-
-func (m *Model) runUnavailableLines() []string {
-	r := m.runs
-	p := r.pending[r.index]
-	width := max(1, min(m.width-10, 86))
-	lines := []string{}
-	if p.Identity.Digest != "" {
-		lines = append(lines, runIdentityLabel(p, r.newIdentity[p]))
-	}
-	lines = append(lines, safe(strings.Join(p.Request.Command, " ")), "Cannot resolve secret:")
-	reference := strings.Split(ansi.Wrap(safe(r.unavailable), width, ""), "\n")
-	if len(reference) > 2 {
-		reference = reference[:2]
-		reference[1] = ansi.Truncate(reference[1], width-1, "") + "…"
-	}
-	lines = append(lines, reference...)
-	return append(lines, "Unlock vault or check entry name", "", "[enter] Retry · [d] Deny", "[esc] Return to vault")
+	return m.runRequestsBody()
 }
 
 func osStatPlain(path string) (bool, error) {
@@ -614,32 +641,6 @@ func osStatPlain(path string) (bool, error) {
 		return false, err
 	}
 	return info.IsDir(), nil
-}
-
-func (m *Model) runCompactLines() []string {
-	r := m.runs
-	if r.index >= len(r.pending) {
-		return []string{"No pending requests"}
-	}
-	p := r.pending[r.index]
-	lines := []string{fmt.Sprintf("Request %d/%d: %s", r.index+1, len(r.pending), safe(strings.Join(p.Request.Command, " "))), safe(p.Request.Directory)}
-	if p.Identity.Digest != "" {
-		lines = append(lines, runIdentityLabel(p, r.newIdentity[p]))
-	}
-	if len(r.targets) > 0 {
-		index := min(r.offset, len(r.targets)-1)
-		lines = append(lines, fmt.Sprintf("Field %d/%d: %s", index+1, len(r.targets), safe(r.targets[index].ref)))
-	}
-	if m.height >= 18 {
-		lines = append(lines, "pgup/pgdown fields · up/down requests")
-	}
-	for _, action := range []struct{ label, key string }{{"Deny", "d"}, {"Allow once", "a"}, {"Allow for this path", "p"}, {"Always allow", "w"}} {
-		lines = append(lines, renderDialogAction(action.label, action.key, max(1, min(m.width-10, 86)), m.settings.Appearance == "compact", m.settings.ASCII, action.key == "d", m.colors()))
-	}
-	if r.err != "" {
-		lines = append(lines, r.err)
-	}
-	return append(lines, "esc return")
 }
 
 func runIdentityLabel(p *runpkg.Pending, isNew bool) string {

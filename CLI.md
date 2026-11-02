@@ -226,27 +226,33 @@ Only the reference portions are replaced. Ordinary text is preserved.
 
 ## Approval and saved permissions
 
-The TUI must be running when a request needs secret resolution. Review pending
-requests in Bypass. The request identifies the recipient command, arguments,
-working directory, and requested fields. Caller ancestry, when available, is
-informational; it does not prove which agent initiated the request.
+The TUI must be running when a request needs secret resolution. Open pending
+requests with `ctrl+b`. The Requests dialog lists callers and commands. Select
+a request and press `enter` to review it. Use Deny all (`d`) or Approve all
+(`a`) for pending requests, or Close (`esc`). Approve all grants resolvable
+requests once; requests needing vault selection or unavailable secrets remain
+for individual review.
+Reset saved permissions (`r`) clears remembered approvals in all unlocked
+vaults after confirmation. Cancel is selected by default; use `ctrl+s` to reset.
+Locked vaults are unchanged, and pending requests stay queued.
+
+Review opens a second dialog over the request list. It shows the requested
+fields without their values. The fields are not selectable; use Page Up and
+Page Down to scroll. Back is selected by default, so pressing Enter returns to
+the list. Caller ancestry, when available, is informational.
 
 | Decision | Effect |
 | --- | --- |
-| Deny | Reject the batch; do not launch the command. |
-| Allow once | Authorize this request only. |
-| Allow for this path | Remember access for this executable in the exact current working directory. |
-| Always allow | Remember access for this executable across working directories. |
+| Deny (`d`) | Reject the batch; do not launch the command. |
+| Allow (`a`) | Authorize this request only. |
+| Allow for this identity (`i`) | Remember access to these fields for this identity across commands and directories. Requires an identity. |
+| Back (`esc`) | Return to Requests without approving or denying. |
 
-Each saved grant covers a particular vault entry and field. Executables are
-identified by their absolute paths. Replacing an executable at the same path
-retains its grants. Shells and known interpreters currently support one-time
-approval only.
-
-Saved grants are scoped to the full identity that approved them. Different
-identity secrets with the same readable name do not share grants. Anonymous
-runs keep using legacy grants created without an identity; they do not inherit
-grants saved for a named identity.
+Each saved grant covers a particular vault entry and field. Different identity
+secrets with the same readable name do not share grants. Anonymous requests
+support one-time approval. Existing grants from earlier versions retain their
+original executable, directory, and identity scopes; anonymous runs do not
+inherit grants saved for a named identity.
 
 Persistent grants require a writable vault and are saved in its **Bypass Run
 Permissions** group. Use **Saved Run Permissions** in the command menu to review

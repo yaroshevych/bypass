@@ -23,6 +23,7 @@ type Grant struct {
 	Directory  string `json:"directory,omitempty"`
 	Identity   string `json:"identity,omitempty"`
 	Agent      string `json:"agent,omitempty"`
+	Scope      string `json:"scope,omitempty"`
 }
 
 // Identity is the non-secret principal derived from a validated run identity.
@@ -74,6 +75,9 @@ func (g Grant) Title() string {
 		scope = "all"
 	}
 	label := g.Name + " " + g.Field + " " + filepath.Base(g.Executable) + " " + scope
+	if g.Scope == "identity" {
+		label = g.Name + " " + g.Field
+	}
 	if g.Agent != "" {
 		label = "agent " + g.Agent + " " + label
 	}
@@ -85,7 +89,13 @@ func (g Grant) Title() string {
 	return label + " " + hex.EncodeToString(sum[:8])
 }
 func (g Grant) Allows(want Grant) bool {
-	return g.Version == 1 && g.Entry == want.Entry && g.Name == want.Name && g.Group == want.Group && g.Field == want.Field && g.Executable == want.Executable && g.Identity == want.Identity && (g.Directory == "" || g.Directory == want.Directory)
+	if g.Entry != want.Entry || g.Name != want.Name || g.Group != want.Group || g.Field != want.Field || g.Identity != want.Identity {
+		return false
+	}
+	if g.Version == 2 && g.Scope == "identity" {
+		return g.Identity != "" && g.Executable == "" && g.Directory == ""
+	}
+	return g.Version == 1 && g.Scope == "" && g.Executable == want.Executable && (g.Directory == "" || g.Directory == want.Directory)
 }
 func DecodeGrant(value string) (Grant, bool) {
 	var g Grant
@@ -94,5 +104,6 @@ func DecodeGrant(value string) (Grant, bool) {
 		return g, false
 	}
 	err = json.Unmarshal(data, &g)
-	return g, err == nil && g.Version == 1
+	valid := g.Version == 1 && g.Scope == "" || g.Version == 2 && g.Scope == "identity" && g.Identity != "" && g.Executable == "" && g.Directory == ""
+	return g, err == nil && valid
 }

@@ -84,7 +84,7 @@ func (m *Model) View() string {
 			lines[3] = "Draft kept · resize · ctrl+c quits"
 		}
 	} else if m.runs != nil && m.runs.visible && !m.gate.Protected() {
-		lines = m.boxWithBodyRowsWidth("Secret requests", m.runLines(), "", min(len(m.runLines()), max(1, m.height-5)), min(m.width-6, 90))
+		lines = m.runDialogView()
 		modal = true
 	} else if advanced, ok := m.advancedScreen(); ok {
 		lines = advanced
@@ -1152,6 +1152,9 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 					scope = "all directories"
 				}
 				value = fmt.Sprintf("Entry: %s/%s\nField: %s\nExecutable: %s\nDirectory: %s\nEntry UUID: %s", grant.Group, grant.Name, grant.Field, grant.Executable, scope, grant.Entry)
+				if grant.Scope == "identity" {
+					value = fmt.Sprintf("Entry: %s/%s\nField: %s\nCommands: all\nDirectories: all\nEntry UUID: %s", grant.Group, grant.Name, grant.Field, grant.Entry)
+				}
 				if grant.Agent != "" {
 					value += "\nAgent: " + grant.Agent
 				}

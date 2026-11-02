@@ -52,7 +52,13 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 	e.key("Enter")
 	e.mustShow("Pending secret requests")
 	e.key("Enter")
-	e.mustShow("Allow once")
+	e.mustShow("REVIEW REQUEST")
+	// Enter must activate the default Back button, never grant access.
+	e.key("Enter")
+	e.waitFor("review returns to request list", func() bool { return !strings.Contains(e.capture(), "REVIEW REQUEST") })
+	e.mustShow("Pending secret requests")
+	e.key("Enter")
+	e.mustShow("REVIEW REQUEST")
 	e.key("a")
 	if err := cmd.Wait(); err != nil {
 		t.Fatalf("approved run failed: %v: %s", err, e.redact(out.String()))
@@ -61,7 +67,7 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 		t.Fatal("child did not confirm injected secret")
 	}
 	e.key("Escape")
-	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "SECRET REQUESTS") })
+	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "Pending secret requests") })
 	cmd, out = launch()
 	e.mustShow("secret request pending")
 	e.key("C-b")
@@ -83,7 +89,7 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 		t.Fatal("could not deny second request before first")
 	}
 	e.key("Enter")
-	e.mustShow("Allow once")
+	e.mustShow("REVIEW REQUEST")
 	e.key("a")
 	if err := first.Wait(); err != nil || firstOut.String() != "approved" {
 		t.Fatalf("first queued request failed: %v: %s", err, e.redact(firstOut.String()))
@@ -91,7 +97,7 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 
 }
 
-func TestRunPersistentGrantAndTimeoutTmux(t *testing.T) {
+func TestRunIdentityGrantAndTimeoutTmux(t *testing.T) {
 	backend, err := exec.LookPath("keepassxc-cli")
 	if err != nil {
 		t.Fatal(err)
@@ -113,12 +119,14 @@ func TestRunPersistentGrantAndTimeoutTmux(t *testing.T) {
 		t.Fatal(err)
 	}
 	directory := e.pickerRoot
+	identity := "repeat-" + strings.Repeat("d4", 16)
+	e.secrets = append(e.secrets, identity)
 	launch := func(timeout string) (*exec.Cmd, *bytes.Buffer) {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		t.Cleanup(cancel)
 		cmd := exec.CommandContext(ctx, appBinary, "run", "--timeout", timeout, "--", executable, "RUN_SECRET")
 		cmd.Dir = directory
-		cmd.Env = append(os.Environ(), "HOME="+filepath.Join(e.root, "home"), "XDG_CACHE_HOME="+filepath.Join(e.root, "xdg-cache"), "XDG_CONFIG_HOME="+filepath.Join(e.root, "xdg-config"), "RUN_SECRET=bypass://Seed Entry")
+		cmd.Env = append(os.Environ(), "HOME="+filepath.Join(e.root, "home"), "XDG_CACHE_HOME="+filepath.Join(e.root, "xdg-cache"), "XDG_CONFIG_HOME="+filepath.Join(e.root, "xdg-config"), "RUN_SECRET=bypass://Seed Entry", "BYPASS_IDENTITY="+identity)
 		out := new(bytes.Buffer)
 		cmd.Stdout = out
 		cmd.Stderr = out
@@ -132,8 +140,8 @@ func TestRunPersistentGrantAndTimeoutTmux(t *testing.T) {
 	e.key("C-b")
 	e.mustShow("Pending secret requests")
 	e.key("Enter")
-	e.mustShow("Allow for this path")
-	e.key("p")
+	e.mustShow("Allow for this identity")
+	e.key("i")
 	if err := cmd.Wait(); err != nil {
 		t.Fatalf("persistent approval failed: %v: %s", err, e.redact(out.String()))
 	}
@@ -148,23 +156,36 @@ func TestRunPersistentGrantAndTimeoutTmux(t *testing.T) {
 		t.Fatal("repeat request did not deliver field")
 	}
 	directory = e.root
+	cmd, out = launch("5s")
+	if err := cmd.Wait(); err != nil || strings.TrimSpace(out.String()) != fixtureEntryPassword {
+		t.Fatal("identity grant did not apply in another directory")
+	}
+	identity = "other-" + strings.Repeat("e5", 16)
+	e.secrets = append(e.secrets, identity)
 	cmd, out = launch("300ms")
 	if err := cmd.Wait(); err == nil {
-		t.Fatal("different directory inherited the grant")
+		t.Fatal("different identity inherited the grant")
 	}
 	if !strings.Contains(out.String(), "timed out") {
 		t.Fatalf("expected timeout: %s", e.redact(out.String()))
 	}
 	directory = e.pickerRoot
-	e.key("C-p")
-	e.typeText("Saved Run Permissions")
+	identity = "repeat-" + strings.Repeat("d4", 16)
+	e.mustShow("Pending secret requests (0)")
+	e.key("r")
+	e.mustShow("RESET SAVED PERMISSIONS", "Cancel")
+	// Reset also has a safe default: Enter cancels without revoking access.
 	e.key("Enter")
-	e.mustShow("Bypass Run Permissions")
-	e.key("C-d")
-	e.mustShow("DELETE")
-	e.key("Right")
-	e.key("Enter")
-	e.mustShowWrite("saved · backup created")
+	e.waitFor("reset canceled", func() bool { return !strings.Contains(e.capture(), "RESET SAVED PERMISSIONS") })
+	cmd, out = launch("5s")
+	if err := cmd.Wait(); err != nil || strings.TrimSpace(out.String()) != fixtureEntryPassword {
+		t.Fatal("canceling reset revoked a saved permission")
+	}
+	e.mustShow("Pending secret requests (0)")
+	e.key("r")
+	e.mustShow("RESET SAVED PERMISSIONS")
+	e.key("C-s")
+	e.waitFor("saved permissions reset", func() bool { return !strings.Contains(e.capture(), "RESET SAVED PERMISSIONS") })
 	cmd, out = launch("500ms")
 	if err := cmd.Wait(); err == nil {
 		t.Fatal("revoked permission still authorized a request")
@@ -228,9 +249,10 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 	e.key("C-b")
 	e.mustShow("Pending secret requests")
 	e.key("Enter")
-	e.mustShow("Select vault:")
+	e.mustShow("Select vault for this reference")
+	e.key("Tab")
 	e.key("Enter")
-	e.mustShow("Allow once")
+	e.mustShow("Allow for this identity")
 	e.key("a")
 	if err := cmd.Wait(); err != nil {
 		t.Fatalf("vault selection failed: %v: %s", err, e.redact(out.String()))
@@ -239,13 +261,13 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 		t.Fatal("selected batch did not resolve")
 	}
 	e.key("Escape")
-	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "SECRET REQUESTS") })
+	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "Pending secret requests") })
 	cmd, out = launch([]string{"ONE=bypass://second.kdbx/Seed Entry", "TWO=bypass://real-cli.kdbx/Seed Entry"})
 	e.mustShow("secret request pending")
 	e.key("C-b")
 	e.mustShow("Pending secret requests")
 	e.key("Enter")
-	e.mustShow("Allow once")
+	e.mustShow("REVIEW REQUEST")
 	e.key("a")
 	if err := cmd.Wait(); err != nil {
 		t.Fatalf("multi-vault batch failed: %v: %s", err, e.redact(out.String()))
@@ -289,11 +311,11 @@ func TestRunChildSurvivesVaultLockAndTUIClose(t *testing.T) {
 	e.key("C-b")
 	e.mustShow("Pending secret requests")
 	e.key("Enter")
-	e.mustShow("Allow once")
+	e.mustShow("REVIEW REQUEST")
 	e.key("a")
 	e.waitFor("approved child starts", func() bool { _, err := os.Stat(marker); return err == nil })
 	e.key("Escape")
-	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "SECRET REQUESTS") })
+	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "Pending secret requests") })
 	e.key("C-l")
 	e.mustShow("Vault locked")
 	e.key("C-c")

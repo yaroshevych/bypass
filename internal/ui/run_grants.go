@@ -27,9 +27,14 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 	}
 	backend := m.backend
 	backup := m.settings.BackupDir
+	permissionEpoch := uint64(0)
+	if m.runs != nil {
+		permissionEpoch = m.runs.permissionEpoch
+	}
 	return func() tea.Msg {
 		secrets := newRunSecretValues(p.Context)
 		result := runResult{pending: p, targets: targets, secrets: secrets, updated: map[string]*vault.Database{}}
+		result.permissionEpoch = permissionEpoch
 		result.newIdentity = p.Identity.Digest != ""
 		defer func() {
 			if result.err != nil || result.needsApproval || p.Context.Err() != nil {
@@ -49,6 +54,10 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 			return result
 		}
 		writer, _ := backend.(vault.Writer)
+		if mode == "i" && p.Identity.Digest == "" {
+			result.err = fmt.Errorf("identity required to save access")
+			return result
+		}
 		if mode != "a" && mode != "check" && (writer == nil || !writable) {
 			result.err = fmt.Errorf("vault is not writable")
 			return result
@@ -74,19 +83,24 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 						if ok && p.Identity.Digest != "" && grant.Identity == p.Identity.Digest {
 							result.newIdentity = false
 						}
-						if ok && grant.Allows(want) {
+						if ok && grant.Allows(want) && (grant.Scope == "identity" || grantEligible(p.Request.Command)) {
 							allowed = true
 						}
 					}
 					clear(value)
 				}
-				if !allowed || !grantEligible(p.Request.Command) {
+				if !allowed {
 					result.needsApproval = true
 					return result
 				}
 			}
 			if mode != "a" && mode != "check" {
 				grant := runpkg.Grant{Version: 1, Entry: target.entry, Field: target.field, Executable: p.Request.Command[0], Identity: p.Identity.Digest, Agent: p.Identity.Name}
+				if mode == "i" {
+					grant.Version = 2
+					grant.Scope = "identity"
+					grant.Executable = ""
+				}
 				for _, entry := range db.Entries {
 					if entry.UUID == target.entry {
 						grant.Name = entry.Get("Title")
