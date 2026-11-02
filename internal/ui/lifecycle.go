@@ -385,11 +385,11 @@ func (m *Model) lifecycleKey(k tea.KeyMsg) tea.Cmd {
 			break
 		}
 	}
+	if dialogLinearFocus(key, len(inputs), &position, false) {
+		l.focus = inputs[position]
+		return nil
+	}
 	switch key {
-	case "tab", "down":
-		l.focus = inputs[min(len(inputs)-1, position+1)]
-	case "shift+tab", "up":
-		l.focus = inputs[max(0, position-1)]
 	case "enter":
 		if l.focus == actionFocus {
 			return m.submitLifecycle()

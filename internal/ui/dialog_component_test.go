@@ -2,6 +2,20 @@ package ui
 
 import "testing"
 
+func TestDialogLinearFocusWrapAndClamp(t *testing.T) {
+	focus := 0
+	if !dialogLinearFocus("up", 4, &focus, true) || focus != 3 {
+		t.Fatal("wrapped focus did not reach the last field")
+	}
+	dialogLinearFocus("down", 4, &focus, false)
+	if focus != 3 {
+		t.Fatal("clamped focus moved past the last field")
+	}
+	if dialogLinearFocus("enter", 4, &focus, false) {
+		t.Fatal("Enter was treated as navigation")
+	}
+}
+
 func TestDialogFocusNavigatesListAndActions(t *testing.T) {
 	item, action, buttons := 0, 0, false
 	for _, key := range []string{"down", "tab", "down"} {

@@ -55,6 +55,28 @@ func dialogActionFocus(key string, count int, focus *int) bool {
 	return dialogFocus(key, 0, count, &item, focus, &actionsFocused)
 }
 
+// dialogLinearFocus navigates a linear sequence of fields and actions.
+func dialogLinearFocus(key string, count int, focus *int, wrap bool) bool {
+	if count <= 0 {
+		return false
+	}
+	delta := 0
+	switch key {
+	case "tab", "down":
+		delta = 1
+	case "shift+tab", "up":
+		delta = -1
+	default:
+		return false
+	}
+	if wrap {
+		*focus = (*focus + count + delta) % count
+	} else {
+		*focus = min(count-1, max(0, *focus+delta))
+	}
+	return true
+}
+
 func (m *Model) compactAppearance() bool {
 	return strings.EqualFold(m.settings.Appearance, "compact")
 }

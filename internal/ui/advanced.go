@@ -177,12 +177,7 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 		return tea.Quit
 	}
 	if m.pinFullLock {
-		if key == "tab" || key == "shift+tab" || key == "up" || key == "down" {
-			delta := 1
-			if key == "shift+tab" || key == "up" {
-				delta = -1
-			}
-			m.pinFocus = (m.pinFocus + 2 + delta) % 2
+		if dialogLinearFocus(key, 2, &m.pinFocus, true) {
 			return nil
 		}
 		if key == "esc" {
@@ -208,12 +203,7 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 		m.pinFocus = 0
 		return nil
 	}
-	if key == "tab" || key == "shift+tab" || key == "up" || key == "down" {
-		delta := 1
-		if key == "shift+tab" || key == "up" {
-			delta = -1
-		}
-		m.pinFocus = (m.pinFocus + 4 + delta) % 4
+	if dialogLinearFocus(key, 4, &m.pinFocus, true) {
 		return nil
 	}
 	if key == "enter" && m.pinFocus != 2 && m.pinFocus != 3 {
