@@ -252,3 +252,29 @@ func TestVaultAndDestinationCancelMouseActions(t *testing.T) {
 		}
 	}
 }
+
+func TestHistoryMouseUsesOverlayGeometry(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		m := New(Options{})
+		m.settings.Appearance = appearance
+		m.width, m.height = 80, 24
+		m.extras = &extraState{mode: extraHistory, history: []vault.Entry{
+			{Fields: []vault.Field{{Name: "Title", Value: "First snapshot"}}},
+			{Fields: []vault.Field{{Name: "Title", Value: "Second snapshot"}}},
+		}}
+		row, column := -1, -1
+		for y, line := range m.historyLines(m.extras) {
+			plain := ansi.Strip(line)
+			if x := strings.Index(plain, "Second snapshot"); x >= 0 {
+				row, column = y, len([]rune(plain[:x]))
+			}
+		}
+		if row < 0 {
+			t.Fatalf("%s: second history entry hidden", appearance)
+		}
+		m.extrasPointer(tea.MouseMsg{X: column, Y: row, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+		if m.extras.historyIndex != 1 {
+			t.Fatalf("%s: history click selected %d", appearance, m.extras.historyIndex)
+		}
+	}
+}

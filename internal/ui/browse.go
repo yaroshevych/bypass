@@ -294,11 +294,9 @@ func (m *Model) pickerBodyRows() int {
 }
 
 func (m *Model) pickerBodyTop() int {
-	headerRows := 2
-	if m.compactAppearance() {
-		headerRows = 0
-	}
-	return max(0, (m.height-m.pickerBodyRows()-headerRows)/2) + headerRows
+	opts := m.dialogOptions()
+	opts.Width, opts.BodyRows, opts.StatusBar = min(m.width-6, 60), m.pickerBodyRows(), m.pickerStatusBar()
+	return dialogrender.LayoutBox(opts).BodyY
 }
 
 func (m *Model) pickerRecentCount() int {

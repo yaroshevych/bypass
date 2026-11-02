@@ -1,6 +1,7 @@
 package ui
 
 import (
+	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
 	"context"
@@ -347,11 +348,9 @@ func (m *Model) extrasPointer(msg tea.MouseMsg) (tea.Cmd, bool) {
 		start := viewportOffset(state.historyIndex, len(state.history), capacity, state.offset)
 		start, end := viewportRange(len(state.history), capacity, start)
 		visible := end - start
-		top := max(0, (m.height-(visible+6))/2)
-		index := msg.Y - (top + 4) + start
-		boxWidth := min(max(20, min(78, m.width-4)), max(20, m.width-2))
-		left := max(0, (m.width-boxWidth)/2)
-		if msg.X >= left && msg.X < left+boxWidth && index >= start && index < start+visible {
+		g := dialogrender.LayoutOverlay(min(78, m.width-4), m.width, m.height, 2+max(1, visible), m.compactAppearance(), -1, -1)
+		index := msg.Y - (g.Y + g.HeaderRows + 2) + start
+		if msg.X >= g.X && msg.X < g.X+g.Width && index >= start && index < end {
 			state.historyIndex = index
 			state.offset = viewportOffset(index, len(state.history), capacity, state.offset)
 		}
@@ -375,11 +374,13 @@ func (m *Model) extrasPointer(msg tea.MouseMsg) (tea.Cmd, bool) {
 		if state.err != "" {
 			extraRows += 2
 		}
-		top := max(0, (m.height-(visible+6+extraRows))/2)
-		index := msg.Y - (top + 4) + start
-		boxWidth := min(max(20, min(76, m.width-4)), max(20, m.width-2))
-		left := max(0, (m.width-boxWidth)/2)
-		if msg.X >= left && msg.X < left+boxWidth && index >= start && index < start+visible {
+		footerRows := 1
+		if state.loading {
+			footerRows = 0
+		}
+		g := dialogrender.LayoutOverlay(min(76, m.width-4), m.width, m.height, 2+visible+extraRows+footerRows, m.compactAppearance(), -1, -1)
+		index := msg.Y - (g.Y + g.HeaderRows + 2) + start
+		if msg.X >= g.X && msg.X < g.X+g.Width && index >= start && index < end {
 			state.selected = index
 			state.offset = viewportOffset(index, items, capacity, state.offset)
 		}
