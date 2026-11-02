@@ -113,10 +113,18 @@ func (m *Model) dialogOptions() dialogrender.Options {
 	c := m.colors()
 	theme := colorsForTheme(m.settings.Theme)
 	return dialogrender.Options{
-		ScreenWidth: m.width, Height: m.height, Compact: m.compactAppearance(), ASCII: m.settings.ASCII,
+		ScreenWidth: m.width, Height: m.height, Compact: m.compactAppearance(), ASCII: m.settings.ASCII, Fullscreen: m.smallDialogScreen(),
 		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, ErrorStyle: c.error, Pill: c.active, Divider: c.divider,
 		RestoreResets: func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) },
 	}
+}
+
+// dialogContentCapacity gives small panes their available fullscreen body rows.
+func (m *Model) dialogContentCapacity(framedReserve, minimum int) int {
+	if m.smallDialogScreen() {
+		return max(minimum, m.height-1)
+	}
+	return max(minimum, m.height-framedReserve)
 }
 
 func (m *Model) centeredDialogGeometry(width, bodyRows int) dialogrender.OverlayGeometry {

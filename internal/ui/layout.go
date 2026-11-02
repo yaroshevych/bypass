@@ -4,6 +4,11 @@ import (
 	"bypass/internal/workspace"
 )
 
+const (
+	minimumTerminalWidth  = 48
+	minimumTerminalHeight = 16
+)
+
 type paneRect struct {
 	Focus, X, Y, Width, Height int
 }
@@ -27,7 +32,7 @@ func (m *Model) layout() viewLayout {
 		footer += len(m.noticeOverflowLines())
 	}
 	l := viewLayout{Mode: "tiny", BodyY: header, BodyHeight: max(0, h-header-footer)}
-	if w < 48 || h < 14 {
+	if w < minimumTerminalWidth || h < minimumTerminalHeight {
 		return l
 	}
 	var v *workspace.View

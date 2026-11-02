@@ -87,7 +87,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 
 		return nil
 	}
-	if m.help || m.width < 48 || m.height < 14 {
+	if m.help {
 		return nil
 	}
 	if msg.Action != tea.MouseActionPress {
@@ -264,7 +264,7 @@ func (m *Model) fileViewport() (start, capacity int) {
 
 func (m *Model) pickerBodyRows() int {
 	// Keep the picker sized for up to five Recent rows and fifteen Browse rows.
-	return min(26, max(1, m.height-9))
+	return min(26, m.dialogContentCapacity(9, 1))
 }
 
 func (m *Model) pickerRecentCount() int {

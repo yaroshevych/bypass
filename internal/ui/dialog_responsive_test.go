@@ -14,7 +14,7 @@ import (
 
 func TestDialogsKeepActionsVisibleInSmallWindows(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
-		for _, size := range [][2]int{{48, 14}, {60, 20}, {80, 24}} {
+		for _, size := range [][2]int{{48, 16}, {60, 20}, {80, 24}} {
 			m := New(Options{})
 			m.settings.Appearance = appearance
 			m.width, m.height = size[0], size[1]
@@ -54,7 +54,7 @@ func TestDialogsKeepActionsVisibleInSmallWindows(t *testing.T) {
 
 func TestUnlockMouseUsesVisibleDialogBounds(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
-		for _, size := range [][2]int{{48, 14}, {80, 24}} {
+		for _, size := range [][2]int{{48, 16}, {80, 24}} {
 			m := New(Options{})
 			m.settings.Appearance = appearance
 			m.width, m.height, m.screen = size[0], size[1], unlock
@@ -69,9 +69,11 @@ func TestUnlockMouseUsesVisibleDialogBounds(t *testing.T) {
 			if row < 0 {
 				t.Fatalf("%s %v: Cancel not visible", appearance, size)
 			}
-			m.pointer(tea.MouseMsg{X: 0, Y: row, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
-			if m.screen != unlock {
-				t.Fatalf("%s %v: click outside dialog activated Cancel", appearance, size)
+			if !m.smallDialogScreen() {
+				m.pointer(tea.MouseMsg{X: 0, Y: row, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+				if m.screen != unlock {
+					t.Fatalf("%s %v: click outside dialog activated Cancel", appearance, size)
+				}
 			}
 			m.pointer(tea.MouseMsg{X: column, Y: row, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
 			if m.screen != browse {
@@ -83,7 +85,7 @@ func TestUnlockMouseUsesVisibleDialogBounds(t *testing.T) {
 
 func TestUnlockErrorWrapsWithoutHidingActions(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
-		for _, size := range [][2]int{{48, 14}, {60, 20}, {80, 24}} {
+		for _, size := range [][2]int{{48, 16}, {60, 20}, {80, 24}} {
 			m := New(Options{})
 			m.settings.Appearance = appearance
 			m.width, m.height, m.path = size[0], size[1], "/tmp/example.kdbx"
@@ -101,7 +103,7 @@ func TestUnlockErrorWrapsWithoutHidingActions(t *testing.T) {
 func TestErrorStatesWrapInSmallWindows(t *testing.T) {
 	const message = "Could not unlock. Check credentials, file access and backend support."
 	for _, appearance := range []string{"classic", "compact"} {
-		for _, size := range [][2]int{{48, 14}, {80, 24}} {
+		for _, size := range [][2]int{{48, 16}, {80, 24}} {
 			for _, screen := range []string{"unlock", "picker", "palette", "group", "generator", "delete", "external", "unsaved", "pin-setup", "vault", "pin", "request", "reset", "editor", "editor-validation", "totp", "attachments"} {
 				t.Run(fmt.Sprintf("%s/%dx%d/%s", appearance, size[0], size[1], screen), func(t *testing.T) {
 					m := New(Options{})
@@ -168,7 +170,7 @@ func TestLongErrorNoticeRemainsVisible(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
 		m := New(Options{})
 		m.settings.Appearance = appearance
-		m.width, m.height = 48, 14
+		m.width, m.height = 48, 16
 		m.ws.Open(fixture("/tmp/example.kdbx"))
 		m.notice = "reload failed · check the vault file access and credentials before retrying"
 		view := ansi.Strip(m.View())
@@ -183,7 +185,7 @@ func TestLongErrorNoticeRemainsVisible(t *testing.T) {
 
 func TestVaultFormMouseUsesVisibleTargets(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
-		for _, size := range [][2]int{{48, 14}, {80, 24}} {
+		for _, size := range [][2]int{{48, 16}, {80, 24}} {
 			m := New(Options{})
 			m.settings.Appearance = appearance
 			m.width, m.height = size[0], size[1]
@@ -206,7 +208,7 @@ func TestVaultFormMouseUsesVisibleTargets(t *testing.T) {
 			if m.lifecycle.focus != 0 {
 				t.Fatalf("%s %v: path click did not focus field", appearance, size)
 			}
-			if size[1] > 14 {
+			if size[1] > 16 {
 				for y, line := range m.lifecycleLines() {
 					plain := ansi.Strip(line)
 					if x := strings.Index(plain, "New password"); x >= 0 {
@@ -224,7 +226,7 @@ func TestVaultFormMouseUsesVisibleTargets(t *testing.T) {
 
 func TestDestinationMouseUsesVisibleRows(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
-		for _, size := range [][2]int{{48, 14}, {80, 24}} {
+		for _, size := range [][2]int{{48, 16}, {80, 24}} {
 			m := New(Options{})
 			m.settings.Appearance = appearance
 			m.width, m.height = size[0], size[1]
@@ -247,7 +249,7 @@ func TestDestinationMouseUsesVisibleRows(t *testing.T) {
 			if m.dialog.selected != 0 {
 				t.Fatalf("%s %v: destination click missed", appearance, size)
 			}
-			if size[1] > 14 {
+			if size[1] > 16 {
 				for y, line := range m.dialogLines() {
 					plain := ansi.Strip(line)
 					if x := strings.Index(plain, "Beta"); x >= 0 {
@@ -292,7 +294,7 @@ func TestWelcomeMouseDistinguishesRecentVaultRows(t *testing.T) {
 
 func TestMoreDialogsAndEditorAtSmallSizes(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
-		for _, size := range [][2]int{{48, 14}, {60, 20}, {80, 24}} {
+		for _, size := range [][2]int{{48, 16}, {60, 20}, {80, 24}} {
 			m := New(Options{})
 			m.settings.Appearance = appearance
 			m.width, m.height = size[0], size[1]
@@ -359,7 +361,7 @@ func TestDialogClicksFollowRowsWhenErrorIsVisible(t *testing.T) {
 		for _, kind := range []string{"unlock", "vault", "destination"} {
 			t.Run(appearance+"/"+kind, func(t *testing.T) {
 				m := New(Options{})
-				m.settings.Appearance, m.width, m.height = appearance, 48, 14
+				m.settings.Appearance, m.width, m.height = appearance, 48, 16
 				var lines []string
 				switch kind {
 				case "unlock":
@@ -408,7 +410,7 @@ func TestDialogClicksFollowRowsWhenErrorIsVisible(t *testing.T) {
 func TestPaletteErrorIsNotAnActionTarget(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
 		m := New(Options{})
-		m.settings.Appearance, m.width, m.height = appearance, 48, 14
+		m.settings.Appearance, m.width, m.height = appearance, 48, 16
 		m.openPalette("actions", false)
 		m.palette.err = "An error that wraps on a narrow terminal."
 		found := false
@@ -463,7 +465,7 @@ func TestOpenDialogsAndEditorSurviveResize(t *testing.T) {
 		m.openPalette("themes", false)
 		m.palette.query.set("Nord")
 		m.refreshPalette()
-		for _, size := range [][2]int{{48, 14}, {80, 24}} {
+		for _, size := range [][2]int{{48, 16}, {80, 24}} {
 			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			if m.palette == nil || m.palette.query.value() != "Nord" || !strings.Contains(strings.Join(m.paletteLines(), "\n"), "Nord") {
 				t.Fatalf("%s %v: theme picker lost its query on resize", appearance, size)
@@ -471,7 +473,7 @@ func TestOpenDialogsAndEditorSurviveResize(t *testing.T) {
 		}
 		m.palette = nil
 		m.dialog = &actionDialog{kind: "destination", title: "Move entry", groups: []vault.Group{{Path: "Alpha"}, {Path: "Beta"}}, selected: 1}
-		for _, size := range [][2]int{{48, 14}, {80, 24}} {
+		for _, size := range [][2]int{{48, 16}, {80, 24}} {
 			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			if m.dialog == nil || m.dialog.selected != 1 || !strings.Contains(strings.Join(m.dialogLines(), "\n"), "Beta") {
 				t.Fatalf("%s %v: destination selection lost on resize", appearance, size)
@@ -491,11 +493,57 @@ func TestOpenDialogsAndEditorSurviveResize(t *testing.T) {
 func TestLongNoticeLeavesRoomForWorkspace(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
 		m := New(Options{})
-		m.width, m.height, m.settings.Appearance = 48, 14, appearance
+		m.width, m.height, m.settings.Appearance = 48, 16, appearance
 		m.notice = strings.Repeat("long notice ", 100)
 		lines := m.noticeOverflowLines()
 		if len(lines) > 3 || len(lines) == 0 || !strings.Contains(lines[len(lines)-1], "…") {
 			t.Fatalf("%s: notice overflow is not bounded and indicated", appearance)
+		}
+	}
+}
+
+func TestSmallPaneDialogsUseFullscreenAndRemainInteractive(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		t.Run(appearance, func(t *testing.T) {
+			m := New(Options{})
+			m.settings.Appearance = appearance
+			m.width, m.height, m.screen = 48, 16, unlock
+			m.path = "/tmp/example.kdbx"
+			view := ansi.Strip(m.View())
+			for _, label := range []string{"UNLOCK VAULT", "Password", "Open", "Cancel"} {
+				if !strings.Contains(view, label) {
+					t.Errorf("unlock hides %q: %q", label, view)
+				}
+			}
+			if strings.ContainsAny(view, "┌┐└┘╭╮╰╯") {
+				t.Fatal("small dialog has a border")
+			}
+			m.screen = browse
+			m.openPalette("actions", false)
+			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("theme")})
+			view = ansi.Strip(m.View())
+			if !strings.Contains(view, "theme") {
+				t.Fatalf("palette filter not visible: %q", view)
+			}
+			m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			if m.palette != nil {
+				t.Fatal("Esc did not close palette")
+			}
+		})
+	}
+}
+
+func TestTooSmallScreenShowsCenteredSize(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 48, 14
+	lines := strings.Split(ansi.Strip(m.View()), "\n")
+	for i, text := range []string{"Terminal too small", "Need 48x16; current 48x14", "Resize to continue"} {
+		row := (m.height-3)/2 + i
+		if strings.TrimSpace(lines[row]) != text {
+			t.Fatalf("row %d: got %q", row, lines[row])
+		}
+		if strings.Index(lines[row], text) != (m.width-len(text))/2 {
+			t.Fatalf("row %d not centered: %q", row, lines[row])
 		}
 	}
 }

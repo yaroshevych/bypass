@@ -44,7 +44,7 @@ func TestWorkspaceNativeViewsDraftsAndSessionLocks(t *testing.T) {
 
 	// Exercise a representative browse and search path in each supported
 	// responsive layout. The same native entry remains reachable throughout.
-	for _, size := range []struct{ width, height int }{{120, 35}, {90, 25}, {60, 20}, {48, 14}} {
+	for _, size := range []struct{ width, height int }{{120, 35}, {90, 25}, {60, 20}, {48, 16}} {
 		e.resize(size.width, size.height)
 		e.mustDimensions(size.width, size.height)
 		e.mustShow("First")

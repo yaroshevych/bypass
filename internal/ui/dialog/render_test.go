@@ -283,3 +283,15 @@ func TestLongErrorIndicatesClippingAndKeepsActions(t *testing.T) {
 		}
 	}
 }
+
+func TestFullscreenKeepsActionsAtBottomAndHitsTargets(t *testing.T) {
+	o := Options{Mode: Overlay, Title: "Dialog", Width: 40, ScreenWidth: 60, Height: 16, Fullscreen: true, X: -1, Y: -1,
+		Body: []string{"Content", BodyRule, "Save", "Cancel"}}
+	lines := strip(Render(o))
+	if !strings.Contains(lines[14], "Save") || !strings.Contains(lines[15], "Cancel") {
+		t.Fatalf("actions are not at the bottom: %q", strings.Join(lines, "\n"))
+	}
+	if hit := HitTest(o, 2, 15, []int{-1, -1, 11, 12}); !hit.Inside || hit.Target != 12 {
+		t.Fatalf("bottom action hit = %+v", hit)
+	}
+}

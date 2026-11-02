@@ -60,9 +60,13 @@ const (
 	layerJump
 )
 
+func (m *Model) smallDialogScreen() bool {
+	return m.width >= minimumTerminalWidth && m.height >= minimumTerminalHeight && (m.width < 80 || m.height < 20)
+}
+
 func (m *Model) activeLayer() uiLayer {
 	switch {
-	case m.width < 48 || m.height < 14:
+	case m.width < minimumTerminalWidth || m.height < minimumTerminalHeight:
 		return layerTiny
 	case m.gate.Protected():
 		return layerPrivacy

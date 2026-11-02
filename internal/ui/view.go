@@ -70,18 +70,19 @@ func (m *Model) View() string {
 	defer func() { m.searchCache = searchCache }()
 	w, h := max(1, m.width), max(1, m.height)
 	styles := m.colors()
-	primary, accent := styles.primary, styles.accent
-	secondary := styles.secondary
+	primary := styles.primary
 	var lines []string
 	modal := false
 	if m.activeLayer() == layerTiny {
-		minimum := "Resize to at least 48 × 14"
-		if m.settings.ASCII {
-			minimum = "Resize to at least 48x14"
+		message := []string{
+			"Terminal too small",
+			fmt.Sprintf("Need %dx%d; current %dx%d", minimumTerminalWidth, minimumTerminalHeight, m.width, m.height),
+			"Resize to continue",
 		}
-		lines = []string{accent.Render("bypass"), "Terminal too small", secondary.Render(minimum), "q quit · ctrl+c quit"}
-		if m.editor != nil && m.editor.dirty() {
-			lines[3] = "Draft kept · resize · ctrl+c quits"
+		lines = make([]string, max(0, (h-len(message))/2))
+		for _, line := range message {
+			left := max(0, (w-lipgloss.Width(line))/2)
+			lines = append(lines, strings.Repeat(" ", left)+line)
 		}
 	} else if m.activeLayer() == layerRequests {
 		lines = m.runDialogView()

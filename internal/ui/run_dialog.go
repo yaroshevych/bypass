@@ -294,6 +294,10 @@ func (m *Model) positionRunLayout(layout runDialogLayout, review bool) runDialog
 	opts := m.dialogOptions()
 	opts.Mode, opts.Width, opts.Body, opts.Error = dialogrender.Overlay, layout.width, layout.body, safe(layout.errorMessage)
 	layout.body, _ = dialogrender.PrepareBody(opts)
+	if opts.Fullscreen {
+		layout.width, layout.x, layout.y = m.width, 0, 0
+		return layout
+	}
 	g := m.centeredDialogGeometry(layout.width, len(layout.body))
 	layout.width = g.Width
 	layout.x = g.X

@@ -19,7 +19,7 @@ func TestUnlockErrorWrapsInSmallTerminal(t *testing.T) {
 	createRealVault(e, backend)
 	e.startWith(backend, e.realDB)
 	e.mustShow("UNLOCK VAULT")
-	e.resize(48, 14)
+	e.resize(48, 16)
 	e.typeText(fixtureWrongPassword)
 	e.key("Enter")
 	e.mustShow("Could not unlock", "backend support", "Open", "Cancel")
@@ -30,7 +30,7 @@ func TestCommandAndThemeDialogsInSmallTerminal(t *testing.T) {
 	e := newEval(t)
 	defer e.close()
 	e.start()
-	for _, size := range [][2]int{{48, 14}, {60, 20}, {120, 35}} {
+	for _, size := range [][2]int{{48, 16}, {60, 20}, {120, 35}} {
 		e.resize(size[0], size[1])
 		e.key("C-p")
 		e.mustShow("COMMANDS")

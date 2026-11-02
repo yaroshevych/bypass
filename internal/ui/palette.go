@@ -559,7 +559,7 @@ func (m *Model) refreshPalette() {
 	choices := m.paletteChoices()
 	p.selected = min(max(0, p.selected), max(0, len(choices)-1))
 	rows, selected := m.paletteRows(choices)
-	p.offset = viewportOffset(selected, len(rows), max(1, m.height-12), p.offset)
+	p.offset = viewportOffset(selected, len(rows), m.paletteCapacity(), p.offset)
 }
 func (m *Model) previewChoice() {
 	p := m.palette
@@ -641,6 +641,14 @@ func (m *Model) paletteKey(k tea.KeyMsg) tea.Cmd {
 	m.previewChoice()
 	return nil
 }
+func (m *Model) paletteCapacity() int {
+	capacity := m.dialogContentCapacity(12, 1)
+	if m.smallDialogScreen() && m.compactAppearance() {
+		capacity = max(1, capacity-1)
+	}
+	return capacity
+}
+
 func (m *Model) paletteContent() (string, []listComponentOutput, string) {
 	p := m.palette
 	choices := m.paletteChoices()
@@ -649,7 +657,7 @@ func (m *Model) paletteContent() (string, []listComponentOutput, string) {
 	if m.compactAppearance() {
 		body = append(body, listComponentOutput{item: -1})
 	}
-	start, end := viewportRange(len(rows), max(1, m.height-12), p.offset)
+	start, end := viewportRange(len(rows), m.paletteCapacity(), p.offset)
 	for _, row := range rows[start:end] {
 		body = append(body, listComponentOutput{text: row.text, item: row.choice})
 	}

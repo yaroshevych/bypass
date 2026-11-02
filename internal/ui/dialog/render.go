@@ -45,6 +45,7 @@ type Options struct {
 	Width, ScreenWidth         int
 	Height, X, Y               int
 	Compact, ASCII             bool
+	Fullscreen                 bool
 	HideHeaderRule             bool
 	Surface, Accent, Secondary lipgloss.Style
 	ErrorStyle                 lipgloss.Style
@@ -114,6 +115,14 @@ type Hit struct {
 // HitTest uses the same clipping and frame geometry as Render.
 func HitTest(o Options, x, y int, targets []int) Hit {
 	body, indices := prepareBody(o)
+	if o.Fullscreen {
+		hit := Hit{Inside: x >= 0 && x < o.ScreenWidth && y >= 0 && y < o.Height, Target: -1}
+		row := y - 1
+		if hit.Inside && row >= 0 && row < len(indices) && indices[row] >= 0 && indices[row] < len(targets) {
+			hit.Target = targets[indices[row]]
+		}
+		return hit
+	}
 	var left, top, width, height, bodyY int
 	if o.Mode == Overlay {
 		footer := 0
@@ -158,19 +167,24 @@ func prepareBody(o Options) ([]string, []int) {
 	if o.Compact {
 		chrome = 2
 	}
+	if o.Fullscreen {
+		chrome = 1
+	}
 	maxBody := max(1, o.Height-chrome)
 	if statusBar != "" {
 		maxBody = max(1, maxBody-1)
 	}
 	if o.BodyRows > 0 {
-		maxBody = o.BodyRows
+		maxBody = min(o.BodyRows, maxBody)
 		if statusBar != "" {
 			maxBody = max(1, maxBody-1)
 		}
 	}
 	var errorLines []string
 	errorWidth := o.Width
-	if o.Mode == Overlay {
+	if o.Fullscreen {
+		errorWidth = o.ScreenWidth + 4
+	} else if o.Mode == Overlay {
 		errorWidth = OverlayWidth(errorWidth, o.ScreenWidth)
 	}
 	errorWidth = max(1, errorWidth-6)
@@ -226,6 +240,20 @@ func prepareBody(o Options) ([]string, []int) {
 			indices = indices[:maxBody]
 		}
 	}
+	if o.Fullscreen && len(body) < maxBody {
+		for i := len(body) - 1; i >= 0; i-- {
+			if body[i] == BodyRule {
+				padding := maxBody - len(body)
+				body = append(append(append([]string(nil), body[:i]...), make([]string, padding)...), body[i:]...)
+				paddingIndices := make([]int, padding)
+				for j := range paddingIndices {
+					paddingIndices[j] = -1
+				}
+				indices = append(append(append([]int(nil), indices[:i]...), paddingIndices...), indices[i:]...)
+				break
+			}
+		}
+	}
 	if o.BodyRows > 0 {
 		for len(body) < maxBody {
 			body = append(body, "")
@@ -278,10 +306,48 @@ func Render(o Options) []string {
 		}
 	}
 
+	if o.Fullscreen {
+		return renderFullscreen(o, background, statusBar)
+	}
 	if o.Mode == Overlay {
 		return renderOverlay(o, background, width, border, horizontal, tl, tr, bl, br, leftRule, rightRule, title, statusBar)
 	}
 	return renderBox(o, background, width, border, horizontal, tl, tr, bl, br, leftRule, rightRule, title, statusBar)
+}
+
+// renderFullscreen replaces the frame with a title row in a small pane.
+func renderFullscreen(o Options, background []string, footer string) []string {
+	width := max(1, o.ScreenWidth)
+	header := o.Accent.Render(" " + strings.ToUpper(o.Title))
+	if o.HeaderContent != "" {
+		header = o.HeaderContent
+	} else if o.CompactAccessory != "" {
+		header += " " + o.CompactAccessory
+	}
+	lines := []string{fit(header, width)}
+	for _, line := range o.Body {
+		if line == BodyRule {
+			line = strings.Repeat("─", width)
+			if o.ASCII {
+				line = strings.Repeat("-", width)
+			}
+			line = o.Divider.Render(line)
+		}
+		lines = append(lines, fit(line, width))
+	}
+	if footer != "" {
+		lines = append(lines, o.Secondary.Render(fitRight(footer, width)))
+	}
+	for len(lines) < o.Height {
+		lines = append(lines, strings.Repeat(" ", width))
+	}
+	for i := 0; i < len(lines) && i < len(background); i++ {
+		if o.RestoreResets != nil {
+			lines[i] = o.RestoreResets(lines[i])
+		}
+		background[i] = o.Surface.Render(fit(lines[i], width))
+	}
+	return background
 }
 
 // BodyCapacity returns the number of dialog rows available for content after

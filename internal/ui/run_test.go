@@ -302,7 +302,7 @@ func TestRunRequestsSmallScreenShowsSelectedQueueItem(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
 		m := New(Options{})
 		m.settings.Appearance = appearance
-		m.width, m.height = 48, 14
+		m.width, m.height = 48, 16
 		pending := make([]*runpkg.Pending, 4)
 		for i := range pending {
 			pending[i] = &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{fmt.Sprintf("/tools/app%d", i+1)}}}
@@ -310,7 +310,7 @@ func TestRunRequestsSmallScreenShowsSelectedQueueItem(t *testing.T) {
 		m.runs = &runState{visible: true, pending: pending, index: 3}
 		view := ansi.Strip(m.View())
 		if !strings.Contains(view, "Pending secret requests (4)") || !strings.Contains(view, "app4") {
-			t.Errorf("%s 48x14 view hid the selected queue item: %q", appearance, view)
+			t.Errorf("%s 48x16 view hid the selected queue item: %q", appearance, view)
 		}
 	}
 }
@@ -410,7 +410,7 @@ func TestRunIdentitySaveIsBlockedForReadOnlyVault(t *testing.T) {
 
 func TestRunApprovalActionsRemainVisibleAcrossLayouts(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
-		for _, size := range [][2]int{{48, 14}, {80, 24}, {120, 35}} {
+		for _, size := range [][2]int{{48, 16}, {80, 24}, {120, 35}} {
 			m := New(Options{})
 			m.settings.Appearance = appearance
 			m.width, m.height = size[0], size[1]
@@ -433,7 +433,7 @@ func TestRunIdentityLabelIsSafeAcrossCompactLayouts(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, appearance := range []string{"classic", "compact"} {
-		for _, size := range [][2]int{{48, 14}, {80, 24}, {120, 35}} {
+		for _, size := range [][2]int{{48, 16}, {80, 24}, {120, 35}} {
 			m := New(Options{})
 			m.settings.Appearance = appearance
 			m.width, m.height = size[0], size[1]
@@ -484,7 +484,7 @@ func TestRunLockInvalidatesReviewedApproval(t *testing.T) {
 
 func TestUnavailableRunReferenceExplainsFailureAndCanRetry(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
-		for _, size := range [][2]int{{48, 14}, {80, 24}, {120, 35}} {
+		for _, size := range [][2]int{{48, 16}, {80, 24}, {120, 35}} {
 			m := New(Options{})
 			m.settings.Appearance = appearance
 			m.width, m.height = size[0], size[1]
@@ -534,7 +534,7 @@ func TestRunPaletteEntryAndReloadShortcut(t *testing.T) {
 
 func TestTinyScreenDoesNotSendKeysToHiddenRequests(t *testing.T) {
 	m := New(Options{})
-	m.width, m.height = 47, 13
+	m.width, m.height = 47, 15
 	p := &runpkg.Pending{Context: context.Background()}
 	m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, reviewFocus: 2}
 	m.Update(tea.KeyMsg{Type: tea.KeyDown})

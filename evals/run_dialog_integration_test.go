@@ -60,11 +60,11 @@ func TestRunDialogsBackDefaultAndResponsiveTmux(t *testing.T) {
 					}
 				}
 			}
-			for _, size := range [][2]int{{48, 14}, {80, 24}, {120, 35}} {
+			for _, size := range [][2]int{{48, 16}, {80, 24}, {120, 35}} {
 				e.tmux("resize-window", "-t", "eval", "-x", fmt.Sprint(size[0]), "-y", fmt.Sprint(size[1]))
 				e.waitFor("request dialog resized", func() bool {
 					lines := strings.Split(strings.TrimSuffix(e.capture(), "\n"), "\n")
-					return len(lines) == size[1] && strings.Contains(lines[size[1]-1], "bypass")
+					return len(lines) == size[1] && strings.Contains(e.capture(), "Pending secret requests")
 				})
 				e.mustShow("Pending secret requests", "Deny all", "Approve all", "Close")
 				snapshot("requests", size[0], size[1])

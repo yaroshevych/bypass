@@ -458,7 +458,7 @@ func (m *Model) lifecycleContent() (string, []string, string, int, map[int]int) 
 				wrapped = append(wrapped, " "+part)
 			}
 		}
-		capacity := max(1, m.height-12)
+		capacity := m.dialogContentCapacity(12, 1)
 		start := min(l.offset, max(0, len(wrapped)-capacity))
 		body = append(body, wrapped[start:min(len(wrapped), start+capacity)]...)
 		footer = ""
@@ -495,7 +495,7 @@ func (m *Model) lifecycleContent() (string, []string, string, int, map[int]int) 
 		fields := m.dialogFields(inputs, actionWidth, true)
 		actionFocus := len(indices)
 		fields = m.dialogActions(fields, []dialogAction{{"Save", "ctrl+s"}, {"Cancel", "esc"}}, l.focus-actionFocus, dialogWidth, len(fields)+3)
-		capacity := max(2, m.height-12)
+		capacity := m.dialogContentCapacity(12, 2)
 		focusLine := l.focus
 		if l.focus < actionFocus {
 			focusLine = l.focus*3 + 2
