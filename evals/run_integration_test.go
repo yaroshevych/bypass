@@ -71,7 +71,7 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 	cmd, out = launch()
 	e.mustShow("secret request pending")
 	e.key("C-b")
-	e.mustShow("Pending secret requests")
+	e.mustShow("Pending secret requests (1)")
 	e.key("d")
 	if err := cmd.Wait(); err == nil {
 		t.Fatal("denied child ran")
@@ -84,6 +84,8 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 	second, secondOut := launch()
 	e.mustShow("Pending secret requests (2)")
 	e.key("Down")
+	e.key("Enter")
+	e.mustShow("REVIEW REQUEST")
 	e.key("d")
 	if err := second.Wait(); err == nil || !strings.Contains(secondOut.String(), "denied") {
 		t.Fatal("could not deny second request before first")

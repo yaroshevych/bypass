@@ -219,6 +219,10 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		return nil, true
 	case RunRequestMsg:
 		if msg.Pending != nil && msg.Pending.Context.Err() == nil {
+			if len(r.pending) == 0 {
+				r.buttonsFocused = false
+				r.index = 0
+			}
 			r.pending = append(r.pending, msg.Pending)
 			if r.newIdentity == nil {
 				r.newIdentity = map[*runpkg.Pending]bool{}
@@ -531,6 +535,9 @@ func (m *Model) removeRun(p *runpkg.Pending) {
 	}
 	delete(r.chosen, p)
 	delete(r.newIdentity, p)
+	if len(r.pending) == 0 {
+		r.buttonsFocused = true
+	}
 	r.offset = 0
 	m.setNotice("secret request completed", false)
 	r.err = ""

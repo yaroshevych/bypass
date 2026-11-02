@@ -319,6 +319,17 @@ func TestRunRequestsNavigationIncludesListAndButtons(t *testing.T) {
 	}
 }
 
+func TestRunFocusMovesToButtonsWhenLastRequestRemoved(t *testing.T) {
+	m := New(Options{})
+	p := &runpkg.Pending{Context: context.Background()}
+	m.runs = &runState{visible: true, pending: []*runpkg.Pending{p}}
+	m.removeRun(p)
+	m.updateRun(tea.KeyMsg{Type: tea.KeyDown})
+	if !m.runs.buttonsFocused || m.runs.actionFocus != 1 {
+		t.Fatal("first Down after removing the last request did not move to Approve all")
+	}
+}
+
 func TestRunReviewPagesFieldsWithoutSkipping(t *testing.T) {
 	m := New(Options{})
 	m.settings.Appearance = "classic"
