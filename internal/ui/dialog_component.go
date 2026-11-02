@@ -50,6 +50,11 @@ func dialogFocus(key string, itemCount, actionCount int, item, action *int, acti
 
 type dialogAction struct{ label, key string }
 
+func dialogActionFocus(key string, count int, focus *int) bool {
+	item, actionsFocused := 0, true
+	return dialogFocus(key, 0, count, &item, focus, &actionsFocused)
+}
+
 func (m *Model) compactAppearance() bool {
 	return strings.EqualFold(m.settings.Appearance, "compact")
 }

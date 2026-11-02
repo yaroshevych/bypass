@@ -272,10 +272,8 @@ func (m *Model) pinLines() []string {
 	actionWidth := max(1, width-4)
 	var body []string
 	if m.pinFullLock {
-		body = []string{c.accent.Render(" Full lock all vaults?"), "", c.secondary.Render(" Unsaved drafts will be discarded."), c.secondary.Render(" Vault credentials will be required."), dialogrender.BodyRule,
-			renderDialogAction("Lock All", "enter", actionWidth, compact, m.settings.ASCII, m.pinFocus == 0, c),
-			renderDialogAction("Cancel", "esc", actionWidth, compact, m.settings.ASCII, m.pinFocus == 1, c),
-		}
+		body = []string{c.accent.Render(" Full lock all vaults?"), "", c.secondary.Render(" Unsaved drafts will be discarded."), c.secondary.Render(" Vault credentials will be required.")}
+		body = m.dialogActions(body, []dialogAction{{"Lock All", "enter"}, {"Cancel", "esc"}}, m.pinFocus, width, len(body)+3)
 	} else {
 		body = []string{c.secondary.Render(" Screen protected"), c.secondary.Render(" Vault sessions remain unlocked in memory."), ""}
 		body = append(body, renderStackedInputField(inputFieldView{label: "Session PIN", value: &m.pinInput, secret: true, focused: m.pinFocus == 0, indent: 1}, actionWidth, compact, c)...)
@@ -285,11 +283,7 @@ func (m *Model) pinLines() []string {
 		if delay := m.gate.NextAttempt().Sub(m.now()); delay > 0 {
 			body = append(body, c.secondary.Render(fmt.Sprintf(" wait %ds", int(delay.Seconds())+1)))
 		}
-		body = append(body, dialogrender.BodyRule,
-			renderDialogAction("Unlock", "enter", actionWidth, compact, m.settings.ASCII, m.pinFocus == 1, c),
-			renderDialogAction("Full Lock", "ctrl+l", actionWidth, compact, m.settings.ASCII, m.pinFocus == 2, c),
-			renderDialogAction("Quit", "", actionWidth, compact, m.settings.ASCII, m.pinFocus == 3, c),
-		)
+		body = m.dialogActions(body, []dialogAction{{"Unlock", "enter"}, {"Full Lock", "ctrl+l"}, {"Quit", ""}}, m.pinFocus-1, width, len(body)+4)
 	}
 	lines := m.boxWithBodyRowsWidthOnBackdrop("Bypass - Secrets Manager", body, "", len(body), width, make([]string, m.height))
 	theme := colorsForTheme(m.settings.Theme)

@@ -346,14 +346,8 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			case "esc":
 				r.resetConfirm = false
 				r.resetErr = ""
-			case "tab":
-				r.resetFocus = (r.resetFocus + 1) % len(m.runResetActions())
-			case "shift+tab":
-				r.resetFocus = (r.resetFocus + len(m.runResetActions()) - 1) % len(m.runResetActions())
-			case "up":
-				r.resetFocus = max(0, r.resetFocus-1)
-			case "down":
-				r.resetFocus = min(len(m.runResetActions())-1, r.resetFocus+1)
+			case "tab", "shift+tab", "up", "down":
+				dialogActionFocus(msg.String(), len(m.runResetActions()), &r.resetFocus)
 			case "enter":
 				return m.activateRunAction(r.resetFocus), true
 			case "ctrl+s", "r":
@@ -376,14 +370,8 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				r.choosing = false
 				r.reviewed = nil
 				r.reviewFocus = 0
-			case "tab":
-				r.reviewFocus = (r.reviewFocus + 1) % len(m.runReviewActions())
-			case "shift+tab":
-				r.reviewFocus = (r.reviewFocus + len(m.runReviewActions()) - 1) % len(m.runReviewActions())
-			case "up":
-				r.reviewFocus = max(0, r.reviewFocus-1)
-			case "down":
-				r.reviewFocus = min(len(m.runReviewActions())-1, r.reviewFocus+1)
+			case "tab", "shift+tab", "up", "down":
+				dialogActionFocus(msg.String(), len(m.runReviewActions()), &r.reviewFocus)
 			case "enter":
 				return m.activateRunAction(r.reviewFocus), true
 			case "d", "a", "i":

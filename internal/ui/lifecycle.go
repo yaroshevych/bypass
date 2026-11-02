@@ -464,16 +464,11 @@ func (m *Model) lifecycleLines() []string {
 		footer = ""
 	} else if l.confirm {
 		body = append(body, "Change the credentials for this vault?", "An encrypted backup will retain the old credentials.", "")
-		compact := strings.EqualFold(m.settings.Appearance, "compact")
 		selected := 0
 		if l.proceed {
 			selected = 1
 		}
-		actionWidth := max(1, dialogWidth-4)
-		body = append(body, dialogrender.BodyRule,
-			renderDialogAction("Cancel", "enter", actionWidth, compact, m.settings.ASCII, selected == 0, c),
-			renderDialogAction("Change Credentials", "enter", actionWidth, compact, m.settings.ASCII, selected == 1, c),
-		)
+		body = m.dialogActions(body, []dialogAction{{"Cancel", "enter"}, {"Change Credentials", "enter"}}, selected, dialogWidth, len(body)+3)
 		footer = ""
 	} else {
 		labels := []string{"New password", "Confirm password"}
