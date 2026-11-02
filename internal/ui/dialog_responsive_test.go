@@ -188,3 +188,39 @@ func TestWelcomeMouseDistinguishesRecentVaultRows(t *testing.T) {
 		}
 	}
 }
+
+func TestMoreDialogsAndEditorAtSmallSizes(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, size := range [][2]int{{48, 14}, {60, 20}, {80, 24}} {
+			m := New(Options{})
+			m.settings.Appearance = appearance
+			m.width, m.height = size[0], size[1]
+			m.dialog = &actionDialog{kind: "delete", title: "Delete", options: []string{"Cancel", "Delete"}}
+			for _, label := range []string{"Cancel", "Delete"} {
+				if !strings.Contains(strings.Join(m.dialogLines(), "\n"), label) {
+					t.Errorf("%s %v confirmation hides %q", appearance, size, label)
+				}
+			}
+			m.dialog = nil
+			for _, label := range []string{"Unlock", "Full Lock", "Quit"} {
+				if !strings.Contains(strings.Join(m.pinLines(), "\n"), label) {
+					t.Errorf("%s %v PIN hides %q", appearance, size, label)
+				}
+			}
+			if !strings.Contains(strings.Join(m.pickerLines(), "\n"), "VAULT") {
+				t.Errorf("%s %v picker title hidden", appearance, size)
+			}
+			e := newEntryEditor(nil, "root")
+			e.compact = appearance == "compact"
+			for _, action := range []struct {
+				focus int
+				label string
+			}{{editSave, "Save"}, {editCancel, "Cancel"}} {
+				e.focus = action.focus
+				if !strings.Contains(strings.Join(e.render(28, max(4, size[1]-6)), "\n"), action.label) {
+					t.Errorf("%s %v editor hides focused %q", appearance, size, action.label)
+				}
+			}
+		}
+	}
+}
