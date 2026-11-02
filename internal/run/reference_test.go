@@ -44,3 +44,21 @@ func TestSubstitute(t *testing.T) {
 		}
 	}
 }
+
+func TestSubstituteBytesOwnsResolvedBuffer(t *testing.T) {
+	secret := []byte("secret")
+	got, err := SubstituteBytes([]byte("x-${bypass://entry}-y"), func(Reference) ([]byte, error) {
+		return secret, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clear(secret)
+	if string(got) != "x-secret-y" {
+		t.Fatal("substitution did not own its result")
+	}
+	clear(got)
+	if !reflect.DeepEqual(got, make([]byte, len(got))) {
+		t.Fatal("owned substitution buffer was not clearable")
+	}
+}

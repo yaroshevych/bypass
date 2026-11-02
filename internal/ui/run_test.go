@@ -3,11 +3,115 @@ package ui
 import (
 	runpkg "bypass/internal/run"
 	"bypass/internal/vault"
+	"bytes"
 	"context"
+	"errors"
 	tea "github.com/charmbracelet/bubbletea"
 	"strings"
 	"testing"
 )
+
+type partialRunResolver struct {
+	calls int
+	first []byte
+}
+
+func (*partialRunResolver) Open(context.Context, string, vault.Credentials) (*vault.Database, error) {
+	return nil, errors.New("unexpected open")
+}
+
+func (b *partialRunResolver) ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error) {
+	b.calls++
+	if b.calls == 1 {
+		b.first = []byte("partial-secret")
+		return b.first, nil
+	}
+	return nil, errors.New("second field failed")
+}
+
+func TestRunGrantJobClearsEarlierValuesAfterPartialFailure(t *testing.T) {
+	db := &vault.Database{Path: "/vault", RootUUID: "root", Entries: []vault.Entry{{UUID: "one"}, {UUID: "two"}}}
+	backend := &partialRunResolver{}
+	m := New(Options{Backend: backend})
+	m.ws.Open(db)
+	session := m.ws.ActiveSession()
+	p := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{"/app"}}}
+	cmd := m.runGrantJob(p, []runTarget{
+		{ref: "one", session: session.ID, entry: "one", field: "Password", database: db},
+		{ref: "two", session: session.ID, entry: "two", field: "Password", database: db},
+	}, "a")
+	result := cmd().(runResult)
+	if result.err == nil || result.secrets == nil {
+		t.Fatal("expected partial resolution failure")
+	}
+	if !bytes.Equal(backend.first, make([]byte, len(backend.first))) {
+		t.Fatal("partial result retained secret bytes")
+	}
+}
+
+func TestRunUpdateClearsValuesForInvalidatedVault(t *testing.T) {
+	m := New(Options{})
+	db := &vault.Database{Path: "/vault", RootUUID: "root"}
+	m.ws.Open(db)
+	session := m.ws.ActiveSession()
+	stale := &vault.Database{Path: "/vault", RootUUID: "root"}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	p := &runpkg.Pending{Context: ctx, Request: runpkg.Request{Command: []string{"/app"}}}
+	secret := []byte("secret")
+	secrets := newRunSecretValues(context.Background())
+	secrets.Put("ref", secret)
+	m.runs = &runState{busy: true, pending: []*runpkg.Pending{p}}
+	m.updateRun(runResult{
+		pending: p,
+		targets: []runTarget{{session: session.ID, database: stale}},
+		secrets: secrets,
+	})
+	if !bytes.Equal(secret, make([]byte, len(secret))) {
+		t.Fatal("invalidated result retained secret bytes")
+	}
+}
+
+func TestRunSecretValuesClearOnCancellationAfterCommandReturn(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	secrets := newRunSecretValues(ctx)
+	value := []byte("secret")
+	secrets.Put("ref", value)
+	cancel()
+	<-secrets.done
+	if !bytes.Equal(value, make([]byte, len(value))) {
+		t.Fatal("dropped command result retained secret bytes after cancellation")
+	}
+	late := []byte("late")
+	secrets.Put("late", late)
+	if !bytes.Equal(late, make([]byte, len(late))) {
+		t.Fatal("put after cancellation retained secret bytes")
+	}
+}
+
+func TestRunSecretValuesTakeAndClearAreSafeConcurrently(t *testing.T) {
+	secrets := newRunSecretValues(context.Background())
+	value := []byte("secret")
+	secrets.Put("ref", value)
+	start := make(chan struct{})
+	results := make(chan map[string][]byte, 1)
+	go func() {
+		<-start
+		results <- secrets.Take()
+	}()
+	go func() {
+		<-start
+		secrets.Clear()
+	}()
+	close(start)
+	values := <-results
+	clearRunValues(values)
+	secrets.Clear()
+	if !bytes.Equal(value, make([]byte, len(value))) {
+		t.Fatal("concurrent take/clear left secret bytes")
+	}
+}
 
 func TestRunAmbiguityRequiresExplicitSelection(t *testing.T) {
 	m := New(Options{})

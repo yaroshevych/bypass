@@ -1,11 +1,13 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	runpkg "bypass/internal/run"
 	"bypass/internal/vault"
@@ -25,7 +27,7 @@ type runTarget struct {
 type runResult struct {
 	pending       *runpkg.Pending
 	targets       []runTarget
-	values        map[string]string
+	secrets       *runSecretValues
 	err           error
 	updated       map[string]*vault.Database
 	needsApproval bool
@@ -41,6 +43,119 @@ type runState struct {
 	choiceIndex int
 	chosen      map[*runpkg.Pending]map[string]runTarget
 	err         string
+}
+
+func clearRunValues(values map[string][]byte) {
+	for _, value := range values {
+		clear(value)
+	}
+}
+
+// runSecretValues owns buffers between an async command and the UI update. The
+// context watcher clears values if Bubble Tea drops the result during shutdown.
+type runSecretValues struct {
+	mu     sync.Mutex
+	ctx    context.Context
+	values map[string][]byte
+	stop   func() bool
+	done   chan struct{}
+	closed bool
+}
+
+func newRunSecretValues(ctx context.Context) *runSecretValues {
+	v := &runSecretValues{ctx: ctx, values: map[string][]byte{}, done: make(chan struct{})}
+	v.mu.Lock()
+	stop := context.AfterFunc(ctx, v.Clear)
+	v.stop = stop
+	canceled := ctx.Err() != nil
+	if canceled {
+		v.clearLocked()
+		v.stop = nil
+	}
+	v.mu.Unlock()
+	if canceled {
+		stop()
+	}
+	return v
+}
+
+func (v *runSecretValues) Put(key string, value []byte) {
+	if v == nil {
+		clear(value)
+		return
+	}
+	v.mu.Lock()
+	if v.closed || v.ctx.Err() != nil {
+		clear(value)
+		if !v.closed {
+			v.clearLocked()
+		}
+		stop := v.stop
+		v.stop = nil
+		v.mu.Unlock()
+		if stop != nil {
+			stop()
+		}
+		return
+	}
+	if previous := v.values[key]; previous != nil {
+		clear(previous)
+	}
+	v.values[key] = value
+	v.mu.Unlock()
+}
+
+func (v *runSecretValues) Take() map[string][]byte {
+	if v == nil {
+		return nil
+	}
+	v.mu.Lock()
+	if v.closed {
+		v.mu.Unlock()
+		return nil
+	}
+	stop := v.stop
+	v.stop = nil
+	if v.ctx.Err() != nil {
+		v.clearLocked()
+		v.mu.Unlock()
+		if stop != nil {
+			stop()
+		}
+		return nil
+	}
+	values := v.values
+	v.values = nil
+	v.closed = true
+	close(v.done)
+	v.mu.Unlock()
+	if stop != nil {
+		stop()
+	}
+	return values
+}
+
+func (v *runSecretValues) Clear() {
+	if v == nil {
+		return
+	}
+	v.mu.Lock()
+	if !v.closed {
+		v.clearLocked()
+	}
+	stop := v.stop
+	v.stop = nil
+	v.mu.Unlock()
+	if stop != nil {
+		stop()
+	}
+}
+
+func (v *runSecretValues) clearLocked() {
+	clearRunValues(v.values)
+	v.values = nil
+	v.closed = true
+	close(v.done)
 }
 
 func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
@@ -98,8 +213,10 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 	case runResult:
 		r.busy = false
 		if msg.needsApproval {
+			msg.secrets.Clear()
 			return nil, true
 		}
+		values := msg.secrets.Take()
 		for _, target := range msg.targets {
 			session := m.ws.Sessions[target.session]
 			if session == nil || session.DB != target.database {
@@ -131,9 +248,12 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				m.setNotice("request failed; some permissions were saved", true)
 			}
 			msg.pending.Reply(runpkg.Response{Error: message})
+			clearRunValues(values)
 		} else {
-			msg.pending.Reply(runpkg.Response{Values: msg.values})
+			msg.pending.Reply(runpkg.Response{Values: values})
+			values = nil // Reply owns the byte slices, including rejected replies.
 		}
+		clearRunValues(values)
 		m.removeRun(msg.pending)
 		return nil, true
 	case tea.KeyMsg:

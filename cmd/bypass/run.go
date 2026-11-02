@@ -155,25 +155,63 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 		if err != nil {
 			return err
 		}
+		defer func() {
+			for _, value := range response.Values {
+				clear(value)
+			}
+		}()
+		resolvedEnvironment := make(map[string][]byte, len(environment))
+		defer func() {
+			for _, value := range resolvedEnvironment {
+				clear(value)
+			}
+		}()
 		for key, value := range environment {
-			resolved, err := runpkg.Substitute(value, func(r runpkg.Reference) (string, error) {
+			if !strings.HasPrefix(value, "bypass://") && !strings.Contains(value, "${bypass://") {
+				continue
+			}
+			source := []byte(value)
+			resolved, err := runpkg.SubstituteBytes(source, func(r runpkg.Reference) ([]byte, error) {
 				for _, ref := range list {
 					candidate, _ := runpkg.ParseReference(ref)
 					if equalReference(r, candidate) {
 						v, ok := response.Values[ref]
 						if !ok {
-							return "", fmt.Errorf("incomplete secret response")
+							return nil, fmt.Errorf("incomplete secret response")
 						}
 						return v, nil
 					}
 				}
-				return "", fmt.Errorf("missing secret response")
+				return nil, fmt.Errorf("missing secret response")
 			})
+			clear(source)
 			if err != nil {
 				return err
 			}
-			environment[key] = resolved
+			resolvedEnvironment[key] = resolved
 		}
+		env := make([]string, 0, len(environment))
+		for key, value := range environment {
+			if resolved, ok := resolvedEnvironment[key]; ok {
+				// syscall.Exec requires immutable strings; this is the final Go-level
+				// plaintext boundary before the kernel copies the environment.
+				assignment := make([]byte, len(key)+1+len(resolved))
+				copy(assignment, key)
+				assignment[len(key)] = '='
+				copy(assignment[len(key)+1:], resolved)
+				env = append(env, string(assignment))
+				clear(assignment)
+			} else {
+				env = append(env, key+"="+value)
+			}
+		}
+		for _, value := range response.Values {
+			clear(value)
+		}
+		for _, value := range resolvedEnvironment {
+			clear(value)
+		}
+		return syscall.Exec(executable, command, env)
 	}
 	env := make([]string, 0, len(environment))
 	for key, value := range environment {

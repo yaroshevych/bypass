@@ -2,6 +2,7 @@
 package run
 
 import (
+	"bytes"
 	"fmt"
 	"net/url"
 	"strings"
@@ -13,6 +14,60 @@ type Reference struct {
 	Absolute   bool
 	Components []string
 	Field      string
+}
+
+// SubstituteBytes is the owned-buffer counterpart to Substitute. The caller
+// owns the returned buffer and must clear it when it contains resolved values.
+func SubstituteBytes(value []byte, resolve func(Reference) ([]byte, error)) ([]byte, error) {
+	if bytes.HasPrefix(value, []byte("bypass://")) {
+		ref, err := ParseReference(string(value))
+		if err != nil {
+			return nil, err
+		}
+		resolved, err := resolve(ref)
+		if err != nil {
+			return nil, err
+		}
+		return append([]byte(nil), resolved...), nil
+	}
+	var out []byte
+	for {
+		i := bytes.Index(value, []byte("${bypass://"))
+		if i < 0 {
+			out = appendOwned(out, value...)
+			return out, nil
+		}
+		out = appendOwned(out, value[:i]...)
+		value = value[i+2:]
+		end := bytes.IndexByte(value, '}')
+		if end < 0 {
+			clear(out)
+			return nil, fmt.Errorf("unterminated secret reference")
+		}
+		ref, err := ParseReference(string(value[:end]))
+		if err != nil {
+			clear(out)
+			return nil, err
+		}
+		secret, err := resolve(ref)
+		if err != nil {
+			clear(out)
+			return nil, err
+		}
+		out = appendOwned(out, secret...)
+		value = value[end+1:]
+	}
+}
+
+func appendOwned(dst []byte, src ...byte) []byte {
+	if len(dst)+len(src) <= cap(dst) {
+		return append(dst, src...)
+	}
+	out := make([]byte, len(dst)+len(src))
+	copy(out, dst)
+	copy(out[len(dst):], src)
+	clear(dst)
+	return out
 }
 
 // ParseReference parses a standalone bypass URI. Vault identification and

@@ -28,7 +28,13 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 	backend := m.backend
 	backup := m.settings.BackupDir
 	return func() tea.Msg {
-		result := runResult{pending: p, targets: targets, values: map[string]string{}, updated: map[string]*vault.Database{}}
+		secrets := newRunSecretValues(p.Context)
+		result := runResult{pending: p, targets: targets, secrets: secrets, updated: map[string]*vault.Database{}}
+		defer func() {
+			if result.err != nil || result.needsApproval || p.Context.Err() != nil {
+				secrets.Clear()
+			}
+		}()
 		defer func() {
 			for _, db := range snapshots {
 				db.Clear()
@@ -132,35 +138,13 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 				}
 				result.updated[target.session] = db.Clone()
 			}
-			if reader, ok := backend.(entryDetailsReader); ok {
-				fields, err := reader.EntryDetails(p.Context, db, target.entry)
-				if err != nil {
-					result.err = err
-					return result
-				}
-				for i := range db.Entries {
-					if db.Entries[i].UUID == target.entry {
-						for _, field := range fields {
-							found := false
-							for _, existing := range db.Entries[i].Fields {
-								if existing.Name == field.Name {
-									found = true
-								}
-							}
-							if !found {
-								db.Entries[i].Fields = append(db.Entries[i].Fields, field)
-							}
-						}
-					}
-				}
-			}
 			value, err := resolver.ResolveField(p.Context, db, vault.Credentials{}, target.entry, target.field)
 			if err != nil {
+				clear(value)
 				result.err = err
 				return result
 			}
-			result.values[target.ref] = string(value)
-			clear(value)
+			secrets.Put(target.ref, value)
 		}
 		return result
 	}

@@ -286,6 +286,17 @@ it to the invoking agent or logs. Approval governs secret delivery; it does not
 sandbox the recipient or prevent it from writing or transmitting credentials.
 
 IPC uses a private Unix socket, peer UID checks, and executable-content checks.
+Vault-resolved values use byte buffers during resolution, transfer, and
+substitution. Bypass clears these buffers after use and on failed delivery.
+The final process launch requires Go strings. These strings cannot be cleared
+in place. A successful launch replaces the runner process memory. Literal
+values from inherited environment variables and environment files still use
+the string-based environment parser. Buffer clearing does not guarantee that
+Go runtime, operating system, or crash-dump copies are erased.
+
+The response protocol requires the TUI and runner to use the same version.
+Restart the TUI after upgrading Bypass.
+
 Recipient-specific grants trust the authenticated Bypass client to launch the
 reported command. These checks are best-effort local authentication, not a
 strong security boundary against malicious same-user processes.

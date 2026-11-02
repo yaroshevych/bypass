@@ -436,13 +436,25 @@ func (s *interactiveSession) commandPrompts(ctx context.Context, passwords [][]b
 func (s *interactiveSession) readUntil(suffix []byte, limit int) ([]byte, error) {
 	var data []byte
 	for len(data) < limit {
-		b, err := s.reader.ReadByte()
+		// Peek exposes the reader's backing storage so consumed plaintext can
+		// be wiped instead of waiting for a later read to overwrite it.
+		chunk, err := s.reader.Peek(1)
 		if err != nil {
 			if s.prompt == nil {
 				s.unlockFailure = classifyUnlockFailure(data)
 			}
 			zero(data)
 			return nil, ErrUnlock
+		}
+		b := chunk[0]
+		zero(chunk)
+		_, _ = s.reader.Discard(1)
+		if len(data) == cap(data) {
+			capacity := min(limit, max(256, cap(data)*2))
+			next := make([]byte, len(data), capacity)
+			copy(next, data)
+			zero(data)
+			data = next
 		}
 		data = append(data, b)
 		if bytes.HasSuffix(data, suffix) {
