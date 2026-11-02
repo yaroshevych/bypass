@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	runpkg "bypass/internal/run"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func TestDialogsKeepActionsVisibleInSmallWindows(t *testing.T) {
@@ -43,6 +45,35 @@ func TestDialogsKeepActionsVisibleInSmallWindows(t *testing.T) {
 				if !strings.Contains(view, label) {
 					t.Errorf("%s %v requests hides %q", appearance, size, label)
 				}
+			}
+		}
+	}
+}
+
+func TestUnlockMouseUsesVisibleDialogBounds(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, size := range [][2]int{{48, 14}, {80, 24}} {
+			m := New(Options{})
+			m.settings.Appearance = appearance
+			m.width, m.height, m.screen = size[0], size[1], unlock
+			m.path = "/tmp/example.kdbx"
+			row, column := -1, -1
+			for y, line := range m.unlockLines() {
+				plain := ansi.Strip(line)
+				if x := strings.Index(plain, "Cancel"); x >= 0 {
+					row, column = y, len([]rune(plain[:x]))
+				}
+			}
+			if row < 0 {
+				t.Fatalf("%s %v: Cancel not visible", appearance, size)
+			}
+			m.pointer(tea.MouseMsg{X: 0, Y: row, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+			if m.screen != unlock {
+				t.Fatalf("%s %v: click outside dialog activated Cancel", appearance, size)
+			}
+			m.pointer(tea.MouseMsg{X: column, Y: row, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+			if m.screen != browse {
+				t.Fatalf("%s %v: click on Cancel did not close dialog", appearance, size)
 			}
 		}
 	}

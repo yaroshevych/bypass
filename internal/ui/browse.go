@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 
+	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
 	tea "github.com/charmbracelet/bubbletea"
@@ -126,20 +127,26 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		if m.busy {
 			return nil
 		}
-		labels := []string{"Password"}
-		for row, line := range m.unlockLines() {
-			plain := ansi.Strip(line)
-			if msg.Y == row && strings.Contains(plain, "Open") {
-				return m.startOpen()
-			}
-			if msg.Y == row && strings.Contains(plain, "Cancel") {
-				return m.unlockKey(tea.KeyMsg{Type: tea.KeyEscape})
-			}
-			for index, label := range labels {
-				if (msg.Y == row || msg.Y == row+1) && strings.Contains(plain, label) {
-					m.inputFocus = index
-					return nil
+		body, width := m.unlockDialogBody()
+		opts := m.dialogOptions()
+		opts.Body, opts.Width = body, width
+		geometry := dialogrender.LayoutBox(opts)
+		if msg.X < geometry.X || msg.X >= geometry.X+geometry.Width {
+			return nil
+		}
+		for i, line := range geometry.Body {
+			row := geometry.BodyY + i
+			if line == dialogrender.BodyRule {
+				if msg.Y == row+1 {
+					return m.startOpen()
 				}
+				if msg.Y == row+2 {
+					return m.unlockKey(tea.KeyMsg{Type: tea.KeyEscape})
+				}
+			}
+			if strings.Contains(ansi.Strip(line), "Password") && (msg.Y == row || msg.Y == row+1) {
+				m.inputFocus = 0
+				return nil
 			}
 		}
 		return nil

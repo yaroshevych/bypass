@@ -1260,7 +1260,7 @@ func (m *Model) dialogTitle(title string) string {
 	return title
 }
 
-func (m *Model) unlockLines() []string {
+func (m *Model) unlockDialogBody() ([]string, int) {
 	styles := m.colors()
 	accent, secondary, error := styles.accent, styles.secondary, styles.error
 	dialogWidth := min(m.width-6, 60)
@@ -1283,7 +1283,12 @@ func (m *Model) unlockLines() []string {
 		body = append(body, error.Render(m.err))
 	}
 	body = m.dialogActions(body, []dialogAction{{"Open", "enter"}, {"Cancel", "esc"}}, m.inputFocus-1, dialogWidth, len(body)+3)
-	return m.boxWithWidth("Unlock Vault", body, "", dialogWidth, false)
+	return body, dialogWidth
+}
+
+func (m *Model) unlockLines() []string {
+	body, width := m.unlockDialogBody()
+	return m.boxWithWidth("Unlock Vault", body, "", width, false)
 }
 
 func (m *Model) pickerLines() []string {

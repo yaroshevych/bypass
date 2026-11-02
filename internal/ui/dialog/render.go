@@ -61,6 +61,30 @@ type OverlayGeometry struct {
 	X, Y, Width, Height, HeaderRows int
 }
 
+type BoxGeometry struct {
+	X, Top, Width, BodyY int
+	Body                 []string
+}
+
+// LayoutBox uses the same body clipping and frame positions as Render.
+func LayoutBox(o Options) BoxGeometry {
+	body := prepareBody(o)
+	contentRows := len(body)
+	headerRows := 0
+	if !o.Compact {
+		headerRows = 1
+		if !o.HideHeaderRule {
+			headerRows++
+		}
+	}
+	contentRows += headerRows
+	if lowercaseShortcutLabels(o.StatusBar) != "" {
+		contentRows++
+	}
+	top := max(0, (o.Height-contentRows)/2)
+	return BoxGeometry{X: max(0, (o.ScreenWidth-o.Width)/2), Top: top, Width: o.Width, BodyY: top + headerRows, Body: body}
+}
+
 func LayoutOverlay(width, screenWidth, screenHeight, bodyRows int, compact bool, x, y int) OverlayGeometry {
 	width = OverlayWidth(width, screenWidth)
 	header := 3
@@ -77,18 +101,8 @@ func LayoutOverlay(width, screenWidth, screenHeight, bodyRows int, compact bool,
 	return OverlayGeometry{X: min(max(0, x), max(0, screenWidth-width)), Y: min(max(0, y), max(0, screenHeight-height)), Width: width, Height: height, HeaderRows: header}
 }
 
-// Render places a framed dialog over a pre-rendered, already shaded backdrop.
-func Render(o Options) []string {
-	if o.Height <= 0 {
-		return nil
-	}
-	width := o.Width
-	if o.Mode == Overlay {
-		width = OverlayWidth(width, o.ScreenWidth)
-	}
-	if width <= 0 {
-		width = max(1, o.Width)
-	}
+func prepareBody(o Options) []string {
+	body := append([]string(nil), o.Body...)
 	statusBar := lowercaseShortcutLabels(o.StatusBar)
 	chrome := 4
 	if o.Compact {
@@ -104,27 +118,44 @@ func Render(o Options) []string {
 			maxBody = max(1, maxBody-1)
 		}
 	}
-	if len(o.Body) > maxBody {
+	if len(body) > maxBody {
 		// Keep stacked actions visible when a short terminal clips the body.
 		rule := -1
-		for i := len(o.Body) - 1; i >= 0; i-- {
-			if o.Body[i] == BodyRule {
+		for i := len(body) - 1; i >= 0; i-- {
+			if body[i] == BodyRule {
 				rule = i
 				break
 			}
 		}
-		if rule >= 0 && len(o.Body)-rule <= maxBody {
-			prefix := maxBody - (len(o.Body) - rule)
-			o.Body = append(append([]string(nil), o.Body[:prefix]...), o.Body[rule:]...)
+		if rule >= 0 && len(body)-rule <= maxBody {
+			prefix := maxBody - (len(body) - rule)
+			body = append(append([]string(nil), body[:prefix]...), body[rule:]...)
 		} else {
-			o.Body = o.Body[:maxBody]
+			body = body[:maxBody]
 		}
 	}
 	if o.BodyRows > 0 {
-		for len(o.Body) < maxBody {
-			o.Body = append(o.Body, "")
+		for len(body) < maxBody {
+			body = append(body, "")
 		}
 	}
+	return body
+}
+
+// Render places a framed dialog over a pre-rendered, already shaded backdrop.
+func Render(o Options) []string {
+	if o.Height <= 0 {
+		return nil
+	}
+	width := o.Width
+	if o.Mode == Overlay {
+		width = OverlayWidth(width, o.ScreenWidth)
+	}
+	if width <= 0 {
+		width = max(1, o.Width)
+	}
+	o.Body = prepareBody(o)
+	statusBar := lowercaseShortcutLabels(o.StatusBar)
 	border, horizontal := "│", "─"
 	tl, tr, bl, br := "┌", "┐", "└", "┘"
 	leftRule, rightRule := "├", "┤"
@@ -267,8 +298,8 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 			content[i] = o.RestoreResets(content[i])
 		}
 	}
-	left := max(0, (o.ScreenWidth-width)/2)
-	top := max(0, (o.Height-len(content))/2)
+	geometry := LayoutBox(o)
+	left, top := geometry.X, geometry.Top
 	frame := func(row int, text string) {
 		if row >= 0 && row < len(background) {
 			background[row] = ansi.Cut(background[row], 0, left) + text + ansi.Cut(background[row], left+width, o.ScreenWidth)
