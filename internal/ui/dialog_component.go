@@ -77,6 +77,22 @@ func dialogLinearFocus(key string, count int, focus *int, wrap bool) bool {
 	return true
 }
 
+// orderedFocus navigates fields whose identifiers are not contiguous.
+func orderedFocus(key string, order []int, focus *int, wrap bool) bool {
+	position := 0
+	for i, id := range order {
+		if id == *focus {
+			position = i
+			break
+		}
+	}
+	if !dialogLinearFocus(key, len(order), &position, wrap) {
+		return false
+	}
+	*focus = order[position]
+	return true
+}
+
 func (m *Model) compactAppearance() bool {
 	return strings.EqualFold(m.settings.Appearance, "compact")
 }

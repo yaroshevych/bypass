@@ -16,6 +16,19 @@ func TestDialogLinearFocusWrapAndClamp(t *testing.T) {
 	}
 }
 
+func TestOrderedFocusHandlesNoncontiguousFields(t *testing.T) {
+	order := []int{3, 7, 12}
+	focus := 12
+	orderedFocus("tab", order, &focus, true)
+	if focus != 3 {
+		t.Fatalf("wrapped focus = %d, want 3", focus)
+	}
+	orderedFocus("up", order, &focus, false)
+	if focus != 3 {
+		t.Fatalf("clamped focus = %d, want 3", focus)
+	}
+}
+
 func TestDialogFocusNavigatesListAndActions(t *testing.T) {
 	item, action, buttons := 0, 0, false
 	for _, key := range []string{"down", "tab", "down"} {

@@ -253,20 +253,7 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 		if key == "m" && e.focus == editMove {
 			return editorMove
 		}
-		order := e.focusOrder()
-		position := 0
-		for i, focus := range order {
-			if focus == e.focus {
-				position = i
-				break
-			}
-		}
-		switch key {
-		case "up":
-			e.focus = order[max(0, position-1)]
-			return editorNone
-		case "down":
-			e.focus = order[min(len(order)-1, position+1)]
+		if orderedFocus(key, e.focusOrder(), &e.focus, false) {
 			return editorNone
 		}
 		if key == "enter" {
@@ -293,15 +280,7 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 		if e.focus == editNotes && strings.Contains(e.inputs[editNotes].value(), "\n") {
 			e.moveNotesCursor(delta)
 		} else {
-			order := e.focusOrder()
-			position := 0
-			for i, focus := range order {
-				if focus == e.focus {
-					position = i
-					break
-				}
-			}
-			e.focus = order[min(max(0, position+delta), len(order)-1)]
+			orderedFocus(key, e.focusOrder(), &e.focus, false)
 		}
 		return editorNone
 	}
@@ -390,16 +369,11 @@ func (e *entryEditor) hasFocus(focus int) bool {
 }
 
 func (e *entryEditor) moveFocus(delta int) {
-	order := e.focusOrder()
-	position := 0
-	for i, focus := range order {
-		if focus == e.focus {
-			position = i
-			break
-		}
+	key := "tab"
+	if delta < 0 {
+		key = "shift+tab"
 	}
-	position = (position + delta + len(order)) % len(order)
-	e.focus = order[position]
+	orderedFocus(key, e.focusOrder(), &e.focus, true)
 }
 
 func (e *entryEditor) render(width, height int) []string {

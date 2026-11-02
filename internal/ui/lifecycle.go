@@ -385,8 +385,7 @@ func (m *Model) lifecycleKey(k tea.KeyMsg) tea.Cmd {
 			break
 		}
 	}
-	if dialogLinearFocus(key, len(inputs), &position, false) {
-		l.focus = inputs[position]
+	if orderedFocus(key, inputs, &l.focus, false) {
 		return nil
 	}
 	switch key {
