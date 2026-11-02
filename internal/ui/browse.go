@@ -119,20 +119,12 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		if m.busy {
 			return nil
 		}
-		body, width := m.unlockDialogBody()
-		opts := m.dialogOptions()
-		opts.Body, opts.Width = body, width
-		opts.Error = safe(m.err)
-		targets := make([]int, len(body))
+		opts := m.unlockOptions()
+		targets := make([]int, len(opts.Body))
 		for i := range targets {
 			targets[i] = -1
-		}
-		for i, line := range body {
 			if i == 2 || i == 3 {
 				targets[i] = 0
-			}
-			if line == dialogrender.BodyRule && i+2 < len(body) {
-				targets[i+1], targets[i+2] = 1, 2
 			}
 		}
 		switch dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target {

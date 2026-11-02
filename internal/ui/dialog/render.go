@@ -29,6 +29,12 @@ type Header struct {
 // BodyRule marks a body row as a full-width rule joined to both dialog sides.
 const BodyRule = "\x00bypass-dialog-body-rule"
 
+// Action is a rendered button and its semantic target.
+type Action struct {
+	Text   string
+	Target int
+}
+
 type Options struct {
 	Mode                       Mode
 	Title                      string
@@ -38,6 +44,7 @@ type Options struct {
 	CompactAccessoryStyle      lipgloss.Style
 	CompactCount               string
 	Body                       []string
+	Actions                    []Action
 	Error                      string
 	BodyRows                   int
 	StatusBar                  string
@@ -118,8 +125,8 @@ func HitTest(o Options, x, y int, targets []int) Hit {
 	if o.Fullscreen {
 		hit := Hit{Inside: x >= 0 && x < o.ScreenWidth && y >= 0 && y < o.Height, Target: -1}
 		row := y - 1
-		if hit.Inside && row >= 0 && row < len(indices) && indices[row] >= 0 && indices[row] < len(targets) {
-			hit.Target = targets[indices[row]]
+		if hit.Inside && row >= 0 && row < len(indices) {
+			hit.Target = targetAt(o, indices[row], targets)
 		}
 		return hit
 	}
@@ -142,12 +149,26 @@ func HitTest(o Options, x, y int, targets []int) Hit {
 	hit := Hit{Inside: x >= left && x < left+width && y >= top && y < top+height, Target: -1}
 	row := y - bodyY
 	if hit.Inside && row >= 0 && row < len(indices) {
-		source := indices[row]
-		if source >= 0 && source < len(targets) {
-			hit.Target = targets[source]
-		}
+		hit.Target = targetAt(o, indices[row], targets)
 	}
 	return hit
+}
+
+func targetAt(o Options, source int, targets []int) int {
+	if source < 0 {
+		return -1
+	}
+	if source >= len(o.Body) {
+		index := source - len(o.Body)
+		if index < len(o.Actions) {
+			return o.Actions[index].Target
+		}
+		return -1
+	}
+	if source < len(targets) {
+		return targets[source]
+	}
+	return -1
 }
 
 // WrapMessage wraps long words as well as whitespace-separated text.
@@ -161,6 +182,14 @@ func prepareBody(o Options) ([]string, []int) {
 	indices := make([]int, len(body))
 	for i := range indices {
 		indices[i] = i
+	}
+	if len(o.Actions) > 0 {
+		body = append(body, BodyRule)
+		indices = append(indices, -1)
+		for i, action := range o.Actions {
+			body = append(body, action.Text)
+			indices = append(indices, len(o.Body)+i)
+		}
 	}
 	statusBar := lowercaseShortcutLabels(o.StatusBar)
 	chrome := 4
@@ -282,6 +311,7 @@ func Render(o Options) []string {
 		width = max(1, o.Width)
 	}
 	o.Body, _ = prepareBody(o)
+	o.Actions = nil
 	o.Error = ""
 	statusBar := lowercaseShortcutLabels(o.StatusBar)
 	border, horizontal := "│", "─"

@@ -295,3 +295,28 @@ func TestFullscreenKeepsActionsAtBottomAndHitsTargets(t *testing.T) {
 		t.Fatalf("bottom action hit = %+v", hit)
 	}
 }
+
+func TestStructuredActionsPreserveTargetsWhenContentIsClipped(t *testing.T) {
+	for _, fullscreen := range []bool{false, true} {
+		o := Options{Mode: Overlay, Width: 30, ScreenWidth: 48, Height: 10, X: -1, Y: -1, Fullscreen: fullscreen,
+			Body: []string{"field", "extra", "extra", "extra", "extra", "extra"}, Error: "Invalid input",
+			Actions: []Action{{Text: "Save action", Target: 41}, {Text: "Cancel action", Target: 42}}}
+		o.Backdrop = make([]string, o.Height)
+		for i := range o.Backdrop {
+			o.Backdrop[i] = strings.Repeat(" ", o.ScreenWidth)
+		}
+		found := false
+		for y, line := range strip(Render(o)) {
+			if x := strings.Index(line, "Cancel action"); x >= 0 {
+				found = true
+				hit := HitTest(o, lipgloss.Width(line[:x]), y, []int{7})
+				if hit.Target != 42 {
+					t.Fatalf("fullscreen %t: target = %d", fullscreen, hit.Target)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("fullscreen %t: Cancel action missing", fullscreen)
+		}
+	}
+}

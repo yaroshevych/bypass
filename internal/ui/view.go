@@ -1325,13 +1325,22 @@ func (m *Model) unlockDialogBody() ([]string, int) {
 	if m.busy {
 		body = append(body, accent.Render("Unlocking… esc cancels"))
 	}
-	body = m.dialogActions(body, []dialogAction{{"Open", "enter"}, {"Cancel", "esc"}}, m.inputFocus-1, dialogWidth, len(body)+3)
 	return body, dialogWidth
 }
 
-func (m *Model) unlockLines() []string {
+func (m *Model) unlockOptions() dialogrender.Options {
 	body, width := m.unlockDialogBody()
-	return m.boxWithWidthError("Unlock Vault", body, "", m.err, width, false)
+	opts := m.dialogOptions()
+	opts.Title, opts.Body, opts.Width, opts.Error = "Unlock Vault", body, width, safe(m.err)
+	rows := m.dialogActionRows([]dialogAction{{"Open", "enter"}, {"Cancel", "esc"}}, m.inputFocus-1, max(1, width-4))
+	opts.Actions = []dialogrender.Action{{Text: rows[0], Target: 1}, {Text: rows[1], Target: 2}}
+	return opts
+}
+
+func (m *Model) unlockLines() []string {
+	opts := m.unlockOptions()
+	opts.Backdrop = m.modalBackdrop()
+	return dialogrender.Render(opts)
 }
 
 func (m *Model) pickerContent() []listComponentOutput {
