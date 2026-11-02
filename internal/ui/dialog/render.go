@@ -168,15 +168,14 @@ func prepareBody(o Options) ([]string, []int) {
 			maxBody = max(1, maxBody-1)
 		}
 	}
-	var errors []string
+	var errorLines []string
+	errorWidth := o.Width
+	if o.Mode == Overlay {
+		errorWidth = OverlayWidth(errorWidth, o.ScreenWidth)
+	}
+	errorWidth = max(1, errorWidth-6)
 	if o.Error != "" {
-		width := o.Width
-		if o.Mode == Overlay {
-			width = OverlayWidth(width, o.ScreenWidth)
-		}
-		for _, line := range WrapMessage(o.Error, width-6) {
-			errors = append(errors, o.ErrorStyle.Render(" "+line+" "))
-		}
+		errorLines = WrapMessage(o.Error, errorWidth)
 	}
 	// Keep room for actions, then the error; clip ordinary content first.
 	reserve := 0
@@ -190,13 +189,23 @@ func prepareBody(o Options) ([]string, []int) {
 		reserve = 0
 	}
 	available := maxBody - reserve
-	if len(errors) > 0 && available > 1 {
-		if len(errors) > available-1 {
-			errors = errors[:available-1]
+	errorCapacity := available
+	if available > 1 {
+		errorCapacity-- // blank line after the error
+	}
+	if len(errorLines) > errorCapacity {
+		errorLines = errorLines[:max(0, errorCapacity)]
+		if len(errorLines) > 0 {
+			last := len(errorLines) - 1
+			errorLines[last] = ansi.Truncate(errorLines[last]+"…", errorWidth, "…")
 		}
+	}
+	var errors []string
+	for _, line := range errorLines {
+		errors = append(errors, o.ErrorStyle.Render(" "+line+" "))
+	}
+	if len(errors) > 0 && available > 1 {
 		errors = append(errors, "")
-	} else if len(errors) > available {
-		errors = errors[:max(0, available)]
 	}
 	maxBody -= len(errors)
 	if len(body) > maxBody {

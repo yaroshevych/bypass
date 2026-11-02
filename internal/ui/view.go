@@ -508,7 +508,19 @@ func (m *Model) noticeOverflowLines() []string {
 	if lipgloss.Width(m.footerBadge())+1+lipgloss.Width(text) <= m.width {
 		return nil
 	}
-	return wrappedTextLines(m.notice, max(1, m.width-2))
+	width := max(1, m.width-2)
+	lines := wrappedTextLines(m.notice, width)
+	// Leave space for the workspace header, at least one content row, and footer.
+	header := 4
+	if m.compactAppearance() {
+		header = 2
+	}
+	limit := max(1, min(3, m.height-header-2))
+	if len(lines) > limit {
+		lines = lines[:limit]
+		lines[limit-1] = ansi.Truncate(lines[limit-1]+"…", width, "…")
+	}
+	return lines
 }
 
 func (m *Model) paneRule(layout viewLayout, top bool) string {

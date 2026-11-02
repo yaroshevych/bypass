@@ -487,3 +487,15 @@ func TestOpenDialogsAndEditorSurviveResize(t *testing.T) {
 		}
 	}
 }
+
+func TestLongNoticeLeavesRoomForWorkspace(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		m := New(Options{})
+		m.width, m.height, m.settings.Appearance = 48, 14, appearance
+		m.notice = strings.Repeat("long notice ", 100)
+		lines := m.noticeOverflowLines()
+		if len(lines) > 3 || len(lines) == 0 || !strings.Contains(lines[len(lines)-1], "…") {
+			t.Fatalf("%s: notice overflow is not bounded and indicated", appearance)
+		}
+	}
+}

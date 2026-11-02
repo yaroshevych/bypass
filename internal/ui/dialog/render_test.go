@@ -271,3 +271,15 @@ func TestHitTestMatchesRenderedTargets(t *testing.T) {
 		}
 	}
 }
+
+func TestLongErrorIndicatesClippingAndKeepsActions(t *testing.T) {
+	for _, compact := range []bool{false, true} {
+		o := Options{Mode: Overlay, Width: 24, ScreenWidth: 48, Height: 10, X: -1, Y: -1, Compact: compact,
+			Body: []string{"field", BodyRule, "Save", "Cancel"}, Error: strings.Repeat("long error message ", 20)}
+		body, _ := PrepareBody(o)
+		joined := strings.Join(strip(body), "\n")
+		if !strings.Contains(joined, "…") || !strings.Contains(joined, "Save") || !strings.Contains(joined, "Cancel") {
+			t.Fatalf("compact %t: clipping or actions missing: %q", compact, joined)
+		}
+	}
+}
