@@ -448,24 +448,7 @@ func (m *Model) dialogLines() []string {
 			footer = ""
 		}
 	case "destination":
-		groups := d.filteredGroups()
-		start, capacity := d.destinationViewport(m.height, groups)
-		start, end := viewportRange(len(groups), capacity, start)
-		body = append(body, secondary.Render(" Move item to:"), "")
-		rows := make([]listComponentRow, 0, capacity)
-		for i := start; i < end; i++ {
-			rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: groupLabel(groups[i].Path), selected: d.destinationFocus == 0 && i == d.selected, activeFill: true, pillSelected: true, classicInset: true})
-		}
-		if len(groups) == 0 {
-			body = append(body, "No matching groups")
-		} else {
-			width := max(1, min(m.width-6, 60)-4)
-			for _, row := range m.renderListComponent(rows, listComponentOptions{width: width, compact: compact, ascii: m.settings.ASCII, focused: true, sidebar: true}) {
-				body = append(body, row.text)
-			}
-		}
-		actionWidth := max(1, min(m.width-6, 60)-4)
-		body = m.dialogActions(body, []dialogAction{{"Save", "enter"}, {"Cancel", "esc"}}, d.destinationFocus-1, actionWidth+4, len(body)+3)
+		body, _, _ = m.destinationDialogBody()
 		footer = ""
 	default:
 		body = append(body, "")
@@ -516,4 +499,28 @@ func (m *Model) dialogLines() []string {
 		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 60), false)
 	}
 	return m.box(d.title, body, footer)
+}
+
+func (m *Model) destinationDialogBody() (body []string, start, count int) {
+	d := m.dialog
+	body = append(body, d.message...)
+	groups := d.filteredGroups()
+	start, capacity := d.destinationViewport(m.height, groups)
+	start, end := viewportRange(len(groups), capacity, start)
+	body = append(body, m.colors().secondary.Render(" Move item to:"), "")
+	rows := make([]listComponentRow, 0, capacity)
+	for i := start; i < end; i++ {
+		rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: groupLabel(groups[i].Path), selected: d.destinationFocus == 0 && i == d.selected, activeFill: true, pillSelected: true, classicInset: true})
+	}
+	if len(groups) == 0 {
+		body = append(body, "No matching groups")
+	} else {
+		width := max(1, min(m.width-6, 60)-4)
+		for _, row := range m.renderListComponent(rows, listComponentOptions{width: width, compact: m.compactAppearance(), ascii: m.settings.ASCII, focused: true, sidebar: true}) {
+			body = append(body, row.text)
+		}
+	}
+	width := max(1, min(m.width-6, 60)-4)
+	body = m.dialogActions(body, []dialogAction{{"Save", "enter"}, {"Cancel", "esc"}}, d.destinationFocus-1, width+4, len(body)+3)
+	return body, start, end - start
 }

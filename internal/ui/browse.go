@@ -21,7 +21,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	if m.dialog != nil {
 		m.dragging = 0
 		if m.dialog.kind == "destination" && !m.writing && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
-			m.destinationPointer(msg)
+			return m.destinationPointer(msg)
 		}
 		return nil
 	}
@@ -329,33 +329,35 @@ func (m *Model) pickerPathRow() int {
 	return 3
 }
 
-func (m *Model) destinationPointer(msg tea.MouseMsg) {
+func (m *Model) destinationPointer(msg tea.MouseMsg) tea.Cmd {
 	d := m.dialog
 	if d == nil || d.kind != "destination" {
-		return
+		return nil
 	}
-	groups := d.filteredGroups()
-	start, capacity := d.destinationViewport(m.height, groups)
-	if len(groups) == 0 {
-		return
+	body, start, count := m.destinationDialogBody()
+	if d.err != "" {
+		body = append(body, m.colors().error.Render(d.err))
 	}
 	boxWidth := min(m.width-6, 60)
-	left := max(0, (m.width-boxWidth)/2)
-	if msg.X < left || msg.X >= left+boxWidth {
-		return
+	opts := m.dialogOptions()
+	opts.Body, opts.Width = body, boxWidth
+	g := dialogrender.LayoutBox(opts)
+	if msg.X < g.X || msg.X >= g.X+g.Width {
+		return nil
 	}
-	lines := m.dialogLines()
-	top := 0
-	title := m.dialogTitle(d.title)
-	for top < len(lines) && strings.TrimSpace(ansi.Strip(ansi.Cut(lines[top], left+2, left+boxWidth-2))) != title {
-		top++
+	row := msg.Y - g.BodyY
+	first := len(d.message) + 2
+	if row >= first && row < min(first+count, len(g.Body)) {
+		d.selected, d.destinationFocus = start+row-first, 0
+		return nil
 	}
-	firstGroupRow := top + 4 + len(d.message)
-	index := msg.Y - firstGroupRow + start
-	visible := min(capacity, len(groups)-start)
-	if index >= start && index < start+visible {
-		d.selected = index
+	for i, line := range g.Body {
+		if line == dialogrender.BodyRule && row > i && row <= i+2 {
+			d.destinationFocus = row - i
+			return m.dialogKey(tea.KeyMsg{Type: tea.KeyEnter})
+		}
 	}
+	return nil
 }
 
 func (m *Model) navigation() []navItem { return m.buildNavigation() }

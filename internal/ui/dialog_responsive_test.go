@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	runpkg "bypass/internal/run"
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -114,6 +115,47 @@ func TestVaultFormMouseUsesVisibleTargets(t *testing.T) {
 				}
 				if m.lifecycle.focus != 1 {
 					t.Fatalf("%s %v: password click did not focus field", appearance, size)
+				}
+			}
+		}
+	}
+}
+
+func TestDestinationMouseUsesVisibleRows(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, size := range [][2]int{{48, 14}, {80, 24}} {
+			m := New(Options{})
+			m.settings.Appearance = appearance
+			m.width, m.height = size[0], size[1]
+			m.dialog = &actionDialog{kind: "destination", title: "Move entry", groups: []vault.Group{{Path: "Alpha"}, {Path: "Beta"}}}
+			row, column := -1, -1
+			for y, line := range m.dialogLines() {
+				plain := ansi.Strip(line)
+				if x := strings.Index(plain, "Alpha"); x >= 0 {
+					row, column = y, len([]rune(plain[:x]))
+				}
+			}
+			if row < 0 {
+				t.Fatalf("%s %v: destination hidden", appearance, size)
+			}
+			m.destinationPointer(tea.MouseMsg{X: 0, Y: row, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+			if m.dialog.selected != 0 {
+				t.Fatal("outside click changed selection")
+			}
+			m.destinationPointer(tea.MouseMsg{X: column, Y: row, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+			if m.dialog.selected != 0 {
+				t.Fatalf("%s %v: destination click missed", appearance, size)
+			}
+			if size[1] > 14 {
+				for y, line := range m.dialogLines() {
+					plain := ansi.Strip(line)
+					if x := strings.Index(plain, "Beta"); x >= 0 {
+						m.destinationPointer(tea.MouseMsg{X: len([]rune(plain[:x])), Y: y, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+						break
+					}
+				}
+				if m.dialog.selected != 1 {
+					t.Fatalf("%s %v: second destination click missed", appearance, size)
 				}
 			}
 		}
