@@ -479,7 +479,7 @@ func (m *Model) lifecycleLines() []string {
 			indices = []int{0, 1, 2}
 			secretStart = 1
 		}
-		var fields []string
+		var inputs []inputFieldView
 		compact := strings.EqualFold(m.settings.Appearance, "compact")
 		// Overlay rows have a two-cell border and one cell of body padding
 		// on each side.
@@ -490,9 +490,9 @@ func (m *Model) lifecycleLines() []string {
 				secret:  index == secretStart || index == secretStart+1,
 				focused: index == l.focus, indent: 1,
 			}
-			fields = append(fields, "")
-			fields = append(fields, renderStackedInputField(field, actionWidth, compact, &m.styles)...)
+			inputs = append(inputs, field)
 		}
+		fields := m.dialogFields(inputs, actionWidth, true)
 		if l.kind == "create" || l.kind == "credentials" {
 			fields = append(fields, dialogrender.BodyRule)
 		} else {

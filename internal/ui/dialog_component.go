@@ -122,3 +122,15 @@ func (m *Model) dialogActions(body []string, actions []dialogAction, focus, widt
 	}
 	return body
 }
+
+// dialogFields composes the shared stacked input fields used in modal forms.
+func (m *Model) dialogFields(fields []inputFieldView, width int, spaced bool) []string {
+	var rows []string
+	for _, field := range fields {
+		if spaced {
+			rows = append(rows, "")
+		}
+		rows = append(rows, renderStackedInputField(field, width, m.compactAppearance(), m.colors())...)
+	}
+	return rows
+}

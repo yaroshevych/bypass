@@ -1272,21 +1272,17 @@ func (m *Model) unlockLines() []string {
 	}
 	body := []string{secondary.Render(" " + path)}
 	body = append(body, "")
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	body = append(body, renderStackedInputField(inputFieldView{
+	body = append(body, m.dialogFields([]inputFieldView{{
 		label: "Password", value: &m.inputs[0], secret: true,
 		focused: m.inputFocus == 0, indent: 1,
-	}, contentWidth, compact, styles)...)
+	}}, contentWidth, false)...)
 	if m.busy {
 		body = append(body, accent.Render("Unlocking… esc cancels"))
 	}
 	if m.err != "" {
 		body = append(body, error.Render(m.err))
 	}
-	body = append(body, dialogrender.BodyRule,
-		renderDialogAction("Open", "enter", contentWidth, compact, m.settings.ASCII, m.inputFocus == 1, styles),
-		renderDialogAction("Cancel", "esc", contentWidth, compact, m.settings.ASCII, m.inputFocus == 2, styles),
-	)
+	body = m.dialogActions(body, []dialogAction{{"Open", "enter"}, {"Cancel", "esc"}}, m.inputFocus-1, dialogWidth, len(body)+3)
 	return m.boxWithWidth("Unlock Vault", body, "", dialogWidth, false)
 }
 
