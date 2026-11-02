@@ -204,7 +204,7 @@ func restoreThemeResets(text, foreground, background string) string {
 	return out.String()
 }
 
-func (m *Model) welcomeLines() []string {
+func (m *Model) welcomeBody() ([]string, []int, string) {
 	compact := m.compactAppearance()
 	headerIndent := " "
 	rows := make([]listComponentRow, 0, m.landingBodyRows())
@@ -242,13 +242,20 @@ func (m *Model) welcomeLines() []string {
 		width: max(1, min(m.width-6, 82)-4), compact: compact, ascii: m.settings.ASCII, focused: true, sidebar: true,
 	})
 	body := make([]string, 0, len(component))
+	targets := make([]int, 0, len(component))
 	for _, row := range component {
 		body = append(body, row.text)
+		targets = append(targets, row.item)
 	}
 	statusBar := ""
 	if m.landingFocus < recentCount {
 		statusBar = m.recentRemovalStatusBar()
 	}
+	return body, targets, statusBar
+}
+
+func (m *Model) welcomeLines() []string {
+	body, _, statusBar := m.welcomeBody()
 	lines := m.boxWithBodyRowsOnBackdrop("Bypass - Secrets Manager", body, statusBar, m.landingBodyRows(), make([]string, m.height))
 	theme := colorsForTheme(m.settings.Theme)
 	if len(lines) > 0 {

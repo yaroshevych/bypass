@@ -161,3 +161,30 @@ func TestDestinationMouseUsesVisibleRows(t *testing.T) {
 		}
 	}
 }
+
+func TestWelcomeMouseDistinguishesRecentVaultRows(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		m := New(Options{})
+		m.settings.Appearance = appearance
+		m.width, m.height = 80, 24
+		m.recent = []string{"/first/shared.kdbx", "/second/shared.kdbx"}
+		row, column := -1, -1
+		for y, line := range m.welcomeLines() {
+			plain := ansi.Strip(line)
+			if x := strings.Index(plain, "/second"); x >= 0 {
+				row, column = y, len([]rune(plain[:x]))
+			}
+		}
+		if row < 0 {
+			t.Fatalf("%s: second recent vault not visible", appearance)
+		}
+		m.welcomePointer(tea.MouseMsg{X: 0, Y: row, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+		if m.landingFocus != 0 {
+			t.Fatal("outside click changed welcome selection")
+		}
+		m.welcomePointer(tea.MouseMsg{X: column, Y: row, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+		if m.landingFocus != 1 {
+			t.Fatalf("%s: click selected wrong recent vault", appearance)
+		}
+	}
+}

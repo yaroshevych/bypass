@@ -7,7 +7,6 @@ import (
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
 )
 
 func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
@@ -144,7 +143,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 					return m.unlockKey(tea.KeyMsg{Type: tea.KeyEscape})
 				}
 			}
-			if strings.Contains(ansi.Strip(line), "Password") && (msg.Y == row || msg.Y == row+1) {
+			if (i == 2 || i == 3) && i < len(body) && line == body[i] && msg.Y == row {
 				m.inputFocus = 0
 				return nil
 			}
@@ -195,24 +194,27 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 }
 
 func (m *Model) welcomePointer(msg tea.MouseMsg) tea.Cmd {
-	lines := m.welcomeLines()
-	if msg.Y < 0 || msg.Y >= len(lines) {
+	body, targets, status := m.welcomeBody()
+	opts := m.dialogOptions()
+	opts.Body, opts.BodyRows, opts.StatusBar, opts.Width = body, m.landingBodyRows(), status, min(m.width-6, 82)
+	g := dialogrender.LayoutBox(opts)
+	row := msg.Y - g.BodyY
+	if msg.X < g.X || msg.X >= g.X+g.Width || row < 0 || row >= len(g.Body) || row >= len(targets) {
 		return nil
 	}
-	plain := ansi.Strip(lines[msg.Y])
-	for i := 0; i < m.landingRecentCount(); i++ {
-		label := safe(vaultLabel(m.recent[i]))
-		if strings.Contains(plain, label) {
-			m.landingFocus = i
-			m.recentIndex = i
-			return nil
-		}
+	target := targets[row]
+	if target < 0 {
+		return nil
 	}
-	if strings.Contains(plain, "ctrl+o") {
+	if target < m.landingRecentCount() {
+		m.landingFocus, m.recentIndex = target, target
+		return nil
+	}
+	if target == m.landingRecentCount() {
 		m.landingFocus = m.landingRecentCount()
 		return m.openPicker()
 	}
-	if strings.Contains(plain, "ctrl+n") {
+	if target == m.landingRecentCount()+1 && m.canCreateVault() {
 		m.landingFocus = m.landingRecentCount() + 1
 		return m.openCreateVault()
 	}
