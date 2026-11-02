@@ -28,14 +28,6 @@ func renderDialogChoices(labels []string, selected int, compact, ascii bool, sty
 	return strings.Join(choices, "  ")
 }
 
-func dialogBoxInputWidth(screenWidth int) int {
-	return max(1, min(screenWidth-6, 82)-4)
-}
-
-func dialogOverlayInputWidth(screenWidth, maxWidth int) int {
-	return max(1, min(maxWidth, screenWidth-4)-4)
-}
-
 func renderDialogAction(label, shortcut string, width int, compact, ascii, selected bool, styles *styleSet) string {
 	if compact {
 		innerWidth := max(0, width-2)

@@ -64,7 +64,7 @@ func (m *Model) historyContent(state *extraState) []listComponentOutput {
 	}
 	if m.compactAppearance() {
 		for _, row := range m.renderListComponent(rows, listComponentOptions{
-			width: max(1, min(74, m.width-8)), compact: true, ascii: m.settings.ASCII,
+			width: m.dialogInnerWidth(min(78, m.width-4)), compact: true, ascii: m.settings.ASCII,
 			focused: true, sidebar: true,
 		}) {
 			body = append(body, row)

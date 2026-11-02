@@ -44,7 +44,7 @@ func (m *Model) attachmentContent(state *extraState) ([]listComponentOutput, str
 		if state.action == "export" {
 			label = "Plaintext export destination"
 		}
-		fieldWidth := dialogOverlayInputWidth(m.width, 76)
+		fieldWidth := m.dialogInnerWidth(min(76, m.width-4))
 		appendText("")
 		appendText(renderStackedInputField(inputFieldView{
 			label: label, value: &state.input, focused: true, indent: 1,
@@ -71,7 +71,7 @@ func (m *Model) attachmentContent(state *extraState) ([]listComponentOutput, str
 		}
 		if m.compactAppearance() {
 			for _, row := range m.renderListComponent(rows, listComponentOptions{
-				width: max(1, min(72, m.width-8)), compact: true, ascii: m.settings.ASCII,
+				width: m.dialogInnerWidth(min(76, m.width-4)), compact: true, ascii: m.settings.ASCII,
 				focused: true, sidebar: true,
 			}) {
 				body = append(body, row)

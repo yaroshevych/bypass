@@ -407,7 +407,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 	switch d.kind {
 	case "pin-setup", "pin-confirm":
 		dialogWidth := min(m.width-6, 52)
-		actionWidth := max(1, dialogWidth-4)
+		actionWidth := m.dialogInnerWidth(dialogWidth)
 		body = append(body, secondary.Render(" 4–12 digits · current run only"), "")
 		fieldStart = len(body)
 		body = append(body, m.dialogFields([]inputFieldView{{label: "Session PIN", value: &d.input, secret: true, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
@@ -415,7 +415,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		actions, actionBase, actionFocus = []dialogAction{{"Save", "enter"}, {"Cancel", "esc"}}, 1, d.selected-1
 		footer = ""
 	case "group":
-		actionWidth := dialogBoxInputWidth(m.width)
+		actionWidth := m.dialogInnerWidth(min(m.width-6, 82))
 		fieldStart = len(body)
 		body = append(body, m.dialogFields([]inputFieldView{{label: "Group name", value: &d.input, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
 		fieldEnd = len(body)
@@ -425,7 +425,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		if len(d.secret) == 0 {
 			body = append(body, "")
 			dialogWidth := min(m.width-6, 72)
-			actionWidth := max(1, dialogWidth-4)
+			actionWidth := m.dialogInnerWidth(dialogWidth)
 			fieldStart = len(body)
 			body = append(body, m.dialogFields([]inputFieldView{{label: "Length (8–64)", value: &d.input, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
 			fieldEnd = len(body)
@@ -485,7 +485,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 	}
 	opts = m.dialogOptions()
 	opts.Title, opts.Body, opts.StatusBar, opts.Width, opts.Error = d.title, body, footer, width, safe(d.err)
-	for i, row := range m.dialogActionRows(actions, actionFocus, max(1, width-4)) {
+	for i, row := range m.dialogActionRows(actions, actionFocus, m.dialogInnerWidth(width)) {
 		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: actionBase + i})
 	}
 	return opts, targets
@@ -528,7 +528,7 @@ func (m *Model) destinationDialogBody() (body []string, start, count int) {
 	if len(groups) == 0 {
 		body = append(body, "No matching groups")
 	} else {
-		width := max(1, min(m.width-6, 60)-4)
+		width := m.dialogInnerWidth(min(m.width-6, 60))
 		for _, row := range m.renderListComponent(rows, listComponentOptions{width: width, compact: m.compactAppearance(), ascii: m.settings.ASCII, focused: true, sidebar: true}) {
 			body = append(body, row.text)
 		}

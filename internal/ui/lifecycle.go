@@ -485,7 +485,7 @@ func (m *Model) lifecycleContent() (dialogrender.Options, []int) {
 		var inputs []inputFieldView
 		// Overlay rows have a two-cell border and one cell of body padding
 		// on each side.
-		actionWidth := max(1, dialogWidth-4)
+		actionWidth := m.dialogInnerWidth(dialogWidth)
 		for position, index := range indices {
 			field := inputFieldView{
 				label: labels[position], value: &l.inputs[index],
@@ -518,7 +518,7 @@ func (m *Model) lifecycleContent() (dialogrender.Options, []int) {
 	opts := m.dialogOptions()
 	opts.Mode, opts.Title, opts.Body, opts.StatusBar, opts.Width = dialogrender.Overlay, title, body, footer, dialogWidth
 	opts.Error, opts.X, opts.Y = safe(l.err), -1, -1
-	for i, row := range m.dialogActionRows(actions, actionFocus, max(1, dialogWidth-4)) {
+	for i, row := range m.dialogActionRows(actions, actionFocus, m.dialogInnerWidth(dialogWidth)) {
 		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: actionBase + i})
 	}
 	rowTargets := make([]int, len(body))

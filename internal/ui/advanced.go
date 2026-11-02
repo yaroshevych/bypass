@@ -259,7 +259,7 @@ func (m *Model) pinContent() (opts dialogrender.Options, targets []int) {
 	c := m.colors()
 	compact := m.compactAppearance()
 	width := min(m.width-6, 52)
-	actionWidth := max(1, width-4)
+	actionWidth := m.dialogInnerWidth(width)
 	fieldStart, fieldEnd, actionBase, focus := -1, -1, 0, m.pinFocus
 	var body []string
 	var actions []dialogAction

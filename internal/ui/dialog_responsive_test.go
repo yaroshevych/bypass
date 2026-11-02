@@ -607,3 +607,46 @@ func TestPrivacyDialogMouseUsesSafeConfirmation(t *testing.T) {
 		}
 	}
 }
+
+func TestSmallLayoutTemporarilyUsesCompactAppearance(t *testing.T) {
+	m := New(Options{})
+	m.settings.Appearance = "classic"
+	m.width, m.height = 120, 35
+	if m.compactAppearance() {
+		t.Fatal("large layout ignored classic setting")
+	}
+	m.Update(tea.WindowSizeMsg{Width: 48, Height: 16})
+	if !m.compactAppearance() || m.settings.Appearance != "classic" {
+		t.Fatal("small layout did not temporarily use compact")
+	}
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 35})
+	if m.compactAppearance() || m.settings.Appearance != "classic" {
+		t.Fatal("large layout did not restore classic")
+	}
+}
+
+func TestSmallDialogControlsUseFullWidth(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height, m.screen = 48, 16, unlock
+	m.path = "/tmp/example.kdbx"
+	opts := m.unlockOptions()
+	for _, action := range opts.Actions {
+		if got := ansi.StringWidth(action.Text); got != m.width {
+			t.Errorf("unlock action width = %d, want %d", got, m.width)
+		}
+	}
+	if got := ansi.StringWidth(opts.Body[3]); got != m.width {
+		t.Errorf("unlock input width = %d, want %d", got, m.width)
+	}
+	m.openPalette("actions", false)
+	if got := m.paletteListWidth(m.paletteChoices()); got != m.width {
+		t.Errorf("palette list width = %d, want %d", got, m.width)
+	}
+	m.palette = nil
+	m.runs = &runState{visible: true}
+	for _, action := range m.runLayerOptions(m.runRequestsLayout()).Actions {
+		if got := ansi.StringWidth(action.Text); got != m.width {
+			t.Errorf("request action width = %d, want %d", got, m.width)
+		}
+	}
+}

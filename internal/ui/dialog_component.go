@@ -106,7 +106,7 @@ func orderedFocus(key string, order []int, focus *int, wrap bool) bool {
 }
 
 func (m *Model) compactAppearance() bool {
-	return strings.EqualFold(m.settings.Appearance, "compact")
+	return m.smallDialogScreen() || strings.EqualFold(m.settings.Appearance, "compact")
 }
 
 func (m *Model) dialogOptions() dialogrender.Options {
@@ -117,6 +117,14 @@ func (m *Model) dialogOptions() dialogrender.Options {
 		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, ErrorStyle: c.error, Pill: c.active, Divider: c.divider,
 		RestoreResets: func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) },
 	}
+}
+
+// dialogInnerWidth is the width available to fields, lists and actions.
+func (m *Model) dialogInnerWidth(frameWidth int) int {
+	if m.smallDialogScreen() {
+		return max(1, m.width)
+	}
+	return max(1, frameWidth-4)
 }
 
 // dialogContentCapacity gives small panes their available fullscreen body rows.

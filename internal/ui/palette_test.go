@@ -271,7 +271,7 @@ func TestCommandPaletteRendersShortcutsInLowercase(t *testing.T) {
 
 func TestPaletteDisabledReasonIsRightAlignedAndFirstGroupHasNoLeadingBlank(t *testing.T) {
 	m := New(Options{})
-	m.width, m.height = 72, 24
+	m.width, m.height = 80, 24
 	m.settings.Appearance = "classic"
 	m.palette = &paletteState{scope: "actions", selected: 1}
 	choices := []command{

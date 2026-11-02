@@ -59,7 +59,7 @@ func (m *Model) runRequestsBody() ([]string, []int) {
 			}
 			rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: label, right: right, selected: selected, activeFill: true, pillSelected: true})
 		}
-		for _, row := range m.renderListComponent(rows, listComponentOptions{width: max(1, m.runDialogWidth(false)-4), compact: compact, ascii: m.settings.ASCII, focused: true, sidebar: true}) {
+		for _, row := range m.renderListComponent(rows, listComponentOptions{width: m.dialogInnerWidth(m.runDialogWidth(false)), compact: compact, ascii: m.settings.ASCII, focused: true, sidebar: true}) {
 			body = append(body, row.text)
 			targets = append(targets, row.item)
 		}
@@ -563,7 +563,7 @@ func (m *Model) runLayerOptions(layout runDialogLayout) dialogrender.Options {
 	opts := m.dialogOptions()
 	opts.Mode, opts.Title, opts.Body, opts.Error = dialogrender.Overlay, layout.title, layout.body, safe(layout.errorMessage)
 	opts.MaxBodyRows, opts.Width, opts.X, opts.Y = layout.capacity, layout.width, layout.x, layout.y
-	rows := m.dialogActionRows(layout.actions, layout.focus, max(1, layout.width-4))
+	rows := m.dialogActionRows(layout.actions, layout.focus, m.dialogInnerWidth(layout.width))
 	for i, row := range rows {
 		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: i})
 	}

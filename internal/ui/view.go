@@ -1310,7 +1310,7 @@ func (m *Model) unlockDialogBody() ([]string, int) {
 	styles := m.colors()
 	accent, secondary := styles.accent, styles.secondary
 	dialogWidth := min(m.width-6, 60)
-	contentWidth := max(1, dialogWidth-4)
+	contentWidth := m.dialogInnerWidth(dialogWidth)
 	path := safe(m.path)
 	pathWidth := max(1, contentWidth-1)
 	if cells := lipgloss.Width(path); cells > pathWidth {
@@ -1332,7 +1332,7 @@ func (m *Model) unlockOptions() dialogrender.Options {
 	body, width := m.unlockDialogBody()
 	opts := m.dialogOptions()
 	opts.Title, opts.Body, opts.Width, opts.Error = "Unlock Vault", body, width, safe(m.err)
-	rows := m.dialogActionRows([]dialogAction{{"Open", "enter"}, {"Cancel", "esc"}}, m.inputFocus-1, max(1, width-4))
+	rows := m.dialogActionRows([]dialogAction{{"Open", "enter"}, {"Cancel", "esc"}}, m.inputFocus-1, m.dialogInnerWidth(width))
 	opts.Actions = []dialogrender.Action{{Text: rows[0], Target: 1}, {Text: rows[1], Target: 2}}
 	return opts
 }
@@ -1348,7 +1348,7 @@ func (m *Model) pickerContent() []listComponentOutput {
 	secondary := styles.secondary
 	compact := m.compactAppearance()
 	dialogWidth := min(m.width-6, 60)
-	listWidth := max(1, dialogWidth-4)
+	listWidth := m.dialogInnerWidth(dialogWidth)
 	pathIndent := " "
 	if compact {
 		pathIndent = " "

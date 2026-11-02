@@ -491,7 +491,7 @@ func (m *Model) paletteDialogWidth(choices []command) int {
 }
 
 func (m *Model) paletteListWidth(choices []command) int {
-	return max(1, m.paletteDialogWidth(choices)-4)
+	return m.dialogInnerWidth(m.paletteDialogWidth(choices))
 }
 
 func orderCommandChoices(choices []command) []command {
