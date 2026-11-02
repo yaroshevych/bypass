@@ -90,7 +90,14 @@ func Render(o Options) []string {
 		width = max(1, o.Width)
 	}
 	statusBar := lowercaseShortcutLabels(o.StatusBar)
-	maxBody := BodyCapacity(o.Height, statusBar)
+	chrome := 4
+	if o.Compact {
+		chrome = 2
+	}
+	maxBody := max(1, o.Height-chrome)
+	if statusBar != "" {
+		maxBody = max(1, maxBody-1)
+	}
 	if o.BodyRows > 0 {
 		maxBody = o.BodyRows
 		if statusBar != "" {
@@ -98,7 +105,20 @@ func Render(o Options) []string {
 		}
 	}
 	if len(o.Body) > maxBody {
-		o.Body = o.Body[:maxBody]
+		// Keep stacked actions visible when a short terminal clips the body.
+		rule := -1
+		for i := len(o.Body) - 1; i >= 0; i-- {
+			if o.Body[i] == BodyRule {
+				rule = i
+				break
+			}
+		}
+		if rule >= 0 && len(o.Body)-rule <= maxBody {
+			prefix := maxBody - (len(o.Body) - rule)
+			o.Body = append(append([]string(nil), o.Body[:prefix]...), o.Body[rule:]...)
+		} else {
+			o.Body = o.Body[:maxBody]
+		}
 	}
 	if o.BodyRows > 0 {
 		for len(o.Body) < maxBody {
