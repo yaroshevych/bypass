@@ -10,12 +10,14 @@ import (
 func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	m.tabHovered = false
 	switch m.activeLayer() {
-	case layerTiny, layerPrivacy, layerRequests:
+	case layerTiny, layerRequests:
 		return nil
+	case layerPrivacy:
+		return m.pinPointer(msg)
 	case layerDialog:
 		m.dragging = 0
-		if m.dialog.kind == "destination" && !m.writing && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
-			return m.destinationPointer(msg)
+		if !m.writing && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			return m.dialogPointer(msg)
 		}
 		return nil
 	case layerLifecycle:

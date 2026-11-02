@@ -17,15 +17,18 @@ type runAction = dialogAction
 type runDialogLayout struct {
 	title, errorMessage string
 	body                []string
+	targets             []int
 	actions             []runAction
 	width, x, y         int
 }
 
-func (m *Model) runRequestsBody() []string {
+func (m *Model) runRequestsBody() ([]string, []int) {
 	r := m.runs
 	body := []string{fmt.Sprintf("Pending secret requests (%d)", len(r.pending))}
+	targets := []int{-1}
 	if len(r.pending) == 0 {
 		body = append(body, "No pending requests")
+		targets = append(targets, -1)
 	} else {
 		contentRows := max(0, m.runBodyCapacity(true)-len(m.runRequestActions())-1)
 		requestRows := max(0, contentRows-1)
@@ -58,13 +61,18 @@ func (m *Model) runRequestsBody() []string {
 		}
 		for _, row := range m.renderListComponent(rows, listComponentOptions{width: max(1, m.runDialogWidth(false)-4), compact: compact, ascii: m.settings.ASCII, focused: true, sidebar: true}) {
 			body = append(body, row.text)
+			targets = append(targets, row.item)
 		}
 	}
 	focus := -1
 	if r.buttonsFocused || len(r.pending) == 0 {
 		focus = r.actionFocus
 	}
-	return m.dialogActions(body, m.runRequestActions(), focus, m.runDialogWidth(false), m.runBodyCapacity(true))
+	body = m.dialogActions(body, m.runRequestActions(), focus, m.runDialogWidth(false), m.runBodyCapacity(true))
+	for len(targets) < len(body) {
+		targets = append(targets, -1)
+	}
+	return body, targets
 }
 
 func (m *Model) runReviewActions() []runAction {
@@ -249,6 +257,14 @@ func (m *Model) runActionAt(x, y int) (int, bool) {
 	return target, target >= 0
 }
 
+func (m *Model) runRequestAt(x, y int) int {
+	if m.runs == nil || m.runs.review || m.runs.resetConfirm {
+		return -1
+	}
+	layout := m.runRequestsLayout()
+	return dialogrender.HitTest(m.runLayerOptions(layout), x, y, layout.targets).Target
+}
+
 func (m *Model) runDialogWidth(review bool) int {
 	if review {
 		return min(max(20, m.width-14), 52)
@@ -285,15 +301,27 @@ func (m *Model) runLayout(review bool) runDialogLayout {
 func (m *Model) runRequestsLayout() runDialogLayout {
 	layout := runDialogLayout{
 		title: "Requests", width: m.runDialogWidth(false),
-		actions: m.runRequestActions(), body: m.runRequestsBody(),
+		actions: m.runRequestActions(),
 	}
+	layout.body, layout.targets = m.runRequestsBody()
 	return m.positionRunLayout(layout, false)
 }
 
 func (m *Model) positionRunLayout(layout runDialogLayout, review bool) runDialogLayout {
 	opts := m.dialogOptions()
 	opts.Mode, opts.Width, opts.Body, opts.Error = dialogrender.Overlay, layout.width, layout.body, safe(layout.errorMessage)
-	layout.body, _ = dialogrender.PrepareBody(opts)
+	prepared, source := dialogrender.PrepareBody(opts)
+	if len(layout.targets) > 0 {
+		targets := make([]int, len(source))
+		for i, row := range source {
+			targets[i] = -1
+			if row >= 0 && row < len(layout.targets) {
+				targets[i] = layout.targets[row]
+			}
+		}
+		layout.targets = targets
+	}
+	layout.body = prepared
 	if opts.Fullscreen {
 		layout.width, layout.x, layout.y = m.width, 0, 0
 		return layout

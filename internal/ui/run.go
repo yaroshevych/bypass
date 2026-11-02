@@ -210,6 +210,9 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				if action, ok := m.runActionAt(msg.X, msg.Y); ok {
 					return m.activateRunAction(action), true
 				}
+				if index := m.runRequestAt(msg.X, msg.Y); index >= 0 && index < len(r.pending) {
+					r.index, r.buttonsFocused = index, false
+				}
 			}
 			return nil, true
 		}
@@ -596,7 +599,8 @@ func (m *Model) runLines() []string {
 	if m.runs.review {
 		return m.runReviewBody()
 	}
-	return m.runRequestsBody()
+	body, _ := m.runRequestsBody()
+	return body
 }
 
 func osStatPlain(path string) (bool, error) {

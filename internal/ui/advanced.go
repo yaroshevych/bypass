@@ -255,27 +255,67 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 	m.pinInput.update(k)
 	return nil
 }
-func (m *Model) pinLines() []string {
+func (m *Model) pinContent() (body []string, message string, width int, targets []int) {
 	c := m.colors()
 	compact := m.compactAppearance()
-	width := min(m.width-6, 52)
+	width = min(m.width-6, 52)
 	actionWidth := max(1, width-4)
-	var body []string
+	fieldStart, fieldEnd, actionCount := -1, -1, 0
 	if m.pinFullLock {
 		body = []string{c.accent.Render(" Full lock all vaults?"), "", c.secondary.Render(" Unsaved drafts will be discarded."), c.secondary.Render(" Vault credentials will be required.")}
 		body = m.dialogActions(body, []dialogAction{{"Lock All", "enter"}, {"Cancel", "esc"}}, m.pinFocus, width, len(body)+3)
+		actionCount = 2
 	} else {
 		body = []string{c.secondary.Render(" Screen protected"), c.secondary.Render(" Vault sessions remain unlocked in memory."), ""}
+		fieldStart = len(body)
 		body = append(body, renderStackedInputField(inputFieldView{label: "Session PIN", value: &m.pinInput, secret: true, focused: m.pinFocus == 0, indent: 1}, actionWidth, compact, c)...)
+		fieldEnd = len(body)
 		if delay := m.gate.NextAttempt().Sub(m.now()); delay > 0 {
 			body = append(body, c.secondary.Render(fmt.Sprintf(" wait %ds", int(delay.Seconds())+1)))
 		}
 		body = m.dialogActions(body, []dialogAction{{"Unlock", "enter"}, {"Full Lock", "ctrl+l"}, {"Quit", ""}}, m.pinFocus-1, width, len(body)+4)
+		actionCount = 3
 	}
-	message := ""
+	message = ""
 	if !m.pinFullLock {
 		message = strings.ToLower(strings.TrimSuffix(m.pinError, "."))
 	}
+	targets = make([]int, len(body))
+	for i := range targets {
+		targets[i] = -1
+	}
+	for i := fieldStart; i >= 0 && i < fieldEnd; i++ {
+		targets[i] = 0
+	}
+	for i := 0; i < actionCount; i++ {
+		targets[len(body)-actionCount+i] = i
+		if !m.pinFullLock {
+			targets[len(body)-actionCount+i]++
+		}
+	}
+	return body, message, width, targets
+}
+
+func (m *Model) pinPointer(msg tea.MouseMsg) tea.Cmd {
+	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+		return nil
+	}
+	body, message, width, targets := m.pinContent()
+	opts := m.dialogOptions()
+	opts.Body, opts.Error, opts.Width = body, safe(message), width
+	target := dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target
+	if target < 0 {
+		return nil
+	}
+	m.pinFocus = target
+	if target == 0 && !m.pinFullLock {
+		return nil
+	}
+	return m.pinKey(tea.KeyMsg{Type: tea.KeyEnter})
+}
+
+func (m *Model) pinLines() []string {
+	body, message, width, _ := m.pinContent()
 	lines := m.boxWithBodyRowsWidthOnBackdropError("Bypass - Secrets Manager", body, "", message, 0, width, make([]string, m.height))
 	theme := colorsForTheme(m.settings.Theme)
 	for i := range lines {

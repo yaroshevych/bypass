@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -364,12 +365,13 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func (m *Model) dialogLines() []string {
+func (m *Model) dialogContent() (body []string, footer string, width int, targets []int) {
 	c := m.colors()
 	accent, secondary := c.accent, c.secondary
 	d := m.dialog
 	compact := m.compactAppearance()
-	body := append([]string(nil), d.message...)
+	body = append([]string(nil), d.message...)
+	fieldStart, fieldEnd, actionStart, actionBase, actionCount := -1, -1, -1, 0, 0
 	if d.kind == "duplicates" {
 		end := min(len(d.duplicates.Renames), d.offset+max(1, min(8, m.height-14)))
 		body = []string{fmt.Sprintf("Rename %d entries (%d–%d shown)", len(d.duplicates.Renames), d.offset+1, end), "Encrypted backup first. pgup/pgdn to view names."}
@@ -400,27 +402,36 @@ func (m *Model) dialogLines() []string {
 		}
 		body = wrapped
 	}
-	footer := ""
+	footer = ""
 	switch d.kind {
 	case "pin-setup", "pin-confirm":
 		dialogWidth := min(m.width-6, 52)
 		actionWidth := max(1, dialogWidth-4)
 		body = append(body, secondary.Render(" 4–12 digits · current run only"), "")
+		fieldStart = len(body)
 		body = append(body, m.dialogFields([]inputFieldView{{label: "Session PIN", value: &d.input, secret: true, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
+		fieldEnd = len(body)
 		body = m.dialogActions(body, []dialogAction{{"Save", "enter"}, {"Cancel", "esc"}}, d.selected-1, actionWidth+4, len(body)+3)
+		actionStart, actionBase, actionCount = len(body)-2, 1, 2
 		footer = ""
 	case "group":
 		actionWidth := dialogBoxInputWidth(m.width)
+		fieldStart = len(body)
 		body = append(body, m.dialogFields([]inputFieldView{{label: "Group name", value: &d.input, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
+		fieldEnd = len(body)
 		body = m.dialogActions(body, []dialogAction{{"Create", "enter"}, {"Cancel", "esc"}}, d.selected-1, actionWidth+4, len(body)+3)
+		actionStart, actionBase, actionCount = len(body)-2, 1, 2
 		footer = ""
 	case "generator":
 		if len(d.secret) == 0 {
 			body = append(body, "")
 			dialogWidth := min(m.width-6, 72)
 			actionWidth := max(1, dialogWidth-4)
+			fieldStart = len(body)
 			body = append(body, m.dialogFields([]inputFieldView{{label: "Length (8–64)", value: &d.input, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
+			fieldEnd = len(body)
 			body = m.dialogActions(body, []dialogAction{{"Generate", "enter"}, {"Cancel", "esc"}}, d.selected-1, actionWidth+4, len(body)+3)
+			actionStart, actionBase, actionCount = len(body)-2, 1, 2
 			footer = ""
 		} else {
 			body = append(body, " Generated password", accent.Render(" "+safe(string(d.secret))))
@@ -431,6 +442,7 @@ func (m *Model) dialogLines() []string {
 				actions = append([]dialogAction{{"Apply", "enter"}}, actions...)
 			}
 			body = m.dialogActions(body, actions, d.selected, actionWidth+4, len(body)+len(actions)+1)
+			actionStart, actionCount = len(body)-len(actions), len(actions)
 			footer = ""
 		}
 	case "destination":
@@ -438,7 +450,7 @@ func (m *Model) dialogLines() []string {
 		footer = ""
 	default:
 		body = append(body, "")
-		if d.kind == "duplicates" || d.kind == "delete" || d.kind == "unsaved" || d.kind == "external" {
+		if d.kind == "duplicates" || d.kind == "delete" || d.kind == "unsaved" || d.kind == "external" || d.kind == "discardReload" {
 			dialogWidth := min(m.width-6, 60)
 			if d.kind == "unsaved" {
 				dialogWidth = min(m.width-6, 42)
@@ -458,6 +470,7 @@ func (m *Model) dialogLines() []string {
 				actions = append(actions, dialogAction{option, shortcut})
 			}
 			body = append(body, m.dialogActionRows(actions, d.selected, actionWidth)...)
+			actionStart, actionCount = len(body)-len(actions), len(actions)
 		} else {
 			body = append(body, renderDialogChoices(d.options, d.selected, compact, m.settings.ASCII, c))
 		}
@@ -465,25 +478,52 @@ func (m *Model) dialogLines() []string {
 	if m.writing && d.kind != "generator" {
 		body = append(body, accent.Render("Working…"))
 	}
-	if d.kind == "unsaved" {
-		return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 42), false)
+	width = min(m.width-6, 82)
+	switch d.kind {
+	case "unsaved":
+		width = min(m.width-6, 42)
+	case "pin-setup", "pin-confirm":
+		width = min(m.width-6, 52)
+	case "external", "generator":
+		width = min(m.width-6, 72)
+	case "delete", "duplicates", "destination":
+		width = min(m.width-6, 60)
 	}
-	if d.kind == "pin-setup" || d.kind == "pin-confirm" {
-		return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 52), false)
+	targets = make([]int, len(body))
+	for i := range targets {
+		targets[i] = -1
 	}
-	if d.kind == "external" {
-		return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 72), false)
+	for i := fieldStart; i >= 0 && i < fieldEnd; i++ {
+		targets[i] = 0
 	}
-	if d.kind == "delete" || d.kind == "duplicates" {
-		return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 60), false)
+	for i := 0; i < actionCount; i++ {
+		targets[actionStart+i] = actionBase + i
 	}
-	if d.kind == "generator" {
-		return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 72), false)
+	return body, footer, width, targets
+}
+
+func (m *Model) dialogLines() []string {
+	body, footer, width, _ := m.dialogContent()
+	return m.boxWithWidthError(m.dialog.title, body, footer, m.dialog.err, width, false)
+}
+
+func (m *Model) dialogPointer(msg tea.MouseMsg) tea.Cmd {
+	if m.dialog.kind == "destination" {
+		return m.destinationPointer(msg)
 	}
-	if d.kind == "destination" {
-		return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 60), false)
+	body, footer, width, targets := m.dialogContent()
+	opts := m.dialogOptions()
+	opts.Body, opts.StatusBar, opts.Width, opts.Error = body, footer, width, safe(m.dialog.err)
+	target := dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target
+	if target < 0 {
+		return nil
 	}
-	return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 82), false)
+	d := m.dialog
+	d.selected = target
+	if target == 0 && (d.kind == "group" || d.kind == "pin-setup" || d.kind == "pin-confirm" || d.kind == "generator" && len(d.secret) == 0) {
+		return nil
+	}
+	return m.dialogKey(tea.KeyMsg{Type: tea.KeyEnter})
 }
 
 func (m *Model) destinationDialogBody() (body []string, start, count int) {

@@ -547,3 +547,28 @@ func TestTinyScreenDoesNotSendKeysToHiddenRequests(t *testing.T) {
 		t.Fatal("visible review did not regain input after resize")
 	}
 }
+
+func TestRunRequestMouseSelectsVisibleRow(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, size := range [][2]int{{48, 16}, {80, 24}} {
+			m := New(Options{})
+			m.width, m.height, m.settings.Appearance = size[0], size[1], appearance
+			first := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{"first-agent"}}}
+			second := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{"second-agent"}}}
+			m.runs = &runState{visible: true, pending: []*runpkg.Pending{first, second}, buttonsFocused: true}
+			for y, line := range m.runDialogView() {
+				plain := ansi.Strip(line)
+				if x := strings.Index(plain, "second-agent"); x >= 0 {
+					m.updateRun(tea.MouseMsg{X: len([]rune(plain[:x])), Y: y, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+					if m.runs.index != 1 || m.runs.buttonsFocused {
+						t.Fatalf("%s %v: request click missed", appearance, size)
+					}
+					break
+				}
+			}
+			if m.runs.index != 1 {
+				t.Fatalf("%s %v: second request not visible", appearance, size)
+			}
+		}
+	}
+}

@@ -547,3 +547,63 @@ func TestTooSmallScreenShowsCenteredSize(t *testing.T) {
 		}
 	}
 }
+
+func TestDialogButtonsUseMouseTargets(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, size := range [][2]int{{48, 16}, {80, 24}} {
+			for _, kind := range []string{"group", "generator", "pin-setup", "delete", "unsaved", "discardReload"} {
+				t.Run(fmt.Sprintf("%s/%dx%d/%s", appearance, size[0], size[1], kind), func(t *testing.T) {
+					m := New(Options{})
+					m.width, m.height, m.settings.Appearance = size[0], size[1], appearance
+					m.dialog = &actionDialog{kind: kind, title: "Test", options: []string{"Cancel", "Delete"}, err: "Please correct this error"}
+					if kind == "unsaved" {
+						m.dialog.options = []string{"Save", "Discard", "Cancel"}
+					}
+					for y, line := range m.dialogLines() {
+						plain := ansi.Strip(line)
+						if x := strings.Index(plain, "Cancel"); x >= 0 {
+							m.pointer(tea.MouseMsg{X: len([]rune(plain[:x])), Y: y, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+							if m.dialog != nil {
+								t.Fatal("Cancel click did not close dialog")
+							}
+							return
+						}
+					}
+					t.Fatal("Cancel is not visible")
+				})
+			}
+		}
+	}
+}
+
+func TestPrivacyDialogMouseUsesSafeConfirmation(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		m := New(Options{})
+		m.width, m.height, m.settings.Appearance = 48, 16, appearance
+		if err := m.gate.Configure([]byte("1234")); err != nil {
+			t.Fatal(err)
+		}
+		if !m.gate.Protect() {
+			t.Fatal("could not protect screen")
+		}
+		click := func(label string) {
+			t.Helper()
+			for y, line := range m.pinLines() {
+				plain := ansi.Strip(line)
+				if x := strings.Index(plain, label); x >= 0 {
+					m.pointer(tea.MouseMsg{X: len([]rune(plain[:x])), Y: y, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+					return
+				}
+			}
+			t.Fatalf("%s is not visible", label)
+		}
+		click("Full Lock")
+		if !m.pinFullLock || !m.gate.Protected() {
+			t.Fatal("Full Lock did not open protected confirmation")
+		}
+		click("Cancel")
+		if m.pinFullLock || !m.gate.Protected() {
+			t.Fatal("Cancel did not return to protected screen")
+		}
+	}
+}
