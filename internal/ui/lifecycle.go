@@ -551,21 +551,16 @@ func (m *Model) lifecyclePointer(msg tea.MouseMsg) tea.Cmd {
 	_, body, footer, width, targets := m.lifecycleContent()
 	opts := m.dialogOptions()
 	opts.Mode, opts.Body, opts.Error, opts.StatusBar, opts.Width = dialogrender.Overlay, body, safe(m.lifecycle.err), footer, width
-	prepared, indices := dialogrender.PrepareBody(opts)
-	extra := 0
-	if footer != "" {
-		extra = 1
+	opts.X, opts.Y = -1, -1
+	rowTargets := make([]int, len(body))
+	for i := range rowTargets {
+		rowTargets[i] = -1
 	}
-	g := dialogrender.LayoutOverlay(width, m.width, m.height, len(prepared)+extra, m.compactAppearance(), -1, -1)
-	if msg.X < g.X || msg.X >= g.X+g.Width {
-		return nil
+	for row, target := range targets {
+		rowTargets[row] = target
 	}
-	row := msg.Y - g.Y - g.HeaderRows
-	if row < 0 || row >= len(indices) {
-		return nil
-	}
-	target, ok := targets[indices[row]]
-	if !ok {
+	target := dialogrender.HitTest(opts, msg.X, msg.Y, rowTargets).Target
+	if target < 0 {
 		return nil
 	}
 	if m.lifecycle.confirm {

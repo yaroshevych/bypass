@@ -722,28 +722,27 @@ func (m *Model) palettePointer(msg tea.MouseMsg) tea.Cmd {
 	width := m.paletteDialogWidth(choices)
 	opts := m.dialogOptions()
 	opts.Mode, opts.Body, opts.Error, opts.Width, opts.StatusBar = dialogrender.Overlay, body, safe(p.err), width, footer
-	prepared, indices := dialogrender.PrepareBody(opts)
-	footerRows := 0
-	if footer != "" {
-		footerRows = 1
+	opts.X, opts.Y = p.x, p.y
+	rows, _ := m.paletteRows(choices)
+	start, _ := viewportRange(len(rows), max(1, m.height-12), p.offset)
+	targets := make([]int, len(body))
+	for i := range targets {
+		index := i + start
+		if m.compactAppearance() {
+			index--
+		}
+		targets[i] = -1
+		if index >= 0 && index < len(rows) {
+			targets[i] = rows[index].choice
+		}
 	}
-	g := dialogrender.LayoutOverlay(width, m.width, m.height, len(prepared)+footerRows, m.compactAppearance(), p.x, p.y)
-	if msg.X < g.X || msg.X >= g.X+g.Width || msg.Y < g.Y || msg.Y >= g.Y+g.Height {
+	hit := dialogrender.HitTest(opts, msg.X, msg.Y, targets)
+	if !hit.Inside {
 		m.closePalette(false)
 		return nil
 	}
-	row := msg.Y - g.Y - g.HeaderRows
-	if row < 0 || row >= len(indices) || indices[row] < 0 {
-		return nil
-	}
-	rows, _ := m.paletteRows(choices)
-	start, _ := viewportRange(len(rows), max(1, m.height-12), p.offset)
-	index := indices[row] + start
-	if m.compactAppearance() {
-		index--
-	}
-	if index >= 0 && index < len(rows) && rows[index].choice >= 0 {
-		p.selected = rows[index].choice
+	if hit.Target >= 0 {
+		p.selected = hit.Target
 		return m.executePalette()
 	}
 	return nil

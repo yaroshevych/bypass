@@ -233,3 +233,41 @@ func strip(lines []string) []string {
 	}
 	return result
 }
+
+func TestHitTestMatchesRenderedTargets(t *testing.T) {
+	for _, mode := range []Mode{Box, Overlay} {
+		for _, compact := range []bool{false, true} {
+			o := Options{Mode: mode, Title: "Dialog", Body: []string{"first target", BodyRule, "second target"}, Error: "A long error to wrap above the targets", Width: 28, ScreenWidth: 48, Height: 14, Compact: compact, X: -1, Y: -1}
+			o.Backdrop = make([]string, o.Height)
+			for i := range o.Backdrop {
+				o.Backdrop[i] = strings.Repeat(" ", o.ScreenWidth)
+			}
+			lines := strip(Render(o))
+			found := map[string]bool{}
+			for row, line := range lines {
+				for _, tc := range []struct {
+					text   string
+					target int
+				}{{"first target", 17}, {"second target", 42}, {"A long error", -1}} {
+					if x := strings.Index(line, tc.text); x >= 0 {
+						found[tc.text] = true
+						// The frame characters are multibyte; count columns, not bytes.
+						x = lipgloss.Width(line[:x])
+						hit := HitTest(o, x, row, []int{17, -1, 42})
+						if !hit.Inside || hit.Target != tc.target {
+							t.Fatalf("mode %d compact %t text %q: hit = %+v", mode, compact, tc.text, hit)
+						}
+					}
+				}
+			}
+			for _, label := range []string{"first target", "second target", "A long error"} {
+				if !found[label] {
+					t.Fatalf("mode %d compact %t: %q not rendered", mode, compact, label)
+				}
+			}
+			if hit := HitTest(o, 0, 0, []int{17, -1, 42}); hit.Inside || hit.Target != -1 {
+				t.Fatalf("mode %d compact %t: outside hit = %+v", mode, compact, hit)
+			}
+		}
+	}
+}

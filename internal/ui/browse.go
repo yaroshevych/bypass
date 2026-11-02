@@ -128,61 +128,56 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		opts := m.dialogOptions()
 		opts.Body, opts.Width = body, width
 		opts.Error = safe(m.err)
-		geometry := dialogrender.LayoutBox(opts)
-		if msg.X < geometry.X || msg.X >= geometry.X+geometry.Width {
-			return nil
+		targets := make([]int, len(body))
+		for i := range targets {
+			targets[i] = -1
 		}
-		for i, line := range geometry.Body {
-			row := geometry.BodyY + i
-			if line == dialogrender.BodyRule {
-				if msg.Y == row+1 {
-					return m.startOpen()
-				}
-				if msg.Y == row+2 {
-					return m.unlockKey(tea.KeyMsg{Type: tea.KeyEscape})
-				}
+		for i, line := range body {
+			if i == 2 || i == 3 {
+				targets[i] = 0
 			}
-			if (geometry.BodyIndices[i] == 2 || geometry.BodyIndices[i] == 3) && msg.Y == row {
-				m.inputFocus = 0
-				return nil
+			if line == dialogrender.BodyRule && i+2 < len(body) {
+				targets[i+1], targets[i+2] = 1, 2
 			}
+		}
+		switch dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target {
+		case 0:
+			m.inputFocus = 0
+		case 1:
+			return m.startOpen()
+		case 2:
+			return m.unlockKey(tea.KeyMsg{Type: tea.KeyEscape})
 		}
 		return nil
 	case chooseFile:
 		start, capacity := m.fileViewport()
 		start, end := viewportRange(len(m.files), capacity, start)
-		visible := end - start
-		bodyTop := m.pickerBodyTop()
-		pathY := bodyTop + m.pickerPathRow()
-		if msg.Y == pathY {
-			m.pickerEditing = true
-			m.pickerRecent = false
-			return nil
-		}
-		boxWidth := min(m.width-6, 60)
-		left := max(0, (m.width-boxWidth)/2)
-		if msg.X < left || msg.X >= left+boxWidth {
-			return nil
-		}
 		recentCount := m.pickerRecentCount()
-		if recentCount > 0 {
-			recentStartY := bodyTop + 3
-			if msg.Y >= recentStartY && msg.Y < recentStartY+recentCount {
-				m.pickerEditing = false
-				m.pickerRecent = true
-				m.pickerRecentIndex = msg.Y - recentStartY
-				return nil
-			}
+		opts := m.dialogOptions()
+		opts.Width, opts.BodyRows, opts.StatusBar = min(m.width-6, 60), m.pickerBodyRows(), m.pickerStatusBar()
+		opts.Body, opts.Error = make([]string, opts.BodyRows), safe(m.err)
+		targets := make([]int, len(opts.Body))
+		for i := range targets {
+			targets[i] = -1
 		}
-		fileStartY := bodyTop + m.pickerFixedRows()
-		if msg.Y < fileStartY {
-			return nil
+		if row := m.pickerPathRow(); row < len(targets) {
+			targets[row] = 0
 		}
-		index := msg.Y - fileStartY + start
-		if index >= start && index < len(m.files) && index < start+visible {
-			m.fileIndex = index
-			m.pickerEditing = false
-			m.pickerRecent = false
+		for i := 0; i < recentCount && 3+i < len(targets); i++ {
+			targets[3+i] = 1 + i
+		}
+		for i := start; i < end && m.pickerFixedRows()+i-start < len(targets); i++ {
+			targets[m.pickerFixedRows()+i-start] = 1 + recentCount + i
+		}
+		target := dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target
+		if target == 0 {
+			m.pickerEditing, m.pickerRecent = true, false
+		} else if target > 0 && target <= recentCount {
+			m.pickerEditing, m.pickerRecent = false, true
+			m.pickerRecentIndex = target - 1
+		} else if target > recentCount {
+			m.fileIndex = target - 1 - recentCount
+			m.pickerEditing, m.pickerRecent = false, false
 		}
 		return nil
 	}
@@ -197,12 +192,7 @@ func (m *Model) welcomePointer(msg tea.MouseMsg) tea.Cmd {
 	body, targets, status := m.welcomeBody()
 	opts := m.dialogOptions()
 	opts.Body, opts.BodyRows, opts.StatusBar, opts.Width = body, m.landingBodyRows(), status, min(m.width-6, 82)
-	g := dialogrender.LayoutBox(opts)
-	row := msg.Y - g.BodyY
-	if msg.X < g.X || msg.X >= g.X+g.Width || row < 0 || row >= len(g.Body) || row >= len(targets) {
-		return nil
-	}
-	target := targets[row]
+	target := dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target
 	if target < 0 {
 		return nil
 	}
@@ -349,25 +339,25 @@ func (m *Model) destinationPointer(msg tea.MouseMsg) tea.Cmd {
 	opts := m.dialogOptions()
 	opts.Body, opts.Width = body, boxWidth
 	opts.Error = safe(d.err)
-	g := dialogrender.LayoutBox(opts)
-	if msg.X < g.X || msg.X >= g.X+g.Width {
-		return nil
+	targets := make([]int, len(body))
+	for i := range targets {
+		targets[i] = -1
 	}
-	row := msg.Y - g.BodyY
-	if row < 0 || row >= len(g.BodyIndices) {
-		return nil
-	}
-	sourceRow := g.BodyIndices[row]
 	first := len(d.message) + 2
-	if sourceRow >= first && sourceRow < first+count {
-		d.selected, d.destinationFocus = start+sourceRow-first, 0
-		return nil
+	for i := 0; i < count && first+i < len(targets); i++ {
+		targets[first+i] = i
 	}
 	for i, line := range body {
-		if line == dialogrender.BodyRule && sourceRow > i && sourceRow <= i+2 {
-			d.destinationFocus = sourceRow - i
-			return m.dialogKey(tea.KeyMsg{Type: tea.KeyEnter})
+		if line == dialogrender.BodyRule && i+2 < len(body) {
+			targets[i+1], targets[i+2] = count, count+1
 		}
+	}
+	target := dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target
+	if target >= 0 && target < count {
+		d.selected, d.destinationFocus = start+target, 0
+	} else if target >= count {
+		d.destinationFocus = target - count + 1
+		return m.dialogKey(tea.KeyMsg{Type: tea.KeyEnter})
 	}
 	return nil
 }

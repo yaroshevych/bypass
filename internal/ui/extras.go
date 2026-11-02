@@ -348,9 +348,17 @@ func (m *Model) extrasPointer(msg tea.MouseMsg) (tea.Cmd, bool) {
 		start := viewportOffset(state.historyIndex, len(state.history), capacity, state.offset)
 		start, end := viewportRange(len(state.history), capacity, start)
 		visible := end - start
-		g := dialogrender.LayoutOverlay(min(78, m.width-4), m.width, m.height, 2+max(1, visible), m.compactAppearance(), -1, -1)
-		index := msg.Y - (g.Y + g.HeaderRows + 2) + start
-		if msg.X >= g.X && msg.X < g.X+g.Width && index >= start && index < end {
+		opts := m.dialogOptions()
+		opts.Mode, opts.Width, opts.X, opts.Y = dialogrender.Overlay, min(78, m.width-4), -1, -1
+		opts.Body = make([]string, 2+max(1, visible))
+		targets := make([]int, len(opts.Body))
+		for i := range targets {
+			targets[i] = -1
+			if i >= 2 && i-2 < visible {
+				targets[i] = start + i - 2
+			}
+		}
+		if index := dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target; index >= 0 {
 			state.historyIndex = index
 			state.offset = viewportOffset(index, len(state.history), capacity, state.offset)
 		}
@@ -369,18 +377,16 @@ func (m *Model) extrasPointer(msg tea.MouseMsg) (tea.Cmd, bool) {
 		body, footer, width, message := m.attachmentContent(state)
 		opts := m.dialogOptions()
 		opts.Mode, opts.Body, opts.Error, opts.StatusBar, opts.Width = dialogrender.Overlay, body, safe(message), footer, width
-		prepared, indices := dialogrender.PrepareBody(opts)
-		footerRows := 1
-		if footer == "" {
-			footerRows = 0
+		opts.X, opts.Y = -1, -1
+		targets := make([]int, len(body))
+		for i := range targets {
+			targets[i] = -1
+			index := i - 2 + start
+			if index >= start && index < end {
+				targets[i] = index
+			}
 		}
-		g := dialogrender.LayoutOverlay(width, m.width, m.height, len(prepared)+footerRows, m.compactAppearance(), -1, -1)
-		row := msg.Y - g.Y - g.HeaderRows
-		if row < 0 || row >= len(indices) {
-			return nil, true
-		}
-		index := indices[row] - 2 + start
-		if msg.X >= g.X && msg.X < g.X+g.Width && index >= start && index < end {
+		if index := dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target; index >= 0 {
 			state.selected = index
 			state.offset = viewportOffset(index, items, capacity, state.offset)
 		}

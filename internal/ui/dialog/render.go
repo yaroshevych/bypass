@@ -104,6 +104,43 @@ func LayoutOverlay(width, screenWidth, screenHeight, bodyRows int, compact bool,
 	return OverlayGeometry{X: min(max(0, x), max(0, screenWidth-width)), Y: min(max(0, y), max(0, screenHeight-height)), Width: width, Height: height, HeaderRows: header}
 }
 
+// Hit identifies the semantic target at a screen position. Targets correspond to
+// source body rows; a negative value marks a non-interactive row.
+type Hit struct {
+	Inside bool
+	Target int
+}
+
+// HitTest uses the same clipping and frame geometry as Render.
+func HitTest(o Options, x, y int, targets []int) Hit {
+	body, indices := prepareBody(o)
+	var left, top, width, height, bodyY int
+	if o.Mode == Overlay {
+		footer := 0
+		if lowercaseShortcutLabels(o.StatusBar) != "" {
+			footer = 1
+		}
+		g := LayoutOverlay(o.Width, o.ScreenWidth, o.Height, len(body)+footer, o.Compact, o.X, o.Y)
+		left, top, width, height, bodyY = g.X, g.Y, g.Width, g.Height, g.Y+g.HeaderRows
+	} else {
+		g := LayoutBox(o)
+		left, top, width, bodyY = g.X, g.Top-1, g.Width, g.BodyY
+		height = g.BodyY - g.Top + len(body) + 2
+		if lowercaseShortcutLabels(o.StatusBar) != "" {
+			height++
+		}
+	}
+	hit := Hit{Inside: x >= left && x < left+width && y >= top && y < top+height, Target: -1}
+	row := y - bodyY
+	if hit.Inside && row >= 0 && row < len(indices) {
+		source := indices[row]
+		if source >= 0 && source < len(targets) {
+			hit.Target = targets[source]
+		}
+	}
+	return hit
+}
+
 // WrapMessage wraps long words as well as whitespace-separated text.
 func WrapMessage(message string, width int) []string {
 	width = max(1, width)
