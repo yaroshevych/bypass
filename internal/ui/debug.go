@@ -2,11 +2,7 @@
 
 package ui
 
-import (
-	"strings"
-
-	tea "github.com/charmbracelet/bubbletea"
-)
+import tea "github.com/charmbracelet/bubbletea"
 
 // DebugOpen exists only in builds explicitly compiled with -tags debug.
 // Use the normal unlock path, including credential cleanup and error handling.

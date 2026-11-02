@@ -38,6 +38,7 @@ check:
     @test -z "$(gofmt -l cmd internal evals)"
     go vet ./...
     go test -race ./...
+    go test -tags=debug ./internal/ui ./cmd/bypass
 
 eval:
     go test -race -tags=integration -parallel=4 -count=1 -timeout=180s -v ./evals
