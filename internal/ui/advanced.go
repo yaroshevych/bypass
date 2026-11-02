@@ -267,15 +267,16 @@ func (m *Model) pinLines() []string {
 	} else {
 		body = []string{c.secondary.Render(" Screen protected"), c.secondary.Render(" Vault sessions remain unlocked in memory."), ""}
 		body = append(body, renderStackedInputField(inputFieldView{label: "Session PIN", value: &m.pinInput, secret: true, focused: m.pinFocus == 0, indent: 1}, actionWidth, compact, c)...)
-		if m.pinError != "" {
-			body = append(body, c.error.Render(" "+strings.ToLower(strings.TrimSuffix(m.pinError, "."))))
-		}
 		if delay := m.gate.NextAttempt().Sub(m.now()); delay > 0 {
 			body = append(body, c.secondary.Render(fmt.Sprintf(" wait %ds", int(delay.Seconds())+1)))
 		}
 		body = m.dialogActions(body, []dialogAction{{"Unlock", "enter"}, {"Full Lock", "ctrl+l"}, {"Quit", ""}}, m.pinFocus-1, width, len(body)+4)
 	}
-	lines := m.boxWithBodyRowsWidthOnBackdrop("Bypass - Secrets Manager", body, "", len(body), width, make([]string, m.height))
+	message := ""
+	if !m.pinFullLock {
+		message = strings.ToLower(strings.TrimSuffix(m.pinError, "."))
+	}
+	lines := m.boxWithBodyRowsWidthOnBackdropError("Bypass - Secrets Manager", body, "", message, 0, width, make([]string, m.height))
 	theme := colorsForTheme(m.settings.Theme)
 	for i := range lines {
 		lines[i] = restoreThemeResets(lines[i], theme.primary, theme.background)
@@ -438,6 +439,10 @@ func (m *Model) advancedScreen() ([]string, bool) {
 }
 
 func (m *Model) overlay(title string, body []string, footer string, width, x, y int, header ...dialogrender.Header) []string {
+	return m.overlayError(title, body, footer, "", width, x, y, header...)
+}
+
+func (m *Model) overlayError(title string, body []string, footer, message string, width, x, y int, header ...dialogrender.Header) []string {
 	headerContent, headerDivider, compactAccessory, compactCount := "", 0, "", ""
 	compactAccessoryStyle := lipgloss.NewStyle()
 	if len(header) > 0 {
@@ -449,6 +454,7 @@ func (m *Model) overlay(title string, body []string, footer string, width, x, y 
 	opts.Mode, opts.Title, opts.HeaderContent, opts.HeaderDivider = dialogrender.Overlay, title, headerContent, headerDivider
 	opts.CompactAccessory, opts.CompactAccessoryStyle, opts.CompactCount = compactAccessory, compactAccessoryStyle, compactCount
 	opts.Body, opts.StatusBar, opts.Backdrop = body, footer, m.modalBackdrop()
+	opts.Error = safe(message)
 	opts.Width, opts.X, opts.Y = width, x, y
 	return dialogrender.Render(opts)
 }

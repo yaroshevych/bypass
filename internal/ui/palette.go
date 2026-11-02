@@ -658,9 +658,6 @@ func (m *Model) paletteBody() (string, []string, string) {
 	if len(choices) == 0 {
 		body = append(body, m.colors().secondary.Render("No matching actions"))
 	}
-	if p.err != "" {
-		body = append(body, m.colors().error.Render(p.err))
-	}
 	footer := ""
 	return title, body, footer
 }
@@ -673,10 +670,10 @@ func (m *Model) paletteLines() []string {
 	width := m.paletteDialogWidth(choices)
 	if !m.compactAppearance() {
 		header := dialogrender.FilterHeader(title, safe(m.palette.query.value()), m.palette.query.cursor, "type to filter", count, width-4, false, m.settings.ASCII, filterDialogStyles(styles))
-		return m.overlay(title, body, footer, width, m.palette.x, m.palette.y, header)
+		return m.overlayError(title, body, footer, m.palette.err, width, m.palette.x, m.palette.y, header)
 	}
 	header := dialogrender.FilterHeader(title, safe(m.palette.query.value()), m.palette.query.cursor, "type to filter", count, 0, true, m.settings.ASCII, filterDialogStyles(styles))
-	return m.overlay(title, body, footer, width, m.palette.x, m.palette.y, header)
+	return m.overlayError(title, body, footer, m.palette.err, width, m.palette.x, m.palette.y, header)
 }
 
 func paletteCountLabel(scope string, count int) string {
@@ -720,24 +717,31 @@ func (m *Model) palettePointer(msg tea.MouseMsg) tea.Cmd {
 	if msg.Button != tea.MouseButtonLeft {
 		return nil
 	}
-	_, body, _ := m.paletteBody()
-	width := m.paletteDialogWidth(m.paletteChoices())
-	height := min(len(body), max(1, m.height-8)) + 5
-	x, y := p.x, p.y
-	if x < 0 {
-		x = (m.width - width) / 2
+	_, body, footer := m.paletteBody()
+	choices := m.paletteChoices()
+	width := m.paletteDialogWidth(choices)
+	opts := m.dialogOptions()
+	opts.Mode, opts.Body, opts.Error, opts.Width, opts.StatusBar = dialogrender.Overlay, body, safe(p.err), width, footer
+	prepared, indices := dialogrender.PrepareBody(opts)
+	footerRows := 0
+	if footer != "" {
+		footerRows = 1
 	}
-	x = min(max(0, x), max(0, m.width-width))
-	if y < 0 {
-		y = (m.height - height) / 2
-	}
-	y = min(max(0, y), max(0, m.height-height))
-	if msg.X < x || msg.X >= x+width || msg.Y < y || msg.Y >= y+height {
+	g := dialogrender.LayoutOverlay(width, m.width, m.height, len(prepared)+footerRows, m.compactAppearance(), p.x, p.y)
+	if msg.X < g.X || msg.X >= g.X+g.Width || msg.Y < g.Y || msg.Y >= g.Y+g.Height {
 		m.closePalette(false)
 		return nil
 	}
-	rows, _ := m.paletteRows(m.paletteChoices())
-	index := msg.Y - y - 5 + p.offset
+	row := msg.Y - g.Y - g.HeaderRows
+	if row < 0 || row >= len(indices) || indices[row] < 0 {
+		return nil
+	}
+	rows, _ := m.paletteRows(choices)
+	start, _ := viewportRange(len(rows), max(1, m.height-12), p.offset)
+	index := indices[row] + start
+	if m.compactAppearance() {
+		index--
+	}
 	if index >= 0 && index < len(rows) && rows[index].choice >= 0 {
 		p.selected = rows[index].choice
 		return m.executePalette()

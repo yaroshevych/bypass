@@ -127,6 +127,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		body, width := m.unlockDialogBody()
 		opts := m.dialogOptions()
 		opts.Body, opts.Width = body, width
+		opts.Error = safe(m.err)
 		geometry := dialogrender.LayoutBox(opts)
 		if msg.X < geometry.X || msg.X >= geometry.X+geometry.Width {
 			return nil
@@ -141,7 +142,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 					return m.unlockKey(tea.KeyMsg{Type: tea.KeyEscape})
 				}
 			}
-			if (i == 2 || i == 3) && i < len(body) && line == body[i] && msg.Y == row {
+			if (geometry.BodyIndices[i] == 2 || geometry.BodyIndices[i] == 3) && msg.Y == row {
 				m.inputFocus = 0
 				return nil
 			}
@@ -281,7 +282,10 @@ func (m *Model) fileViewport() (start, capacity int) {
 		available--
 	}
 	if m.err != "" {
-		available--
+		opts := m.dialogOptions()
+		opts.Width, opts.Error = min(m.width-6, 60), safe(m.err)
+		rows, _ := dialogrender.PrepareBody(opts)
+		available -= len(rows)
 	}
 	capacity = max(0, available)
 	start = viewportOffset(m.fileIndex, len(m.files), max(1, capacity), m.fileOffset)
@@ -296,7 +300,14 @@ func (m *Model) pickerBodyRows() int {
 func (m *Model) pickerBodyTop() int {
 	opts := m.dialogOptions()
 	opts.Width, opts.BodyRows, opts.StatusBar = min(m.width-6, 60), m.pickerBodyRows(), m.pickerStatusBar()
-	return dialogrender.LayoutBox(opts).BodyY
+	opts.Body, opts.Error = make([]string, opts.BodyRows), safe(m.err)
+	g := dialogrender.LayoutBox(opts)
+	for i, source := range g.BodyIndices {
+		if source == 0 {
+			return g.BodyY + i
+		}
+	}
+	return g.BodyY + len(g.Body)
 }
 
 func (m *Model) pickerRecentCount() int {
@@ -334,25 +345,27 @@ func (m *Model) destinationPointer(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	body, start, count := m.destinationDialogBody()
-	if d.err != "" {
-		body = append(body, m.colors().error.Render(d.err))
-	}
 	boxWidth := min(m.width-6, 60)
 	opts := m.dialogOptions()
 	opts.Body, opts.Width = body, boxWidth
+	opts.Error = safe(d.err)
 	g := dialogrender.LayoutBox(opts)
 	if msg.X < g.X || msg.X >= g.X+g.Width {
 		return nil
 	}
 	row := msg.Y - g.BodyY
-	first := len(d.message) + 2
-	if row >= first && row < min(first+count, len(g.Body)) {
-		d.selected, d.destinationFocus = start+row-first, 0
+	if row < 0 || row >= len(g.BodyIndices) {
 		return nil
 	}
-	for i, line := range g.Body {
-		if line == dialogrender.BodyRule && row > i && row <= i+2 {
-			d.destinationFocus = row - i
+	sourceRow := g.BodyIndices[row]
+	first := len(d.message) + 2
+	if sourceRow >= first && sourceRow < first+count {
+		d.selected, d.destinationFocus = start+sourceRow-first, 0
+		return nil
+	}
+	for i, line := range body {
+		if line == dialogrender.BodyRule && sourceRow > i && sourceRow <= i+2 {
+			d.destinationFocus = sourceRow - i
 			return m.dialogKey(tea.KeyMsg{Type: tea.KeyEnter})
 		}
 	}

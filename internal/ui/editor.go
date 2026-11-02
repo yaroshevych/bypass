@@ -394,6 +394,7 @@ func (e *entryEditor) render(width, height int) []string {
 type editorLine struct {
 	text  string
 	focus int
+	error bool
 }
 
 func (e *entryEditor) layoutLines(width, height int) []editorLine {
@@ -450,7 +451,9 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 			}
 		}
 		if e.validation != "" && e.validationFocus == i {
-			lines = append(lines, editorLine{text: styles.error.Render(e.validation), focus: i})
+			for _, text := range renderErrorLines(e.validation, max(1, width-1), styles) {
+				lines = append(lines, editorLine{text: text, focus: i, error: true})
+			}
 		}
 	}
 	if showNonPasswordVaultSecurity {
@@ -505,7 +508,9 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 		lines = append(lines, editorLine{text: text, focus: action.index})
 	}
 	if e.err != "" && e.validation == "" {
-		lines = append(lines, editorLine{text: styles.error.Render(e.err), focus: -1})
+		for _, text := range renderErrorLines(e.err, max(1, width-1), styles) {
+			lines = append(lines, editorLine{text: text, focus: -1, error: true})
+		}
 	}
 	focusedLine := 0
 	for i, line := range lines {
@@ -561,6 +566,9 @@ func renderEditorViewport(lines []editorLine, focusedLine, focus, height int) []
 	pinned := map[int]bool{0: true, len(lines) - 1: true}
 	focusLabel, cursorLine := -1, -1
 	for i, line := range lines {
+		if line.error {
+			pinned[i] = true
+		}
 		if line.focus != focus {
 			continue
 		}

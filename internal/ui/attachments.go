@@ -28,10 +28,10 @@ func (m *Model) openAttachments() tea.Cmd {
 	return nil
 }
 
-func (m *Model) attachmentLines(state *extraState) []string {
+func (m *Model) attachmentContent(state *extraState) ([]string, string, int, string) {
 	session, entry := m.currentExtraEntry(state)
 	if session == nil || entry == nil {
-		return m.overlay("Attachments", []string{m.colors().error.Render("Entry is no longer available.")}, "", min(72, m.width-4), -1, -1)
+		return nil, "", min(72, m.width-4), "Entry is no longer available."
 	}
 	var body []string
 	if state.phase == "path" {
@@ -86,9 +86,6 @@ func (m *Model) attachmentLines(state *extraState) []string {
 			body = append(body, "", m.colors().secondary.Render("Read only · R enables writes"))
 		}
 	}
-	if state.err != "" {
-		body = append(body, "", m.colors().error.Render(state.err))
-	}
 	footer := "a add · r replace · d remove · e export"
 	if state.phase == "path" {
 		footer = ""
@@ -97,7 +94,12 @@ func (m *Model) attachmentLines(state *extraState) []string {
 	} else if state.loading {
 		footer = ""
 	}
-	return m.overlay("Attachments", body, footer, min(76, m.width-4), -1, -1)
+	return body, footer, min(76, m.width-4), state.err
+}
+
+func (m *Model) attachmentLines(state *extraState) []string {
+	body, footer, width, message := m.attachmentContent(state)
+	return m.overlayError("Attachments", body, footer, message, width, -1, -1)
 }
 
 func (m *Model) attachmentListCapacity() int {

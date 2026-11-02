@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -76,6 +77,106 @@ func TestUnlockMouseUsesVisibleDialogBounds(t *testing.T) {
 			if m.screen != browse {
 				t.Fatalf("%s %v: click on Cancel did not close dialog", appearance, size)
 			}
+		}
+	}
+}
+
+func TestUnlockErrorWrapsWithoutHidingActions(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, size := range [][2]int{{48, 14}, {60, 20}, {80, 24}} {
+			m := New(Options{})
+			m.settings.Appearance = appearance
+			m.width, m.height, m.path = size[0], size[1], "/tmp/example.kdbx"
+			m.err = "Could not unlock. Check credentials, file access and backend support."
+			view := ansi.Strip(strings.Join(m.unlockLines(), "\n"))
+			for _, text := range []string{"Could not unlock.", "backend support.", "Password", "Open", "Cancel"} {
+				if !strings.Contains(view, text) {
+					t.Errorf("%s %v unlock hides %q", appearance, size, text)
+				}
+			}
+		}
+	}
+}
+
+func TestErrorStatesWrapInSmallWindows(t *testing.T) {
+	const message = "Could not unlock. Check credentials, file access and backend support."
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, size := range [][2]int{{48, 14}, {80, 24}} {
+			for _, screen := range []string{"unlock", "picker", "palette", "group", "generator", "delete", "external", "unsaved", "pin-setup", "vault", "pin", "request", "reset", "editor", "editor-validation", "totp", "attachments"} {
+				t.Run(fmt.Sprintf("%s/%dx%d/%s", appearance, size[0], size[1], screen), func(t *testing.T) {
+					m := New(Options{})
+					m.settings.Appearance = appearance
+					m.width, m.height, m.path = size[0], size[1], "/tmp/example.kdbx"
+					var lines []string
+					switch screen {
+					case "unlock":
+						m.err = message
+						lines = m.unlockLines()
+					case "picker":
+						m.err = message
+						lines = m.pickerLines()
+					case "palette":
+						m.openPalette("actions", false)
+						m.palette.err = message
+						lines = m.paletteLines()
+					case "group", "generator", "delete", "external", "unsaved", "pin-setup":
+						m.dialog = &actionDialog{kind: screen, title: screen, err: message, options: []string{"Cancel", "Continue"}}
+						lines = m.dialogLines()
+					case "vault":
+						m.lifecycle = &lifecycleState{kind: "create", inputs: make([]input, 5), err: message}
+						lines = m.lifecycleLines()
+					case "pin":
+						m.pinError = message
+						lines = m.pinLines()
+					case "request", "reset":
+						p := &runpkg.Pending{Context: context.Background()}
+						m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, err: message}
+						if screen == "reset" {
+							m.runs.review = false
+							m.runs.resetConfirm = true
+							m.runs.resetErr = message
+						}
+						lines = m.runDialogView()
+					case "editor", "editor-validation":
+						e := newEntryEditor(nil, "root")
+						e.compact = appearance == "compact"
+						e.focus = editSave
+						if screen == "editor-validation" {
+							e.focus, e.validationFocus, e.validation = editPassword, editPassword, message
+						} else {
+							e.err = message
+						}
+						lines = e.render(30, max(8, size[1]-6))
+					case "totp":
+						lines = m.totpLines(&extraState{err: message})
+					case "attachments":
+						m.ws.Open(fixture("/tmp/errors.kdbx"))
+						session := m.ws.ActiveSession()
+						lines = m.attachmentLines(&extraState{sessionID: session.ID, entryUUID: "a", groupUUID: "root", err: message})
+					}
+					view := ansi.Strip(strings.Join(lines, "\n"))
+					if !strings.Contains(strings.ToLower(view), "could not unlock.") || !strings.Contains(strings.ToLower(view), "support") {
+						t.Errorf("error text is not fully visible")
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestLongErrorNoticeRemainsVisible(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		m := New(Options{})
+		m.settings.Appearance = appearance
+		m.width, m.height = 48, 14
+		m.ws.Open(fixture("/tmp/example.kdbx"))
+		m.notice = "reload failed · check the vault file access and credentials before retrying"
+		view := ansi.Strip(m.View())
+		if !strings.Contains(view, "reload failed") || !strings.Contains(view, "before retrying") {
+			t.Errorf("%s: notice was clipped", appearance)
+		}
+		if len(strings.Split(view, "\n")) != m.height {
+			t.Errorf("%s: notice changed the terminal height", appearance)
 		}
 	}
 }
@@ -249,6 +350,81 @@ func TestVaultAndDestinationCancelMouseActions(t *testing.T) {
 		m.destinationPointer(click(m.dialogLines(), "Cancel"))
 		if m.dialog != nil {
 			t.Fatalf("%s: Cancel did not close destination", appearance)
+		}
+	}
+}
+
+func TestDialogClicksFollowRowsWhenErrorIsVisible(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, kind := range []string{"unlock", "vault", "destination"} {
+			t.Run(appearance+"/"+kind, func(t *testing.T) {
+				m := New(Options{})
+				m.settings.Appearance, m.width, m.height = appearance, 48, 14
+				var lines []string
+				switch kind {
+				case "unlock":
+					m.screen, m.err = unlock, "An error that wraps on a narrow terminal and remains visible."
+					lines = m.unlockLines()
+				case "vault":
+					m.lifecycle = &lifecycleState{kind: "create", inputs: make([]input, 5), focus: 4, err: "An error that wraps on a narrow terminal and remains visible."}
+					lines = m.lifecycleLines()
+				case "destination":
+					m.dialog = &actionDialog{kind: "destination", title: "Move entry", groups: []vault.Group{{Path: "Alpha"}}, err: "An error that wraps on a narrow terminal and remains visible."}
+					lines = m.dialogLines()
+				}
+				row, column := -1, -1
+				for y, line := range lines {
+					plain := ansi.Strip(line)
+					if x := strings.Index(plain, "Cancel"); x >= 0 {
+						row, column = y, len([]rune(plain[:x]))
+					}
+				}
+				if row < 0 {
+					t.Fatal("Cancel not visible")
+				}
+				click := tea.MouseMsg{X: column, Y: row, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft}
+				switch kind {
+				case "unlock":
+					m.pointer(click)
+					if m.screen != browse {
+						t.Fatal("Cancel missed")
+					}
+				case "vault":
+					m.lifecyclePointer(click)
+					if m.lifecycle != nil {
+						t.Fatal("Cancel missed")
+					}
+				case "destination":
+					m.destinationPointer(click)
+					if m.dialog != nil {
+						t.Fatal("Cancel missed")
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestPaletteErrorIsNotAnActionTarget(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		m := New(Options{})
+		m.settings.Appearance, m.width, m.height = appearance, 48, 14
+		m.openPalette("actions", false)
+		m.palette.err = "An error that wraps on a narrow terminal."
+		found := false
+		for y, line := range m.paletteLines() {
+			plain := ansi.Strip(line)
+			if x := strings.Index(plain, "An error"); x >= 0 {
+				m.palettePointer(tea.MouseMsg{X: len([]rune(plain[:x])), Y: y, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+				if m.palette == nil || m.palette.scope != "actions" {
+					t.Fatalf("%s: error click activated an action", appearance)
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("%s: error was not visible", appearance)
 		}
 	}
 }

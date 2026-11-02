@@ -65,20 +65,18 @@ func (m *Model) totpLines(state *extraState) []string {
 	body := []string{m.colors().secondary.Render("TOTP seed stays hidden; only the current one-time code is shown."), ""}
 	if state.loading {
 		body = append(body, m.colors().accent.Render("Generating code…"))
-	} else if state.err != "" {
-		body = append(body, m.colors().error.Render(state.err))
-	} else if len(state.totpCode) != 0 && m.now().Before(state.totpExpires) {
+	} else if state.err == "" && len(state.totpCode) != 0 && m.now().Before(state.totpExpires) {
 		remaining := int(state.totpExpires.Sub(m.now()).Seconds())
 		if remaining < 0 {
 			remaining = 0
 		}
 		body = append(body, m.colors().accent.Render("Code  "+safe(string(state.totpCode))), m.colors().secondary.Render(fmt.Sprintf("Refreshes in %ds", remaining)))
-	} else if len(state.totpCode) != 0 {
+	} else if state.err == "" && len(state.totpCode) != 0 {
 		body = append(body, m.colors().accent.Render("Refreshing code…"))
 	}
 	footer := "c copy code"
 	if state.err != "" {
 		footer = "r retry"
 	}
-	return m.overlay("Authenticator Code", body, footer, min(68, m.width-4), -1, -1)
+	return m.overlayError("Authenticator Code", body, footer, state.err, min(68, m.width-4), -1, -1)
 }

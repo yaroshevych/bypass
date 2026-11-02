@@ -516,13 +516,6 @@ func (m *Model) lifecycleContent() (string, []string, string, int, map[int]int) 
 		}
 		body = append(body, fields[start:end]...)
 	}
-	if l.err != "" {
-		message := l.err
-		if l.kind == "info" {
-			message = " " + message
-		}
-		body = append(body, c.error.Render(message))
-	}
 	if l.busy {
 		message := "Working…"
 		if l.kind == "info" {
@@ -535,7 +528,7 @@ func (m *Model) lifecycleContent() (string, []string, string, int, map[int]int) 
 
 func (m *Model) lifecycleLines() []string {
 	title, body, footer, width, _ := m.lifecycleContent()
-	return m.overlay(title, body, footer, width, -1, -1)
+	return m.overlayError(title, body, footer, m.lifecycle.err, width, -1, -1)
 }
 
 func renderVaultPath(path, home string, accent lipgloss.Style) string {
@@ -556,15 +549,22 @@ func (m *Model) lifecyclePointer(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	_, body, footer, width, targets := m.lifecycleContent()
+	opts := m.dialogOptions()
+	opts.Mode, opts.Body, opts.Error, opts.StatusBar, opts.Width = dialogrender.Overlay, body, safe(m.lifecycle.err), footer, width
+	prepared, indices := dialogrender.PrepareBody(opts)
 	extra := 0
 	if footer != "" {
 		extra = 1
 	}
-	g := dialogrender.LayoutOverlay(width, m.width, m.height, len(body)+extra, m.compactAppearance(), -1, -1)
+	g := dialogrender.LayoutOverlay(width, m.width, m.height, len(prepared)+extra, m.compactAppearance(), -1, -1)
 	if msg.X < g.X || msg.X >= g.X+g.Width {
 		return nil
 	}
-	target, ok := targets[msg.Y-g.Y-g.HeaderRows]
+	row := msg.Y - g.Y - g.HeaderRows
+	if row < 0 || row >= len(indices) {
+		return nil
+	}
+	target, ok := targets[indices[row]]
 	if !ok {
 		return nil
 	}

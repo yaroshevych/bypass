@@ -87,7 +87,7 @@ func (m *Model) historyLines(state *extraState) []string {
 func (m *Model) historyEntryLines(state *extraState) []string {
 	entry := m.extraHistorySnapshot(state)
 	if entry == nil {
-		return m.overlay("History Snapshot", []string{m.colors().error.Render("Snapshot is no longer available.")}, "", min(78, m.width-4), -1, -1)
+		return m.overlayError("History Snapshot", nil, "", "Snapshot is no longer available.", min(78, m.width-4), -1, -1)
 	}
 	when := entry.Modified
 	if when.IsZero() {

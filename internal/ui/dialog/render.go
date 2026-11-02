@@ -38,6 +38,7 @@ type Options struct {
 	CompactAccessoryStyle      lipgloss.Style
 	CompactCount               string
 	Body                       []string
+	Error                      string
 	BodyRows                   int
 	StatusBar                  string
 	Backdrop                   []string
@@ -46,6 +47,7 @@ type Options struct {
 	Compact, ASCII             bool
 	HideHeaderRule             bool
 	Surface, Accent, Secondary lipgloss.Style
+	ErrorStyle                 lipgloss.Style
 	Pill                       lipgloss.Style
 	Divider                    lipgloss.Style
 	RestoreResets              func(string) string
@@ -64,11 +66,12 @@ type OverlayGeometry struct {
 type BoxGeometry struct {
 	X, Top, Width, BodyY int
 	Body                 []string
+	BodyIndices          []int
 }
 
 // LayoutBox uses the same body clipping and frame positions as Render.
 func LayoutBox(o Options) BoxGeometry {
-	body := prepareBody(o)
+	body, indices := prepareBody(o)
 	contentRows := len(body)
 	headerRows := 0
 	if !o.Compact {
@@ -82,7 +85,7 @@ func LayoutBox(o Options) BoxGeometry {
 		contentRows++
 	}
 	top := max(0, (o.Height-contentRows)/2)
-	return BoxGeometry{X: max(0, (o.ScreenWidth-o.Width)/2), Top: top, Width: o.Width, BodyY: top + headerRows, Body: body}
+	return BoxGeometry{X: max(0, (o.ScreenWidth-o.Width)/2), Top: top, Width: o.Width, BodyY: top + headerRows, Body: body, BodyIndices: indices}
 }
 
 func LayoutOverlay(width, screenWidth, screenHeight, bodyRows int, compact bool, x, y int) OverlayGeometry {
@@ -101,8 +104,18 @@ func LayoutOverlay(width, screenWidth, screenHeight, bodyRows int, compact bool,
 	return OverlayGeometry{X: min(max(0, x), max(0, screenWidth-width)), Y: min(max(0, y), max(0, screenHeight-height)), Width: width, Height: height, HeaderRows: header}
 }
 
-func prepareBody(o Options) []string {
+// WrapMessage wraps long words as well as whitespace-separated text.
+func WrapMessage(message string, width int) []string {
+	width = max(1, width)
+	return strings.Split(ansi.Hardwrap(ansi.Wrap(message, width, ""), width, false), "\n")
+}
+
+func prepareBody(o Options) ([]string, []int) {
 	body := append([]string(nil), o.Body...)
+	indices := make([]int, len(body))
+	for i := range indices {
+		indices[i] = i
+	}
 	statusBar := lowercaseShortcutLabels(o.StatusBar)
 	chrome := 4
 	if o.Compact {
@@ -118,6 +131,37 @@ func prepareBody(o Options) []string {
 			maxBody = max(1, maxBody-1)
 		}
 	}
+	var errors []string
+	if o.Error != "" {
+		width := o.Width
+		if o.Mode == Overlay {
+			width = OverlayWidth(width, o.ScreenWidth)
+		}
+		for _, line := range WrapMessage(o.Error, width-6) {
+			errors = append(errors, o.ErrorStyle.Render(" "+line+" "))
+		}
+	}
+	// Keep room for actions, then the error; clip ordinary content first.
+	reserve := 0
+	for i := len(body) - 1; i >= 0; i-- {
+		if body[i] == BodyRule {
+			reserve = len(body) - i
+			break
+		}
+	}
+	if reserve > maxBody {
+		reserve = 0
+	}
+	available := maxBody - reserve
+	if len(errors) > 0 && available > 1 {
+		if len(errors) > available-1 {
+			errors = errors[:available-1]
+		}
+		errors = append(errors, "")
+	} else if len(errors) > available {
+		errors = errors[:max(0, available)]
+	}
+	maxBody -= len(errors)
 	if len(body) > maxBody {
 		// Keep stacked actions visible when a short terminal clips the body.
 		rule := -1
@@ -130,17 +174,26 @@ func prepareBody(o Options) []string {
 		if rule >= 0 && len(body)-rule <= maxBody {
 			prefix := maxBody - (len(body) - rule)
 			body = append(append([]string(nil), body[:prefix]...), body[rule:]...)
+			indices = append(append([]int(nil), indices[:prefix]...), indices[rule:]...)
 		} else {
 			body = body[:maxBody]
+			indices = indices[:maxBody]
 		}
 	}
 	if o.BodyRows > 0 {
 		for len(body) < maxBody {
 			body = append(body, "")
+			indices = append(indices, -1)
 		}
 	}
-	return body
+	for range errors {
+		indices = append([]int{-1}, indices...)
+	}
+	return append(errors, body...), indices
 }
+
+// PrepareBody returns rendered body rows and their source indices; -1 marks an error or padding row.
+func PrepareBody(o Options) ([]string, []int) { return prepareBody(o) }
 
 // Render places a framed dialog over a pre-rendered, already shaded backdrop.
 func Render(o Options) []string {
@@ -154,7 +207,8 @@ func Render(o Options) []string {
 	if width <= 0 {
 		width = max(1, o.Width)
 	}
-	o.Body = prepareBody(o)
+	o.Body, _ = prepareBody(o)
+	o.Error = ""
 	statusBar := lowercaseShortcutLabels(o.StatusBar)
 	border, horizontal := "│", "─"
 	tl, tr, bl, br := "┌", "┐", "└", "┘"

@@ -457,8 +457,12 @@ func (m *Model) workspaceLines() []string {
 	if status := m.clipboardStatus(); status != "" {
 		footer += " · " + status
 	}
-	if m.notice != "" {
+	noticeLines := m.noticeOverflowLines()
+	if m.notice != "" && len(noticeLines) == 0 {
 		footer += " · " + m.notice
+	}
+	for _, line := range noticeLines {
+		lines = append(lines, m.colors().secondary.Render(fit(" "+line, m.width)))
 	}
 	if m.writing {
 		footer += " · Working…"
@@ -486,6 +490,25 @@ func (m *Model) workspaceLines() []string {
 		footerLine = m.searchFooterLine(footer, contextual, true)
 	}
 	return append(lines, footerLine)
+}
+
+// noticeOverflowLines reserves dedicated rows when the footer cannot show a notice.
+func (m *Model) noticeOverflowLines() []string {
+	if m.notice == "" {
+		return nil
+	}
+	text := m.footerText()
+	if status := m.clipboardStatus(); status != "" {
+		text += " · " + status
+	}
+	text += " · " + m.notice
+	if m.writing {
+		text += " · Working…"
+	}
+	if lipgloss.Width(m.footerBadge())+1+lipgloss.Width(text) <= m.width {
+		return nil
+	}
+	return wrappedTextLines(m.notice, max(1, m.width-2))
 }
 
 func (m *Model) paneRule(layout viewLayout, top bool) string {
@@ -1225,6 +1248,10 @@ func (m *Model) box(title string, body []string, statusBar string, header ...dia
 }
 
 func (m *Model) boxWithWidth(title string, body []string, statusBar string, width int, hideHeaderRule bool, header ...dialogrender.Header) []string {
+	return m.boxWithWidthError(title, body, statusBar, "", width, hideHeaderRule, header...)
+}
+
+func (m *Model) boxWithWidthError(title string, body []string, statusBar, message string, width int, hideHeaderRule bool, header ...dialogrender.Header) []string {
 	headerContent, headerDivider := "", 0
 	if len(header) > 0 {
 		headerContent, headerDivider = header[0].Content, header[0].Divider
@@ -1232,6 +1259,7 @@ func (m *Model) boxWithWidth(title string, body []string, statusBar string, widt
 	opts := m.dialogOptions()
 	opts.Mode, opts.Title, opts.HeaderContent, opts.HeaderDivider = dialogrender.Box, title, headerContent, headerDivider
 	opts.Body, opts.StatusBar, opts.Backdrop, opts.Width = body, statusBar, m.modalBackdrop(), min(m.width-6, width)
+	opts.Error = safe(message)
 	opts.HideHeaderRule = hideHeaderRule
 	return dialogrender.Render(opts)
 }
@@ -1249,6 +1277,10 @@ func (m *Model) boxWithBodyRowsWidth(title string, body []string, statusBar stri
 }
 
 func (m *Model) boxWithBodyRowsWidthOnBackdrop(title string, body []string, statusBar string, bodyRows, width int, backdrop []string, header ...dialogrender.Header) []string {
+	return m.boxWithBodyRowsWidthOnBackdropError(title, body, statusBar, "", bodyRows, width, backdrop, header...)
+}
+
+func (m *Model) boxWithBodyRowsWidthOnBackdropError(title string, body []string, statusBar, message string, bodyRows, width int, backdrop []string, header ...dialogrender.Header) []string {
 	headerContent, headerDivider := "", 0
 	if len(header) > 0 {
 		headerContent, headerDivider = header[0].Content, header[0].Divider
@@ -1256,13 +1288,14 @@ func (m *Model) boxWithBodyRowsWidthOnBackdrop(title string, body []string, stat
 	opts := m.dialogOptions()
 	opts.Mode, opts.Title, opts.HeaderContent, opts.HeaderDivider = dialogrender.Box, title, headerContent, headerDivider
 	opts.Body, opts.BodyRows, opts.StatusBar = body, bodyRows, statusBar
+	opts.Error = safe(message)
 	opts.Backdrop, opts.Width = backdrop, min(m.width-6, width)
 	return dialogrender.Render(opts)
 }
 
 func (m *Model) unlockDialogBody() ([]string, int) {
 	styles := m.colors()
-	accent, secondary, error := styles.accent, styles.secondary, styles.error
+	accent, secondary := styles.accent, styles.secondary
 	dialogWidth := min(m.width-6, 60)
 	contentWidth := max(1, dialogWidth-4)
 	path := safe(m.path)
@@ -1279,21 +1312,18 @@ func (m *Model) unlockDialogBody() ([]string, int) {
 	if m.busy {
 		body = append(body, accent.Render("Unlocking… esc cancels"))
 	}
-	if m.err != "" {
-		body = append(body, error.Render(m.err))
-	}
 	body = m.dialogActions(body, []dialogAction{{"Open", "enter"}, {"Cancel", "esc"}}, m.inputFocus-1, dialogWidth, len(body)+3)
 	return body, dialogWidth
 }
 
 func (m *Model) unlockLines() []string {
 	body, width := m.unlockDialogBody()
-	return m.boxWithWidth("Unlock Vault", body, "", width, false)
+	return m.boxWithWidthError("Unlock Vault", body, "", m.err, width, false)
 }
 
 func (m *Model) pickerLines() []string {
 	styles := m.colors()
-	secondary, error := styles.secondary, styles.error
+	secondary := styles.secondary
 	compact := m.compactAppearance()
 	dialogWidth := min(m.width-6, 60)
 	listWidth := max(1, dialogWidth-4)
@@ -1361,10 +1391,7 @@ func (m *Model) pickerLines() []string {
 	for _, row := range component {
 		body = append(body, row.text)
 	}
-	if m.err != "" {
-		body = append(body, error.Render(m.err))
-	}
-	return m.boxWithBodyRowsWidth("Open Vault", body, m.pickerStatusBar(), m.pickerBodyRows(), dialogWidth)
+	return m.boxWithBodyRowsWidthOnBackdropError("Open Vault", body, m.pickerStatusBar(), m.err, m.pickerBodyRows(), dialogWidth, m.modalBackdrop())
 }
 
 func (m *Model) helpLines() []string {

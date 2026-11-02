@@ -366,20 +366,20 @@ func (m *Model) extrasPointer(msg tea.MouseMsg) (tea.Cmd, bool) {
 		items := len(entry.AttachmentNames) + 1
 		start := viewportOffset(state.selected, items, capacity, state.offset)
 		start, end := viewportRange(items, capacity, start)
-		visible := end - start
-		extraRows := 0
-		if !m.extrasWritable(m.ws.Sessions[state.sessionID]) {
-			extraRows += 2
-		}
-		if state.err != "" {
-			extraRows += 2
-		}
+		body, footer, width, message := m.attachmentContent(state)
+		opts := m.dialogOptions()
+		opts.Mode, opts.Body, opts.Error, opts.StatusBar, opts.Width = dialogrender.Overlay, body, safe(message), footer, width
+		prepared, indices := dialogrender.PrepareBody(opts)
 		footerRows := 1
-		if state.loading {
+		if footer == "" {
 			footerRows = 0
 		}
-		g := dialogrender.LayoutOverlay(min(76, m.width-4), m.width, m.height, 2+visible+extraRows+footerRows, m.compactAppearance(), -1, -1)
-		index := msg.Y - (g.Y + g.HeaderRows + 2) + start
+		g := dialogrender.LayoutOverlay(width, m.width, m.height, len(prepared)+footerRows, m.compactAppearance(), -1, -1)
+		row := msg.Y - g.Y - g.HeaderRows
+		if row < 0 || row >= len(indices) {
+			return nil, true
+		}
+		index := indices[row] - 2 + start
 		if msg.X >= g.X && msg.X < g.X+g.Width && index >= start && index < end {
 			state.selected = index
 			state.offset = viewportOffset(index, items, capacity, state.offset)

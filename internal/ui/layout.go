@@ -23,6 +23,9 @@ func (m *Model) layout() viewLayout {
 	if m.compactAppearance() {
 		header, footer = 2, 1
 	}
+	if s := m.ws.ActiveSession(); s != nil && s.DB != nil {
+		footer += len(m.noticeOverflowLines())
+	}
 	l := viewLayout{Mode: "tiny", BodyY: header, BodyHeight: max(0, h-header-footer)}
 	if w < 48 || h < 14 {
 		return l

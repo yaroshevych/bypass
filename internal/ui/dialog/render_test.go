@@ -8,6 +8,38 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+func TestDialogErrorIsBeforeBodyAndPreservesActionRows(t *testing.T) {
+	for _, mode := range []Mode{Box, Overlay} {
+		for _, compact := range []bool{false, true} {
+			o := Options{Mode: mode, Title: "Dialog", Body: []string{"field", BodyRule, "Save", "Cancel"}, Error: "An error that needs to wrap on a narrow dialog", Width: 30, ScreenWidth: 48, Height: 14, Compact: compact, X: -1, Y: -1}
+			body, indices := PrepareBody(o)
+			if len(body) < 4 || indices[0] != -1 || !strings.Contains(ansi.Strip(body[0]), "An error") {
+				t.Fatalf("mode %d compact %t: error is not first", mode, compact)
+			}
+			if first := ansi.Strip(body[0]); !strings.HasPrefix(first, " ") || !strings.HasSuffix(first, " ") {
+				t.Fatalf("mode %d compact %t: error lacks horizontal padding", mode, compact)
+			}
+			if indices[len(indices)-2] != 2 || indices[len(indices)-1] != 3 {
+				t.Fatalf("mode %d compact %t: action source rows lost: %v", mode, compact, indices)
+			}
+			fieldRow := -1
+			for i, index := range indices {
+				if index == 0 {
+					fieldRow = i
+					break
+				}
+			}
+			if fieldRow < 1 || indices[fieldRow-1] != -1 || ansi.Strip(body[fieldRow-1]) != "" {
+				t.Fatalf("mode %d compact %t: missing empty row after error", mode, compact)
+			}
+			view := strings.Join(strip(Render(o)), "\n")
+			if strings.Index(view, "An error") > strings.Index(view, "field") || !strings.Contains(view, "Cancel") {
+				t.Fatalf("mode %d compact %t: error or actions misplaced", mode, compact)
+			}
+		}
+	}
+}
+
 func TestClassicBoxJoinsHeaderAndRightAlignsFooter(t *testing.T) {
 	lines := Render(Options{
 		Mode: Box, Title: "New Vault", Body: []string{"Path"}, StatusBar: "Tab next · Ctrl+S submit",

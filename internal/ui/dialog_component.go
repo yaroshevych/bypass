@@ -6,6 +6,18 @@ import (
 	dialogrender "bypass/internal/ui/dialog"
 )
 
+func renderErrorLines(message string, width int, styles *styleSet) []string {
+	parts := wrappedTextLines(message, width)
+	for i := range parts {
+		parts[i] = styles.error.Render(parts[i])
+	}
+	return parts
+}
+
+func wrappedTextLines(message string, width int) []string {
+	return dialogrender.WrapMessage(safe(message), width)
+}
+
 // dialogFocus navigates a selectable list followed by stacked actions.
 // Tab wraps; arrow keys stop at the ends.
 func dialogFocus(key string, itemCount, actionCount int, item, action *int, actionsFocused *bool) bool {
@@ -102,7 +114,7 @@ func (m *Model) dialogOptions() dialogrender.Options {
 	theme := colorsForTheme(m.settings.Theme)
 	return dialogrender.Options{
 		ScreenWidth: m.width, Height: m.height, Compact: m.compactAppearance(), ASCII: m.settings.ASCII,
-		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, Pill: c.active, Divider: c.divider,
+		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, ErrorStyle: c.error, Pill: c.active, Divider: c.divider,
 		RestoreResets: func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) },
 	}
 }

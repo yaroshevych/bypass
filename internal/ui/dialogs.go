@@ -366,7 +366,7 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 
 func (m *Model) dialogLines() []string {
 	c := m.colors()
-	accent, secondary, error := c.accent, c.secondary, c.error
+	accent, secondary := c.accent, c.secondary
 	d := m.dialog
 	compact := m.compactAppearance()
 	body := append([]string(nil), d.message...)
@@ -462,31 +462,28 @@ func (m *Model) dialogLines() []string {
 			body = append(body, renderDialogChoices(d.options, d.selected, compact, m.settings.ASCII, c))
 		}
 	}
-	if d.err != "" {
-		body = append(body, error.Render(d.err))
-	}
 	if m.writing && d.kind != "generator" {
 		body = append(body, accent.Render("Working…"))
 	}
 	if d.kind == "unsaved" {
-		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 42), false)
+		return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 42), false)
 	}
 	if d.kind == "pin-setup" || d.kind == "pin-confirm" {
-		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 52), false)
+		return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 52), false)
 	}
 	if d.kind == "external" {
-		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 72), false)
+		return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 72), false)
 	}
 	if d.kind == "delete" || d.kind == "duplicates" {
-		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 60), false)
+		return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 60), false)
 	}
 	if d.kind == "generator" {
-		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 72), false)
+		return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 72), false)
 	}
 	if d.kind == "destination" {
-		return m.boxWithWidth(d.title, body, footer, min(m.width-6, 60), false)
+		return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 60), false)
 	}
-	return m.box(d.title, body, footer)
+	return m.boxWithWidthError(d.title, body, footer, d.err, min(m.width-6, 82), false)
 }
 
 func (m *Model) destinationDialogBody() (body []string, start, count int) {

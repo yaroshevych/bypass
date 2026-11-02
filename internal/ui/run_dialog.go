@@ -15,7 +15,7 @@ import (
 type runAction = dialogAction
 
 type runDialogLayout struct {
-	title                   string
+	title, errorMessage     string
 	body                    []string
 	actions                 []runAction
 	width, x, y             int
@@ -121,13 +121,7 @@ func (m *Model) runReviewBody() []string {
 				body = append(body, "Vault: "+safe(r.choices[r.choiceIndex].database.Path))
 			}
 		} else if m.height <= 16 {
-			if r.err != "" {
-				message := safe(r.err)
-				if p.Identity.Name != "" {
-					message = safe(p.Identity.Name) + " · " + message
-				}
-				body = append(body, message)
-			} else if len(r.targets) == 0 {
+			if len(r.targets) == 0 {
 				body = append(body, "No requested fields")
 			} else {
 				index := min(r.fieldOffset, len(r.targets)-1)
@@ -177,9 +171,6 @@ func (m *Model) runReviewFieldLayout(p *runpkg.Pending) (prefix, suffix []string
 		prefix = append(prefix, "Caller: "+safe(strings.Join(p.Caller, " ← ")))
 	}
 	prefix = append(prefix, "Requested secrets:")
-	if r := m.runs; r.err != "" {
-		suffix = append(suffix, m.colors().error.Render(safe(r.err)))
-	}
 	if p.Identity.Digest == "" && m.runs.err == "" {
 		suffix = append(suffix, m.colors().secondary.Render("Identity required to save access."))
 	}
@@ -262,9 +253,8 @@ func (m *Model) runLayout(review bool) runDialogLayout {
 		body := []string{"Reset affects unlocked vaults.", "Locked vaults stay unchanged.", "Pending requests stay queued."}
 		if m.runs.resetBusy {
 			body = []string{"Resetting saved permissions…", "Pending requests stay queued."}
-		} else if m.runs.resetErr != "" {
-			body = []string{m.colors().error.Render(safe(m.runs.resetErr)), "Pending requests stay queued."}
 		}
+		layout.errorMessage = m.runs.resetErr
 		layout.body = m.dialogActions(body, layout.actions, m.runs.resetFocus, layout.width, m.runBodyCapacity(false))
 		return m.positionRunLayout(layout, true)
 	}
@@ -277,7 +267,7 @@ func (m *Model) runLayout(review bool) runDialogLayout {
 	}
 	layout := runDialogLayout{
 		title: "Review request", width: width,
-		actions: m.runReviewActions(), body: m.runReviewBody(),
+		actions: m.runReviewActions(), body: m.runReviewBody(), errorMessage: m.runs.err,
 	}
 	return m.positionRunLayout(layout, true)
 }
@@ -291,6 +281,9 @@ func (m *Model) runRequestsLayout() runDialogLayout {
 }
 
 func (m *Model) positionRunLayout(layout runDialogLayout, review bool) runDialogLayout {
+	opts := m.dialogOptions()
+	opts.Mode, opts.Width, opts.Body, opts.Error = dialogrender.Overlay, layout.width, layout.body, safe(layout.errorMessage)
+	layout.body, _ = dialogrender.PrepareBody(opts)
 	g := m.centeredDialogGeometry(layout.width, len(layout.body))
 	layout.width = g.Width
 	layout.headerRows = g.HeaderRows
