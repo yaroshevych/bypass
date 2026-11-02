@@ -267,7 +267,7 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 	cmd, out = launch([]string{"ONE=bypass://second.kdbx/Seed Entry", "TWO=bypass://real-cli.kdbx/Seed Entry"})
 	e.mustShow("secret request pending")
 	e.key("C-b")
-	e.mustShow("Pending secret requests")
+	e.mustShow("Pending secret requests (1)")
 	e.key("Enter")
 	e.mustShow("REVIEW REQUEST")
 	e.key("a")
