@@ -205,7 +205,7 @@ func restoreThemeResets(text, foreground, background string) string {
 }
 
 func (m *Model) welcomeLines() []string {
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	compact := m.compactAppearance()
 	headerIndent := " "
 	rows := make([]listComponentRow, 0, m.landingBodyRows())
 	rows = append(rows, listComponentRow{kind: listComponentItem, item: -1, text: m.colors().secondary.Render(" Modern, KeePass-compatible secrets manager")})
@@ -262,7 +262,7 @@ func (m *Model) welcomeLines() []string {
 
 func (m *Model) recentRemovalStatusBar() string {
 	statusBar := "delete remove recent"
-	if strings.EqualFold(m.settings.Appearance, "compact") {
+	if m.compactAppearance() {
 		statusBar += "  "
 	} else {
 		statusBar += " "
@@ -348,7 +348,7 @@ func (m *Model) workspaceLines() []string {
 			right = "Changed externally · ctrl+r reload · ctrl+l lock"
 		}
 	}
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	compact := m.compactAppearance()
 	lines := []string{accent.Render(fit("  "+name, max(0, w-lipgloss.Width(right)))) + secondary.Render(right)}
 	if !compact {
 		lines = append(lines, m.tabRule(w, true))
@@ -546,7 +546,7 @@ func (m *Model) footerBadge() string {
 	c := m.colors()
 	style := c.active.Foreground(c.primary.GetBackground()).Background(c.accent.GetForeground())
 	badge := style.Render(" bypass ")
-	if strings.EqualFold(m.settings.Appearance, "compact") {
+	if m.compactAppearance() {
 		if m.settings.ASCII {
 			badge = style.Render("[ bypass ]")
 		} else {
@@ -575,7 +575,7 @@ func (m *Model) searchFooterLine(text, contextual string, applied bool) string {
 	if applied {
 		style = c.primary.Bold(true).Background(c.inactive.GetBackground())
 	}
-	if strings.EqualFold(m.settings.Appearance, "compact") {
+	if m.compactAppearance() {
 		label := strings.TrimSpace(text)
 		var content string
 		switch {
@@ -623,7 +623,7 @@ func (m *Model) footerLineWithLeftStyle(text string, leftStyle lipgloss.Style, c
 	badge := m.footerBadge()
 	gap := " "
 	if strings.HasPrefix(strings.TrimSpace(text), "/ filter · ctrl+p commands") {
-		if strings.EqualFold(m.settings.Appearance, "compact") {
+		if m.compactAppearance() {
 			gap = "  "
 		}
 	}
@@ -677,7 +677,7 @@ func (m *Model) layoutBody(layout viewLayout) []string {
 			contents[i] = m.entryLines(pane.Width, pane.Height, focused)
 		case 2:
 			if m.editor != nil {
-				m.editor.compact = strings.EqualFold(m.settings.Appearance, "compact")
+				m.editor.compact = m.compactAppearance()
 				m.editor.ascii = m.settings.ASCII
 				contents[i] = m.editor.render(pane.Width, pane.Height)
 			} else {
@@ -813,7 +813,7 @@ func (m *Model) tabLabels() []string {
 		return nil
 	}
 	var labels []string
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	compact := m.compactAppearance()
 	for position, viewIndex := range indexes {
 		view := m.ws.Views[viewIndex]
 		s := m.ws.Sessions[view.SessionID]
@@ -867,7 +867,7 @@ func (m *Model) tabSpans() []tabSpan {
 			break
 		}
 	}
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	compact := m.compactAppearance()
 	hasAddTab := m.canAddTab()
 	capacity := m.width
 	if hasAddTab {
@@ -948,7 +948,7 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 	styles := m.colors()
 	v := m.ws.ActiveView()
 	items := m.navigation()
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	compact := m.compactAppearance()
 	rows, start := m.sidebarViewport(height)
 	componentRows := make([]listComponentRow, 0, min(height, len(rows)-start))
 	for r := start; r < len(rows) && len(componentRows) < height; r++ {
@@ -1003,7 +1003,7 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 func (m *Model) entryLines(width, height int, focused bool) []string {
 	styles := m.colors()
 	secondary, active, inactive := styles.secondary, styles.active, styles.inactive
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	compact := m.compactAppearance()
 	contentWidth := max(0, width-2)
 	available := contentWidth
 	tw := min(available, max(7, available*40/100))
@@ -1117,7 +1117,7 @@ func (m *Model) detailContent(width int) []string {
 func (m *Model) detailLayout(width int) ([]string, []int) {
 	styles := m.colors()
 	primary, secondary, active := styles.primary, styles.secondary, styles.active
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	compact := m.compactAppearance()
 	e := m.selected()
 	if e == nil {
 		return []string{secondary.Render(" Select an entry")}, nil
@@ -1254,7 +1254,7 @@ func (m *Model) boxWithBodyRowsWidthOnBackdrop(title string, body []string, stat
 }
 
 func (m *Model) dialogTitle(title string) string {
-	if !strings.EqualFold(m.settings.Appearance, "compact") {
+	if !m.compactAppearance() {
 		return strings.ToUpper(title)
 	}
 	return title
@@ -1289,7 +1289,7 @@ func (m *Model) unlockLines() []string {
 func (m *Model) pickerLines() []string {
 	styles := m.colors()
 	secondary, error := styles.secondary, styles.error
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	compact := m.compactAppearance()
 	dialogWidth := min(m.width-6, 60)
 	listWidth := max(1, dialogWidth-4)
 	pathIndent := " "
@@ -1365,7 +1365,7 @@ func (m *Model) helpLines() []string {
 	title := "Keyboard Shortcuts"
 	groups, actionCount := m.helpActionGroups()
 	count := fmt.Sprintf("%d shortcuts", actionCount)
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	compact := m.compactAppearance()
 	if compact {
 		count = fmt.Sprintf("%d", actionCount)
 	}

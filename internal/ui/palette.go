@@ -430,7 +430,7 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 				right = choice.reason
 			}
 		}
-		if !strings.EqualFold(m.settings.Appearance, "compact") {
+		if !m.compactAppearance() {
 			text = " " + text
 			if right != "" {
 				right += " "
@@ -438,7 +438,7 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 		}
 		source = append(source, listComponentRow{kind: listComponentItem, item: i, text: text, right: right, selected: i == p.selected, activeFill: true, pillSelected: true})
 	}
-	component := m.renderListComponent(source, listComponentOptions{width: m.paletteListWidth(choices), compact: strings.EqualFold(m.settings.Appearance, "compact"), focused: true, sidebar: true})
+	component := m.renderListComponent(source, listComponentOptions{width: m.paletteListWidth(choices), compact: m.compactAppearance(), focused: true, sidebar: true})
 	rows := make([]paletteRow, 0, len(component))
 	selectedRow := 0
 	for _, row := range component {
@@ -462,7 +462,7 @@ func (m *Model) paletteTitle() string {
 }
 
 func (m *Model) paletteDialogWidth(choices []command) int {
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	compact := m.compactAppearance()
 	available := m.width - 4
 	if compact {
 		available = m.width - 2
@@ -647,7 +647,7 @@ func (m *Model) paletteBody() (string, []string, string) {
 	rows, _ := m.paletteRows(choices)
 	title := m.paletteTitle()
 	var body []string
-	if strings.EqualFold(m.settings.Appearance, "compact") {
+	if m.compactAppearance() {
 		body = append(body, "")
 	}
 	capacity := max(1, m.height-12)
@@ -671,7 +671,7 @@ func (m *Model) paletteLines() []string {
 	count := paletteCountLabel(m.palette.scope, len(choices))
 	styles := m.colors()
 	width := m.paletteDialogWidth(choices)
-	if !strings.EqualFold(m.settings.Appearance, "compact") {
+	if !m.compactAppearance() {
 		header := dialogrender.FilterHeader(title, safe(m.palette.query.value()), m.palette.query.cursor, "type to filter", count, width-4, false, m.settings.ASCII, filterDialogStyles(styles))
 		return m.overlay(title, body, footer, width, m.palette.x, m.palette.y, header)
 	}

@@ -480,7 +480,7 @@ func (m *Model) lifecycleLines() []string {
 			secretStart = 1
 		}
 		var inputs []inputFieldView
-		compact := strings.EqualFold(m.settings.Appearance, "compact")
+		compact := m.compactAppearance()
 		// Overlay rows have a two-cell border and one cell of body padding
 		// on each side.
 		actionWidth := max(1, dialogWidth-4)

@@ -257,7 +257,7 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 }
 func (m *Model) pinLines() []string {
 	c := m.colors()
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	compact := m.compactAppearance()
 	width := min(m.width-6, 52)
 	actionWidth := max(1, width-4)
 	var body []string
