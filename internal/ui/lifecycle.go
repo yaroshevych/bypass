@@ -423,8 +423,9 @@ func lifecycleFocusOrder(l *lifecycleState) []int {
 	return append(fields, len(fields), len(fields)+1)
 }
 
-func (m *Model) lifecycleLines() []string {
+func (m *Model) lifecycleContent() (string, []string, string, int, map[int]int) {
 	l, c := m.lifecycle, m.colors()
+	targets := map[int]int{}
 	title := map[string]string{"create": "New Vault", "credentials": "Change Password", "info": "Database Info"}[l.kind]
 	dialogWidth := min(84, m.width-4)
 	if l.kind == "create" || l.kind == "credentials" {
@@ -468,6 +469,7 @@ func (m *Model) lifecycleLines() []string {
 			selected = 1
 		}
 		body = m.dialogActions(body, []dialogAction{{"Cancel", "enter"}, {"Change Credentials", "enter"}}, selected, dialogWidth, len(body)+3)
+		targets[len(body)-2], targets[len(body)-1] = 0, 1
 		footer = ""
 	} else {
 		labels := []string{"New password", "Confirm password"}
@@ -514,7 +516,17 @@ func (m *Model) lifecycleLines() []string {
 			focusLine = fieldRows + 1 + l.focus - actionFocus
 		}
 		start := viewportOffset(focusLine, len(fields), capacity, l.offset)
-		body = append(body, fields[start:min(len(fields), start+capacity)]...)
+		end := min(len(fields), start+capacity)
+		for row := start; row < end; row++ {
+			if row < len(indices)*3 {
+				if row%3 != 0 {
+					targets[len(body)+row-start] = indices[row/3]
+				}
+			} else if row > len(indices)*3 {
+				targets[len(body)+row-start] = actionFocus + row - len(indices)*3 - 1
+			}
+		}
+		body = append(body, fields[start:end]...)
 	}
 	if l.err != "" {
 		message := l.err
@@ -530,7 +542,12 @@ func (m *Model) lifecycleLines() []string {
 		}
 		body = append(body, c.accent.Render(message))
 	}
-	return m.overlay(title, body, footer, dialogWidth, -1, -1)
+	return title, body, footer, dialogWidth, targets
+}
+
+func (m *Model) lifecycleLines() []string {
+	title, body, footer, width, _ := m.lifecycleContent()
+	return m.overlay(title, body, footer, width, -1, -1)
 }
 
 func renderVaultPath(path, home string, accent lipgloss.Style) string {
@@ -547,22 +564,29 @@ func (m *Model) lifecyclePointer(msg tea.MouseMsg) tea.Cmd {
 		}
 		return nil
 	}
-	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft || m.lifecycle.busy || m.lifecycle.confirm {
+	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft || m.lifecycle.busy {
 		return nil
 	}
-	labels := []string{"New password", "Confirm password"}
-	if m.lifecycle.kind == "create" {
-		labels = []string{"New .kdbx path", "New password", "Confirm password"}
+	_, body, footer, width, targets := m.lifecycleContent()
+	extra := 0
+	if footer != "" {
+		extra = 1
 	}
-	lines := m.lifecycleLines()
-	for row, line := range lines {
-		plain := ansi.Strip(line)
-		for index, label := range labels {
-			if (msg.Y == row || msg.Y == row+1) && strings.Contains(plain, label) {
-				m.lifecycle.focus = index
-				return nil
-			}
-		}
+	g := dialogrender.LayoutOverlay(width, m.width, m.height, len(body)+extra, m.compactAppearance(), -1, -1)
+	if msg.X < g.X || msg.X >= g.X+g.Width {
+		return nil
+	}
+	target, ok := targets[msg.Y-g.Y-g.HeaderRows]
+	if !ok {
+		return nil
+	}
+	if m.lifecycle.confirm {
+		m.lifecycle.proceed = target == 1
+		return m.lifecycleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	}
+	m.lifecycle.focus = target
+	if target >= len(lifecycleVisibleInputs(m.lifecycle)) {
+		return m.lifecycleKey(tea.KeyMsg{Type: tea.KeyEnter})
 	}
 	return nil
 }
