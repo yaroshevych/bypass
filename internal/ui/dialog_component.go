@@ -107,20 +107,15 @@ func (m *Model) dialogOptions() dialogrender.Options {
 	}
 }
 
-type dialogGeometry struct {
-	x, y, width, height, headerRows int
+func (m *Model) centeredDialogGeometry(width, bodyRows int) dialogrender.OverlayGeometry {
+	return dialogrender.LayoutOverlay(width, m.width, m.height, bodyRows, m.compactAppearance(), -1, -1)
 }
 
-func (m *Model) centeredDialogGeometry(width, bodyRows int) dialogGeometry {
-	g := dialogrender.LayoutOverlay(width, m.width, m.height, bodyRows, m.compactAppearance(), -1, -1)
-	return dialogGeometry{x: g.X, y: g.Y, width: g.Width, height: g.Height, headerRows: g.HeaderRows}
-}
-
-func (g dialogGeometry) actionAt(x, y, firstRow, count int) (int, bool) {
-	if x < g.x || x >= g.x+g.width {
+func dialogActionAt(g dialogrender.OverlayGeometry, x, y, firstRow, count int) (int, bool) {
+	if x < g.X || x >= g.X+g.Width {
 		return 0, false
 	}
-	index := y - g.y - g.headerRows - firstRow
+	index := y - g.Y - g.HeaderRows - firstRow
 	return index, index >= 0 && index < count
 }
 

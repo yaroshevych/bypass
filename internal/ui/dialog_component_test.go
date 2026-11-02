@@ -58,12 +58,12 @@ func TestDialogGeometryActionHitTesting(t *testing.T) {
 		m.width, m.height, m.settings.Appearance = 80, 24, appearance
 		g := m.centeredDialogGeometry(40, 6)
 		for i := 0; i < 2; i++ {
-			got, ok := g.actionAt(g.x+1, g.y+g.headerRows+4+i, 4, 2)
+			got, ok := dialogActionAt(g, g.X+1, g.Y+g.HeaderRows+4+i, 4, 2)
 			if !ok || got != i {
 				t.Fatalf("%s action %d: got %d, %t", appearance, i, got, ok)
 			}
 		}
-		if _, ok := g.actionAt(g.x-1, g.y+g.headerRows+4, 4, 2); ok {
+		if _, ok := dialogActionAt(g, g.X-1, g.Y+g.HeaderRows+4, 4, 2); ok {
 			t.Fatalf("%s accepted click outside dialog", appearance)
 		}
 	}
@@ -75,7 +75,7 @@ func TestDialogGeometryClampsToSmallScreen(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
 		m.settings.Appearance = appearance
 		g := m.centeredDialogGeometry(80, 6)
-		if g.width != 46 || g.x < 0 || g.x+g.width > m.width || g.y < 0 || g.y+g.height > m.height {
+		if g.Width != 46 || g.X < 0 || g.X+g.Width > m.width || g.Y < 0 || g.Y+g.Height > m.height {
 			t.Fatalf("%s geometry does not fit: %+v", appearance, g)
 		}
 	}

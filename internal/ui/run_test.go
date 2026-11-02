@@ -239,7 +239,7 @@ func TestRunActionMouseHitUsesRenderedGeometry(t *testing.T) {
 			}
 		}
 		layout := m.runLayout(true)
-		if action, ok := m.runActionAt(layout.leftEdge+layout.width/2, actionY); !ok || action != 0 {
+		if action, ok := m.runActionAt(layout.x+layout.width/2, actionY); !ok || action != 0 {
 			t.Fatalf("%s action geometry missed first button: action=%d ok=%v", m.settings.Appearance, action, ok)
 		}
 	}

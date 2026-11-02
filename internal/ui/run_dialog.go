@@ -15,12 +15,11 @@ import (
 type runAction = dialogAction
 
 type runDialogLayout struct {
-	title                 string
-	body                  []string
-	actions               []runAction
-	width, x, y           int
-	headerRows, actionY   int
-	actionStart, leftEdge int
+	title                   string
+	body                    []string
+	actions                 []runAction
+	width, x, y             int
+	headerRows, actionStart int
 }
 
 func (m *Model) runRequestsBody() []string {
@@ -245,8 +244,8 @@ func (m *Model) runActionAt(x, y int) (int, bool) {
 		return 0, false
 	}
 	layout := m.runLayout(m.runs.review)
-	g := dialogGeometry{x: layout.x, y: layout.y, width: layout.width, headerRows: layout.headerRows}
-	return g.actionAt(x, y, layout.actionStart, len(layout.actions))
+	g := dialogrender.OverlayGeometry{X: layout.x, Y: layout.y, Width: layout.width, HeaderRows: layout.headerRows}
+	return dialogActionAt(g, x, y, layout.actionStart, len(layout.actions))
 }
 
 func (m *Model) runDialogWidth(review bool) int {
@@ -293,17 +292,15 @@ func (m *Model) runRequestsLayout() runDialogLayout {
 
 func (m *Model) positionRunLayout(layout runDialogLayout, review bool) runDialogLayout {
 	g := m.centeredDialogGeometry(layout.width, len(layout.body))
-	layout.width = g.width
-	layout.headerRows = g.headerRows
-	layout.x = g.x
-	layout.leftEdge = layout.x
-	layout.y = g.y
+	layout.width = g.Width
+	layout.headerRows = g.HeaderRows
+	layout.x = g.X
+	layout.y = g.Y
 	if review {
 		parentY := m.runRequestsLayout().y
-		layout.y = min(max(0, parentY+2), max(0, m.height-g.height))
+		layout.y = min(max(0, parentY+2), max(0, m.height-g.Height))
 	}
 	layout.actionStart = len(layout.body) - len(layout.actions)
-	layout.actionY = layout.y + layout.headerRows + layout.actionStart
 	return layout
 }
 

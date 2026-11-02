@@ -1260,13 +1260,6 @@ func (m *Model) boxWithBodyRowsWidthOnBackdrop(title string, body []string, stat
 	return dialogrender.Render(opts)
 }
 
-func (m *Model) dialogTitle(title string) string {
-	if !m.compactAppearance() {
-		return strings.ToUpper(title)
-	}
-	return title
-}
-
 func (m *Model) unlockDialogBody() ([]string, int) {
 	styles := m.colors()
 	accent, secondary, error := styles.accent, styles.secondary, styles.error
