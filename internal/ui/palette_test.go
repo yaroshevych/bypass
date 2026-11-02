@@ -488,3 +488,44 @@ func TestCtrlLLocksAllAndCurrentVaultRemainsInPalette(t *testing.T) {
 		t.Fatal("command palette did not lock only the current vault")
 	}
 }
+
+func TestPaletteResizeAndClosePreservesWorkspaceFocus(t *testing.T) {
+	for _, focus := range []int{0, 1, 2} {
+		m, _ := operationModel(t)
+		m.width, m.height = 120, 35
+		view := m.ws.ActiveView()
+		view.Focus = focus
+		before := *view
+		m.openPalette("actions", false)
+		m.Update(tea.WindowSizeMsg{Width: 48, Height: 16})
+		m.Update(tea.WindowSizeMsg{Width: 120, Height: 35})
+		m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		if m.palette != nil || *m.ws.ActiveView() != before {
+			t.Fatalf("focus %d: palette resize or close changed workspace state", focus)
+		}
+	}
+}
+
+func TestActiveLayerPrioritizesPrivacyAndModalSurfaces(t *testing.T) {
+	m, _ := operationModel(t)
+	m.width, m.height = 120, 35
+	m.openPalette("actions", false)
+	m.dialog = &actionDialog{kind: "group"}
+	if m.activeLayer() != layerDialog {
+		t.Fatal("dialog did not cover palette")
+	}
+	m.runs = &runState{visible: true}
+	if m.activeLayer() != layerRequests {
+		t.Fatal("requests did not cover dialog")
+	}
+	if err := m.gate.Configure([]byte("1234")); err != nil {
+		t.Fatal(err)
+	}
+	if !m.gate.Protect() || m.activeLayer() != layerPrivacy {
+		t.Fatal("privacy did not cover requests")
+	}
+	m.width, m.height = 47, 15
+	if m.activeLayer() != layerTiny {
+		t.Fatal("resize screen did not cover modal layers")
+	}
+}
