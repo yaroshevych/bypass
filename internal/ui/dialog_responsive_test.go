@@ -224,3 +224,31 @@ func TestMoreDialogsAndEditorAtSmallSizes(t *testing.T) {
 		}
 	}
 }
+
+func TestVaultAndDestinationCancelMouseActions(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		m := New(Options{})
+		m.settings.Appearance = appearance
+		m.width, m.height = 80, 24
+		m.lifecycle = &lifecycleState{kind: "create", inputs: make([]input, 5), focus: 4}
+		click := func(lines []string, label string) tea.MouseMsg {
+			for y, line := range lines {
+				plain := ansi.Strip(line)
+				if x := strings.Index(plain, label); x >= 0 {
+					return tea.MouseMsg{X: len([]rune(plain[:x])), Y: y, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft}
+				}
+			}
+			t.Fatalf("%s: %s button not visible", appearance, label)
+			return tea.MouseMsg{}
+		}
+		m.lifecyclePointer(click(m.lifecycleLines(), "Cancel"))
+		if m.lifecycle != nil {
+			t.Fatalf("%s: Cancel did not close vault form", appearance)
+		}
+		m.dialog = &actionDialog{kind: "destination", title: "Move entry", groups: []vault.Group{{Path: "Alpha"}}}
+		m.destinationPointer(click(m.dialogLines(), "Cancel"))
+		if m.dialog != nil {
+			t.Fatalf("%s: Cancel did not close destination", appearance)
+		}
+	}
+}
