@@ -345,19 +345,10 @@ func (m *Model) extrasPointer(msg tea.MouseMsg) (tea.Cmd, bool) {
 	switch state.mode {
 	case extraHistory:
 		capacity := max(1, m.height-12)
-		start := viewportOffset(state.historyIndex, len(state.history), capacity, state.offset)
-		start, end := viewportRange(len(state.history), capacity, start)
-		visible := end - start
+		body, targets := listContent(m.historyContent(state))
 		opts := m.dialogOptions()
 		opts.Mode, opts.Width, opts.X, opts.Y = dialogrender.Overlay, min(78, m.width-4), -1, -1
-		opts.Body = make([]string, 2+max(1, visible))
-		targets := make([]int, len(opts.Body))
-		for i := range targets {
-			targets[i] = -1
-			if i >= 2 && i-2 < visible {
-				targets[i] = start + i - 2
-			}
-		}
+		opts.Body = body
 		if index := dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target; index >= 0 {
 			state.historyIndex = index
 			state.offset = viewportOffset(index, len(state.history), capacity, state.offset)
@@ -372,20 +363,11 @@ func (m *Model) extrasPointer(msg tea.MouseMsg) (tea.Cmd, bool) {
 		}
 		capacity := m.attachmentListCapacity()
 		items := len(entry.AttachmentNames) + 1
-		start := viewportOffset(state.selected, items, capacity, state.offset)
-		start, end := viewportRange(items, capacity, start)
-		body, footer, width, message := m.attachmentContent(state)
+		rows, footer, width, message := m.attachmentContent(state)
+		body, targets := listContent(rows)
 		opts := m.dialogOptions()
 		opts.Mode, opts.Body, opts.Error, opts.StatusBar, opts.Width = dialogrender.Overlay, body, safe(message), footer, width
 		opts.X, opts.Y = -1, -1
-		targets := make([]int, len(body))
-		for i := range targets {
-			targets[i] = -1
-			index := i - 2 + start
-			if index >= start && index < end {
-				targets[i] = index
-			}
-		}
 		if index := dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target; index >= 0 {
 			state.selected = index
 			state.offset = viewportOffset(index, items, capacity, state.offset)

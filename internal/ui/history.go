@@ -46,8 +46,8 @@ func (m *Model) openHistory() tea.Cmd {
 	return nil
 }
 
-func (m *Model) historyLines(state *extraState) []string {
-	body := []string{m.colors().secondary.Render("Read-only history · snapshots cannot be restored from this view."), ""}
+func (m *Model) historyContent(state *extraState) []listComponentOutput {
+	body := []listComponentOutput{{text: m.colors().secondary.Render("Read-only history · snapshots cannot be restored from this view."), item: -1}, {item: -1}}
 	capacity := max(1, m.height-12)
 	start := viewportOffset(state.historyIndex, len(state.history), capacity, state.offset)
 	start, end := viewportRange(len(state.history), capacity, start)
@@ -67,7 +67,7 @@ func (m *Model) historyLines(state *extraState) []string {
 			width: max(1, min(74, m.width-8)), compact: true, ascii: m.settings.ASCII,
 			focused: true, sidebar: true,
 		}) {
-			body = append(body, row.text)
+			body = append(body, row)
 		}
 	} else {
 		for _, row := range rows {
@@ -75,12 +75,17 @@ func (m *Model) historyLines(state *extraState) []string {
 			if row.item == state.historyIndex {
 				label = m.colors().active.Render("› " + label)
 			}
-			body = append(body, label)
+			body = append(body, listComponentOutput{text: label, item: row.item})
 		}
 	}
 	if len(state.history) == 0 {
-		body = append(body, "No history snapshots")
+		body = append(body, listComponentOutput{text: "No history snapshots", item: -1})
 	}
+	return body
+}
+
+func (m *Model) historyLines(state *extraState) []string {
+	body, _ := listContent(m.historyContent(state))
 	return m.overlay("History", body, "", min(78, m.width-4), -1, -1)
 }
 

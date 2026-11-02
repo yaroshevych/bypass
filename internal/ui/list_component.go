@@ -50,6 +50,18 @@ type listComponentOutput struct {
 	item int // -1 for group headings, spacers, and secondary/count rows.
 }
 
+// listContent keeps display text and semantic item IDs together until a dialog
+// hands the text to the renderer and the IDs to its hit tester.
+func listContent(rows []listComponentOutput) (body []string, targets []int) {
+	body = make([]string, 0, len(rows))
+	targets = make([]int, 0, len(rows))
+	for _, row := range rows {
+		body = append(body, row.text)
+		targets = append(targets, row.item)
+	}
+	return body, targets
+}
+
 func (m *Model) renderListComponent(rows []listComponentRow, opts listComponentOptions) []listComponentOutput {
 	styles := m.colors()
 	result := make([]listComponentOutput, 0, len(rows))

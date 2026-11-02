@@ -641,24 +641,27 @@ func (m *Model) paletteKey(k tea.KeyMsg) tea.Cmd {
 	m.previewChoice()
 	return nil
 }
-func (m *Model) paletteBody() (string, []string, string) {
+func (m *Model) paletteContent() (string, []listComponentOutput, string) {
 	p := m.palette
 	choices := m.paletteChoices()
 	rows, _ := m.paletteRows(choices)
-	title := m.paletteTitle()
-	var body []string
+	var body []listComponentOutput
 	if m.compactAppearance() {
-		body = append(body, "")
+		body = append(body, listComponentOutput{item: -1})
 	}
-	capacity := max(1, m.height-12)
-	start, end := viewportRange(len(rows), capacity, p.offset)
-	for i := start; i < end; i++ {
-		body = append(body, rows[i].text)
+	start, end := viewportRange(len(rows), max(1, m.height-12), p.offset)
+	for _, row := range rows[start:end] {
+		body = append(body, listComponentOutput{text: row.text, item: row.choice})
 	}
 	if len(choices) == 0 {
-		body = append(body, m.colors().secondary.Render("No matching actions"))
+		body = append(body, listComponentOutput{text: m.colors().secondary.Render("No matching actions"), item: -1})
 	}
-	footer := ""
+	return m.paletteTitle(), body, ""
+}
+
+func (m *Model) paletteBody() (string, []string, string) {
+	title, rows, footer := m.paletteContent()
+	body, _ := listContent(rows)
 	return title, body, footer
 }
 
@@ -717,25 +720,13 @@ func (m *Model) palettePointer(msg tea.MouseMsg) tea.Cmd {
 	if msg.Button != tea.MouseButtonLeft {
 		return nil
 	}
-	_, body, footer := m.paletteBody()
+	_, rows, footer := m.paletteContent()
+	body, targets := listContent(rows)
 	choices := m.paletteChoices()
 	width := m.paletteDialogWidth(choices)
 	opts := m.dialogOptions()
 	opts.Mode, opts.Body, opts.Error, opts.Width, opts.StatusBar = dialogrender.Overlay, body, safe(p.err), width, footer
 	opts.X, opts.Y = p.x, p.y
-	rows, _ := m.paletteRows(choices)
-	start, _ := viewportRange(len(rows), max(1, m.height-12), p.offset)
-	targets := make([]int, len(body))
-	for i := range targets {
-		index := i + start
-		if m.compactAppearance() {
-			index--
-		}
-		targets[i] = -1
-		if index >= 0 && index < len(rows) {
-			targets[i] = rows[index].choice
-		}
-	}
 	hit := dialogrender.HitTest(opts, msg.X, msg.Y, targets)
 	if !hit.Inside {
 		m.closePalette(false)

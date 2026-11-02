@@ -1321,7 +1321,7 @@ func (m *Model) unlockLines() []string {
 	return m.boxWithWidthError("Unlock Vault", body, "", m.err, width, false)
 }
 
-func (m *Model) pickerLines() []string {
+func (m *Model) pickerContent() []listComponentOutput {
 	styles := m.colors()
 	secondary := styles.secondary
 	compact := m.compactAppearance()
@@ -1351,12 +1351,12 @@ func (m *Model) pickerLines() []string {
 			if !compact {
 				name = " " + name
 			}
-			rows = append(rows, listComponentRow{kind: listComponentItem, item: -1, text: name, selected: m.pickerRecent && i == m.pickerRecentIndex, activeFill: true, pillSelected: true})
+			rows = append(rows, listComponentRow{kind: listComponentItem, item: 1 + i, text: name, selected: m.pickerRecent && i == m.pickerRecentIndex, activeFill: true, pillSelected: true})
 		}
 	}
 	rows = append(rows,
 		listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "PATH ", divider: true},
-		listComponentRow{kind: listComponentItem, item: -1, text: pathLine, edgeToEdge: m.pickerEditing},
+		listComponentRow{kind: listComponentItem, item: 0, text: pathLine, edgeToEdge: m.pickerEditing},
 		listComponentRow{kind: listComponentSpacer, item: -1},
 	)
 	rows = append(rows, listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "BROWSE ", divider: true})
@@ -1371,7 +1371,7 @@ func (m *Model) pickerLines() []string {
 		if !compact {
 			name = " " + name
 		}
-		rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: name, selected: !m.pickerEditing && !m.pickerRecent && i == m.fileIndex, activeFill: true, pillSelected: true})
+		rows = append(rows, listComponentRow{kind: listComponentItem, item: 1 + recentCount + i, text: name, selected: !m.pickerEditing && !m.pickerRecent && i == m.fileIndex, activeFill: true, pillSelected: true})
 	}
 	if len(m.files) == 0 && capacity > 0 {
 		rows = append(rows, listComponentRow{kind: listComponentItem, item: -1, text: secondary.Render("No vault files here. Enter another path.")})
@@ -1387,10 +1387,12 @@ func (m *Model) pickerLines() []string {
 	component := m.renderListComponent(rows, listComponentOptions{
 		width: listWidth, compact: compact, ascii: m.settings.ASCII, focused: !m.pickerEditing, sidebar: true,
 	})
-	body := make([]string, 0, len(component)+2)
-	for _, row := range component {
-		body = append(body, row.text)
-	}
+	return component
+}
+
+func (m *Model) pickerLines() []string {
+	body, _ := listContent(m.pickerContent())
+	dialogWidth := min(m.width-6, 60)
 	return m.boxWithBodyRowsWidthOnBackdropError("Open Vault", body, m.pickerStatusBar(), m.err, m.pickerBodyRows(), dialogWidth, m.modalBackdrop())
 }
 

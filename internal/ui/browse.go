@@ -143,25 +143,12 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		}
 		return nil
 	case chooseFile:
-		start, capacity := m.fileViewport()
-		start, end := viewportRange(len(m.files), capacity, start)
 		recentCount := m.pickerRecentCount()
 		opts := m.dialogOptions()
 		opts.Width, opts.BodyRows, opts.StatusBar = min(m.width-6, 60), m.pickerBodyRows(), m.pickerStatusBar()
-		opts.Body, opts.Error = make([]string, opts.BodyRows), safe(m.err)
-		targets := make([]int, len(opts.Body))
-		for i := range targets {
-			targets[i] = -1
-		}
-		if row := m.pickerPathRow(); row < len(targets) {
-			targets[row] = 0
-		}
-		for i := 0; i < recentCount && 3+i < len(targets); i++ {
-			targets[3+i] = 1 + i
-		}
-		for i := start; i < end && m.pickerFixedRows()+i-start < len(targets); i++ {
-			targets[m.pickerFixedRows()+i-start] = 1 + recentCount + i
-		}
+		opts.Body, opts.Error = nil, safe(m.err)
+		body, targets := listContent(m.pickerContent())
+		opts.Body = body
 		target := dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target
 		if target == 0 {
 			m.pickerEditing, m.pickerRecent = true, false

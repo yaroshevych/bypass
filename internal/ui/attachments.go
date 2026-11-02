@@ -28,28 +28,33 @@ func (m *Model) openAttachments() tea.Cmd {
 	return nil
 }
 
-func (m *Model) attachmentContent(state *extraState) ([]string, string, int, string) {
+func (m *Model) attachmentContent(state *extraState) ([]listComponentOutput, string, int, string) {
 	session, entry := m.currentExtraEntry(state)
 	if session == nil || entry == nil {
 		return nil, "", min(72, m.width-4), "Entry is no longer available."
 	}
-	var body []string
+	var body []listComponentOutput
+	appendText := func(lines ...string) {
+		for _, line := range lines {
+			body = append(body, listComponentOutput{text: line, item: -1})
+		}
+	}
 	if state.phase == "path" {
 		label := "Import source path"
 		if state.action == "export" {
 			label = "Plaintext export destination"
 		}
 		fieldWidth := dialogOverlayInputWidth(m.width, 76)
-		body = []string{""}
-		body = append(body, renderStackedInputField(inputFieldView{
+		appendText("")
+		appendText(renderStackedInputField(inputFieldView{
 			label: label, value: &state.input, focused: true, indent: 1,
 		}, fieldWidth, m.compactAppearance(), m.colors())...)
-		body = append(body, "")
+		appendText("")
 	} else if strings.HasPrefix(state.phase, "confirm-") {
-		body = m.attachmentConfirmation(state)
+		appendText(m.attachmentConfirmation(state)...)
 	} else {
 		writable := m.extrasWritable(session)
-		body = append(body, m.colors().secondary.Render("a add · r replace · d remove · e export · Esc close"), "")
+		appendText(m.colors().secondary.Render("a add · r replace · d remove · e export · Esc close"), "")
 		capacity := m.attachmentListCapacity()
 		items := len(entry.AttachmentNames) + 1
 		start := viewportOffset(state.selected, items, capacity, state.offset)
@@ -69,7 +74,7 @@ func (m *Model) attachmentContent(state *extraState) ([]string, string, int, str
 				width: max(1, min(72, m.width-8)), compact: true, ascii: m.settings.ASCII,
 				focused: true, sidebar: true,
 			}) {
-				body = append(body, row.text)
+				body = append(body, row)
 			}
 		} else {
 			for _, row := range rows {
@@ -79,11 +84,11 @@ func (m *Model) attachmentContent(state *extraState) ([]string, string, int, str
 				} else {
 					label = "  " + label
 				}
-				body = append(body, label)
+				body = append(body, listComponentOutput{text: label, item: row.item})
 			}
 		}
 		if !writable {
-			body = append(body, "", m.colors().secondary.Render("Read only · R enables writes"))
+			appendText("", m.colors().secondary.Render("Read only · R enables writes"))
 		}
 	}
 	footer := "a add · r replace · d remove · e export"
@@ -98,7 +103,8 @@ func (m *Model) attachmentContent(state *extraState) ([]string, string, int, str
 }
 
 func (m *Model) attachmentLines(state *extraState) []string {
-	body, footer, width, message := m.attachmentContent(state)
+	rows, footer, width, message := m.attachmentContent(state)
+	body, _ := listContent(rows)
 	return m.overlayError("Attachments", body, footer, message, width, -1, -1)
 }
 
