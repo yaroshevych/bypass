@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -177,18 +176,8 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 	}
 	if d.kind == "group" {
 		switch key {
-		case "up":
-			d.selected = max(0, d.selected-1)
-			return nil
-		case "down":
-			d.selected = min(2, d.selected+1)
-			return nil
-		case "tab", "shift+tab":
-			delta := 1
-			if key == "shift+tab" {
-				delta = -1
-			}
-			d.selected = (d.selected + 3 + delta) % 3
+		case "up", "down", "tab", "shift+tab":
+			dialogActionFocus(key, 3, &d.selected)
 			return nil
 		case "enter":
 			if d.selected == 2 {
@@ -326,9 +315,9 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 	}
 	switch key {
 	case "left", "up", "shift+tab":
-		d.selected = (d.selected + len(d.options) - 1) % len(d.options)
+		dialogLinearFocus("up", len(d.options), &d.selected, true)
 	case "right", "down", "tab":
-		d.selected = (d.selected + 1) % len(d.options)
+		dialogLinearFocus("down", len(d.options), &d.selected, true)
 	case "enter":
 		choice := d.selected
 		switch d.kind {
@@ -437,14 +426,11 @@ func (m *Model) dialogLines() []string {
 			body = append(body, " Generated password", accent.Render(" "+safe(string(d.secret))))
 			dialogWidth := min(m.width-6, 72)
 			actionWidth := max(1, dialogWidth-4)
-			body = append(body, dialogrender.BodyRule)
-			actions := []struct{ label, shortcut string }{{"Copy", "c"}, {"Regenerate", "g"}, {"Close", "esc"}}
+			actions := []dialogAction{{"Copy", "c"}, {"Regenerate", "g"}, {"Close", "esc"}}
 			if d.applyToPassword {
-				actions = append([]struct{ label, shortcut string }{{"Apply", "enter"}}, actions...)
+				actions = append([]dialogAction{{"Apply", "enter"}}, actions...)
 			}
-			for i, action := range actions {
-				body = append(body, renderDialogAction(action.label, action.shortcut, actionWidth, compact, m.settings.ASCII, d.selected == i, c))
-			}
+			body = m.dialogActions(body, actions, d.selected, actionWidth+4, len(body)+len(actions)+1)
 			footer = ""
 		}
 	case "destination":
@@ -460,6 +446,7 @@ func (m *Model) dialogLines() []string {
 				dialogWidth = min(m.width-6, 72)
 			}
 			actionWidth := max(1, dialogWidth-4)
+			var actions []dialogAction
 			for i, option := range d.options {
 				shortcut := ""
 				if d.kind == "duplicates" && i == 1 {
@@ -468,8 +455,9 @@ func (m *Model) dialogLines() []string {
 				if d.kind != "external" && strings.EqualFold(option, "Cancel") {
 					shortcut = "esc"
 				}
-				body = append(body, renderDialogAction(option, shortcut, actionWidth, compact, m.settings.ASCII, i == d.selected, c))
+				actions = append(actions, dialogAction{option, shortcut})
 			}
+			body = append(body, m.dialogActionRows(actions, d.selected, actionWidth)...)
 		} else {
 			body = append(body, renderDialogChoices(d.options, d.selected, compact, m.settings.ASCII, c))
 		}

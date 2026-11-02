@@ -133,10 +133,15 @@ func (m *Model) dialogActions(body []string, actions []dialogAction, focus, widt
 		body = append(body, "")
 	}
 	body = append(body, dialogrender.BodyRule)
+	return append(body, m.dialogActionRows(actions, focus, max(1, width-4))...)
+}
+
+func (m *Model) dialogActionRows(actions []dialogAction, focus, width int) []string {
+	rows := make([]string, 0, len(actions))
 	for i, action := range actions {
-		body = append(body, renderDialogAction(action.label, action.key, max(1, width-4), m.compactAppearance(), m.settings.ASCII, i == focus, m.colors()))
+		rows = append(rows, renderDialogAction(action.label, action.key, width, m.compactAppearance(), m.settings.ASCII, i == focus, m.colors()))
 	}
-	return body
+	return rows
 }
 
 // dialogFields composes the shared stacked input fields used in modal forms.
