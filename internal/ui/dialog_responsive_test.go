@@ -278,3 +278,36 @@ func TestHistoryMouseUsesOverlayGeometry(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenDialogsAndEditorSurviveResize(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		m := New(Options{})
+		m.settings.Appearance = appearance
+		m.width, m.height = 80, 24
+		m.openPalette("themes", false)
+		m.palette.query.set("Nord")
+		m.refreshPalette()
+		for _, size := range [][2]int{{48, 14}, {80, 24}} {
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			if m.palette == nil || m.palette.query.value() != "Nord" || !strings.Contains(strings.Join(m.paletteLines(), "\n"), "Nord") {
+				t.Fatalf("%s %v: theme picker lost its query on resize", appearance, size)
+			}
+		}
+		m.palette = nil
+		m.dialog = &actionDialog{kind: "destination", title: "Move entry", groups: []vault.Group{{Path: "Alpha"}, {Path: "Beta"}}, selected: 1}
+		for _, size := range [][2]int{{48, 14}, {80, 24}} {
+			m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+			if m.dialog == nil || m.dialog.selected != 1 || !strings.Contains(strings.Join(m.dialogLines(), "\n"), "Beta") {
+				t.Fatalf("%s %v: destination selection lost on resize", appearance, size)
+			}
+		}
+		e := newEntryEditor(nil, "root")
+		e.compact = appearance == "compact"
+		e.inputs[editTitle].set("draft survives")
+		for _, height := range []int{8, 18} {
+			if !strings.Contains(strings.Join(e.render(28, height), "\n"), "draft survives") || e.inputs[editTitle].value() != "draft survives" {
+				t.Fatalf("%s: editor draft lost on resize to height %d", appearance, height)
+			}
+		}
+	}
+}
