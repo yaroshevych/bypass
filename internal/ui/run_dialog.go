@@ -15,11 +15,10 @@ import (
 type runAction = dialogAction
 
 type runDialogLayout struct {
-	title, errorMessage     string
-	body                    []string
-	actions                 []runAction
-	width, x, y             int
-	headerRows, actionStart int
+	title, errorMessage string
+	body                []string
+	actions             []runAction
+	width, x, y         int
 }
 
 func (m *Model) runRequestsBody() []string {
@@ -235,8 +234,19 @@ func (m *Model) runActionAt(x, y int) (int, bool) {
 		return 0, false
 	}
 	layout := m.runLayout(m.runs.review)
-	g := dialogrender.OverlayGeometry{X: layout.x, Y: layout.y, Width: layout.width, HeaderRows: layout.headerRows}
-	return dialogActionAt(g, x, y, layout.actionStart, len(layout.actions))
+	opts := m.runLayerOptions(layout)
+	targets := make([]int, len(layout.body))
+	for i := range targets {
+		targets[i] = -1
+	}
+	for i := range layout.actions {
+		row := len(targets) - len(layout.actions) + i
+		if row >= 0 {
+			targets[row] = i
+		}
+	}
+	target := dialogrender.HitTest(opts, x, y, targets).Target
+	return target, target >= 0
 }
 
 func (m *Model) runDialogWidth(review bool) int {
@@ -286,14 +296,12 @@ func (m *Model) positionRunLayout(layout runDialogLayout, review bool) runDialog
 	layout.body, _ = dialogrender.PrepareBody(opts)
 	g := m.centeredDialogGeometry(layout.width, len(layout.body))
 	layout.width = g.Width
-	layout.headerRows = g.HeaderRows
 	layout.x = g.X
 	layout.y = g.Y
 	if review {
 		parentY := m.runRequestsLayout().y
 		layout.y = min(max(0, parentY+2), max(0, m.height-g.Height))
 	}
-	layout.actionStart = len(layout.body) - len(layout.actions)
 	return layout
 }
 
@@ -531,10 +539,16 @@ func (m *Model) runTargetsCurrent(targets []runTarget) bool {
 	return true
 }
 
-func renderRunLayer(m *Model, backdrop []string, layout runDialogLayout) []string {
+func (m *Model) runLayerOptions(layout runDialogLayout) dialogrender.Options {
 	opts := m.dialogOptions()
-	opts.Mode, opts.Title, opts.Body, opts.Backdrop = dialogrender.Overlay, layout.title, layout.body, backdrop
+	opts.Mode, opts.Title, opts.Body = dialogrender.Overlay, layout.title, layout.body
 	opts.BodyRows, opts.Width, opts.X, opts.Y = len(layout.body), layout.width, layout.x, layout.y
+	return opts
+}
+
+func renderRunLayer(m *Model, backdrop []string, layout runDialogLayout) []string {
+	opts := m.runLayerOptions(layout)
+	opts.Backdrop = backdrop
 	return dialogrender.Render(opts)
 }
 

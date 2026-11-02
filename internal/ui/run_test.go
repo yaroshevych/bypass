@@ -221,26 +221,58 @@ func TestRunReviewSurvivesOtherRequestCompletion(t *testing.T) {
 }
 
 func TestRunActionMouseHitUsesRenderedGeometry(t *testing.T) {
-	for _, compact := range []bool{false, true} {
-		m := New(Options{})
-		m.settings.Appearance = "classic"
-		if compact {
-			m.settings.Appearance = "compact"
-		}
-		m.width, m.height = 80, 24
-		p := &runpkg.Pending{Context: context.Background()}
-		m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, targets: []runTarget{{ref: "bypass://entry"}}}
-		rows := strings.Split(m.View(), "\n")
-		actionY := -1
-		for y, row := range rows {
-			if strings.Contains(ansi.Strip(row), "Deny") {
-				actionY = y
-				break
-			}
-		}
-		layout := m.runLayout(true)
-		if action, ok := m.runActionAt(layout.x+layout.width/2, actionY); !ok || action != 0 {
-			t.Fatalf("%s action geometry missed first button: action=%d ok=%v", m.settings.Appearance, action, ok)
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, tc := range []struct {
+			name          string
+			review, reset bool
+			err           string
+		}{
+			{name: "requests"},
+			{name: "review", review: true, err: "Review could not complete"},
+			{name: "reset", reset: true, err: "Reset could not complete"},
+		} {
+			t.Run(appearance+"/"+tc.name, func(t *testing.T) {
+				m := New(Options{})
+				m.settings.Appearance = appearance
+				m.width, m.height = 80, 24
+				p := &runpkg.Pending{Context: context.Background()}
+				m.runs = &runState{visible: true, review: tc.review, resetConfirm: tc.reset, reviewed: p, pending: []*runpkg.Pending{p}, targets: []runTarget{{ref: "bypass://entry"}}}
+				if tc.reset {
+					m.runs.resetErr = tc.err
+				} else {
+					m.runs.err = tc.err
+				}
+				layout := m.runLayout(tc.review)
+				rows := renderRunLayer(m, make([]string, m.height), layout)
+				for i, action := range layout.actions {
+					y := -1
+					for row := len(rows) - 1; row >= 0; row-- {
+						text := ansi.Strip(rows[row])
+						match := strings.Contains(text, action.label)
+						for _, other := range layout.actions {
+							if len(other.label) > len(action.label) && strings.Contains(other.label, action.label) && strings.Contains(text, other.label) {
+								match = false
+							}
+						}
+						if match {
+							y = row
+							break
+						}
+					}
+					if y < 0 {
+						t.Fatalf("action %q is not visible", action.label)
+					}
+					if got, ok := m.runActionAt(layout.x+layout.width/2, y); !ok || got != i {
+						t.Fatalf("action %q: got %d, %t", action.label, got, ok)
+					}
+				}
+				if _, ok := m.runActionAt(layout.x-1, layout.y); ok {
+					t.Fatal("outside click hit an action")
+				}
+				if _, ok := m.runActionAt(layout.x+1, layout.y); ok {
+					t.Fatal("header click hit an action")
+				}
+			})
 		}
 	}
 }

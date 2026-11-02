@@ -287,19 +287,6 @@ func (m *Model) pickerBodyRows() int {
 	return min(26, max(1, m.height-9))
 }
 
-func (m *Model) pickerBodyTop() int {
-	opts := m.dialogOptions()
-	opts.Width, opts.BodyRows, opts.StatusBar = min(m.width-6, 60), m.pickerBodyRows(), m.pickerStatusBar()
-	opts.Body, opts.Error = make([]string, opts.BodyRows), safe(m.err)
-	g := dialogrender.LayoutBox(opts)
-	for i, source := range g.BodyIndices {
-		if source == 0 {
-			return g.BodyY + i
-		}
-	}
-	return g.BodyY + len(g.Body)
-}
-
 func (m *Model) pickerRecentCount() int {
 	limit := 5
 	if m.height > 0 {

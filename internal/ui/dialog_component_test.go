@@ -52,23 +52,6 @@ func TestDialogFocusNavigatesListAndActions(t *testing.T) {
 	}
 }
 
-func TestDialogGeometryActionHitTesting(t *testing.T) {
-	for _, appearance := range []string{"classic", "compact"} {
-		m := New(Options{})
-		m.width, m.height, m.settings.Appearance = 80, 24, appearance
-		g := m.centeredDialogGeometry(40, 6)
-		for i := 0; i < 2; i++ {
-			got, ok := dialogActionAt(g, g.X+1, g.Y+g.HeaderRows+4+i, 4, 2)
-			if !ok || got != i {
-				t.Fatalf("%s action %d: got %d, %t", appearance, i, got, ok)
-			}
-		}
-		if _, ok := dialogActionAt(g, g.X-1, g.Y+g.HeaderRows+4, 4, 2); ok {
-			t.Fatalf("%s accepted click outside dialog", appearance)
-		}
-	}
-}
-
 func TestDialogGeometryClampsToSmallScreen(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 48, 14

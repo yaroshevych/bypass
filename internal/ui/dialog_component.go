@@ -123,14 +123,6 @@ func (m *Model) centeredDialogGeometry(width, bodyRows int) dialogrender.Overlay
 	return dialogrender.LayoutOverlay(width, m.width, m.height, bodyRows, m.compactAppearance(), -1, -1)
 }
 
-func dialogActionAt(g dialogrender.OverlayGeometry, x, y, firstRow, count int) (int, bool) {
-	if x < g.X || x >= g.X+g.Width {
-		return 0, false
-	}
-	index := y - g.Y - g.HeaderRows - firstRow
-	return index, index >= 0 && index < count
-}
-
 func (m *Model) dialogActions(body []string, actions []dialogAction, focus, width, rows int) []string {
 	capacity := max(0, rows-len(actions)-1)
 	if len(body) > capacity {
