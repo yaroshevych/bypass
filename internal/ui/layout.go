@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"strings"
-
 	"bypass/internal/workspace"
 )
 
@@ -22,7 +20,7 @@ type viewLayout struct {
 func (m *Model) layout() viewLayout {
 	w, h := max(1, m.width), max(1, m.height)
 	header, footer := 4, 1
-	if strings.EqualFold(m.settings.Appearance, "compact") {
+	if m.compactAppearance() {
 		header, footer = 2, 1
 	}
 	l := viewLayout{Mode: "tiny", BodyY: header, BodyHeight: max(0, h-header-footer)}
@@ -120,7 +118,7 @@ func (m *Model) sidebarWidth(width int, v *workspace.View) int {
 }
 
 func (m *Model) navRowHeight() int {
-	if strings.EqualFold(m.settings.Appearance, "compact") {
+	if m.compactAppearance() {
 		return 1
 	}
 	return 2

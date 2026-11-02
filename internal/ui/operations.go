@@ -218,7 +218,7 @@ func (m *Model) startEditor(e *vault.Entry, group string) {
 	m.clearEditor()
 	m.editor = newEntryEditor(e, group)
 	m.editor.styles = &m.styles
-	m.editor.compact = strings.EqualFold(m.settings.Appearance, "compact")
+	m.editor.compact = m.compactAppearance()
 	m.editor.ascii = m.settings.ASCII
 	m.editor.headerNow = m.now()
 	if e != nil {

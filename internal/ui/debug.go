@@ -21,7 +21,7 @@ func (m *Model) debugAppearanceToggle(key string) bool {
 	if key != "D" {
 		return false
 	}
-	if strings.EqualFold(m.settings.Appearance, "compact") {
+	if m.compactAppearance() {
 		m.settings.Appearance = "classic"
 	} else {
 		m.settings.Appearance = "compact"

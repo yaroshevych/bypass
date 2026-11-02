@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"strings"
-
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
@@ -264,7 +262,7 @@ func (m *Model) duplicateTab() tea.Cmd {
 
 func (m *Model) tabAt(x, y int) (int, bool) {
 	row := 2
-	if strings.EqualFold(m.settings.Appearance, "compact") {
+	if m.compactAppearance() {
 		row = 1
 	}
 	if y == row {
@@ -297,7 +295,7 @@ func (m *Model) pickerBodyRows() int {
 
 func (m *Model) pickerBodyTop() int {
 	headerRows := 2
-	if strings.EqualFold(m.settings.Appearance, "compact") {
+	if m.compactAppearance() {
 		headerRows = 0
 	}
 	return max(0, (m.height-m.pickerBodyRows()-headerRows)/2) + headerRows

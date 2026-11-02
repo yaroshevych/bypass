@@ -62,7 +62,7 @@ func (m *Model) historyLines(state *extraState) []string {
 		label := fmt.Sprintf("%s  %s", title, historyDate(when))
 		rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: label, selected: i == state.historyIndex, activeFill: true, pillSelected: true})
 	}
-	if strings.EqualFold(m.settings.Appearance, "compact") {
+	if m.compactAppearance() {
 		for _, row := range m.renderListComponent(rows, listComponentOptions{
 			width: max(1, min(74, m.width-8)), compact: true, ascii: m.settings.ASCII,
 			focused: true, sidebar: true,

@@ -43,7 +43,7 @@ func (m *Model) attachmentLines(state *extraState) []string {
 		body = []string{""}
 		body = append(body, renderStackedInputField(inputFieldView{
 			label: label, value: &state.input, focused: true, indent: 1,
-		}, fieldWidth, strings.EqualFold(m.settings.Appearance, "compact"), m.colors())...)
+		}, fieldWidth, m.compactAppearance(), m.colors())...)
 		body = append(body, "")
 	} else if strings.HasPrefix(state.phase, "confirm-") {
 		body = m.attachmentConfirmation(state)
@@ -64,7 +64,7 @@ func (m *Model) attachmentLines(state *extraState) []string {
 			}
 			rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: label, selected: state.selected == i, activeFill: true, pillSelected: true})
 		}
-		if strings.EqualFold(m.settings.Appearance, "compact") {
+		if m.compactAppearance() {
 			for _, row := range m.renderListComponent(rows, listComponentOptions{
 				width: max(1, min(72, m.width-8)), compact: true, ascii: m.settings.ASCII,
 				focused: true, sidebar: true,

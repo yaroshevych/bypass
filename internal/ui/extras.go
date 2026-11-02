@@ -411,6 +411,6 @@ func (m *Model) confirmationChoice(state *extraState, body []string) []string {
 	if state.confirmProceed {
 		selected = 1
 	}
-	choices := renderDialogChoices([]string{"Cancel", "Confirm"}, selected, strings.EqualFold(m.settings.Appearance, "compact"), m.settings.ASCII, m.colors())
+	choices := renderDialogChoices([]string{"Cancel", "Confirm"}, selected, m.compactAppearance(), m.settings.ASCII, m.colors())
 	return append(body, "", choices)
 }
