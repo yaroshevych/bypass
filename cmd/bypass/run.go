@@ -21,6 +21,29 @@ type envFiles []string
 
 func (f *envFiles) String() string     { return strings.Join(*f, ",") }
 func (f *envFiles) Set(s string) error { *f = append(*f, s); return nil }
+
+type identityFlag struct {
+	value string
+	set   bool
+}
+
+func (f *identityFlag) String() string { return "" }
+func (f *identityFlag) Set(value string) error {
+	f.value = value
+	f.set = true
+	return nil
+}
+
+func selectedIdentity(option identityFlag, lookup func(string) (string, bool)) []byte {
+	if option.set {
+		return []byte(option.value)
+	}
+	if value, ok := lookup("BYPASS_IDENTITY"); ok {
+		return []byte(value)
+	}
+	return nil
+}
+
 func runCommand(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("bypass run", flag.ContinueOnError)
 	flags.SetOutput(stderr)
@@ -35,10 +58,12 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 		}
 	}
 	timeout := flags.Duration("timeout", timeoutDefault, "IPC approval timeout (positive duration)")
+	var identityOption identityFlag
+	flags.Var(&identityOption, "identity", "agent identity bearer (overrides BYPASS_IDENTITY)")
 	var files envFiles
 	flags.Var(&files, "env-file", "environment file; repeatable, later files override earlier files")
 	flags.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: bypass run [--env-file FILE] [--timeout 60s] -- COMMAND [ARGS...]")
+		fmt.Fprintln(stderr, "Usage: bypass run [--identity NAME-SECRET] [--env-file FILE] [--timeout 60s] -- COMMAND [ARGS...]")
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(args); err != nil {
@@ -63,6 +88,14 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 	command := flags.Args()
 	if len(command) == 0 {
 		return fmt.Errorf("command is required after --")
+	}
+	identityBytes := selectedIdentity(identityOption, os.LookupEnv)
+	defer clear(identityBytes)
+	if len(identityBytes) > 0 {
+		_, err := runpkg.ParseIdentity(identityBytes)
+		if err != nil {
+			return fmt.Errorf("invalid run identity; use NAME- followed by at least 32 hexadecimal characters")
+		}
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -115,6 +148,9 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// BYPASS_IDENTITY configures the runner and must never flow into a child.
+	// It is also reserved from env-file substitution, regardless of references.
+	delete(environment, "BYPASS_IDENTITY")
 	refs := map[string]bool{}
 	for _, value := range environment {
 		_, err := runpkg.Substitute(value, func(r runpkg.Reference) (string, error) { return "", nil })
@@ -151,7 +187,7 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 		defer cancel()
-		response, err := runpkg.Exchange(ctx, path, runpkg.Request{Command: command, Directory: cwd, References: list})
+		response, err := runpkg.Exchange(ctx, path, runpkg.Request{Command: command, Directory: cwd, References: list, Identity: identityBytes})
 		if err != nil {
 			return err
 		}
@@ -211,12 +247,14 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 		for _, value := range resolvedEnvironment {
 			clear(value)
 		}
+		clear(identityBytes)
 		return syscall.Exec(executable, command, env)
 	}
 	env := make([]string, 0, len(environment))
 	for key, value := range environment {
 		env = append(env, key+"="+value)
 	}
+	clear(identityBytes)
 	// Replacing the client preserves the terminal, process group, signals and exit
 	// status. The IPC deadline never limits the launched process.
 	return syscall.Exec(executable, command, env)

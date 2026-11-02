@@ -31,6 +31,7 @@ type runResult struct {
 	err           error
 	updated       map[string]*vault.Database
 	needsApproval bool
+	newIdentity   bool
 }
 type runState struct {
 	pending     []*runpkg.Pending
@@ -43,6 +44,7 @@ type runState struct {
 	choiceIndex int
 	chosen      map[*runpkg.Pending]map[string]runTarget
 	err         string
+	newIdentity map[*runpkg.Pending]bool
 }
 
 func clearRunValues(values map[string][]byte) {
@@ -199,19 +201,27 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 	case RunRequestMsg:
 		if msg.Pending != nil && msg.Pending.Context.Err() == nil {
 			r.pending = append(r.pending, msg.Pending)
+			if r.newIdentity == nil {
+				r.newIdentity = map[*runpkg.Pending]bool{}
+			}
+			r.newIdentity[msg.Pending] = msg.Pending.Identity.Digest != ""
 			m.setNotice("secret request pending · ctrl+b to review", false)
-			if grantEligible(msg.Pending.Request.Command) {
-				choices, choiceIndex := r.choices, r.choiceIndex
-				targets, err := m.resolveRunTargets(msg.Pending)
-				r.choices, r.choiceIndex = choices, choiceIndex
-				if err == nil {
-					return m.runGrantJob(msg.Pending, targets, "check"), true
-				}
+			choices, choiceIndex := r.choices, r.choiceIndex
+			targets, err := m.resolveRunTargets(msg.Pending)
+			r.choices, r.choiceIndex = choices, choiceIndex
+			if err == nil {
+				return m.runGrantJob(msg.Pending, targets, "check"), true
 			}
 		}
 		return nil, true
 	case runResult:
 		r.busy = false
+		if msg.pending != nil && msg.pending.Identity.Digest != "" {
+			if r.newIdentity == nil {
+				r.newIdentity = map[*runpkg.Pending]bool{}
+			}
+			r.newIdentity[msg.pending] = msg.newIdentity
+		}
 		if msg.needsApproval {
 			msg.secrets.Clear()
 			return nil, true
@@ -367,6 +377,7 @@ func (m *Model) pruneRuns() {
 	for i := len(r.pending) - 1; i >= 0; i-- {
 		if r.pending[i].Context.Err() != nil {
 			delete(r.chosen, r.pending[i])
+			delete(r.newIdentity, r.pending[i])
 			r.choices = nil
 			r.pending = append(r.pending[:i], r.pending[i+1:]...)
 			r.targets = nil
@@ -386,6 +397,7 @@ func (m *Model) removeRun(p *runpkg.Pending) {
 	r.targets = nil
 	r.choices = nil
 	delete(r.chosen, p)
+	delete(r.newIdentity, p)
 	r.offset = 0
 	m.setNotice("secret request completed", false)
 	r.err = ""
@@ -493,6 +505,9 @@ func (m *Model) runLines() []string {
 			prefix = "> "
 		}
 		lines = append(lines, prefix+safe(strings.Join(p.Request.Command, " ")), "  "+safe(p.Request.Directory))
+		if p.Identity.Digest != "" {
+			lines = append(lines, "  "+runIdentityLabel(p, r.newIdentity[p]))
+		}
 	}
 	if len(r.choices) > 0 {
 		lines = append(lines, "", "Select vault: ")
@@ -570,6 +585,9 @@ func (m *Model) runCompactLines() []string {
 	}
 	p := r.pending[r.index]
 	lines := []string{fmt.Sprintf("Request %d/%d: %s", r.index+1, len(r.pending), safe(strings.Join(p.Request.Command, " "))), safe(p.Request.Directory)}
+	if p.Identity.Digest != "" {
+		lines = append(lines, runIdentityLabel(p, r.newIdentity[p]))
+	}
 	if len(r.targets) > 0 {
 		index := min(r.offset, len(r.targets)-1)
 		lines = append(lines, fmt.Sprintf("Field %d/%d: %s", index+1, len(r.targets), safe(r.targets[index].ref)))
@@ -581,9 +599,17 @@ func (m *Model) runCompactLines() []string {
 		lines = append(lines, renderDialogAction(action.label, action.key, max(1, min(m.width-10, 86)), m.settings.Appearance == "compact", m.settings.ASCII, action.key == "d", m.colors()))
 	}
 	if r.err != "" {
-		lines[2] = r.err
+		lines = append(lines, r.err)
 	}
 	return append(lines, "esc return")
+}
+
+func runIdentityLabel(p *runpkg.Pending, isNew bool) string {
+	state := "known agent"
+	if isNew {
+		state = "new agent"
+	}
+	return "Agent: " + safe(p.Identity.Name) + " (" + state + ")"
 }
 
 func (m *Model) openRunPermissions() {

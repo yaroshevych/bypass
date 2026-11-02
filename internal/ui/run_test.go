@@ -157,6 +157,41 @@ func TestRunApprovalActionsRemainVisibleAcrossLayouts(t *testing.T) {
 	}
 }
 
+func TestRunIdentityLabelIsSafeAcrossCompactLayouts(t *testing.T) {
+	const bearer = "Luna-0123456789abcdef0123456789abcdef"
+	principal, err := runpkg.ParseIdentity([]byte(bearer))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, size := range [][2]int{{48, 14}, {80, 24}, {120, 35}} {
+			m := New(Options{})
+			m.settings.Appearance = appearance
+			m.width, m.height = size[0], size[1]
+			p := &runpkg.Pending{Context: context.Background(), Identity: principal, Request: runpkg.Request{Command: []string{"/app"}, Directory: "/project"}}
+			db := &vault.Database{}
+			m.runs = &runState{
+				visible: true, pending: []*runpkg.Pending{p},
+				targets:     []runTarget{{ref: "bypass://Safe", field: "Password", database: db}},
+				newIdentity: map[*runpkg.Pending]bool{p: true}, err: "approval unavailable",
+			}
+			view := m.View()
+			for _, label := range []string{"Luna", "new agent", "Deny", "Allow once", "Always allow"} {
+				if !strings.Contains(view, label) {
+					t.Errorf("%s %v layout omitted %q", appearance, size, label)
+				}
+			}
+			if strings.Contains(view, bearer) || strings.Contains(view, principal.Digest) {
+				t.Errorf("%s %v layout exposed bearer material", appearance, size)
+			}
+			lines := strings.Join(m.runLines(), "\n")
+			if !strings.Contains(lines, "Agent: Luna (new agent)") || strings.Contains(lines, bearer) {
+				t.Errorf("%s %v request lines omitted readable identity or exposed bearer", appearance, size)
+			}
+		}
+	}
+}
+
 func TestRunLockInvalidatesReviewedApproval(t *testing.T) {
 	m := New(Options{})
 	m.ws.Open(&vault.Database{Path: "/vault", RootUUID: "root", Entries: []vault.Entry{{UUID: "entry", GroupPath: "Passwords", Fields: []vault.Field{{Name: "Title", Value: "Secret"}}}}})

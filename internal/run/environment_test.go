@@ -11,6 +11,13 @@ func TestEnvironmentPrecedence(t *testing.T) {
 		t.Fatalf("unexpected environment: %v, %v", got, err)
 	}
 }
+
+func TestEnvironmentReservesRunIdentity(t *testing.T) {
+	got, err := Environment([]string{"BYPASS_IDENTITY=from-parent", "KEEP=yes"}, strings.NewReader("BYPASS_IDENTITY=from-file\n"))
+	if err != nil || got["BYPASS_IDENTITY"] != "" || got["KEEP"] != "yes" {
+		t.Fatal("reserved identity leaked into command environment")
+	}
+}
 func TestEnvironmentRejectsInvalidEntries(t *testing.T) {
 	for _, line := range []string{"no equals", "1KEY=value", "KEY='unterminated"} {
 		if _, err := Environment(nil, strings.NewReader(line)); err == nil {

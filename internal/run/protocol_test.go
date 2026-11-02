@@ -3,10 +3,12 @@ package run
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -192,6 +194,113 @@ func TestResponseFramePartialReadClearsDecodedValues(t *testing.T) {
 		}
 	}
 }
+
+func TestRequestFrameRoundTripAndWipe(t *testing.T) {
+	identity := []byte("Luna-0123456789abcdef0123456789abcdef")
+	for name, writer := range map[string]*retainedWriter{
+		"complete": {limit: -1},
+		"short":    {limit: 1},
+		"error":    {limit: -1, err: errors.New("write failed")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := writeRequest(writer, Request{Command: []string{"/bin/tool"}, Directory: "/work", References: []string{"bypass://Secret"}, Identity: identity})
+			if name == "complete" && err != nil {
+				t.Fatal(err)
+			}
+			if name == "short" && !errors.Is(err, io.ErrShortWrite) {
+				t.Fatalf("expected short write, got %v", err)
+			}
+			if name == "error" && err == nil {
+				t.Fatal("expected writer error")
+			}
+			if len(writer.frame) == 0 || !bytes.Equal(writer.frame, make([]byte, len(writer.frame))) {
+				t.Fatal("temporary request frame was not wiped")
+			}
+		})
+	}
+	var frame bytes.Buffer
+	if err := writeRequest(&frame, Request{Command: []string{"/bin/tool"}, Directory: "/work", References: []string{"bypass://Secret"}, Identity: identity}); err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := readRequest(&frame)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Command[0] != "/bin/tool" || decoded.Directory != "/work" || decoded.References[0] != "bypass://Secret" || !bytes.Equal(decoded.Identity, identity) {
+		t.Fatal("request frame lost fields")
+	}
+	clear(decoded.Identity)
+	if !bytes.Equal(decoded.Identity, make([]byte, len(decoded.Identity))) {
+		t.Fatal("decoded identity was not wipeable")
+	}
+}
+
+func TestRequestMetadataDoesNotContainBearerAndTruncatedReadClearsIt(t *testing.T) {
+	identity := []byte("Luna-0123456789abcdef0123456789abcdef")
+	var full bytes.Buffer
+	if err := writeRequest(&full, Request{Command: []string{"tool"}, References: []string{"bypass://x"}, Identity: identity}); err != nil {
+		t.Fatal(err)
+	}
+	frame := full.Bytes()
+	metadataLen := int(binary.BigEndian.Uint32(frame[4:8]))
+	metadata := frame[8 : 8+metadataLen]
+	if bytes.Contains(metadata, identity) || bytes.Contains(metadata, []byte("Luna")) {
+		t.Fatal("request metadata contains bearer or public identity")
+	}
+	reader := &observingReader{reader: bytes.NewReader(frame[:len(frame)-3])}
+	if _, err := readRequest(reader); err == nil {
+		t.Fatal("accepted truncated identity frame")
+	}
+	for _, buffer := range reader.buffers {
+		if bytes.Contains(buffer, []byte("Luna")) || bytes.Contains(buffer, identity[len("Luna-"):len(identity)-3]) {
+			t.Fatal("truncated request retained bearer bytes")
+		}
+	}
+	if _, err := readRequest(bytes.NewReader([]byte{'B', 'R', 'Q', 2})); err == nil {
+		t.Fatal("accepted unsupported request protocol")
+	}
+}
+
+func TestServerDerivesIdentityAndClearsBearer(t *testing.T) {
+	tmp, err := os.MkdirTemp("/tmp", "bypass-id-ipc-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmp)
+	root, err := filepath.EvalSymlinks(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "run.sock")
+	got := make(chan *Pending, 1)
+	server, err := Listen(path, func(p *Pending) {
+		got <- p
+		p.Reply(Response{})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	credential := []byte("Luna-0123456789abcdef0123456789abcdef")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := Exchange(ctx, path, Request{Command: []string{"tool"}, References: []string{"bypass://x"}, Identity: credential}); err != nil {
+		t.Fatal("identity exchange failed")
+	}
+	var pending *Pending
+	select {
+	case pending = <-got:
+	case <-ctx.Done():
+		t.Fatal("server did not submit identity request")
+	}
+	if pending.Identity.Name != "Luna" || pending.Identity.Digest == "" || len(pending.Request.Identity) != 0 {
+		t.Fatal("server did not reduce bearer to its public principal")
+	}
+	if !bytes.Equal(credential, make([]byte, len(credential))) {
+		t.Fatal("client bearer was not wiped after exchange")
+	}
+}
+
 func TestGrantScopeAndRename(t *testing.T) {
 	grant := Grant{Version: 1, Entry: "uuid", Name: "name", Group: "group", Field: "Password", Executable: "/app", Directory: "/project"}
 	decoded, ok := DecodeGrant(grant.Encode())
@@ -209,5 +318,38 @@ func TestGrantScopeAndRename(t *testing.T) {
 	global.Directory = ""
 	if !global.Allows(grant) {
 		t.Fatal("global grant did not apply")
+	}
+}
+
+func TestIdentityValidationAndGrantIsolation(t *testing.T) {
+	credential := []byte("dev-rw-0123456789abcdef0123456789abcdef")
+	identity, err := ParseIdentity(credential)
+	if err != nil || identity.Name != "dev-rw" || identity.Digest == "" || strings.Contains(identity.Digest, string(credential)) {
+		t.Fatalf("unexpected identity principal: %#v, %v", identity, err)
+	}
+	for _, invalid := range []string{
+		"-0123456789abcdef0123456789abcdef",
+		"Luna-0123456789abcdef0123456789abc",
+		"Luna-0123456789abcdef0123456789abcg",
+		"Luna/secret-0123456789abcdef0123456789abcdef",
+	} {
+		if _, err := ParseIdentity([]byte(invalid)); err == nil || strings.Contains(err.Error(), invalid) {
+			t.Fatalf("invalid identity diagnostic exposed input: %v", err)
+		}
+	}
+	base := Grant{Version: 1, Entry: "entry", Field: "Password", Executable: "/tool", Identity: identity.Digest}
+	if !base.Allows(base) {
+		t.Fatal("same identity grant did not match")
+	}
+	other, _ := ParseIdentity([]byte("dev-rw-fedcba9876543210fedcba9876543210"))
+	want := base
+	want.Identity = other.Digest
+	if base.Allows(want) {
+		t.Fatal("identity grant crossed to another bearer")
+	}
+	anonymous := Grant{Version: 1, Entry: base.Entry, Field: base.Field, Executable: base.Executable}
+	legacy, ok := DecodeGrant(anonymous.Encode())
+	if !ok || !legacy.Allows(anonymous) || legacy.Allows(base) {
+		t.Fatal("legacy grant did not remain anonymous-only")
 	}
 }

@@ -54,6 +54,9 @@ Allow access once, remember it for this executable and project directory, or
 allow that executable across directories. Saved permissions stay inside the
 vault and can be reviewed or revoked from the command menu.
 
+Agents can use `--identity NAME-SECRET` or `BYPASS_IDENTITY` to keep saved
+permissions separate by agent.
+
 The command retains its terminal behavior and exit status. Once launched,
 **Bypass never interrupts the process**, including when the vault locks or the
 TUI closes.
@@ -61,11 +64,12 @@ TUI closes.
 ## CLI reference
 
 ```text
-bypass run [--env-file FILE]... [--timeout DURATION] -- COMMAND [ARGS...]
+bypass run [--identity NAME-SECRET] [--env-file FILE]... [--timeout DURATION] -- COMMAND [ARGS...]
 ```
 
 | Option | Behavior |
 | --- | --- |
+| `--identity NAME-SECRET` | Scope saved permissions to an agent. Defaults to `BYPASS_IDENTITY`. |
 | `--env-file FILE` | Load variables from a file. Repeat to combine files; later files win. |
 | `--timeout DURATION` | Limit the wait for approval and secrets. Default: `60s`. |
 | `--help` | Show command help. |

@@ -30,6 +30,7 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 	return func() tea.Msg {
 		secrets := newRunSecretValues(p.Context)
 		result := runResult{pending: p, targets: targets, secrets: secrets, updated: map[string]*vault.Database{}}
+		result.newIdentity = p.Identity.Digest != ""
 		defer func() {
 			if result.err != nil || result.needsApproval || p.Context.Err() != nil {
 				secrets.Clear()
@@ -55,7 +56,7 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 		for _, target := range targets {
 			db := snapshots[target.session]
 			if mode == "check" {
-				want := runpkg.Grant{Version: 1, Entry: target.entry, Field: target.field, Executable: p.Request.Command[0], Directory: p.Request.Directory}
+				want := runpkg.Grant{Version: 1, Entry: target.entry, Field: target.field, Executable: p.Request.Command[0], Directory: p.Request.Directory, Identity: p.Identity.Digest}
 				for _, entry := range db.Entries {
 					if entry.UUID == target.entry {
 						want.Name = entry.Get("Title")
@@ -70,19 +71,22 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 					value, err := resolver.ResolveField(p.Context, db, vault.Credentials{}, entry.UUID, "Notes")
 					if err == nil {
 						grant, ok := runpkg.DecodeGrant(string(value))
+						if ok && p.Identity.Digest != "" && grant.Identity == p.Identity.Digest {
+							result.newIdentity = false
+						}
 						if ok && grant.Allows(want) {
 							allowed = true
 						}
 					}
 					clear(value)
 				}
-				if !allowed {
+				if !allowed || !grantEligible(p.Request.Command) {
 					result.needsApproval = true
 					return result
 				}
 			}
 			if mode != "a" && mode != "check" {
-				grant := runpkg.Grant{Version: 1, Entry: target.entry, Field: target.field, Executable: p.Request.Command[0]}
+				grant := runpkg.Grant{Version: 1, Entry: target.entry, Field: target.field, Executable: p.Request.Command[0], Identity: p.Identity.Digest, Agent: p.Identity.Name}
 				for _, entry := range db.Entries {
 					if entry.UUID == target.entry {
 						grant.Name = entry.Get("Title")

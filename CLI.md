@@ -58,13 +58,14 @@ agent itself through `bypass run` would give that agent the resolved environment
 ### Synopsis
 
 ```text
-bypass run [--env-file FILE]... [--timeout DURATION] -- COMMAND [ARGS...]
+bypass run [--identity NAME-SECRET] [--env-file FILE]... [--timeout DURATION] -- COMMAND [ARGS...]
 ```
 
 ### Arguments and options
 
 | Argument | Description | Default |
 | --- | --- | --- |
+| `--identity NAME-SECRET` | Select an agent identity for saved permissions. Overrides `BYPASS_IDENTITY`; an explicit empty value selects anonymous mode. | `BYPASS_IDENTITY`, otherwise anonymous. |
 | `--env-file FILE` | Read variables from an environment file. Repeatable; files are processed in order. | No files; inherited environment only. |
 | `--timeout DURATION` | Positive duration for IPC connection, approval, unlocking, and receipt of secrets. Examples: `30s`, `2m`, `1m30s`. | `60s`, or the configured value. |
 | `--` | Separate Bypass options from the command. Required. | — |
@@ -74,6 +75,25 @@ bypass run [--env-file FILE]... [--timeout DURATION] -- COMMAND [ARGS...]
 
 Startup options such as `--backend` and `--read-only` belong to the TUI command,
 not to `bypass run`. Put run options before `--` and command arguments after it.
+
+An identity is a readable name of 1–64 ASCII letters, digits, spaces, `_`,
+`.` or `-`, followed by `-` and 32–64 hexadecimal characters. Use a unique
+random secret and the same full identity for repeated runs by one agent:
+
+```sh
+export BYPASS_IDENTITY="deploy-$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
+bypass run --env-file .env.deploy -- ./scripts/deploy.sh
+```
+
+The full identity is a bearer credential. Keep it private and generate it once
+for the agent that will reuse it. `--identity` overrides the environment value;
+`--identity=` explicitly uses anonymous access. `BYPASS_IDENTITY` is reserved:
+environment files cannot set it, and Bypass removes it from the launched
+command's environment even when no references are used. The approval screen
+shows only the readable name. Bypass stores only a one-way digest in saved
+permissions. No registration is required.
+Prefer the environment variable to keep the bearer out of command arguments.
+Other processes under the same local user may still inspect the environment.
 
 ```sh
 bypass run --timeout 2m --env-file .env.deploy -- ./scripts/deploy.sh --verbose
@@ -223,6 +243,11 @@ identified by their absolute paths. Replacing an executable at the same path
 retains its grants. Shells and known interpreters currently support one-time
 approval only.
 
+Saved grants are scoped to the full identity that approved them. Different
+identity secrets with the same readable name do not share grants. Anonymous
+runs keep using legacy grants created without an identity; they do not inherit
+grants saved for a named identity.
+
 Persistent grants require a writable vault and are saved in its **Bypass Run
 Permissions** group. Use **Saved Run Permissions** in the command menu to review
 them. Delete a grant entry to revoke it, or delete the group to revoke all grants
@@ -285,16 +310,18 @@ inherit them. Output is not masked: a script that prints a credential can expose
 it to the invoking agent or logs. Approval governs secret delivery; it does not
 sandbox the recipient or prevent it from writing or transmitting credentials.
 
-IPC uses a private Unix socket, peer UID checks, and executable-content checks.
-Vault-resolved values use byte buffers during resolution, transfer, and
-substitution. Bypass clears these buffers after use and on failed delivery.
+IPC uses a private Unix socket, peer UID checks, executable-content checks, and
+bounded versioned request and response frames. Identity bytes are sent only to
+the local TUI, reduced there to a one-way SHA-256 grant scope, and cleared before
+the request is shown. Vault-resolved values use byte buffers during resolution,
+transfer, and substitution. Bypass clears these buffers after use and on failed delivery.
 The final process launch requires Go strings. These strings cannot be cleared
 in place. A successful launch replaces the runner process memory. Literal
 values from inherited environment variables and environment files still use
 the string-based environment parser. Buffer clearing does not guarantee that
 Go runtime, operating system, or crash-dump copies are erased.
 
-The response protocol requires the TUI and runner to use the same version.
+The IPC protocol requires the TUI and runner to use the same version.
 Restart the TUI after upgrading Bypass.
 
 Recipient-specific grants trust the authenticated Bypass client to launch the

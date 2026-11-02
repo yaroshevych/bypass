@@ -1152,6 +1152,9 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 					scope = "all directories"
 				}
 				value = fmt.Sprintf("Entry: %s/%s\nField: %s\nExecutable: %s\nDirectory: %s\nEntry UUID: %s", grant.Group, grant.Name, grant.Field, grant.Executable, scope, grant.Entry)
+				if grant.Agent != "" {
+					value += "\nAgent: " + grant.Agent
+				}
 			}
 		}
 		if value == "" {

@@ -23,17 +23,21 @@ type Request struct {
 	Command    []string
 	Directory  string
 	References []string
+	// Identity is the raw bearer credential and is only populated on the client
+	// side before the controlled request frame is written.
+	Identity []byte `json:"-"`
 }
 type Response struct {
 	Values map[string][]byte
 	Error  string
 }
 type Pending struct {
-	Caller  []string
-	Request Request
-	Context context.Context
-	reply   chan Response
-	once    sync.Once
+	Caller   []string
+	Request  Request
+	Identity Identity
+	Context  context.Context
+	reply    chan Response
+	once     sync.Once
 }
 
 func (p *Pending) Reply(r Response) {
@@ -163,14 +167,22 @@ func (s *Server) serve(conn *net.UnixConn, submit func(*Pending)) {
 		case <-ctx.Done():
 		}
 	}()
-	var request Request
-	if err := json.NewDecoder(io.LimitReader(conn, MaxMessage)).Decode(&request); err != nil {
+	request, err := readRequest(conn)
+	if err != nil {
 		return
 	}
 	if len(request.Command) == 0 || len(request.References) == 0 {
+		clear(request.Identity)
 		return
 	}
-	pending := &Pending{Caller: callerAncestry(conn), Request: request, Context: ctx, reply: make(chan Response)}
+	identity, err := ParseIdentity(request.Identity)
+	if err != nil && len(request.Identity) > 0 {
+		clear(request.Identity)
+		return
+	}
+	clear(request.Identity)
+	request.Identity = nil
+	pending := &Pending{Caller: callerAncestry(conn), Request: request, Identity: identity, Context: ctx, reply: make(chan Response)}
 	// The request is one frame. Further client input or EOF cancels it.
 	go func() { var b [1]byte; conn.Read(b[:]); cancel() }()
 	go submit(pending)
@@ -185,6 +197,7 @@ func (s *Server) serve(conn *net.UnixConn, submit func(*Pending)) {
 	}
 }
 func Exchange(ctx context.Context, path string, request Request) (Response, error) {
+	defer clear(request.Identity)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var response Response
@@ -204,7 +217,7 @@ func Exchange(ctx context.Context, path string, request Request) (Response, erro
 		conn.SetDeadline(deadline)
 	}
 	go func() { <-ctx.Done(); conn.Close() }()
-	if err := json.NewEncoder(conn).Encode(request); err != nil {
+	if err := writeRequest(conn, request); err != nil {
 		return response, err
 	}
 	if err := readResponse(io.LimitReader(conn, MaxMessage), &response); err != nil {
@@ -223,6 +236,82 @@ func Exchange(ctx context.Context, path string, request Request) (Response, erro
 		return Response{}, err
 	}
 	return response, nil
+}
+
+var requestMagic = [4]byte{'B', 'R', 'Q', 1}
+
+type requestMetadata struct {
+	Command    []string
+	Directory  string
+	References []string
+}
+
+// writeRequest emits one bounded frame and wipes both its metadata encoding
+// and the assembled frame when the write finishes.
+func writeRequest(w io.Writer, request Request) error {
+	metadata, err := json.Marshal(requestMetadata{Command: request.Command, Directory: request.Directory, References: request.References})
+	if err != nil {
+		return err
+	}
+	defer clear(metadata)
+	if len(metadata) > MaxMessage-12 || len(request.Identity) > MaxMessage-12-len(metadata) {
+		return errors.New("request too large")
+	}
+	frame := make([]byte, 12+len(metadata)+len(request.Identity))
+	defer clear(frame)
+	copy(frame, requestMagic[:])
+	binary.BigEndian.PutUint32(frame[4:8], uint32(len(metadata)))
+	copy(frame[8:], metadata)
+	offset := 8 + len(metadata)
+	binary.BigEndian.PutUint32(frame[offset:offset+4], uint32(len(request.Identity)))
+	copy(frame[offset+4:], request.Identity)
+	n, err := w.Write(frame)
+	if err == nil && n != len(frame) {
+		return io.ErrShortWrite
+	}
+	return err
+}
+
+func readRequest(r io.Reader) (Request, error) {
+	var request Request
+	var header [8]byte
+	if _, err := io.ReadFull(r, header[:]); err != nil {
+		return request, err
+	}
+	if string(header[:4]) != string(requestMagic[:]) {
+		return request, errors.New("unsupported request protocol")
+	}
+	metadataLen := int(binary.BigEndian.Uint32(header[4:]))
+	if metadataLen > MaxMessage-12 {
+		return request, errors.New("request too large")
+	}
+	metadata := make([]byte, metadataLen)
+	defer clear(metadata)
+	if _, err := io.ReadFull(r, metadata); err != nil {
+		return request, err
+	}
+	var decoded requestMetadata
+	if err := json.Unmarshal(metadata, &decoded); err != nil {
+		return request, err
+	}
+	var length [4]byte
+	if _, err := io.ReadFull(r, length[:]); err != nil {
+		return request, err
+	}
+	identityLen := int(binary.BigEndian.Uint32(length[:]))
+	if identityLen > MaxMessage-12-metadataLen {
+		return request, errors.New("request too large")
+	}
+	request.Command, request.Directory, request.References = decoded.Command, decoded.Directory, decoded.References
+	if identityLen > 0 {
+		request.Identity = make([]byte, identityLen)
+		if _, err := io.ReadFull(r, request.Identity); err != nil {
+			clear(request.Identity)
+			request.Identity = nil
+			return Request{}, err
+		}
+	}
+	return request, nil
 }
 
 // The response frame keeps secret values out of JSON strings. The versioned,
