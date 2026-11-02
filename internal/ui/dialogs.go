@@ -300,34 +300,13 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 	if d.kind == "destination" {
 		groups := d.filteredGroups()
 		switch key {
-		case "tab", "shift+tab":
-			delta := 1
-			if key == "shift+tab" {
-				delta = -1
-			}
-			d.destinationFocus = (d.destinationFocus + 3 + delta) % 3
-		case "up":
-			switch d.destinationFocus {
-			case 0:
-				d.selected = max(0, d.selected-1)
-			case 1:
-				if len(groups) > 0 {
-					d.destinationFocus = 0
-					d.selected = len(groups) - 1
-				}
-			case 2:
-				d.destinationFocus = 1
-			}
-		case "down":
-			switch d.destinationFocus {
-			case 0:
-				if len(groups) > 0 && d.selected < len(groups)-1 {
-					d.selected++
-				} else {
-					d.destinationFocus = 1
-				}
-			case 1:
-				d.destinationFocus = 2
+		case "tab", "shift+tab", "up", "down":
+			actionsFocused := d.destinationFocus != 0
+			action := max(0, d.destinationFocus-1)
+			dialogFocus(key, len(groups), 2, &d.selected, &action, &actionsFocused)
+			d.destinationFocus = 0
+			if actionsFocused {
+				d.destinationFocus = action + 1
 			}
 		case "enter":
 			if d.destinationFocus == 2 {
@@ -400,7 +379,7 @@ func (m *Model) dialogLines() []string {
 	c := m.colors()
 	accent, secondary, error := c.accent, c.secondary, c.error
 	d := m.dialog
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	compact := m.compactAppearance()
 	body := append([]string(nil), d.message...)
 	if d.kind == "duplicates" {
 		end := min(len(d.duplicates.Renames), d.offset+max(1, min(8, m.height-14)))
@@ -439,18 +418,12 @@ func (m *Model) dialogLines() []string {
 		actionWidth := max(1, dialogWidth-4)
 		body = append(body, secondary.Render(" 4–12 digits · current run only"), "")
 		body = append(body, renderStackedInputField(inputFieldView{label: "Session PIN", value: &d.input, secret: true, focused: d.selected == 0, indent: 1}, actionWidth, compact, c)...)
-		body = append(body, dialogrender.BodyRule,
-			renderDialogAction("Save", "enter", actionWidth, compact, m.settings.ASCII, d.selected == 1, c),
-			renderDialogAction("Cancel", "esc", actionWidth, compact, m.settings.ASCII, d.selected == 2, c),
-		)
+		body = m.dialogActions(body, []dialogAction{{"Save", "enter"}, {"Cancel", "esc"}}, d.selected-1, actionWidth+4, len(body)+3)
 		footer = ""
 	case "group":
 		actionWidth := dialogBoxInputWidth(m.width)
 		body = append(body, renderStackedInputField(inputFieldView{label: "Group name", value: &d.input, focused: d.selected == 0, indent: 1}, actionWidth, compact, c)...)
-		body = append(body, dialogrender.BodyRule,
-			renderDialogAction("Create", "enter", actionWidth, compact, m.settings.ASCII, d.selected == 1, c),
-			renderDialogAction("Cancel", "esc", actionWidth, compact, m.settings.ASCII, d.selected == 2, c),
-		)
+		body = m.dialogActions(body, []dialogAction{{"Create", "enter"}, {"Cancel", "esc"}}, d.selected-1, actionWidth+4, len(body)+3)
 		footer = ""
 	case "generator":
 		if len(d.secret) == 0 {
@@ -458,11 +431,7 @@ func (m *Model) dialogLines() []string {
 			dialogWidth := min(m.width-6, 72)
 			actionWidth := max(1, dialogWidth-4)
 			body = append(body, renderStackedInputField(inputFieldView{label: "Length (8–64)", value: &d.input, focused: d.selected == 0, indent: 1}, actionWidth, compact, c)...)
-			body = append(body, dialogrender.BodyRule)
-			body = append(body,
-				renderDialogAction("Generate", "enter", actionWidth, compact, m.settings.ASCII, d.selected == 1, c),
-				renderDialogAction("Cancel", "esc", actionWidth, compact, m.settings.ASCII, d.selected == 2, c),
-			)
+			body = m.dialogActions(body, []dialogAction{{"Generate", "enter"}, {"Cancel", "esc"}}, d.selected-1, actionWidth+4, len(body)+3)
 			footer = ""
 		} else {
 			body = append(body, " Generated password", accent.Render(" "+safe(string(d.secret))))
@@ -495,10 +464,7 @@ func (m *Model) dialogLines() []string {
 			}
 		}
 		actionWidth := max(1, min(m.width-6, 60)-4)
-		body = append(body, dialogrender.BodyRule,
-			renderDialogAction("Save", "enter", actionWidth, compact, m.settings.ASCII, d.destinationFocus == 1, c),
-			renderDialogAction("Cancel", "esc", actionWidth, compact, m.settings.ASCII, d.destinationFocus == 2, c),
-		)
+		body = m.dialogActions(body, []dialogAction{{"Save", "enter"}, {"Cancel", "esc"}}, d.destinationFocus-1, actionWidth+4, len(body)+3)
 		footer = ""
 	default:
 		body = append(body, "")

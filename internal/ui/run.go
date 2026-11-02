@@ -412,38 +412,8 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			r.offset = min(max(0, len(r.targets)-4), r.offset+4)
 		case "pgup":
 			r.offset = max(0, r.offset-4)
-		case "up", "shift+tab":
-			if r.buttonsFocused {
-				if r.actionFocus > 0 {
-					r.actionFocus--
-				} else if len(r.pending) > 0 {
-					r.buttonsFocused = false
-					r.index = len(r.pending) - 1
-				} else if msg.String() == "shift+tab" {
-					r.actionFocus = len(m.runRequestActions()) - 1
-				}
-			} else if r.index > 0 {
-				r.index--
-			} else if msg.String() == "shift+tab" {
-				r.buttonsFocused = true
-				r.actionFocus = len(m.runRequestActions()) - 1
-			}
-		case "down", "tab":
-			if !r.buttonsFocused && r.index+1 < len(r.pending) {
-				r.index++
-			} else if !r.buttonsFocused {
-				r.buttonsFocused = true
-				r.actionFocus = 0
-			} else if r.actionFocus+1 < len(m.runRequestActions()) {
-				r.actionFocus++
-			} else if msg.String() == "tab" {
-				if len(r.pending) > 0 {
-					r.buttonsFocused = false
-					r.index = 0
-				} else {
-					r.actionFocus = 0
-				}
-			}
+		case "up", "down", "tab", "shift+tab":
+			dialogFocus(msg.String(), len(r.pending), len(m.runRequestActions()), &r.index, &r.actionFocus, &r.buttonsFocused)
 		case "enter":
 			if !r.buttonsFocused && len(r.pending) > 0 {
 				m.enterRunReview()

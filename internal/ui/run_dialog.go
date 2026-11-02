@@ -12,7 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type runAction struct{ label, key string }
+type runAction = dialogAction
 
 type runDialogLayout struct {
 	title                 string
@@ -34,7 +34,7 @@ func (m *Model) runRequestsBody() []string {
 		start := max(0, r.index-requestRows/2)
 		end := min(len(r.pending), start+requestRows)
 		start = max(0, end-requestRows)
-		compact := strings.EqualFold(m.settings.Appearance, "compact")
+		compact := m.compactAppearance()
 		var rows []listComponentRow
 		for i := start; i < end; i++ {
 			p := r.pending[i]
@@ -67,7 +67,7 @@ func (m *Model) runRequestsBody() []string {
 	if r.buttonsFocused || len(r.pending) == 0 {
 		focus = r.actionFocus
 	}
-	return m.withRunActions(body, m.runRequestActions(), focus, m.runDialogWidth(false), m.runBodyCapacity(true))
+	return m.dialogActions(body, m.runRequestActions(), focus, m.runDialogWidth(false), m.runBodyCapacity(true))
 }
 
 func (m *Model) runReviewActions() []runAction {
@@ -96,7 +96,7 @@ func (m *Model) runResetActions() []runAction {
 
 func (m *Model) runBodyCapacity(parent bool) int {
 	chrome := 4
-	if strings.EqualFold(m.settings.Appearance, "compact") {
+	if m.compactAppearance() {
 		chrome = 2
 	}
 	if !parent {
@@ -165,7 +165,7 @@ func (m *Model) runReviewBody() []string {
 			}
 		}
 	}
-	return m.withRunActions(body, m.runReviewActions(), r.reviewFocus, m.runDialogWidth(true), m.runBodyCapacity(false))
+	return m.dialogActions(body, m.runReviewActions(), r.reviewFocus, m.runDialogWidth(true), m.runBodyCapacity(false))
 }
 
 func (m *Model) runReviewFieldLayout(p *runpkg.Pending) (prefix, suffix []string, visible int, paging bool) {
@@ -241,25 +241,6 @@ func (m *Model) runTargetLabel(target runTarget) string {
 	return safe(label)
 }
 
-func (m *Model) withRunActions(body []string, actions []runAction, focus, dialogWidth, bodyRows int) []string {
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
-	buttonWidth := max(1, dialogWidth-4)
-	capacity := max(1, bodyRows)
-	reserved := len(actions) + 1 // action separator plus action rows
-	contentCapacity := max(0, capacity-reserved)
-	if len(body) > contentCapacity {
-		body = body[:contentCapacity]
-	}
-	if len(body) == 0 {
-		body = append(body, "")
-	}
-	body = append(body, dialogrender.BodyRule)
-	for i, action := range actions {
-		body = append(body, renderDialogAction(action.label, action.key, buttonWidth, compact, m.settings.ASCII, i == focus, m.colors()))
-	}
-	return body
-}
-
 func (m *Model) runActionAt(x, y int) (int, bool) {
 	if m.runs == nil {
 		return 0, false
@@ -293,7 +274,7 @@ func (m *Model) runLayout(review bool) runDialogLayout {
 		} else if m.runs.resetErr != "" {
 			body = []string{m.colors().error.Render(safe(m.runs.resetErr)), "Pending requests stay queued."}
 		}
-		layout.body = m.withRunActions(body, layout.actions, m.runs.resetFocus, layout.width, m.runBodyCapacity(false))
+		layout.body = m.dialogActions(body, layout.actions, m.runs.resetFocus, layout.width, m.runBodyCapacity(false))
 		return m.positionRunLayout(layout, true)
 	}
 	if !review {
@@ -319,7 +300,7 @@ func (m *Model) runRequestsLayout() runDialogLayout {
 }
 
 func (m *Model) positionRunLayout(layout runDialogLayout, review bool) runDialogLayout {
-	compact := strings.EqualFold(m.settings.Appearance, "compact")
+	compact := m.compactAppearance()
 	layout.headerRows = 3
 	if compact {
 		layout.headerRows = 1
@@ -580,7 +561,7 @@ func renderRunLayer(m *Model, backdrop []string, layout runDialogLayout) []strin
 	return dialogrender.Render(dialogrender.Options{
 		Mode: dialogrender.Overlay, Title: layout.title, Body: layout.body, Backdrop: backdrop,
 		BodyRows: len(layout.body),
-		Width:    layout.width, X: layout.x, Y: layout.y, ScreenWidth: m.width, Height: m.height, Compact: strings.EqualFold(m.settings.Appearance, "compact"),
+		Width:    layout.width, X: layout.x, Y: layout.y, ScreenWidth: m.width, Height: m.height, Compact: m.compactAppearance(),
 		ASCII: m.settings.ASCII, Surface: c.primary, Accent: c.accent, Secondary: c.secondary,
 		Pill: c.active, Divider: c.divider,
 		RestoreResets: func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) },
