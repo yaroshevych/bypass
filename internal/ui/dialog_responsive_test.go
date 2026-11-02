@@ -25,6 +25,17 @@ func TestDialogsKeepActionsVisibleInSmallWindows(t *testing.T) {
 				t.Errorf("%s %v hides command palette", appearance, size)
 			}
 			m.palette = nil
+			m.lifecycle = &lifecycleState{kind: "create", inputs: make([]input, 5)}
+			for _, action := range []struct {
+				focus int
+				label string
+			}{{3, "Save"}, {4, "Cancel"}} {
+				m.lifecycle.focus = action.focus
+				if !strings.Contains(strings.Join(m.lifecycleLines(), "\n"), action.label) {
+					t.Errorf("%s %v vault form hides focused %q", appearance, size, action.label)
+				}
+			}
+			m.lifecycle = nil
 			p := &runpkg.Pending{Context: context.Background()}
 			m.runs = &runState{visible: true, pending: []*runpkg.Pending{p}}
 			view := strings.Join(m.runDialogView(), "\n")
