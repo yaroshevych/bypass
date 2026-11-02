@@ -296,10 +296,7 @@ func (m *Model) destinationPointer(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	body, start, count := m.destinationDialogBody()
-	boxWidth := min(m.width-6, 60)
-	opts := m.dialogOptions()
-	opts.Body, opts.Width = body, boxWidth
-	opts.Error = safe(d.err)
+	opts, _ := m.dialogContent()
 	targets := make([]int, len(body))
 	for i := range targets {
 		targets[i] = -1
@@ -307,11 +304,6 @@ func (m *Model) destinationPointer(msg tea.MouseMsg) tea.Cmd {
 	first := len(d.message) + 2
 	for i := 0; i < count && first+i < len(targets); i++ {
 		targets[first+i] = i
-	}
-	for i, line := range body {
-		if line == dialogrender.BodyRule && i+2 < len(body) {
-			targets[i+1], targets[i+2] = count, count+1
-		}
 	}
 	target := dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target
 	if target >= 0 && target < count {

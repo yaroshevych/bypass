@@ -131,18 +131,6 @@ func (m *Model) centeredDialogGeometry(width, bodyRows int) dialogrender.Overlay
 	return dialogrender.LayoutOverlay(width, m.width, m.height, bodyRows, m.compactAppearance(), -1, -1)
 }
 
-func (m *Model) dialogActions(body []string, actions []dialogAction, focus, width, rows int) []string {
-	capacity := max(0, rows-len(actions)-1)
-	if len(body) > capacity {
-		body = body[:capacity]
-	}
-	if len(body) == 0 {
-		body = append(body, "")
-	}
-	body = append(body, dialogrender.BodyRule)
-	return append(body, m.dialogActionRows(actions, focus, max(1, width-4))...)
-}
-
 func (m *Model) dialogActionRows(actions []dialogAction, focus, width int) []string {
 	rows := make([]string, 0, len(actions))
 	for i, action := range actions {

@@ -11,7 +11,7 @@ import (
 func TestDialogErrorIsBeforeBodyAndPreservesActionRows(t *testing.T) {
 	for _, mode := range []Mode{Box, Overlay} {
 		for _, compact := range []bool{false, true} {
-			o := Options{Mode: mode, Title: "Dialog", Body: []string{"field", BodyRule, "Save", "Cancel"}, Error: "An error that needs to wrap on a narrow dialog", Width: 30, ScreenWidth: 48, Height: 14, Compact: compact, X: -1, Y: -1}
+			o := Options{Mode: mode, Title: "Dialog", Body: []string{"field", bodyRule, "Save", "Cancel"}, Error: "An error that needs to wrap on a narrow dialog", Width: 30, ScreenWidth: 48, Height: 14, Compact: compact, X: -1, Y: -1}
 			body, indices := PrepareBody(o)
 			if len(body) < 4 || indices[0] != -1 || !strings.Contains(ansi.Strip(body[0]), "An error") {
 				t.Fatalf("mode %d compact %t: error is not first", mode, compact)
@@ -237,7 +237,7 @@ func strip(lines []string) []string {
 func TestHitTestMatchesRenderedTargets(t *testing.T) {
 	for _, mode := range []Mode{Box, Overlay} {
 		for _, compact := range []bool{false, true} {
-			o := Options{Mode: mode, Title: "Dialog", Body: []string{"first target", BodyRule, "second target"}, Error: "A long error to wrap above the targets", Width: 28, ScreenWidth: 48, Height: 14, Compact: compact, X: -1, Y: -1}
+			o := Options{Mode: mode, Title: "Dialog", Body: []string{"first target", bodyRule, "second target"}, Error: "A long error to wrap above the targets", Width: 28, ScreenWidth: 48, Height: 14, Compact: compact, X: -1, Y: -1}
 			o.Backdrop = make([]string, o.Height)
 			for i := range o.Backdrop {
 				o.Backdrop[i] = strings.Repeat(" ", o.ScreenWidth)
@@ -275,7 +275,7 @@ func TestHitTestMatchesRenderedTargets(t *testing.T) {
 func TestLongErrorIndicatesClippingAndKeepsActions(t *testing.T) {
 	for _, compact := range []bool{false, true} {
 		o := Options{Mode: Overlay, Width: 24, ScreenWidth: 48, Height: 10, X: -1, Y: -1, Compact: compact,
-			Body: []string{"field", BodyRule, "Save", "Cancel"}, Error: strings.Repeat("long error message ", 20)}
+			Body: []string{"field", bodyRule, "Save", "Cancel"}, Error: strings.Repeat("long error message ", 20)}
 		body, _ := PrepareBody(o)
 		joined := strings.Join(strip(body), "\n")
 		if !strings.Contains(joined, "…") || !strings.Contains(joined, "Save") || !strings.Contains(joined, "Cancel") {
@@ -286,7 +286,7 @@ func TestLongErrorIndicatesClippingAndKeepsActions(t *testing.T) {
 
 func TestFullscreenKeepsActionsAtBottomAndHitsTargets(t *testing.T) {
 	o := Options{Mode: Overlay, Title: "Dialog", Width: 40, ScreenWidth: 60, Height: 16, Fullscreen: true, X: -1, Y: -1,
-		Body: []string{"Content", BodyRule, "Save", "Cancel"}}
+		Body: []string{"Content", bodyRule, "Save", "Cancel"}}
 	lines := strip(Render(o))
 	if !strings.Contains(lines[14], "Save") || !strings.Contains(lines[15], "Cancel") {
 		t.Fatalf("actions are not at the bottom: %q", strings.Join(lines, "\n"))

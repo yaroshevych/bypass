@@ -423,9 +423,11 @@ func lifecycleFocusOrder(l *lifecycleState) []int {
 	return append(fields, len(fields), len(fields)+1)
 }
 
-func (m *Model) lifecycleContent() (string, []string, string, int, map[int]int) {
+func (m *Model) lifecycleContent() (dialogrender.Options, []int) {
 	l, c := m.lifecycle, m.colors()
 	targets := map[int]int{}
+	var actions []dialogAction
+	actionFocus, actionBase := 0, 0
 	title := map[string]string{"create": "New Vault", "credentials": "Change Password", "info": "Database Info"}[l.kind]
 	dialogWidth := min(84, m.width-4)
 	if l.kind == "create" || l.kind == "credentials" {
@@ -468,8 +470,8 @@ func (m *Model) lifecycleContent() (string, []string, string, int, map[int]int) 
 		if l.proceed {
 			selected = 1
 		}
-		body = m.dialogActions(body, []dialogAction{{"Cancel", "enter"}, {"Change Credentials", "enter"}}, selected, dialogWidth, len(body)+3)
-		targets[len(body)-2], targets[len(body)-1] = 0, 1
+		actions = []dialogAction{{"Cancel", "enter"}, {"Change Credentials", "enter"}}
+		actionFocus = selected
 		footer = ""
 	} else {
 		labels := []string{"New password", "Confirm password"}
@@ -493,25 +495,15 @@ func (m *Model) lifecycleContent() (string, []string, string, int, map[int]int) 
 			inputs = append(inputs, field)
 		}
 		fields := m.dialogFields(inputs, actionWidth, true)
-		actionFocus := len(indices)
-		fields = m.dialogActions(fields, []dialogAction{{"Save", "ctrl+s"}, {"Cancel", "esc"}}, l.focus-actionFocus, dialogWidth, len(fields)+3)
-		capacity := m.dialogContentCapacity(12, 2)
-		focusLine := l.focus
-		if l.focus < actionFocus {
-			focusLine = l.focus*3 + 2
-		} else if l.focus >= actionFocus {
-			fieldRows := len(indices) * 3
-			focusLine = fieldRows + 1 + l.focus - actionFocus
-		}
+		actions = []dialogAction{{"Save", "ctrl+s"}, {"Cancel", "esc"}}
+		actionBase, actionFocus = len(indices), l.focus-len(indices)
+		capacity := max(2, m.dialogContentCapacity(12, 2)-len(body)-len(actions)-1)
+		focusLine := min(l.focus, len(indices)-1)*3 + 2
 		start := viewportOffset(focusLine, len(fields), capacity, l.offset)
 		end := min(len(fields), start+capacity)
 		for row := start; row < end; row++ {
-			if row < len(indices)*3 {
-				if row%3 != 0 {
-					targets[len(body)+row-start] = indices[row/3]
-				}
-			} else if row > len(indices)*3 {
-				targets[len(body)+row-start] = actionFocus + row - len(indices)*3 - 1
+			if row%3 != 0 {
+				targets[len(body)+row-start] = indices[row/3]
 			}
 		}
 		body = append(body, fields[start:end]...)
@@ -523,12 +515,26 @@ func (m *Model) lifecycleContent() (string, []string, string, int, map[int]int) 
 		}
 		body = append(body, c.accent.Render(message))
 	}
-	return title, body, footer, dialogWidth, targets
+	opts := m.dialogOptions()
+	opts.Mode, opts.Title, opts.Body, opts.StatusBar, opts.Width = dialogrender.Overlay, title, body, footer, dialogWidth
+	opts.Error, opts.X, opts.Y = safe(l.err), -1, -1
+	for i, row := range m.dialogActionRows(actions, actionFocus, max(1, dialogWidth-4)) {
+		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: actionBase + i})
+	}
+	rowTargets := make([]int, len(body))
+	for i := range rowTargets {
+		rowTargets[i] = -1
+	}
+	for row, target := range targets {
+		rowTargets[row] = target
+	}
+	return opts, rowTargets
 }
 
 func (m *Model) lifecycleLines() []string {
-	title, body, footer, width, _ := m.lifecycleContent()
-	return m.overlayError(title, body, footer, m.lifecycle.err, width, -1, -1)
+	opts, _ := m.lifecycleContent()
+	opts.Backdrop = m.modalBackdrop()
+	return dialogrender.Render(opts)
 }
 
 func renderVaultPath(path, home string, accent lipgloss.Style) string {
@@ -548,17 +554,7 @@ func (m *Model) lifecyclePointer(msg tea.MouseMsg) tea.Cmd {
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft || m.lifecycle.busy {
 		return nil
 	}
-	_, body, footer, width, targets := m.lifecycleContent()
-	opts := m.dialogOptions()
-	opts.Mode, opts.Body, opts.Error, opts.StatusBar, opts.Width = dialogrender.Overlay, body, safe(m.lifecycle.err), footer, width
-	opts.X, opts.Y = -1, -1
-	rowTargets := make([]int, len(body))
-	for i := range rowTargets {
-		rowTargets[i] = -1
-	}
-	for row, target := range targets {
-		rowTargets[row] = target
-	}
+	opts, rowTargets := m.lifecycleContent()
 	target := dialogrender.HitTest(opts, msg.X, msg.Y, rowTargets).Target
 	if target < 0 {
 		return nil

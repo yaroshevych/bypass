@@ -26,8 +26,8 @@ type Header struct {
 	Count          string
 }
 
-// BodyRule marks a body row as a full-width rule joined to both dialog sides.
-const BodyRule = "\x00bypass-dialog-body-rule"
+// bodyRule marks a body row as a full-width rule joined to both dialog sides.
+const bodyRule = "\x00bypass-dialog-body-rule"
 
 // Action is a rendered button and its semantic target.
 type Action struct {
@@ -184,7 +184,7 @@ func prepareBody(o Options) ([]string, []int) {
 		indices[i] = i
 	}
 	if len(o.Actions) > 0 {
-		body = append(body, BodyRule)
+		body = append(body, bodyRule)
 		indices = append(indices, -1)
 		for i, action := range o.Actions {
 			body = append(body, action.Text)
@@ -226,7 +226,7 @@ func prepareBody(o Options) ([]string, []int) {
 	// Keep room for actions, then the error; clip ordinary content first.
 	reserve := 0
 	for i := len(body) - 1; i >= 0; i-- {
-		if body[i] == BodyRule {
+		if body[i] == bodyRule {
 			reserve = len(body) - i
 			break
 		}
@@ -258,7 +258,7 @@ func prepareBody(o Options) ([]string, []int) {
 		// Keep stacked actions visible when a short terminal clips the body.
 		rule := -1
 		for i := len(body) - 1; i >= 0; i-- {
-			if body[i] == BodyRule {
+			if body[i] == bodyRule {
 				rule = i
 				break
 			}
@@ -274,7 +274,7 @@ func prepareBody(o Options) ([]string, []int) {
 	}
 	if o.Fullscreen && len(body) < maxBody {
 		for i := len(body) - 1; i >= 0; i-- {
-			if body[i] == BodyRule {
+			if body[i] == bodyRule {
 				padding := maxBody - len(body)
 				body = append(append(append([]string(nil), body[:i]...), make([]string, padding)...), body[i:]...)
 				paddingIndices := make([]int, padding)
@@ -359,7 +359,7 @@ func renderFullscreen(o Options, background []string, footer string) []string {
 	}
 	lines := []string{fit(header, width)}
 	for _, line := range o.Body {
-		if line == BodyRule {
+		if line == bodyRule {
 			line = strings.Repeat("─", width)
 			if o.ASCII {
 				line = strings.Repeat("-", width)
@@ -426,7 +426,7 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 		box = []string{o.Divider.Render(topRule), wrap(header, false), o.Divider.Render(bottomRule)}
 	}
 	for _, line := range o.Body {
-		if line == BodyRule {
+		if line == bodyRule {
 			box = append(box, o.Divider.Render(leftRule+strings.Repeat(horizontal, max(0, width-2))+rightRule))
 			continue
 		}
@@ -482,8 +482,8 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 		}
 	}
 	for _, line := range o.Body {
-		if line == BodyRule {
-			content = append(content, BodyRule)
+		if line == bodyRule {
+			content = append(content, bodyRule)
 		} else {
 			content = append(content, "  "+fit(line, inner))
 		}
@@ -516,7 +516,7 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 	}
 	frame(top-1, topBorder)
 	for i, line := range content {
-		if line == BodyRule {
+		if line == bodyRule {
 			frame(top+i, o.Divider.Render(leftRule+strings.Repeat(horizontal, max(0, width-2))+rightRule))
 			continue
 		}
