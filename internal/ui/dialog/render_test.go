@@ -320,3 +320,15 @@ func TestStructuredActionsPreserveTargetsWhenContentIsClipped(t *testing.T) {
 		}
 	}
 }
+
+func TestFixedBodyReservesFooterOnce(t *testing.T) {
+	o := Options{Mode: Overlay, Fullscreen: true, Width: 48, ScreenWidth: 48, Height: 8, BodyRows: 20, StatusBar: "esc close", Body: []string{"1", "2", "3", "4", "5", "6"}}
+	body, _ := PrepareBody(o)
+	if len(body) != 6 {
+		t.Fatalf("body rows = %d, want 6", len(body))
+	}
+	lines := strip(Render(o))
+	if !strings.Contains(lines[6], "6") || !strings.Contains(lines[7], "esc close") {
+		t.Fatalf("body or footer clipped: %q", strings.Join(lines, "\n"))
+	}
+}

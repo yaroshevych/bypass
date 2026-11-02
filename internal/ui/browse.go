@@ -295,21 +295,13 @@ func (m *Model) destinationPointer(msg tea.MouseMsg) tea.Cmd {
 	if d == nil || d.kind != "destination" {
 		return nil
 	}
-	body, start, count := m.destinationDialogBody()
-	opts, _ := m.dialogContent()
-	targets := make([]int, len(body))
-	for i := range targets {
-		targets[i] = -1
-	}
-	first := len(d.message) + 2
-	for i := 0; i < count && first+i < len(targets); i++ {
-		targets[first+i] = i
-	}
+	opts, targets := m.dialogContent()
+	actionBase := len(d.filteredGroups())
 	target := dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target
-	if target >= 0 && target < count {
-		d.selected, d.destinationFocus = start+target, 0
-	} else if target >= count {
-		d.destinationFocus = target - count + 1
+	if target >= 0 && target < actionBase {
+		d.selected, d.destinationFocus = target, 0
+	} else if target >= actionBase {
+		d.destinationFocus = target - actionBase + 1
 		return m.dialogKey(tea.KeyMsg{Type: tea.KeyEnter})
 	}
 	return nil

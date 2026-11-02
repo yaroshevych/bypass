@@ -207,10 +207,11 @@ func prepareBody(o Options) ([]string, []int) {
 		maxBody = min(maxBody, o.MaxBodyRows)
 	}
 	if o.BodyRows > 0 {
-		maxBody = min(o.BodyRows, maxBody)
+		bodyRows := o.BodyRows
 		if statusBar != "" {
-			maxBody = max(1, maxBody-1)
+			bodyRows = max(1, bodyRows-1)
 		}
+		maxBody = min(bodyRows, maxBody)
 	}
 	var errorLines []string
 	errorWidth := o.Width

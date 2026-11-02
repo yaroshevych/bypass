@@ -373,6 +373,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 	body := append([]string(nil), d.message...)
 	fieldStart, fieldEnd, actionBase, actionFocus := -1, -1, 0, d.selected
 	var actions []dialogAction
+	var contentTargets []int
 	footer := ""
 	if d.kind == "duplicates" {
 		end := min(len(d.duplicates.Renames), d.offset+max(1, min(8, m.height-14)))
@@ -441,9 +442,8 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 			footer = ""
 		}
 	case "destination":
-		var count int
-		body, _, count = m.destinationDialogBody()
-		actions, actionBase, actionFocus = []dialogAction{{"Save", "enter"}, {"Cancel", "esc"}}, count, d.destinationFocus-1
+		body, contentTargets = m.destinationDialogBody()
+		actions, actionBase, actionFocus = []dialogAction{{"Save", "enter"}, {"Cancel", "esc"}}, len(d.filteredGroups()), d.destinationFocus-1
 		footer = ""
 	default:
 		body = append(body, "")
@@ -483,6 +483,9 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 	for i := fieldStart; i >= 0 && i < fieldEnd; i++ {
 		targets[i] = 0
 	}
+	if contentTargets != nil {
+		copy(targets, contentTargets)
+	}
 	opts = m.dialogOptions()
 	opts.Title, opts.Body, opts.StatusBar, opts.Width, opts.Error = d.title, body, footer, width, safe(d.err)
 	for i, row := range m.dialogActionRows(actions, actionFocus, m.dialogInnerWidth(width)) {
@@ -514,24 +517,25 @@ func (m *Model) dialogPointer(msg tea.MouseMsg) tea.Cmd {
 	return m.dialogKey(tea.KeyMsg{Type: tea.KeyEnter})
 }
 
-func (m *Model) destinationDialogBody() (body []string, start, count int) {
+func (m *Model) destinationDialogBody() ([]string, []int) {
 	d := m.dialog
-	body = append(body, d.message...)
+	rows := make([]listComponentOutput, 0, len(d.message)+2)
+	for _, line := range d.message {
+		rows = append(rows, listComponentOutput{text: line, item: -1})
+	}
+	rows = append(rows, listComponentOutput{text: m.colors().secondary.Render(" Move item to:"), item: -1}, listComponentOutput{item: -1})
 	groups := d.filteredGroups()
 	start, capacity := d.destinationViewport(m.height, groups)
 	start, end := viewportRange(len(groups), capacity, start)
-	body = append(body, m.colors().secondary.Render(" Move item to:"), "")
-	rows := make([]listComponentRow, 0, capacity)
+	items := make([]listComponentRow, 0, capacity)
 	for i := start; i < end; i++ {
-		rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: groupLabel(groups[i].Path), selected: d.destinationFocus == 0 && i == d.selected, activeFill: true, pillSelected: true, classicInset: true})
+		items = append(items, listComponentRow{kind: listComponentItem, item: i, text: groupLabel(groups[i].Path), selected: d.destinationFocus == 0 && i == d.selected, activeFill: true, pillSelected: true, classicInset: true})
 	}
 	if len(groups) == 0 {
-		body = append(body, "No matching groups")
+		rows = append(rows, listComponentOutput{text: "No matching groups", item: -1})
 	} else {
 		width := m.dialogInnerWidth(min(m.width-6, 60))
-		for _, row := range m.renderListComponent(rows, listComponentOptions{width: width, compact: m.compactAppearance(), ascii: m.settings.ASCII, focused: true, sidebar: true}) {
-			body = append(body, row.text)
-		}
+		rows = append(rows, m.renderListComponent(items, listComponentOptions{width: width, compact: m.compactAppearance(), ascii: m.settings.ASCII, focused: true, sidebar: true})...)
 	}
-	return body, start, end - start
+	return listContent(rows)
 }
