@@ -74,12 +74,8 @@ type dialogGeometry struct {
 }
 
 func (m *Model) centeredDialogGeometry(width, bodyRows int) dialogGeometry {
-	headerRows := 3
-	if m.compactAppearance() {
-		headerRows = 1
-	}
-	height := headerRows + bodyRows + 1
-	return dialogGeometry{x: max(0, (m.width-width)/2), y: max(0, (m.height-height)/2), width: width, height: height, headerRows: headerRows}
+	g := dialogrender.LayoutOverlay(width, m.width, m.height, bodyRows, m.compactAppearance(), -1, -1)
+	return dialogGeometry{x: g.X, y: g.Y, width: g.Width, height: g.Height, headerRows: g.HeaderRows}
 }
 
 func (g dialogGeometry) actionAt(x, y, firstRow, count int) (int, bool) {

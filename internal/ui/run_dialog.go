@@ -293,6 +293,7 @@ func (m *Model) runRequestsLayout() runDialogLayout {
 
 func (m *Model) positionRunLayout(layout runDialogLayout, review bool) runDialogLayout {
 	g := m.centeredDialogGeometry(layout.width, len(layout.body))
+	layout.width = g.width
 	layout.headerRows = g.headerRows
 	layout.x = g.x
 	layout.leftEdge = layout.x

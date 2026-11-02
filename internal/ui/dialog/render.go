@@ -51,6 +51,32 @@ type Options struct {
 	RestoreResets              func(string) string
 }
 
+// OverlayWidth returns the actual width used by an overlay frame.
+func OverlayWidth(width, screenWidth int) int {
+	return min(max(20, width), max(20, screenWidth-2))
+}
+
+// OverlayGeometry describes the frame used for rendering and hit testing.
+type OverlayGeometry struct {
+	X, Y, Width, Height, HeaderRows int
+}
+
+func LayoutOverlay(width, screenWidth, screenHeight, bodyRows int, compact bool, x, y int) OverlayGeometry {
+	width = OverlayWidth(width, screenWidth)
+	header := 3
+	if compact {
+		header = 1
+	}
+	height := header + bodyRows + 1
+	if x < 0 {
+		x = (screenWidth - width) / 2
+	}
+	if y < 0 {
+		y = (screenHeight - height) / 2
+	}
+	return OverlayGeometry{X: min(max(0, x), max(0, screenWidth-width)), Y: min(max(0, y), max(0, screenHeight-height)), Width: width, Height: height, HeaderRows: header}
+}
+
 // Render places a framed dialog over a pre-rendered, already shaded backdrop.
 func Render(o Options) []string {
 	if o.Height <= 0 {
@@ -58,7 +84,7 @@ func Render(o Options) []string {
 	}
 	width := o.Width
 	if o.Mode == Overlay {
-		width = min(max(20, width), max(20, o.ScreenWidth-2))
+		width = OverlayWidth(width, o.ScreenWidth)
 	}
 	if width <= 0 {
 		width = max(1, o.Width)
@@ -165,16 +191,12 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 			box[i] = o.RestoreResets(box[i])
 		}
 	}
-	x := o.X
-	if x < 0 {
-		x = (o.ScreenWidth - width) / 2
+	headerRows := 3
+	if o.Compact {
+		headerRows = 1
 	}
-	x = min(max(0, x), max(0, o.ScreenWidth-width))
-	y := o.Y
-	if y < 0 {
-		y = (o.Height - len(box)) / 2
-	}
-	y = min(max(0, y), max(0, o.Height-len(box)))
+	g := LayoutOverlay(width, o.ScreenWidth, o.Height, len(box)-headerRows-1, o.Compact, o.X, o.Y)
+	x, y := g.X, g.Y
 	for i, line := range box {
 		row := y + i
 		if row >= o.Height {

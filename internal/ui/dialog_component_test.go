@@ -41,3 +41,15 @@ func TestDialogGeometryActionHitTesting(t *testing.T) {
 		}
 	}
 }
+
+func TestDialogGeometryClampsToSmallScreen(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 48, 14
+	for _, appearance := range []string{"classic", "compact"} {
+		m.settings.Appearance = appearance
+		g := m.centeredDialogGeometry(80, 6)
+		if g.width != 46 || g.x < 0 || g.x+g.width > m.width || g.y < 0 || g.y+g.height > m.height {
+			t.Fatalf("%s geometry does not fit: %+v", appearance, g)
+		}
+	}
+}
