@@ -44,6 +44,47 @@ const (
 	unlock
 )
 
+// activeLayer identifies the topmost surface that owns user input.
+type uiLayer uint8
+
+const (
+	layerWorkspace uiLayer = iota
+	layerTiny
+	layerRequests
+	layerPrivacy
+	layerDialog
+	layerLifecycle
+	layerExtras
+	layerGrand
+	layerPalette
+	layerJump
+)
+
+func (m *Model) activeLayer() uiLayer {
+	switch {
+	case m.width < 48 || m.height < 14:
+		return layerTiny
+	case m.gate.Protected():
+		return layerPrivacy
+	case m.runs != nil && m.runs.visible:
+		return layerRequests
+	case m.dialog != nil:
+		return layerDialog
+	case m.lifecycle != nil:
+		return layerLifecycle
+	case m.extras != nil:
+		return layerExtras
+	case m.grand:
+		return layerGrand
+	case m.palette != nil:
+		return layerPalette
+	case m.jump:
+		return layerJump
+	default:
+		return layerWorkspace
+	}
+}
+
 type Model struct {
 	runs                                    *runState
 	detailRequest                           uint64
@@ -489,7 +530,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if m.debugAppearanceToggle(key) {
 		return nil
 	}
-	if m.layout().Mode == "tiny" {
+	if m.activeLayer() == layerTiny {
 		if key == "ctrl+c" {
 			m.Close()
 			return tea.Quit
@@ -500,7 +541,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	}
-	if m.gate.Protected() {
+	if m.activeLayer() == layerPrivacy {
 		return m.pinKey(k)
 	}
 	if key == "ctrl+k" {
@@ -510,22 +551,19 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		m.cancelPendingOpen()
 		return m.lockCurrent(true)
 	}
-	if m.dialog != nil {
+	switch m.activeLayer() {
+	case layerDialog:
 		return m.dialogKey(k)
-	}
-	if m.lifecycle != nil {
+	case layerLifecycle:
 		return m.lifecycleKey(k)
-	}
-	if cmd, handled := m.extrasKey(k); handled {
+	case layerExtras:
+		cmd, _ := m.extrasKey(k)
 		return cmd
-	}
-	if m.grand {
+	case layerGrand:
 		return m.grandKey(k)
-	}
-	if m.palette != nil {
+	case layerPalette:
 		return m.paletteKey(k)
-	}
-	if m.jump {
+	case layerJump:
 		return m.jumpKey(k)
 	}
 	if m.dialog == nil && m.screen == browse && !m.writing {
@@ -542,9 +580,6 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	if s := m.ws.ActiveSession(); s != nil && s.DB != nil && m.screen == browse {
 		s.LastActivity = m.now()
-	}
-	if m.dialog != nil {
-		return m.dialogKey(k)
 	}
 	if key == "ctrl+c" {
 		return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit })

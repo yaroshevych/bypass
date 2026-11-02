@@ -74,7 +74,7 @@ func (m *Model) View() string {
 	secondary := styles.secondary
 	var lines []string
 	modal := false
-	if m.layout().Mode == "tiny" {
+	if m.activeLayer() == layerTiny {
 		minimum := "Resize to at least 48 × 14"
 		if m.settings.ASCII {
 			minimum = "Resize to at least 48x14"
@@ -83,7 +83,7 @@ func (m *Model) View() string {
 		if m.editor != nil && m.editor.dirty() {
 			lines[3] = "Draft kept · resize · ctrl+c quits"
 		}
-	} else if m.runs != nil && m.runs.visible && !m.gate.Protected() {
+	} else if m.activeLayer() == layerRequests {
 		lines = m.runDialogView()
 		modal = true
 	} else if advanced, ok := m.advancedScreen(); ok {

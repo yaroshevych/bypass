@@ -531,3 +531,19 @@ func TestRunPaletteEntryAndReloadShortcut(t *testing.T) {
 		t.Fatal("run requests stole vault reload shortcut")
 	}
 }
+
+func TestTinyScreenDoesNotSendKeysToHiddenRequests(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 47, 13
+	p := &runpkg.Pending{Context: context.Background()}
+	m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, reviewFocus: 2}
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if !m.runs.review || m.runs.reviewFocus != 2 {
+		t.Fatal("hidden request dialog handled input on tiny screen")
+	}
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if m.runs.reviewFocus == 2 {
+		t.Fatal("visible review did not regain input after resize")
+	}
+}

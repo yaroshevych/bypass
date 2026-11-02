@@ -405,25 +405,20 @@ func (m *Model) jumpKey(k tea.KeyMsg) tea.Cmd {
 }
 
 func (m *Model) advancedScreen() ([]string, bool) {
-	if m.gate.Protected() {
+	switch m.activeLayer() {
+	case layerPrivacy:
 		return m.pinLines(), true
-	}
-	if m.dialog != nil {
+	case layerDialog:
 		return m.dialogLines(), true
-	}
-	if m.lifecycle != nil {
+	case layerLifecycle:
 		return m.lifecycleLines(), true
-	}
-	if m.extras != nil {
+	case layerExtras:
 		return m.extrasLines(), true
-	}
-	if m.grand {
+	case layerGrand:
 		return m.grandLines(), true
-	}
-	if m.palette != nil {
+	case layerPalette:
 		return m.paletteLines(), true
-	}
-	if m.jump {
+	case layerJump:
 		body := []string{"p Password   u Username   w URL   n Notes"}
 		if e := m.selected(); e != nil {
 			for _, field := range e.Fields {

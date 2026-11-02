@@ -205,7 +205,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 	}
 	switch msg := msg.(type) {
 	case tea.MouseMsg:
-		if r.visible && !m.gate.Protected() {
+		if m.activeLayer() == layerRequests {
 			if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && !r.busy && !r.resetBusy {
 				if action, ok := m.runActionAt(msg.X, msg.Y); ok {
 					return m.activateRunAction(action), true
@@ -310,7 +310,13 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		m.removeRun(msg.pending)
 		return nil, true
 	case tea.KeyMsg:
+		if r.visible && m.activeLayer() == layerTiny {
+			return nil, false
+		}
 		if msg.String() == "ctrl+l" || msg.String() == "ctrl+c" {
+			return nil, false
+		}
+		if m.gate.Protected() {
 			return nil, false
 		}
 		if msg.String() == "ctrl+p" && r.visible {
@@ -318,9 +324,6 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				return nil, true
 			}
 			r.visible, r.review, r.choosing, r.reviewed, r.resetConfirm = false, false, false, nil, false
-			return nil, false
-		}
-		if m.gate.Protected() {
 			return nil, false
 		}
 		if msg.String() == "ctrl+b" && m.editor == nil && m.dialog == nil {

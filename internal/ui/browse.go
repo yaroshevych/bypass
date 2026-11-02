@@ -9,32 +9,25 @@ import (
 
 func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	m.tabHovered = false
-	if m.layout().Mode == "tiny" {
+	switch m.activeLayer() {
+	case layerTiny, layerPrivacy, layerRequests:
 		return nil
-	}
-	if m.gate.Protected() {
-		return nil
-	}
-	if m.dialog != nil {
+	case layerDialog:
 		m.dragging = 0
 		if m.dialog.kind == "destination" && !m.writing && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
 			return m.destinationPointer(msg)
 		}
 		return nil
-	}
-	if m.lifecycle != nil {
+	case layerLifecycle:
 		return m.lifecyclePointer(msg)
-	}
-	if cmd, handled := m.extrasPointer(msg); handled {
+	case layerExtras:
+		cmd, _ := m.extrasPointer(msg)
 		return cmd
-	}
-	if m.grand {
+	case layerGrand:
 		return m.grandPointer(msg)
-	}
-	if m.palette != nil {
+	case layerPalette:
 		return m.palettePointer(msg)
-	}
-	if m.jump {
+	case layerJump:
 		return nil
 	}
 	if msg.Action == tea.MouseActionMotion && m.dragging == 0 {
