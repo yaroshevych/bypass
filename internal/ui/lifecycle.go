@@ -481,7 +481,6 @@ func (m *Model) lifecycleContent() (string, []string, string, int, map[int]int) 
 			secretStart = 1
 		}
 		var inputs []inputFieldView
-		compact := m.compactAppearance()
 		// Overlay rows have a two-cell border and one cell of body padding
 		// on each side.
 		actionWidth := max(1, dialogWidth-4)
@@ -494,19 +493,8 @@ func (m *Model) lifecycleContent() (string, []string, string, int, map[int]int) 
 			inputs = append(inputs, field)
 		}
 		fields := m.dialogFields(inputs, actionWidth, true)
-		if l.kind == "create" || l.kind == "credentials" {
-			fields = append(fields, dialogrender.BodyRule)
-		} else {
-			fields = append(fields, c.rule(actionWidth))
-		}
 		actionFocus := len(indices)
-		for _, action := range []struct {
-			label, shortcut string
-			index           int
-		}{{"Save", "ctrl+s", actionFocus}, {"Cancel", "esc", actionFocus + 1}} {
-			line := renderDialogAction(action.label, action.shortcut, actionWidth, compact, m.settings.ASCII, l.focus == action.index, &m.styles)
-			fields = append(fields, line)
-		}
+		fields = m.dialogActions(fields, []dialogAction{{"Save", "ctrl+s"}, {"Cancel", "esc"}}, l.focus-actionFocus, dialogWidth, len(fields)+3)
 		capacity := max(2, m.height-12)
 		focusLine := l.focus
 		if l.focus < actionFocus {

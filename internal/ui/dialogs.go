@@ -406,12 +406,12 @@ func (m *Model) dialogLines() []string {
 		dialogWidth := min(m.width-6, 52)
 		actionWidth := max(1, dialogWidth-4)
 		body = append(body, secondary.Render(" 4–12 digits · current run only"), "")
-		body = append(body, renderStackedInputField(inputFieldView{label: "Session PIN", value: &d.input, secret: true, focused: d.selected == 0, indent: 1}, actionWidth, compact, c)...)
+		body = append(body, m.dialogFields([]inputFieldView{{label: "Session PIN", value: &d.input, secret: true, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
 		body = m.dialogActions(body, []dialogAction{{"Save", "enter"}, {"Cancel", "esc"}}, d.selected-1, actionWidth+4, len(body)+3)
 		footer = ""
 	case "group":
 		actionWidth := dialogBoxInputWidth(m.width)
-		body = append(body, renderStackedInputField(inputFieldView{label: "Group name", value: &d.input, focused: d.selected == 0, indent: 1}, actionWidth, compact, c)...)
+		body = append(body, m.dialogFields([]inputFieldView{{label: "Group name", value: &d.input, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
 		body = m.dialogActions(body, []dialogAction{{"Create", "enter"}, {"Cancel", "esc"}}, d.selected-1, actionWidth+4, len(body)+3)
 		footer = ""
 	case "generator":
@@ -419,7 +419,7 @@ func (m *Model) dialogLines() []string {
 			body = append(body, "")
 			dialogWidth := min(m.width-6, 72)
 			actionWidth := max(1, dialogWidth-4)
-			body = append(body, renderStackedInputField(inputFieldView{label: "Length (8–64)", value: &d.input, focused: d.selected == 0, indent: 1}, actionWidth, compact, c)...)
+			body = append(body, m.dialogFields([]inputFieldView{{label: "Length (8–64)", value: &d.input, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
 			body = m.dialogActions(body, []dialogAction{{"Generate", "enter"}, {"Cancel", "esc"}}, d.selected-1, actionWidth+4, len(body)+3)
 			footer = ""
 		} else {
