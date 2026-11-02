@@ -31,9 +31,8 @@ func (m *Model) runRequestsBody() []string {
 	} else {
 		contentRows := max(0, m.runBodyCapacity(true)-len(m.runRequestActions())-1)
 		requestRows := max(0, contentRows-1)
-		start := max(0, r.index-requestRows/2)
+		start := viewportOffset(r.index, len(r.pending), requestRows, r.index-requestRows/2)
 		end := min(len(r.pending), start+requestRows)
-		start = max(0, end-requestRows)
 		compact := m.compactAppearance()
 		var rows []listComponentRow
 		for i := start; i < end; i++ {
