@@ -651,8 +651,8 @@ func (m *Model) paletteBody() (string, []string, string) {
 		body = append(body, "")
 	}
 	capacity := max(1, m.height-12)
-	start := min(p.offset, max(0, len(rows)-1))
-	for i := start; i < len(rows) && i < start+capacity; i++ {
+	start, end := viewportRange(len(rows), capacity, p.offset)
+	for i := start; i < end; i++ {
 		body = append(body, rows[i].text)
 	}
 	if len(choices) == 0 {

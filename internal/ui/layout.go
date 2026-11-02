@@ -149,3 +149,12 @@ func viewportOffset(index, total, capacity, previous int) int {
 	}
 	return min(maxStart, max(0, start))
 }
+
+// viewportRange returns the visible slice for a previously calculated offset.
+func viewportRange(total, capacity, offset int) (int, int) {
+	if total <= 0 || capacity <= 0 {
+		return 0, 0
+	}
+	start := min(max(0, offset), max(0, total-capacity))
+	return start, min(total, start+capacity)
+}

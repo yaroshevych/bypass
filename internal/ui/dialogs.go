@@ -450,9 +450,10 @@ func (m *Model) dialogLines() []string {
 	case "destination":
 		groups := d.filteredGroups()
 		start, capacity := d.destinationViewport(m.height, groups)
+		start, end := viewportRange(len(groups), capacity, start)
 		body = append(body, secondary.Render(" Move item to:"), "")
 		rows := make([]listComponentRow, 0, capacity)
-		for i := start; i < len(groups) && i < start+capacity; i++ {
+		for i := start; i < end; i++ {
 			rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: groupLabel(groups[i].Path), selected: d.destinationFocus == 0 && i == d.selected, activeFill: true, pillSelected: true, classicInset: true})
 		}
 		if len(groups) == 0 {

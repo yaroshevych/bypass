@@ -48,6 +48,17 @@ func TestLayoutResponsiveModesAndZoom(t *testing.T) {
 	}
 }
 
+func TestViewportRangeClampsOffsets(t *testing.T) {
+	for _, tc := range []struct{ total, capacity, offset, start, end int }{
+		{0, 3, 0, 0, 0}, {5, 0, 3, 0, 0}, {5, 3, 99, 2, 5}, {5, 3, -1, 0, 3}, {5, 3, 1, 1, 4},
+	} {
+		start, end := viewportRange(tc.total, tc.capacity, tc.offset)
+		if start != tc.start || end != tc.end {
+			t.Fatalf("viewportRange(%d, %d, %d) = (%d, %d)", tc.total, tc.capacity, tc.offset, start, end)
+		}
+	}
+}
+
 func TestLayoutRespectsPaneWidthsWithoutMutatingView(t *testing.T) {
 	m := New(Options{})
 	m.ws.Open(fixture("/tmp/layout-widths.kdbx"))
