@@ -209,6 +209,34 @@ func TestRunLockInvalidatesReviewedApproval(t *testing.T) {
 	}
 }
 
+func TestUnavailableRunReferenceExplainsFailureAndCanRetry(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, size := range [][2]int{{48, 14}, {80, 24}, {120, 35}} {
+			m := New(Options{})
+			m.settings.Appearance = appearance
+			m.width, m.height = size[0], size[1]
+			p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "dev-rw", Digest: "scope"}, Request: runpkg.Request{Command: []string{"/bin/sh"}, References: []string{"bypass://Missing%20Entry#password"}}}
+			m.updateRun(RunRequestMsg{Pending: p})
+			m.updateRun(tea.KeyMsg{Type: tea.KeyCtrlB})
+			m.updateRun(tea.KeyMsg{Type: tea.KeyEnter})
+			view := m.View()
+			for _, text := range []string{"dev-rw", "Cannot resolve secret", "bypass://Missing%20Entry#password", "Unlock vault or check entry name", "Retry", "Deny", "Return to vault"} {
+				if !strings.Contains(view, text) {
+					t.Errorf("%s %v missing reference feedback %q", appearance, size, text)
+				}
+			}
+			if strings.Contains(view, "Allow once") {
+				t.Fatal("unresolved reference offered approval")
+			}
+			m.ws.Open(&vault.Database{Path: "/vault", RootUUID: "root", Entries: []vault.Entry{{UUID: "entry", Fields: []vault.Field{{Name: "Title", Value: "Missing Entry"}, {Name: "Password", Protected: true}}}}})
+			m.updateRun(tea.KeyMsg{Type: tea.KeyEnter})
+			if m.runs.unavailable != "" || m.runs.err != "" || len(m.runs.targets) != 1 || !strings.Contains(m.View(), "Allow once") {
+				t.Errorf("%s %v retry did not enable approval after vault became available", appearance, size)
+			}
+		}
+	}
+}
+
 func TestRunPaletteEntryAndReloadShortcut(t *testing.T) {
 	m := New(Options{})
 	found := false

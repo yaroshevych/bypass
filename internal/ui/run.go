@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,11 @@ import (
 
 type RunRequestMsg struct{ Pending *runpkg.Pending }
 type RunDisconnectedMsg struct{}
+
+type unavailableRunReference struct{ reference string }
+
+func (*unavailableRunReference) Error() string { return "entry not found in unlocked vaults" }
+
 type runTarget struct {
 	ref      string
 	session  string
@@ -44,6 +50,7 @@ type runState struct {
 	choiceIndex int
 	chosen      map[*runpkg.Pending]map[string]runTarget
 	err         string
+	unavailable string
 	newIdentity map[*runpkg.Pending]bool
 }
 
@@ -274,6 +281,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			r.visible = !r.visible
 			r.targets = nil
 			r.choices = nil
+			r.err, r.unavailable = "", ""
 			return nil, true
 		}
 		if !r.visible {
@@ -297,6 +305,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		case "pgup":
 			r.offset = max(0, r.offset-4)
 		case "up", "shift+tab":
+			r.err, r.unavailable = "", ""
 			if len(r.choices) > 0 {
 				r.choiceIndex = max(0, r.choiceIndex-1)
 				return nil, true
@@ -305,6 +314,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			r.targets = nil
 			r.offset = 0
 		case "down", "tab":
+			r.err, r.unavailable = "", ""
 			if len(r.choices) > 0 {
 				r.choiceIndex = min(len(r.choices)-1, r.choiceIndex+1)
 				return nil, true
@@ -330,8 +340,13 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				r.choiceIndex = 0
 			}
 			targets, err := m.resolveRunTargets(p)
+			r.unavailable = ""
 			if err != nil {
 				r.err = err.Error()
+				var missing *unavailableRunReference
+				if errors.As(err, &missing) {
+					r.unavailable = missing.reference
+				}
 				return nil, true
 			}
 			r.targets = targets
@@ -381,6 +396,7 @@ func (m *Model) pruneRuns() {
 			r.choices = nil
 			r.pending = append(r.pending[:i], r.pending[i+1:]...)
 			r.targets = nil
+			r.err, r.unavailable = "", ""
 		}
 	}
 	r.index = min(r.index, max(0, len(r.pending)-1))
@@ -401,6 +417,7 @@ func (m *Model) removeRun(p *runpkg.Pending) {
 	r.offset = 0
 	m.setNotice("secret request completed", false)
 	r.err = ""
+	r.unavailable = ""
 }
 func (m *Model) resolveRunTargets(p *runpkg.Pending) ([]runTarget, error) {
 	var targets []runTarget
@@ -465,7 +482,7 @@ func (m *Model) resolveRunTargets(p *runpkg.Pending) ([]runTarget, error) {
 		}
 		sort.Slice(matches, func(i, j int) bool { return matches[i].database.Path < matches[j].database.Path })
 		if len(matches) == 0 {
-			return nil, fmt.Errorf("reference unavailable; unlock its vault and retry")
+			return nil, &unavailableRunReference{reference: text}
 		}
 		if len(matches) > 1 {
 			selected, ok := m.runs.chosen[p][text]
@@ -489,6 +506,9 @@ func (m *Model) resolveRunTargets(p *runpkg.Pending) ([]runTarget, error) {
 }
 func (m *Model) runLines() []string {
 	r := m.runs
+	if r.unavailable != "" && r.index < len(r.pending) {
+		return m.runUnavailableLines()
+	}
 	if m.height < 30 && len(r.targets) > 0 {
 		return m.runCompactLines()
 	}
@@ -564,6 +584,24 @@ func (m *Model) runLines() []string {
 		lines = append(lines, r.err)
 	}
 	return append(lines, "", "[esc] Return to vault · [ctrl+b] Pending requests")
+}
+
+func (m *Model) runUnavailableLines() []string {
+	r := m.runs
+	p := r.pending[r.index]
+	width := max(1, min(m.width-10, 86))
+	lines := []string{}
+	if p.Identity.Digest != "" {
+		lines = append(lines, runIdentityLabel(p, r.newIdentity[p]))
+	}
+	lines = append(lines, safe(strings.Join(p.Request.Command, " ")), "Cannot resolve secret:")
+	reference := strings.Split(ansi.Wrap(safe(r.unavailable), width, ""), "\n")
+	if len(reference) > 2 {
+		reference = reference[:2]
+		reference[1] = ansi.Truncate(reference[1], width-1, "") + "…"
+	}
+	lines = append(lines, reference...)
+	return append(lines, "Unlock vault or check entry name", "", "[enter] Retry · [d] Deny", "[esc] Return to vault")
 }
 
 func osStatPlain(path string) (bool, error) {

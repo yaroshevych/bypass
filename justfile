@@ -8,6 +8,22 @@ run *args:
 debug *args:
     @go run -tags debug ./cmd/bypass --debug-env .env {{args}}
 
+# Request a vault field from a running `just debug`; use a fresh demo identity.
+# Example: just debug-run 'bypass://GitHub#password' dev-rw
+debug-run reference agent="demo-agent":
+    #!/usr/bin/env sh
+    set -eu
+    reference={{quote(reference)}}
+    case "$reference" in
+        bypass://*) ;;
+        *) printf '%s\n' 'reference must start with bypass://' >&2; exit 2 ;;
+    esac
+    suffix="$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
+    recipient="$(python3 -c 'import os, shutil; print(os.path.realpath(shutil.which("true")))')"
+    BYPASS_IDENTITY={{quote(agent)}}-"$suffix" BYPASS_DEMO_SECRET="$reference" \
+        go run -tags debug ./cmd/bypass run --timeout 5m -- "$recipient"
+    printf '%s\n' 'permission approved; command completed (secret not printed)'
+
 build:
     go build -trimpath -o bin/bypass ./cmd/bypass
 
