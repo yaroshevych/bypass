@@ -46,7 +46,7 @@ type Options struct {
 	Body                       []string
 	Actions                    []Action
 	Error                      string
-	BodyRows                   int
+	BodyRows, MaxBodyRows      int
 	StatusBar                  string
 	Backdrop                   []string
 	Width, ScreenWidth         int
@@ -202,6 +202,9 @@ func prepareBody(o Options) ([]string, []int) {
 	maxBody := max(1, o.Height-chrome)
 	if statusBar != "" {
 		maxBody = max(1, maxBody-1)
+	}
+	if o.MaxBodyRows > 0 {
+		maxBody = min(maxBody, o.MaxBodyRows)
 	}
 	if o.BodyRows > 0 {
 		maxBody = min(o.BodyRows, maxBody)

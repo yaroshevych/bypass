@@ -15,11 +15,11 @@ import (
 type runAction = dialogAction
 
 type runDialogLayout struct {
-	title, errorMessage string
-	body                []string
-	targets             []int
-	actions             []runAction
-	width, x, y         int
+	title, errorMessage          string
+	body                         []string
+	targets                      []int
+	actions                      []runAction
+	width, x, y, focus, capacity int
 }
 
 func (m *Model) runRequestsBody() ([]string, []int) {
@@ -64,14 +64,7 @@ func (m *Model) runRequestsBody() ([]string, []int) {
 			targets = append(targets, row.item)
 		}
 	}
-	focus := -1
-	if r.buttonsFocused || len(r.pending) == 0 {
-		focus = r.actionFocus
-	}
-	body = m.dialogActions(body, m.runRequestActions(), focus, m.runDialogWidth(false), m.runBodyCapacity(true))
-	for len(targets) < len(body) {
-		targets = append(targets, -1)
-	}
+
 	return body, targets
 }
 
@@ -100,6 +93,9 @@ func (m *Model) runResetActions() []runAction {
 }
 
 func (m *Model) runBodyCapacity(parent bool) int {
+	if m.smallDialogScreen() {
+		return max(1, m.height-1)
+	}
 	chrome := 4
 	if m.compactAppearance() {
 		chrome = 2
@@ -164,7 +160,7 @@ func (m *Model) runReviewBody() []string {
 			}
 		}
 	}
-	return m.dialogActions(body, m.runReviewActions(), r.reviewFocus, m.runDialogWidth(true), m.runBodyCapacity(false))
+	return body
 }
 
 func (m *Model) runReviewFieldLayout(p *runpkg.Pending) (prefix, suffix []string, visible int, paging bool) {
@@ -243,17 +239,7 @@ func (m *Model) runActionAt(x, y int) (int, bool) {
 	}
 	layout := m.runLayout(m.runs.review)
 	opts := m.runLayerOptions(layout)
-	targets := make([]int, len(layout.body))
-	for i := range targets {
-		targets[i] = -1
-	}
-	for i := range layout.actions {
-		row := len(targets) - len(layout.actions) + i
-		if row >= 0 {
-			targets[row] = i
-		}
-	}
-	target := dialogrender.HitTest(opts, x, y, targets).Target
+	target := dialogrender.HitTest(opts, x, y, nil).Target
 	return target, target >= 0
 }
 
@@ -262,7 +248,18 @@ func (m *Model) runRequestAt(x, y int) int {
 		return -1
 	}
 	layout := m.runRequestsLayout()
-	return dialogrender.HitTest(m.runLayerOptions(layout), x, y, layout.targets).Target
+	targets := make([]int, len(layout.targets))
+	for i, target := range layout.targets {
+		targets[i] = -1
+		if target >= 0 {
+			targets[i] = len(layout.actions) + target
+		}
+	}
+	target := dialogrender.HitTest(m.runLayerOptions(layout), x, y, targets).Target
+	if target < len(layout.actions) {
+		return -1
+	}
+	return target - len(layout.actions)
 }
 
 func (m *Model) runDialogWidth(review bool) int {
@@ -281,7 +278,7 @@ func (m *Model) runLayout(review bool) runDialogLayout {
 			body = []string{"Resetting saved permissions…", "Pending requests stay queued."}
 		}
 		layout.errorMessage = m.runs.resetErr
-		layout.body = m.dialogActions(body, layout.actions, m.runs.resetFocus, layout.width, m.runBodyCapacity(false))
+		layout.body, layout.focus, layout.capacity = body, m.runs.resetFocus, m.runBodyCapacity(false)
 		return m.positionRunLayout(layout, true)
 	}
 	if !review {
@@ -293,7 +290,7 @@ func (m *Model) runLayout(review bool) runDialogLayout {
 	}
 	layout := runDialogLayout{
 		title: "Review request", width: width,
-		actions: m.runReviewActions(), body: m.runReviewBody(), errorMessage: m.runs.err,
+		actions: m.runReviewActions(), body: m.runReviewBody(), errorMessage: m.runs.err, focus: m.runs.reviewFocus, capacity: m.runBodyCapacity(false),
 	}
 	return m.positionRunLayout(layout, true)
 }
@@ -301,32 +298,23 @@ func (m *Model) runLayout(review bool) runDialogLayout {
 func (m *Model) runRequestsLayout() runDialogLayout {
 	layout := runDialogLayout{
 		title: "Requests", width: m.runDialogWidth(false),
-		actions: m.runRequestActions(),
+		actions: m.runRequestActions(), focus: -1, capacity: m.runBodyCapacity(true),
+	}
+	if m.runs.buttonsFocused || len(m.runs.pending) == 0 {
+		layout.focus = m.runs.actionFocus
 	}
 	layout.body, layout.targets = m.runRequestsBody()
 	return m.positionRunLayout(layout, false)
 }
 
 func (m *Model) positionRunLayout(layout runDialogLayout, review bool) runDialogLayout {
-	opts := m.dialogOptions()
-	opts.Mode, opts.Width, opts.Body, opts.Error = dialogrender.Overlay, layout.width, layout.body, safe(layout.errorMessage)
-	prepared, source := dialogrender.PrepareBody(opts)
-	if len(layout.targets) > 0 {
-		targets := make([]int, len(source))
-		for i, row := range source {
-			targets[i] = -1
-			if row >= 0 && row < len(layout.targets) {
-				targets[i] = layout.targets[row]
-			}
-		}
-		layout.targets = targets
-	}
-	layout.body = prepared
+	opts := m.runLayerOptions(layout)
+	prepared, _ := dialogrender.PrepareBody(opts)
 	if opts.Fullscreen {
 		layout.width, layout.x, layout.y = m.width, 0, 0
 		return layout
 	}
-	g := m.centeredDialogGeometry(layout.width, len(layout.body))
+	g := m.centeredDialogGeometry(layout.width, len(prepared))
 	layout.width = g.Width
 	layout.x = g.X
 	layout.y = g.Y
@@ -573,8 +561,12 @@ func (m *Model) runTargetsCurrent(targets []runTarget) bool {
 
 func (m *Model) runLayerOptions(layout runDialogLayout) dialogrender.Options {
 	opts := m.dialogOptions()
-	opts.Mode, opts.Title, opts.Body = dialogrender.Overlay, layout.title, layout.body
-	opts.BodyRows, opts.Width, opts.X, opts.Y = len(layout.body), layout.width, layout.x, layout.y
+	opts.Mode, opts.Title, opts.Body, opts.Error = dialogrender.Overlay, layout.title, layout.body, safe(layout.errorMessage)
+	opts.MaxBodyRows, opts.Width, opts.X, opts.Y = layout.capacity, layout.width, layout.x, layout.y
+	rows := m.dialogActionRows(layout.actions, layout.focus, max(1, layout.width-4))
+	for i, row := range rows {
+		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: i})
+	}
 	return opts
 }
 
