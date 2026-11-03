@@ -1,12 +1,12 @@
 package vault
 
 import (
+	"bypass/internal/vaultmodel"
 	"context"
 	"crypto/sha256"
 	"io"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 type Credentials struct {
@@ -141,57 +141,10 @@ func Revision(path string) ([32]byte, error) {
 	return sum, nil
 }
 
-type Group struct {
-	UUID          string
-	ParentUUID    string
-	Name          string
-	Path          string
-	Recycled      bool
-	SearchEnabled bool
-}
-
-type Entry struct {
-	DetailsLoaded     bool
-	UUID              string
-	GroupUUID         string
-	GroupPath         string
-	Fields            []Field
-	Tags              []string
-	Recycled          bool
-	Created           time.Time
-	Modified          time.Time
-	Expires           time.Time
-	ExpiryEnabled     bool
-	AttachmentNames   []string
-	HistoryCount      int
-	History           []Entry
-	HasTOTP           bool
-	TOTPPeriodSeconds int
-}
-
-type Field struct {
-	Name      string
-	Value     string
-	Protected bool
-}
-
-func (e Entry) Get(name string) string {
-	for _, f := range e.Fields {
-		if f.Name == name {
-			return f.Value
-		}
-	}
-	return ""
-}
-
-func (e Entry) IsProtected(name string) bool {
-	for _, f := range e.Fields {
-		if f.Name == name {
-			return f.Protected
-		}
-	}
-	return false
-}
+// Group, Entry, and Field are shared with test fixture readers.
+type Group = vaultmodel.Group
+type Entry = vaultmodel.Entry
+type Field = vaultmodel.Field
 
 // SharesInteractive reports whether two models use the same authenticated child.
 func (d *Database) SharesInteractive(other *Database) bool {

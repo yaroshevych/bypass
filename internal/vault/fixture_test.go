@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"bypass/internal/vaulttest/xmlparse"
 	"bytes"
 	"context"
 	"errors"
@@ -94,6 +95,14 @@ func (c *CLI) Open(ctx context.Context, path string, creds Credentials) (*Databa
 	}
 	db.Revision = finalRevision
 	return db, nil
+}
+
+func parseXML(data []byte, path string) (*Database, error) {
+	parsed, err := xmlparse.Decode(data, path)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrMalformed, err)
+	}
+	return &Database{Path: parsed.Path, Name: parsed.Name, RootUUID: parsed.RootUUID, RecycleBinUUID: parsed.RecycleBinUUID, RecycleBinEnabled: parsed.RecycleBinEnabled, Groups: parsed.Groups, Entries: parsed.Entries}, nil
 }
 
 // Fixture writes use the application backend. Reads use a separate native XML

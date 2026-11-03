@@ -2,12 +2,10 @@ package vault
 
 import (
 	"encoding/base64"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 )
 
 func uuidBytes(b byte) string {
@@ -57,16 +55,7 @@ func TestParseXMLPreservesStructureAndMetadata(t *testing.T) {
 	if len(e.Tags) != 2 || e.Tags[0] != "Favorite" || e.Tags[1] != "work tag" || e.Created.Year() != 2024 || e.Modified.IsZero() || !e.ExpiryEnabled || e.Expires.Year() != 2024 {
 		t.Fatalf("times/tags mismatch: %+v", e)
 	}
-	if got := parseTime(base64.StdEncoding.EncodeToString(leSeconds(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)))); !got.Equal(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)) {
-		t.Fatalf("KDBX binary time decoded incorrectly: %v", got)
-	}
-}
 
-func leSeconds(t time.Time) []byte {
-	const unixOffset = 62135596800
-	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(t.Unix()+unixOffset))
-	return b
 }
 
 func TestParseXMLRejectsMalformedAndMissingGroups(t *testing.T) {

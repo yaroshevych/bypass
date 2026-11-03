@@ -3,6 +3,7 @@ package vaulttest
 
 import (
 	"bypass/internal/vault"
+	"bypass/internal/vaulttest/xmlparse"
 	"bytes"
 	"context"
 	"errors"
@@ -100,11 +101,11 @@ func (c *CLI) Open(ctx context.Context, path string, creds vault.Credentials) (*
 	if stdout.exceeded {
 		return nil, vault.ErrTooLarge
 	}
-	db, err := vault.DecodeExport(stdout.Bytes(), path)
+	parsed, err := xmlparse.Decode(stdout.Bytes(), path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", vault.ErrMalformed, err)
 	}
-	db.Revision = finalRevision
+	db := &vault.Database{Path: parsed.Path, Name: parsed.Name, RootUUID: parsed.RootUUID, RecycleBinUUID: parsed.RecycleBinUUID, RecycleBinEnabled: parsed.RecycleBinEnabled, Groups: parsed.Groups, Entries: parsed.Entries, Revision: finalRevision}
 	return db, nil
 }
 

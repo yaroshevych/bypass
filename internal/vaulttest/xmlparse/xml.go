@@ -1,14 +1,17 @@
-package vault
+package xmlparse
 
 import (
+	"bypass/internal/vaultmodel"
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
-	"sort"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -52,12 +55,21 @@ func attr(n xmlNode, name string) string {
 	return ""
 }
 
-// DecodeExport decodes a native KeePassXC XML export for independent test readback.
-func DecodeExport(data []byte, path string) (*Database, error) {
-	return parseXML(data, path)
+type Group = vaultmodel.Group
+type Entry = vaultmodel.Entry
+type Field = vaultmodel.Field
+
+type Database struct {
+	Path, Name, RootUUID, RecycleBinUUID string
+	RecycleBinEnabled                    bool
+	Groups                               []Group
+	Entries                              []Entry
 }
 
-func parseXML(data []byte, path string) (*Database, error) {
+var ErrMalformed = errors.New("malformed vault export")
+
+// Decode parses a native KeePassXC XML export for independent test readback.
+func Decode(data []byte, path string) (*Database, error) {
 	d := xml.NewDecoder(bytes.NewReader(data))
 	d.Strict = true
 	var root xmlNode
@@ -84,11 +96,11 @@ func parseXML(data []byte, path string) (*Database, error) {
 		return nil, fmt.Errorf("%w: missing root group", ErrMalformed)
 	}
 	db := &Database{Path: path, Name: rawValue(meta, "DatabaseName"), RecycleBinEnabled: strings.EqualFold(value(meta, "RecycleBinEnabled"), "true")}
-	db.RecycleBinUUID = normalizeUUID(value(meta, "RecycleBinUUID"))
+	db.RecycleBinUUID = vaultmodel.NormalizeUUID(value(meta, "RecycleBinUUID"))
 	if raw := strings.TrimSpace(value(meta, "RecycleBinUUID")); raw != "" && db.RecycleBinUUID == "" {
 		return nil, fmt.Errorf("%w: invalid recycle bin UUID", ErrMalformed)
 	}
-	db.RootUUID = normalizeUUID(value(rootGroup, "UUID"))
+	db.RootUUID = vaultmodel.NormalizeUUID(value(rootGroup, "UUID"))
 	defaultPasswordProtection := true
 	if mp, ok := child(meta, "MemoryProtection"); ok {
 		if raw, present := child(mp, "ProtectPassword"); present {
@@ -119,7 +131,7 @@ func parseXML(data []byte, path string) (*Database, error) {
 }
 
 func walkGroup(db *Database, n xmlNode, parentUUID, parentPath string, parentRecycled, inheritedSearch bool, recycleUUID string, defaultPasswordProtection bool) {
-	uuid := normalizeUUID(value(n, "UUID"))
+	uuid := vaultmodel.NormalizeUUID(value(n, "UUID"))
 	name := rawValue(n, "Name")
 	path := name
 	if parentPath != "" {
@@ -146,7 +158,7 @@ func parseEntry(n xmlNode, groupUUID, groupPath string, recycled, defaultPasswor
 }
 
 func parseEntryWithHistory(n xmlNode, groupUUID, groupPath string, recycled, defaultPasswordProtection, includeHistory bool) Entry {
-	e := Entry{UUID: normalizeUUID(value(n, "UUID")), GroupUUID: groupUUID, GroupPath: groupPath, Recycled: recycled}
+	e := Entry{UUID: vaultmodel.NormalizeUUID(value(n, "UUID")), GroupUUID: groupUUID, GroupPath: groupPath, Recycled: recycled}
 	t := firstChild(n, "Times")
 	if t != nil {
 		e.Created = parseTime(value(*t, "CreationTime"))
@@ -154,7 +166,7 @@ func parseEntryWithHistory(n xmlNode, groupUUID, groupPath string, recycled, def
 		e.Expires = parseTime(value(*t, "ExpiryTime"))
 		e.ExpiryEnabled = strings.EqualFold(value(*t, "Expires"), "true")
 	}
-	e.Tags = splitTags(rawValue(n, "Tags"))
+	e.Tags = vaultmodel.SplitTags(rawValue(n, "Tags"))
 	for _, s := range children(n, "String") {
 		key := rawValue(s, "Key")
 		v, ok := child(s, "Value")
@@ -199,51 +211,12 @@ func isTOTPSecretField(name string) bool {
 	}
 }
 
-func splitTags(raw string) []string {
-	seen := make(map[string]struct{})
-	var tags []string
-	for _, tag := range strings.FieldsFunc(raw, func(r rune) bool { return r == ',' || r == ';' || r == '\t' }) {
-		tag = strings.TrimSpace(tag)
-		if tag == "" {
-			continue
-		}
-		if _, exists := seen[tag]; exists {
-			continue
-		}
-		seen[tag] = struct{}{}
-		tags = append(tags, tag)
-	}
-	sort.Strings(tags)
-	return tags
-}
-
 func firstChild(n xmlNode, name string) *xmlNode {
 	c, ok := child(n, name)
 	if !ok {
 		return nil
 	}
 	return &c
-}
-
-func normalizeUUID(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	b, err := base64.StdEncoding.DecodeString(raw)
-	if err == nil && len(b) == 16 {
-		h := hex.EncodeToString(b)
-		return h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:]
-	}
-	compact := strings.ReplaceAll(strings.ToLower(raw), "-", "")
-	if len(compact) != 32 {
-		return ""
-	}
-	decoded, err := hex.DecodeString(compact)
-	if err != nil || len(decoded) != 16 {
-		return ""
-	}
-	return compact[:8] + "-" + compact[8:12] + "-" + compact[12:16] + "-" + compact[16:20] + "-" + compact[20:]
 }
 
 func validEntityUUID(uuid string) bool {
@@ -280,4 +253,81 @@ func parseTime(raw string) time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+func totpMetadata(fields []Field) (bool, int) {
+	values := make(map[string]string, len(fields))
+	for _, f := range fields {
+		values[strings.ToLower(strings.TrimSpace(f.Name))] = strings.TrimSpace(f.Value)
+	}
+	secret := ""
+	for _, key := range []string{
+		"totp seed", "timeotp-secret-base32", "timeotp-secret-hex", "timeotp-secret-base64", "timeotp-secret-utf8",
+		"keepass2timeotp-secret-base32", "keepass2timeotp-secret-hex", "keepass2timeotp-secret-base64", "keepass2timeotp-secret-utf8",
+	} {
+		if values[key] != "" {
+			secret = values[key]
+			break
+		}
+	}
+	period := 0
+	for _, key := range []string{"timeotp-period", "timeotp-step", "keepass2timeotp-step"} {
+		if period = parsePositivePeriod(values[key]); period > 0 {
+			break
+		}
+	}
+	settings := values["totp settings"]
+	if settings != "" {
+		if parts := strings.Split(settings, ";"); len(parts) > 0 && period == 0 {
+			period = parsePositivePeriod(parts[0])
+		}
+	}
+	otp := values["otp"]
+	if otp != "" {
+		if parsed, err := url.Parse(otp); err == nil {
+			query := parsed.Query()
+			if secret == "" {
+				secret = query.Get("secret")
+				if secret == "" {
+					secret = query.Get("key")
+				}
+			}
+			if period == 0 {
+				period = parsePositivePeriod(query.Get("period"))
+				if period == 0 {
+					period = parsePositivePeriod(query.Get("step"))
+				}
+			}
+		}
+		if secret == "" && strings.Contains(otp, "=") {
+			if query, err := url.ParseQuery(otp); err == nil {
+				secret = query.Get("secret")
+				if secret == "" {
+					secret = query.Get("key")
+				}
+				if period == 0 {
+					period = parsePositivePeriod(query.Get("period"))
+					if period == 0 {
+						period = parsePositivePeriod(query.Get("step"))
+					}
+				}
+			}
+		}
+	}
+	hasTOTP := secret != "" || otp != ""
+	if !hasTOTP {
+		return false, 0
+	}
+	if period == 0 {
+		period = 30
+	}
+	return true, period
+}
+
+func parsePositivePeriod(raw string) int {
+	n, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || n < 1 || n > 86400 {
+		return 0
+	}
+	return n
 }
