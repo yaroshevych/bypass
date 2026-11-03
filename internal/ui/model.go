@@ -509,6 +509,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		msg.credentials.Clear()
 		m.screen, m.err, m.notice = browse, "", ""
+		if info, err := os.Stat(msg.db.Path); err == nil && info.Mode().Perm()&0077 != 0 {
+			m.setNotice("vault file accessible to other users · check permissions", true)
+		}
 		m.restoreGroup()
 		m.normalize()
 		if m.store != nil {
