@@ -163,9 +163,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 }
 
 func (m *Model) welcomePointer(msg tea.MouseMsg) tea.Cmd {
-	body, targets, status := m.welcomeBody()
-	opts := m.dialogOptions()
-	opts.Body, opts.BodyRows, opts.StatusBar, opts.Width = body, m.landingBodyRows(), status, min(m.width-6, 82)
+	opts, targets := m.welcomeOptions()
 	target := dialogrender.HitTest(opts, msg.X, msg.Y, targets).Target
 	if target < 0 {
 		return nil

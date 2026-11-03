@@ -256,8 +256,9 @@ func (m *Model) welcomeBody() ([]string, []int, string) {
 }
 
 func (m *Model) welcomeLines() []string {
-	body, _, statusBar := m.welcomeBody()
-	lines := m.boxWithBodyRowsOnBackdrop("Bypass - Secrets Manager", body, statusBar, m.landingBodyRows(), make([]string, m.height))
+	opts, _ := m.welcomeOptions()
+	opts.Backdrop = make([]string, m.height)
+	lines := dialogrender.Render(opts)
 	theme := colorsForTheme(m.settings.Theme)
 	if len(lines) > 0 {
 		lines[len(lines)-1] = m.footerLine("", "q quit")
@@ -266,6 +267,27 @@ func (m *Model) welcomeLines() []string {
 		lines[i] = restoreThemeResets(lines[i], theme.primary, theme.background)
 	}
 	return lines
+}
+
+func (m *Model) welcomeOptions() (dialogrender.Options, []int) {
+	body, targets, status := m.welcomeBody()
+	opts := m.dialogOptions()
+	opts.Title = "Bypass - Secrets Manager"
+	opts.Body, opts.BodyRows, opts.StatusBar, opts.Width = body, m.landingBodyRows(), status, min(m.width-6, 82)
+	opts.Error = safe(m.notice)
+	opts.BodyRows += m.welcomeNoticeRows()
+	return opts, targets
+}
+
+func (m *Model) welcomeNoticeRows() int {
+	if m.notice == "" {
+		return 0
+	}
+	width := min(m.width-6, 82) - 6
+	if m.smallDialogScreen() {
+		width = m.width - 2
+	}
+	return len(dialogrender.WrapMessage(m.notice, max(1, width))) + 1
 }
 
 func (m *Model) recentRemovalStatusBar() string {
@@ -297,7 +319,7 @@ func (m *Model) landingRecentCount() int {
 	if m.canCreateVault() {
 		actions++
 	}
-	available := m.landingMaxBodyRows() - actions - 6 // Tagline, spacing, status row, both headings, and section spacing.
+	available := m.landingMaxBodyRows() - m.welcomeNoticeRows() - actions - 6 // Tagline, spacing, status row, both headings, and section spacing.
 	return min(5, min(len(m.recent), max(0, available)))
 }
 

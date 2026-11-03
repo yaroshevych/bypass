@@ -75,6 +75,17 @@ func TestRenderNeverExposesProtectedFields(t *testing.T) {
 		}
 	}
 }
+
+func TestWelcomeShowsStartupWarning(t *testing.T) {
+	m := New(Options{Warning: "Invalid settings; using defaults"})
+	for _, size := range [][2]int{{48, 16}, {80, 24}, {120, 35}} {
+		m.width, m.height = size[0], size[1]
+		view := ansi.Strip(m.View())
+		if !strings.Contains(view, "invalid settings; using defaults") || !strings.Contains(view, "Open") {
+			t.Fatalf("%dx%d: warning or open action missing:\n%s", size[0], size[1], view)
+		}
+	}
+}
 func TestSearchExcludesSecretsAndFiltersLive(t *testing.T) {
 	m := New(Options{})
 	m.ws.Open(fixture("/tmp/fixture.kdbx"))
