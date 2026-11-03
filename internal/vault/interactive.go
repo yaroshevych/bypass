@@ -691,6 +691,12 @@ func (c *InteractiveCLI) EntryDetails(ctx context.Context, db *Database, entryID
 	}
 	defer zero(notes)
 	fields := []Field{{Name: "Notes", Value: string(notes)}}
-
+	result, err := c.TOTP(ctx, db, Credentials{}, entryID)
+	zero(result.Code)
+	if err == nil {
+		fields = append(fields, Field{Name: "TOTP", Protected: true})
+	} else if err != ErrUnsupported {
+		return nil, err
+	}
 	return fields, nil
 }

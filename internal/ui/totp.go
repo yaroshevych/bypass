@@ -15,7 +15,7 @@ func (m *Model) openTOTP() tea.Cmd {
 		m.setNotice("select an entry first", true)
 		return nil
 	}
-	if !entry.HasTOTP && !session.DB.Interactive() {
+	if !entry.HasTOTP {
 		m.setNotice("no totp for this entry", false)
 		return nil
 	}

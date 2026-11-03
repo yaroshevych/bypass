@@ -52,8 +52,8 @@ func TestNativeTOTPDetailsAndReveal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fields) != 1 || fields[0].Name != "Notes" {
-		t.Fatal("details should not fetch TOTP")
+	if len(fields) != 2 || fields[1].Name != "TOTP" || !fields[1].Protected || fields[1].Value != "" {
+		t.Fatal("details must contain only a masked TOTP placeholder")
 	}
 	code, err := backend.ResolveField(context.Background(), db, Credentials{}, configured, "TOTP")
 	if err != nil || len(code) != 6 || !validTOTPCode(code) {
