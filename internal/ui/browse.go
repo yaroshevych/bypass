@@ -74,7 +74,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		if target == nil || msg.X < target.X || msg.X >= target.X+target.Width || msg.Y < target.Y || msg.Y >= target.Y+target.Height {
 			return m.leaveEditor(func() tea.Cmd { return m.pointer(msg) })
 		}
-		switch m.editor.pointer(msg.Y-target.Y, target.Width, target.Height) {
+		switch m.editor.pointer(msg.Y-target.Y, target.Width, target.Height, m.compactAppearance(), m.settings.ASCII) {
 		case editorSave:
 			return m.saveEditor()
 		case editorCancel:

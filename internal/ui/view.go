@@ -742,9 +742,7 @@ func (m *Model) layoutBody(layout viewLayout) []string {
 			contents[i] = m.entryLines(pane.Width, pane.Height, focused)
 		case 2:
 			if m.editor != nil {
-				m.editor.compact = m.compactAppearance()
-				m.editor.ascii = m.settings.ASCII
-				contents[i] = m.editor.render(pane.Width, pane.Height)
+				contents[i] = m.editor.renderAppearance(pane.Width, pane.Height, m.compactAppearance(), m.settings.ASCII)
 			} else {
 				contents[i] = m.detailLines(pane.Width, pane.Height, focused)
 			}

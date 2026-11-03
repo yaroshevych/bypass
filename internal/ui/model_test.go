@@ -86,6 +86,20 @@ func TestWelcomeShowsStartupWarning(t *testing.T) {
 		}
 	}
 }
+
+func TestViewDoesNotChangeEditorAppearance(t *testing.T) {
+	m := New(Options{})
+	m.ws.Open(fixture("/tmp/editor-view.kdbx"))
+	m.normalize()
+	m.startEditor(nil, "root")
+	m.width, m.height = 48, 16
+	m.editor.compact, m.editor.ascii = false, false
+	m.settings.ASCII = true
+	_ = m.View()
+	if m.editor.compact || m.editor.ascii {
+		t.Fatal("rendering changed editor appearance state")
+	}
+}
 func TestSearchExcludesSecretsAndFiltersLive(t *testing.T) {
 	m := New(Options{})
 	m.ws.Open(fixture("/tmp/fixture.kdbx"))

@@ -297,7 +297,7 @@ func TestEntryEditorPointerSharesRenderedFocusMetadata(t *testing.T) {
 		if row < 0 {
 			t.Fatalf("action focus %d missing from layout", actionCase.focus)
 		}
-		if got := e.pointer(row, 65, 22); got != actionCase.result {
+		if got := e.pointer(row, 65, 22, e.compact, e.ascii); got != actionCase.result {
 			t.Fatalf("pointer on focus %d = %v, want %v", actionCase.focus, got, actionCase.result)
 		}
 		if e.focus != actionCase.focus {
@@ -314,7 +314,7 @@ func TestEntryEditorPointerSharesRenderedFocusMetadata(t *testing.T) {
 			break
 		}
 	}
-	if got := valueEditor.pointer(row, 65, 22); got != editorNone {
+	if got := valueEditor.pointer(row, 65, 22, valueEditor.compact, valueEditor.ascii); got != editorNone {
 		t.Fatalf("clicking a field whose value says Save returned %v", got)
 	}
 }

@@ -315,11 +315,13 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 	return editorNone
 }
 
-func (e *entryEditor) pointer(row, width, height int) editorAction {
+func (e *entryEditor) pointer(row, width, height int, compact, ascii bool) editorAction {
 	if e == nil || row < 0 || width <= 0 || height <= 0 {
 		return editorNone
 	}
-	lines := e.layoutLines(width, height)
+	renderer := *e
+	renderer.compact, renderer.ascii = compact, ascii
+	lines := renderer.layoutLines(width, height)
 	if row >= len(lines) {
 		return editorNone
 	}
@@ -389,6 +391,15 @@ func (e *entryEditor) render(width, height int) []string {
 		out[i] = fit(line.text, width)
 	}
 	return padLines(out, height)
+}
+
+func (e *entryEditor) renderAppearance(width, height int, compact, ascii bool) []string {
+	if e == nil {
+		return e.render(width, height)
+	}
+	renderer := *e
+	renderer.compact, renderer.ascii = compact, ascii
+	return renderer.render(width, height)
 }
 
 type editorLine struct {
