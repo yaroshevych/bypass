@@ -131,8 +131,12 @@ func (m *Model) openDatabaseInfo() tea.Cmd {
 	m.lifecycle.request = id
 	ctx := m.operationContext()
 	snapshot := s.DB.Clone()
+	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
-		defer snapshot.Clear()
+		if !resources.start() {
+			return lifecycleMsg{id: id, kind: "info", sessionID: s.ID, err: ctx.Err()}
+		}
+		defer resources.done()
 		msg := lifecycleMsg{id: id, kind: "info", sessionID: s.ID}
 		msg.info, msg.err = backend.InfoDatabase(ctx, snapshot)
 		return msg
@@ -191,9 +195,14 @@ func (m *Model) submitLifecycle() tea.Cmd {
 		id := m.beginOperation("")
 		ctx := m.operationContext()
 		l.busy, l.request, l.err = true, id, ""
+		resources := newJobResources(ctx, creds.Clear)
 		return func() tea.Msg {
+			if !resources.start() {
+				return lifecycleMsg{id: id, kind: "create", err: ctx.Err()}
+			}
+			defer resources.done()
 			db, err := backend.CreateWithOptions(ctx, path, creds, options)
-			return lifecycleMsg{id: id, kind: "create", db: db, credentials: creds, err: err}
+			return lifecycleMsg{id: id, kind: "create", db: db, credentials: creds.Clone(), err: err}
 		}
 	}
 	if !l.confirm {
@@ -218,11 +227,14 @@ func (m *Model) submitLifecycle() tea.Cmd {
 	ctx := m.operationContext()
 	l.busy, l.request, l.err = true, id, ""
 	sessionID, backupDir := s.ID, m.settings.BackupDir
+	resources := newJobResources(ctx, func() { db.Clear(); old.Clear(); creds.Clear() })
 	return func() tea.Msg {
-		defer db.Clear()
-		defer old.Clear()
+		if !resources.start() {
+			return lifecycleMsg{id: id, kind: "credentials", sessionID: sessionID, err: ctx.Err()}
+		}
+		defer resources.done()
 		updated, err := backend.ChangeCredentials(ctx, db, old, creds, backupDir)
-		return lifecycleMsg{id: id, kind: "credentials", sessionID: sessionID, db: updated, credentials: creds, err: err}
+		return lifecycleMsg{id: id, kind: "credentials", sessionID: sessionID, db: updated, credentials: creds.Clone(), err: err}
 	}
 }
 

@@ -77,13 +77,18 @@ func (m *Model) beginRunPermissionReset() tea.Cmd {
 	backup := m.settings.BackupDir
 	r.resetBusy, r.resetErr = true, ""
 	r.permissionEpoch++ // Results authorized before this reset must not deliver.
+	resources := newJobResources(ctx, func() {
+		for _, item := range work {
+			item.db.Clear()
+		}
+	})
 	return func() tea.Msg {
 		result := runResetResult{id: id, originals: map[string]*vault.Database{}, updated: map[string]*vault.Database{}}
-		defer func() {
-			for _, item := range work {
-				item.db.Clear()
-			}
-		}()
+		if !resources.start() {
+			result.err = ctx.Err()
+			return result
+		}
+		defer resources.done()
 		for i := range work {
 			item := &work[i]
 			result.originals[item.id] = item.original

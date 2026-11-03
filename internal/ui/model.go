@@ -931,8 +931,12 @@ func (m *Model) startOpen() tea.Cmd {
 	backend := m.backend
 	m.busy = true
 	m.err = ""
+	resources := newJobResources(ctx, creds.Clear)
 	return func() tea.Msg {
-		defer clear(creds.Password)
+		if !resources.start() {
+			return openedMsg{request: id, err: vault.ErrCanceled}
+		}
+		defer resources.done()
 		db, err := backend.Open(ctx, path, creds)
 		if ctx.Err() != nil {
 			var pending *vault.DuplicateEntries
