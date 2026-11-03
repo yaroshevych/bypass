@@ -26,8 +26,8 @@ the in-app reference.
 | Action | Shortcut | Behavior |
 | --- | --- | --- |
 | Lock UI with PIN | `ctrl+k` | Cover the interface with the session PIN. Requires an unlocked vault and a configured PIN when selected from the palette. |
-| Lock All Vaults | `ctrl+l` | Lock every unlocked vault and clear their authenticated sessions. |
-| Open Vault… | `ctrl+o` | Select a vault file and unlock it. |
+| Lock All Vaults | `ctrl+l` | Lock every unlocked vault and clear their authenticated sessions. `shift+l` also works in the workspace. |
+| Open Vault… | `ctrl+o` | Select a vault file and unlock it. `o` also works in the workspace. |
 | Close Vault | — | Close the current vault and its views. |
 | New Vault… | `ctrl+n` | Create a vault. Requires backend support and permission to write. |
 | Lock Vault | — | Lock the current vault. Other unlocked vaults remain available. |
@@ -82,14 +82,17 @@ changes, or has no usable backup location.
 | --- | --- | --- |
 | New Tab | `t` | Create another view of the current unlocked vault. It does not create a new vault. |
 | Close Tab | `ctrl+w` | Close the current view. |
-| Previous Tab | `[` | Switch to the previous tab. |
-| Next Tab | `]` | Switch to the next tab. |
-| Search | `/` | Search the current vault's entry list, starting from All Entries. |
+| Previous Tab | `[` | Switch to the previous tab. `ctrl+pgup` also works where the terminal passes it through. |
+| Next Tab | `]` | Switch to the next tab. `ctrl+pgdown` also works where the terminal passes it through. |
+| Search | `/` | Search the current entry list. The palette's Search action starts from All Entries. |
 | Zoom | `z` | Toggle zoom for the current view. |
 
 Views of the same vault share its data, write mode, and lock state. Their
 selection, filters, and pane positions are independent. Bypass supports up to
-nine tabs; number keys `1`–`9` select tabs directly.
+nine tabs; number keys `1`–`9` or `alt+1`–`alt+9` select tabs directly when
+the terminal passes them through. Press `a` in an unlocked workspace to open
+the contextual action palette. On the welcome screen, `delete` or `backspace`
+removes the selected recent vault from the list.
 
 Use the navigation pane to select views or groups, the entry list to select an
 entry, and the details pane to select a field. Arrow keys and Tab move through
@@ -106,13 +109,16 @@ the same.
 | New Group… | `g` | Create a group in a writable vault. |
 | Jump… | `shift+j` | Focus a field of the selected entry. |
 | Move Entry… | `m` | Choose a destination group for the selected entry. Requires a writable vault. |
-| Delete… | `ctrl+d` | Confirm deletion of the selected entry or group. Requires a writable vault. |
+| Delete… | `ctrl+d` | Confirm deletion of the selected entry or group. `delete` is an alias. Requires a writable vault. |
 | Save Entry | `ctrl+s` | Save the active entry draft. |
 | Cancel | `esc` | Leave the entry editor, with a decision for an unsaved draft when needed. |
 
 **Jump…** accepts `p` for Password, `u` for Username, `w` for URL, `n` for Notes,
 and `e` for Email when that field exists. It changes focus without copying or
 revealing the value.
+
+Letter shortcuts are case-sensitive: for example, `g` creates a group and
+`shift+g` opens Large View. Inputs and dialogs use their own shortcuts.
 
 Deletion uses the vault's recycle bin when applicable. Items already in the bin
 are deleted permanently after confirmation. Root and recycle-bin groups have
