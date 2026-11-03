@@ -188,4 +188,3 @@ func TestRightClickOutsideBrowseDoesNotOpenPalette(t *testing.T) {
 		t.Fatal("right click opened a palette outside the browse screen")
 	}
 }
-
