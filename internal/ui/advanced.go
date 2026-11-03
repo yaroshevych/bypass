@@ -200,7 +200,7 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 	if key == "ctrl+l" {
 		m.pinInput.clear()
 		m.pinFullLock = true
-		m.pinFocus = 0
+		m.pinFocus = 1
 		return nil
 	}
 	if dialogLinearFocus(key, 4, &m.pinFocus, true) {
@@ -229,7 +229,7 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 	if key == "enter" && m.pinFocus == 2 {
 		m.pinInput.clear()
 		m.pinFullLock = true
-		m.pinFocus = 0
+		m.pinFocus = 1
 		return nil
 	}
 	if key == "enter" && m.pinFocus == 3 {

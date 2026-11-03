@@ -65,6 +65,10 @@ func TestPublicFullLockDropsPendingSecondaryOpen(t *testing.T) {
 	awaitBoundary(t, backend.started)
 	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlK})
 	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlL})
+	if !m.pinFullLock || m.pinFocus != 1 {
+		t.Fatal("full lock confirmation should default to Cancel")
+	}
+	updateKey(m, tea.KeyMsg{Type: tea.KeyUp})
 	updateKey(m, key("enter"))
 	if m.gate.Protected() || first.DB != nil {
 		t.Fatal("full lock did not leave all existing sessions locked")
