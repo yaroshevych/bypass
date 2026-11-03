@@ -151,10 +151,6 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 		m.clearDialog()
 		return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit })
 	}
-	if key == "ctrl+l" {
-		m.clearDialog()
-		return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) })
-	}
 	if strings.HasPrefix(d.kind, "pin-") {
 		return m.pinSetupKey(k)
 	}

@@ -224,15 +224,9 @@ func (m *Model) extrasKey(k tea.KeyMsg) (tea.Cmd, bool) {
 	case "ctrl+c":
 		m.clearExtras()
 		return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }), true
-	case "ctrl+l":
-		m.clearExtras()
-		return m.lockCurrent(true), true
 	case "L":
 		m.clearExtras()
 		return m.lockCurrent(true), true
-	case "ctrl+k":
-		m.clearExtras()
-		return m.protectScreen(), true
 	case "q":
 		if state.mode != extraAttachments || state.phase != "path" {
 			m.clearExtras()

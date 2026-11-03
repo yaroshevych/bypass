@@ -617,8 +617,6 @@ func (m *Model) paletteKey(k tea.KeyMsg) tea.Cmd {
 	case "ctrl+c":
 		m.closePalette(false)
 		return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit })
-	case "ctrl+k":
-		return m.protectScreen()
 	case "esc":
 		m.paletteBack()
 		return nil

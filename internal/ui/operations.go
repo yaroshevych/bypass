@@ -332,8 +332,6 @@ func (m *Model) leaveEditor(action func() tea.Cmd) tea.Cmd {
 }
 func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 	switch k.String() {
-	case "ctrl+l":
-		return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) })
 	case "ctrl+o":
 		return m.leaveEditor(m.openPicker)
 	case "ctrl+w":
