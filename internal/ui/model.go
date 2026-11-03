@@ -338,6 +338,9 @@ func (m *Model) Close() {
 func (m *Model) CleanupError() error { return m.cleanupErr }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if mouse, ok := msg.(tea.MouseMsg); ok && mouse.Action == tea.MouseActionMotion && m.dragging == 0 && m.activeLayer() == layerWorkspace {
+		return m, m.pointer(mouse)
+	}
 	model, cmd := m.update(msg)
 	details := m.loadFocusedDetails()
 	if cmd == nil {

@@ -97,6 +97,18 @@ func TestCloseIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestHoverDoesNotInvalidateSearchOrReloadDetails(t *testing.T) {
+	m := New(Options{})
+	m.ws.Open(fixture("/tmp/hover.kdbx"))
+	m.normalize()
+	m.filterEntries(navItem{key: "all", kind: "all"}, "alice")
+	cache, request := m.searchCache, m.detailRequest
+	m.Update(tea.MouseMsg{Action: tea.MouseActionMotion, X: 2, Y: 2})
+	if cache == nil || m.searchCache != cache || m.detailRequest != request {
+		t.Fatal("hover invalidated search or restarted detail handling")
+	}
+}
+
 func TestViewDoesNotChangeEditorAppearance(t *testing.T) {
 	m := New(Options{})
 	m.ws.Open(fixture("/tmp/editor-view.kdbx"))
