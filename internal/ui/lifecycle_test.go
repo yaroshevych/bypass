@@ -46,18 +46,21 @@ func TestLifecycleFocusedFieldsRemainVisible(t *testing.T) {
 		m := New(Options{})
 		m.width, m.height = size[0], size[1]
 		m.lifecycle = &lifecycleState{kind: "create", inputs: make([]input, 5)}
-		for focus := 0; focus < 3; focus++ {
-			m.lifecycle.focus = focus
-			opts, targets := m.lifecycleContent()
-			_, indices := dialogrender.PrepareBody(opts)
-			visible := false
-			for _, index := range indices {
-				if index >= 0 && index < len(targets) && targets[index] == focus {
-					visible = true
+		for _, message := range []string{"", "Operation failed. Check file access, credentials and backend support."} {
+			m.lifecycle.err = message
+			for focus := 0; focus < 3; focus++ {
+				m.lifecycle.focus = focus
+				opts, targets := m.lifecycleContent()
+				_, indices := dialogrender.PrepareBody(opts)
+				visible := false
+				for _, index := range indices {
+					if index >= 0 && index < len(targets) && targets[index] == focus {
+						visible = true
+					}
 				}
-			}
-			if !visible {
-				t.Fatalf("%dx%d: focused field %d is hidden", size[0], size[1], focus)
+				if !visible {
+					t.Fatalf("%dx%d: focused field %d is hidden with error %q", size[0], size[1], focus, message)
+				}
 			}
 		}
 	}
