@@ -552,6 +552,9 @@ func (m *Model) touchActive() {
 
 func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	m.searchCache = nil
+	if m.secretRunes(k) {
+		return nil
+	}
 	key := k.String()
 	if m.debugAppearanceToggle(key) {
 		return nil

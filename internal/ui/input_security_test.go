@@ -24,3 +24,18 @@ func TestInputGrowthWipesOldStorageAndEncodesUTF8(t *testing.T) {
 	}
 	in.clear()
 }
+
+func TestSecretKeystrokesAreConsumedAndWiped(t *testing.T) {
+	m := New(Options{InitialPath: "/tmp/test.kdbx"})
+	typed := []rune("héllo")
+	m.key(tea.KeyMsg{Type: tea.KeyRunes, Runes: typed})
+	if got := m.inputs[0].bytes(); !bytes.Equal(got, []byte("héllo")) {
+		t.Fatal("password input lost")
+	}
+	for _, r := range typed {
+		if r != 0 {
+			t.Fatal("key event retained secret")
+		}
+	}
+	m.inputs[0].clear()
+}
