@@ -41,6 +41,9 @@ type Pending struct {
 }
 
 func (p *Pending) Reply(r Response) {
+	if r.Error != "" {
+		clearResponse(&r)
+	}
 	accepted := false
 	p.once.Do(func() {
 		if p.Context.Err() != nil {

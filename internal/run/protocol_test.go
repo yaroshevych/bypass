@@ -59,10 +59,12 @@ func TestIPCExchangeAndExclusiveServer(t *testing.T) {
 	}
 	path := filepath.Join(root, "run.sock")
 	var mixedErrorValue []byte
+	mixedReplyDone := make(chan struct{})
 	server, err := Listen(path, func(p *Pending) {
 		if p.Request.References[0] == "error" {
 			mixedErrorValue = []byte("secret")
 			p.Reply(Response{Error: "failed", Values: map[string][]byte{"error": mixedErrorValue}})
+			close(mixedReplyDone)
 			return
 		}
 		p.Reply(Response{Values: map[string][]byte{"ref": []byte("synthetic")}})
@@ -87,6 +89,11 @@ func TestIPCExchangeAndExclusiveServer(t *testing.T) {
 	clearResponse(&response)
 	if _, err := Exchange(ctx, path, Request{Command: []string{"test"}, References: []string{"error"}}); err == nil {
 		t.Fatal("accepted error response")
+	}
+	select {
+	case <-mixedReplyDone:
+	case <-ctx.Done():
+		t.Fatal("error reply did not complete")
 	}
 	if !bytes.Equal(mixedErrorValue, make([]byte, len(mixedErrorValue))) {
 		t.Fatal("mixed error response retained secret bytes")
