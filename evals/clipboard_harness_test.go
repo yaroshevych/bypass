@@ -21,7 +21,7 @@ func (e *evalSession) initClipboard() {
 	e.replaceClipboard(nil)
 	write := `#!/bin/sh
 set -eu
-: "${BYPASS_EVAL_CLIPBOARD:?missing isolated clipboard path}"
+BYPASS_EVAL_CLIPBOARD=` + shellQuote(e.clipboardPath) + `
 umask 077
 tmp="${BYPASS_EVAL_CLIPBOARD}.$$"
 trap 'rm -f "$tmp"' EXIT HUP INT TERM
@@ -30,7 +30,7 @@ mv -f "$tmp" "$BYPASS_EVAL_CLIPBOARD"
 `
 	read := `#!/bin/sh
 set -eu
-: "${BYPASS_EVAL_CLIPBOARD:?missing isolated clipboard path}"
+BYPASS_EVAL_CLIPBOARD=` + shellQuote(e.clipboardPath) + `
 cat "$BYPASS_EVAL_CLIPBOARD"
 `
 	for _, name := range []string{"pbcopy", "wl-copy"} {
