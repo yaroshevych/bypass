@@ -31,6 +31,20 @@ func TestPaletteSelectionVisibleAtResponsiveSizes(t *testing.T) {
 	}
 }
 
+func TestHelpWheelScrollDoesNotReachWorkspace(t *testing.T) {
+	m, _ := operationModel(t)
+	m.help = true
+	selected := m.ws.ActiveView().SelectedUUID
+	m.pointer(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelDown})
+	if m.helpOffset != 1 || m.ws.ActiveView().SelectedUUID != selected {
+		t.Fatal("wheel did not scroll help exclusively")
+	}
+	m.pointer(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelUp})
+	if m.helpOffset != 0 {
+		t.Fatal("wheel did not scroll help up")
+	}
+}
+
 func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	m, _ := operationModel(t)
 	v := m.ws.ActiveView()

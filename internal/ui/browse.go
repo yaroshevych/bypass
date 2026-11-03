@@ -10,7 +10,17 @@ import (
 func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	m.tabHovered = false
 	switch m.activeLayer() {
-	case layerTiny, layerRequests, layerHelp:
+	case layerTiny, layerRequests:
+		return nil
+	case layerHelp:
+		if msg.Action == tea.MouseActionPress {
+			switch msg.Button {
+			case tea.MouseButtonWheelUp:
+				m.helpOffset = max(0, m.helpOffset-1)
+			case tea.MouseButtonWheelDown:
+				m.helpOffset++
+			}
+		}
 		return nil
 	case layerPrivacy:
 		return m.pinPointer(msg)
