@@ -274,11 +274,7 @@ func (m *Model) commands() []command {
 		return nil
 	})
 	add("set-pin", "Privacy", "Change PIN…", "", allReason, "", func() tea.Cmd { m.configurePIN(false); return nil })
-	pinReason := allReason
-	if pinReason == "" && !m.gate.Configured() {
-		pinReason = "PIN not set"
-	}
-	add("protect", "Vault", "Lock UI with PIN", "", pinReason, "", m.protectScreen)
+	add("protect", "Vault", "Lock UI with PIN", "", "", "", m.protectScreen)
 	add("help", "Help", "Shortcuts", "", "", "", func() tea.Cmd { m.help = true; m.helpOffset = 0; m.helpQuery.clear(); return nil })
 	return commands
 }
