@@ -227,13 +227,13 @@ Only the reference portions are replaced. Ordinary text is preserved.
 ## Approval and saved permissions
 
 The TUI must be running when a request needs secret resolution. Open pending
-requests with `ctrl+b`. The Requests dialog lists callers and commands. Select
+requests with `alt+b` (`ctrl+b` is also available outside tmux). The Requests dialog lists callers and commands. Select
 a request and press `enter` to review it. Use Deny all (`d`) or Approve all
-(`a`) for pending requests, or Close (`esc`). Approve all grants resolvable
+(`a`) for pending requests, or Close (`esc`). After confirmation, Approve all grants resolvable
 requests once; requests needing vault selection or unavailable secrets remain
 for individual review.
 Reset saved permissions (`r`) clears remembered approvals in all unlocked
-vaults after confirmation. Cancel is selected by default; use `ctrl+s` to reset.
+vaults after confirmation. Cancel is selected by default; use `ctrl+s` or `r` to reset.
 Locked vaults are unchanged, and pending requests stay queued.
 
 Review opens a second dialog over the request list. It shows the requested
