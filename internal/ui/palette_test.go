@@ -54,6 +54,17 @@ func TestHelpWheelScrollDoesNotReachWorkspace(t *testing.T) {
 	}
 }
 
+func TestHelpFilterAcceptsNavigationLetters(t *testing.T) {
+	m, _ := operationModel(t)
+	m.help = true
+	for _, ch := range "lock jump" {
+		m.helpKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+	}
+	if got := m.helpQuery.value(); got != "lock jump" {
+		t.Fatalf("help filter = %q, want lock jump", got)
+	}
+}
+
 func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	m, _ := operationModel(t)
 	v := m.ws.ActiveView()

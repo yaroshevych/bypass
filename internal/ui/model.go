@@ -835,9 +835,9 @@ func (m *Model) helpKey(k tea.KeyMsg) tea.Cmd {
 	case "ctrl+p":
 		m.openPalette("actions", false)
 		return nil
-	case "up", "k":
+	case "up":
 		m.scrollHelp(-1)
-	case "down", "j":
+	case "down":
 		m.scrollHelp(1)
 	case "pgup":
 		m.scrollHelp(-8)
