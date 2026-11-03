@@ -351,6 +351,29 @@ func TestRunRequestsNavigationIncludesListAndButtons(t *testing.T) {
 	}
 }
 
+func TestBulkApprovalRequiresConfirmationAndCapturesQueue(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 48, 16
+	first := &runpkg.Pending{Context: context.Background()}
+	second := &runpkg.Pending{Context: context.Background()}
+	m.runs = &runState{visible: true, pending: []*runpkg.Pending{first}}
+	cmd, _ := m.updateRun(key("a"))
+	if cmd != nil || !m.runs.bulkConfirm || m.runs.bulkFocus != 0 || len(m.runs.bulkPending) != 1 {
+		t.Fatal("bulk approval should open confirmation with Cancel focused")
+	}
+	if view := ansi.Strip(m.View()); !strings.Contains(view, "Approve 1 pending request(s) once?") {
+		t.Fatalf("confirmation does not show approval scope: %q", view)
+	}
+	m.runs.pending = append(m.runs.pending, second)
+	if len(m.runs.bulkPending) != 1 || m.runs.bulkPending[0] != first {
+		t.Fatal("new request was included in existing confirmation")
+	}
+	m.updateRun(key("enter"))
+	if m.runs.bulkConfirm || len(m.runs.pending) != 2 {
+		t.Fatal("default confirmation action must cancel without approving")
+	}
+}
+
 func TestRunFocusMovesToButtonsWhenLastRequestRemoved(t *testing.T) {
 	m := New(Options{})
 	p := &runpkg.Pending{Context: context.Background()}

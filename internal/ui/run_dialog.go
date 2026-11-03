@@ -92,6 +92,10 @@ func (m *Model) runResetActions() []runAction {
 	return []runAction{{"Cancel", "esc"}, {"Reset", "ctrl+s"}}
 }
 
+func (m *Model) runBulkActions() []runAction {
+	return []runAction{{"Cancel", "esc"}, {"Approve all", "a"}}
+}
+
 func (m *Model) runBodyCapacity(parent bool) int {
 	if m.smallDialogScreen() {
 		return max(1, m.height-1)
@@ -244,7 +248,7 @@ func (m *Model) runActionAt(x, y int) (int, bool) {
 }
 
 func (m *Model) runRequestAt(x, y int) int {
-	if m.runs == nil || m.runs.review || m.runs.resetConfirm {
+	if m.runs == nil || m.runs.review || m.runs.resetConfirm || m.runs.bulkConfirm {
 		return -1
 	}
 	layout := m.runRequestsLayout()
@@ -270,6 +274,13 @@ func (m *Model) runDialogWidth(review bool) int {
 }
 
 func (m *Model) runLayout(review bool) runDialogLayout {
+	if m.runs != nil && m.runs.bulkConfirm {
+		layout := runDialogLayout{width: m.runDialogWidth(true)}
+		layout.title, layout.actions = "Approve requests?", m.runBulkActions()
+		layout.body = []string{fmt.Sprintf("Approve %d pending request(s) once?", len(m.runs.bulkPending)), "New requests are not included."}
+		layout.focus, layout.capacity = m.runs.bulkFocus, m.runBodyCapacity(false)
+		return m.positionRunLayout(layout, true)
+	}
 	if m.runs != nil && m.runs.resetConfirm {
 		layout := runDialogLayout{width: m.runDialogWidth(true)}
 		layout.title, layout.actions = "Reset saved permissions", m.runResetActions()
@@ -331,7 +342,9 @@ func (m *Model) activateRunAction(index int) tea.Cmd {
 	}
 	r := m.runs
 	var actions []runAction
-	if r.resetConfirm {
+	if r.bulkConfirm {
+		actions = m.runBulkActions()
+	} else if r.resetConfirm {
 		actions = m.runResetActions()
 	} else if r.review {
 		actions = m.runReviewActions()
@@ -361,6 +374,14 @@ func (m *Model) activateRunKey(key string) tea.Cmd {
 	r := m.runs
 	if r == nil {
 		return nil
+	}
+	if r.bulkConfirm {
+		pending := r.bulkPending
+		r.bulkConfirm, r.bulkPending = false, nil
+		if key != "a" {
+			return nil
+		}
+		return m.approveRunRequests(pending)
 	}
 	if r.resetConfirm {
 		switch key {
@@ -453,35 +474,54 @@ func (m *Model) activateRunKey(key string) tea.Cmd {
 			m.removeRun(p)
 		}
 	case "a":
-		var jobs []tea.Cmd
-		failed := 0
-		for _, p := range r.pending {
-			choices, choiceIndex := r.choices, r.choiceIndex
-			targets, err := m.resolveRunTargets(p)
-			r.choices, r.choiceIndex = choices, choiceIndex
-			if err != nil || len(targets) == 0 {
-				failed++
-				continue
-			}
-			job := m.runGrantJob(p, targets, "a")
-			jobs = append(jobs, func() tea.Msg {
-				result := job().(runResult)
-				result.bulk = true
-				return result
-			})
-		}
-		if failed > 0 {
-			m.setNotice(fmt.Sprintf("%d request(s) need individual review", failed), true)
-		}
-		if len(jobs) > 0 {
-			r.busy, r.bulkRemaining = true, len(jobs)
-			return tea.Batch(jobs...)
+		if len(r.pending) > 0 {
+			r.bulkConfirm, r.bulkFocus = true, 0
+			r.bulkPending = append([]*runpkg.Pending(nil), r.pending...)
 		}
 	case "esc":
 		r.visible = false
 	case "r":
 		r.resetConfirm = true
 		r.resetFocus = 0
+	}
+	return nil
+}
+
+func (m *Model) approveRunRequests(pending []*runpkg.Pending) tea.Cmd {
+	r := m.runs
+	var jobs []tea.Cmd
+	failed := 0
+	for _, p := range pending {
+		found := false
+		for _, current := range r.pending {
+			if current == p {
+				found = true
+				break
+			}
+		}
+		if !found || p.Context.Err() != nil {
+			continue
+		}
+		choices, choiceIndex := r.choices, r.choiceIndex
+		targets, err := m.resolveRunTargets(p)
+		r.choices, r.choiceIndex = choices, choiceIndex
+		if err != nil || len(targets) == 0 {
+			failed++
+			continue
+		}
+		job := m.runGrantJob(p, targets, "a")
+		jobs = append(jobs, func() tea.Msg {
+			result := job().(runResult)
+			result.bulk = true
+			return result
+		})
+	}
+	if failed > 0 {
+		m.setNotice(fmt.Sprintf("%d request(s) need individual review", failed), true)
+	}
+	if len(jobs) > 0 {
+		r.busy, r.bulkRemaining = true, len(jobs)
+		return tea.Batch(jobs...)
 	}
 	return nil
 }
@@ -580,7 +620,7 @@ func (m *Model) runDialogView() []string {
 	r := m.runs
 	parentLayout := m.runRequestsLayout()
 	parent := renderRunLayer(m, m.modalBackdrop(), parentLayout)
-	if r == nil || (!r.review && !r.resetConfirm) {
+	if r == nil || (!r.review && !r.resetConfirm && !r.bulkConfirm) {
 		return parent
 	}
 	return renderRunLayer(m, parent, m.runLayout(r.review))

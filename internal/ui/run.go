@@ -54,6 +54,9 @@ type runState struct {
 	busy            bool
 	busyPending     *runpkg.Pending
 	bulkRemaining   int
+	bulkConfirm     bool
+	bulkFocus       int
+	bulkPending     []*runpkg.Pending
 	resetConfirm    bool
 	resetFocus      int
 	resetBusy       bool
@@ -326,11 +329,13 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			if r.busy || r.resetBusy {
 				return nil, true
 			}
-			r.visible, r.review, r.choosing, r.reviewed, r.resetConfirm = false, false, false, nil, false
+			r.visible, r.review, r.choosing, r.reviewed, r.resetConfirm, r.bulkConfirm = false, false, false, nil, false, false
+			r.bulkPending = nil
 			return nil, false
 		}
 		if msg.String() == "ctrl+b" && m.editor == nil && m.dialog == nil {
 			r.visible = !r.visible
+			r.bulkConfirm, r.bulkPending = false, nil
 			r.review, r.choosing, r.reviewed = false, false, nil
 			r.targets = nil
 			r.choices = nil
@@ -342,6 +347,19 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		m.pruneRuns()
 		if r.busy {
+			return nil, true
+		}
+		if r.bulkConfirm {
+			switch msg.String() {
+			case "esc":
+				r.bulkConfirm, r.bulkPending = false, nil
+			case "tab", "shift+tab", "up", "down":
+				dialogActionFocus(msg.String(), len(m.runBulkActions()), &r.bulkFocus)
+			case "enter":
+				return m.activateRunAction(r.bulkFocus), true
+			case "a":
+				return m.activateRunAction(1), true
+			}
 			return nil, true
 		}
 		if r.resetConfirm {
