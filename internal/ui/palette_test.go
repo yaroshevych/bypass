@@ -84,10 +84,18 @@ func TestWorkspaceShortcutRegistryMatchesPalette(t *testing.T) {
 	for _, command := range m.commands() {
 		commands[command.id] = command
 	}
+	keys := make(map[string]string)
 	for id, binding := range workspaceShortcuts {
 		command, ok := commands[id]
 		if !ok || binding.key == "" || command.key != binding.label {
 			t.Errorf("shortcut %q is not represented correctly in the palette", id)
+		}
+		if other := keys[binding.key]; other != "" {
+			t.Errorf("%q and %q share workspace key %q", other, id, binding.key)
+		}
+		keys[binding.key] = id
+		if len(binding.key) == 1 && binding.key[0] >= 'A' && binding.key[0] <= 'Z' && binding.label != "Shift+"+binding.key {
+			t.Errorf("%q must advertise the shift needed for %q", id, binding.key)
 		}
 	}
 }
