@@ -53,9 +53,12 @@ func (m *Model) requestTOTP(api interface {
 	db := session.DB.Clone()
 	creds := session.Credentials.Clone()
 	entryID := entry.UUID
+	resources := newJobResources(ctx, func() { db.Clear(); creds.Clear() })
 	return func() tea.Msg {
-		defer db.Clear()
-		defer creds.Clear()
+		if !resources.start() {
+			return extrasTOTPMsg{state: state, requestID: requestID, err: ctx.Err()}
+		}
+		defer resources.done()
 		result, err := api.TOTP(ctx, db, creds, entryID)
 		return extrasTOTPMsg{state: state, requestID: requestID, result: result, err: err}
 	}

@@ -388,9 +388,12 @@ func (m *Model) startAttachmentExport(state *extraState) tea.Cmd {
 	db := session.DB.Clone()
 	creds := session.Credentials.Clone()
 	entryID, name, path := entry.UUID, state.targetName, state.path
+	resources := newJobResources(ctx, func() { db.Clear(); creds.Clear() })
 	return func() tea.Msg {
-		defer db.Clear()
-		defer creds.Clear()
+		if !resources.start() {
+			return extrasExportMsg{state: state, err: ctx.Err()}
+		}
+		defer resources.done()
 		data, err := api.ExportAttachment(ctx, db, creds, entryID, name)
 		if err == nil {
 			if ctx.Err() != nil {

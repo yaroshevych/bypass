@@ -826,9 +826,12 @@ func (m *Model) copyField(name string) tea.Cmd {
 		db := s.DB.Clone()
 		creds := s.Credentials.Clone()
 		entryID := e.UUID
+		resources := newJobResources(ctx, func() { db.Clear(); creds.Clear() })
 		return func() tea.Msg {
-			defer db.Clear()
-			defer creds.Clear()
+			if !resources.start() {
+				return resolvedCopyMsg{id: id, label: label, err: ctx.Err()}
+			}
+			defer resources.done()
 			value, err := resolver.ResolveField(ctx, db, creds, entryID, name)
 			return resolvedCopyMsg{id, label, value, err}
 		}
@@ -857,8 +860,12 @@ func (m *Model) copyNativePassword(entryID string) tea.Cmd {
 	db := m.ws.ActiveSession().DB.Clone()
 	m.clipboardExpires = time.Time{}
 	m.setNotice("copying password", false)
+	resources := newJobResources(ctx, db.Clear)
 	return func() tea.Msg {
-		defer db.Clear()
+		if !resources.start() {
+			return nativeCopiedMsg{id: id, err: ctx.Err()}
+		}
+		defer resources.done()
 		return nativeCopiedMsg{id, copier.CopyPassword(ctx, db, entryID)}
 	}
 }
@@ -880,8 +887,12 @@ func (m *Model) copyValue(value []byte, label string) tea.Cmd {
 	expires := now.Add(m.settings.ClipboardTimeout)
 	manager := m.clipboard
 	timeout := m.settings.ClipboardTimeout
+	resources := newJobResources(ctx, func() { clear(value) })
 	return func() tea.Msg {
-		defer clear(value)
+		if !resources.start() {
+			return copiedMsg{id: id, label: label, expires: expires, err: ctx.Err()}
+		}
+		defer resources.done()
 		err := manager.Copy(ctx, value, now, timeout)
 		return copiedMsg{id, label, expires, err}
 	}
@@ -956,9 +967,12 @@ func (m *Model) requestRevealField() tea.Cmd {
 	db := s.DB.Clone()
 	creds := s.Credentials.Clone()
 	entryID := e.UUID
+	resources := newJobResources(ctx, func() { db.Clear(); creds.Clear() })
 	return func() tea.Msg {
-		defer db.Clear()
-		defer creds.Clear()
+		if !resources.start() {
+			return resolvedRevealMsg{id: id, err: ctx.Err()}
+		}
+		defer resources.done()
 		value, err := resolver.ResolveField(ctx, db, creds, entryID, name)
 		return resolvedRevealMsg{id, value, err}
 	}
