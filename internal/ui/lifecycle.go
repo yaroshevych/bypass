@@ -468,11 +468,11 @@ func (m *Model) lifecycleContent() (dialogrender.Options, []int) {
 	if l.kind == "info" {
 		var wrapped []string
 		for _, line := range l.lines {
-			for _, part := range strings.Split(ansi.Wrap(safe(line), max(1, dialogWidth-5), ""), "\n") {
+			for _, part := range strings.Split(ansi.Wrap(safe(line), max(1, m.dialogInnerWidth(dialogWidth)-1), ""), "\n") {
 				wrapped = append(wrapped, " "+part)
 			}
 		}
-		capacity := m.dialogContentCapacity(12, 1)
+		capacity := m.lifecycleAvailableRows(dialogWidth, len(body), 0)
 		start := min(l.offset, max(0, len(wrapped)-capacity))
 		body = append(body, wrapped[start:min(len(wrapped), start+capacity)]...)
 		footer = ""
@@ -509,7 +509,7 @@ func (m *Model) lifecycleContent() (dialogrender.Options, []int) {
 		fields := m.dialogFields(inputs, actionWidth, true)
 		actions = []dialogAction{{"Save", "ctrl+s"}, {"Cancel", "esc"}}
 		actionBase, actionFocus = len(indices), l.focus-len(indices)
-		capacity := max(2, m.dialogContentCapacity(12, 2)-len(body)-len(actions)-1)
+		capacity := max(2, m.lifecycleAvailableRows(dialogWidth, len(body), len(actions)))
 		focusLine := min(l.focus, len(indices)-1)*3 + 2
 		start := viewportOffset(focusLine, len(fields), capacity, l.offset)
 		end := min(len(fields), start+capacity)
@@ -541,6 +541,16 @@ func (m *Model) lifecycleContent() (dialogrender.Options, []int) {
 		rowTargets[row] = target
 	}
 	return opts, rowTargets
+}
+
+func (m *Model) lifecycleAvailableRows(width, prefix, actions int) int {
+	opts := m.dialogOptions()
+	opts.Mode, opts.Width, opts.Error = dialogrender.Overlay, width, safe(m.lifecycle.err)
+	opts.Actions = make([]dialogrender.Action, actions)
+	if m.lifecycle.busy {
+		prefix++
+	}
+	return max(1, dialogrender.ContentCapacity(opts)-prefix)
 }
 
 func (m *Model) lifecycleLines() []string {

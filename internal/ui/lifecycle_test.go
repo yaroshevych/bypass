@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"bypass/internal/platform"
+	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -38,6 +39,28 @@ func (b *lifecycleBackend) ChangeCredentials(_ context.Context, db *vault.Databa
 }
 func (b *lifecycleBackend) InfoDatabase(context.Context, *vault.Database) (vault.DatabaseInfo, error) {
 	return vault.DatabaseInfo{Name: "Test Vault", Cipher: "AES", KDF: "Argon2", EntryCount: 2}, nil
+}
+
+func TestLifecycleFocusedFieldsRemainVisible(t *testing.T) {
+	for _, size := range [][2]int{{48, 16}, {60, 20}, {80, 24}} {
+		m := New(Options{})
+		m.width, m.height = size[0], size[1]
+		m.lifecycle = &lifecycleState{kind: "create", inputs: make([]input, 5)}
+		for focus := 0; focus < 3; focus++ {
+			m.lifecycle.focus = focus
+			opts, targets := m.lifecycleContent()
+			_, indices := dialogrender.PrepareBody(opts)
+			visible := false
+			for _, index := range indices {
+				if index >= 0 && index < len(targets) && targets[index] == focus {
+					visible = true
+				}
+			}
+			if !visible {
+				t.Fatalf("%dx%d: focused field %d is hidden", size[0], size[1], focus)
+			}
+		}
+	}
 }
 func TestCreateVaultFormMasksInputsAndRetainsFailedDraft(t *testing.T) {
 	b := &lifecycleBackend{fail: true}
