@@ -1260,56 +1260,6 @@ func padLines(lines []string, height int) []string {
 	return lines
 }
 
-func (m *Model) box(title string, body []string, statusBar string, header ...dialogrender.Header) []string {
-	return m.boxWithWidth(title, body, statusBar, min(m.width-6, 82), false, header...)
-}
-
-func (m *Model) boxWithWidth(title string, body []string, statusBar string, width int, hideHeaderRule bool, header ...dialogrender.Header) []string {
-	return m.boxWithWidthError(title, body, statusBar, "", width, hideHeaderRule, header...)
-}
-
-func (m *Model) boxWithWidthError(title string, body []string, statusBar, message string, width int, hideHeaderRule bool, header ...dialogrender.Header) []string {
-	headerContent, headerDivider := "", 0
-	if len(header) > 0 {
-		headerContent, headerDivider = header[0].Content, header[0].Divider
-	}
-	opts := m.dialogOptions()
-	opts.Mode, opts.Title, opts.HeaderContent, opts.HeaderDivider = dialogrender.Box, title, headerContent, headerDivider
-	opts.Body, opts.StatusBar, opts.Backdrop, opts.Width = body, statusBar, m.modalBackdrop(), min(m.width-6, width)
-	opts.Error = safe(message)
-	opts.HideHeaderRule = hideHeaderRule
-	return dialogrender.Render(opts)
-}
-
-func (m *Model) boxWithBodyRows(title string, body []string, statusBar string, bodyRows int, header ...dialogrender.Header) []string {
-	return m.boxWithBodyRowsWidth(title, body, statusBar, bodyRows, min(m.width-6, 82), header...)
-}
-
-func (m *Model) boxWithBodyRowsOnBackdrop(title string, body []string, statusBar string, bodyRows int, backdrop []string, header ...dialogrender.Header) []string {
-	return m.boxWithBodyRowsWidthOnBackdrop(title, body, statusBar, bodyRows, min(m.width-6, 82), backdrop, header...)
-}
-
-func (m *Model) boxWithBodyRowsWidth(title string, body []string, statusBar string, bodyRows, width int, header ...dialogrender.Header) []string {
-	return m.boxWithBodyRowsWidthOnBackdrop(title, body, statusBar, bodyRows, width, m.modalBackdrop(), header...)
-}
-
-func (m *Model) boxWithBodyRowsWidthOnBackdrop(title string, body []string, statusBar string, bodyRows, width int, backdrop []string, header ...dialogrender.Header) []string {
-	return m.boxWithBodyRowsWidthOnBackdropError(title, body, statusBar, "", bodyRows, width, backdrop, header...)
-}
-
-func (m *Model) boxWithBodyRowsWidthOnBackdropError(title string, body []string, statusBar, message string, bodyRows, width int, backdrop []string, header ...dialogrender.Header) []string {
-	headerContent, headerDivider := "", 0
-	if len(header) > 0 {
-		headerContent, headerDivider = header[0].Content, header[0].Divider
-	}
-	opts := m.dialogOptions()
-	opts.Mode, opts.Title, opts.HeaderContent, opts.HeaderDivider = dialogrender.Box, title, headerContent, headerDivider
-	opts.Body, opts.BodyRows, opts.StatusBar = body, bodyRows, statusBar
-	opts.Error = safe(message)
-	opts.Backdrop, opts.Width = backdrop, min(m.width-6, width)
-	return dialogrender.Render(opts)
-}
-
 func (m *Model) unlockDialogBody() ([]string, int) {
 	styles := m.colors()
 	accent, secondary := styles.accent, styles.secondary
@@ -1419,7 +1369,11 @@ func (m *Model) pickerContent() []listComponentOutput {
 func (m *Model) pickerLines() []string {
 	body, _ := listContent(m.pickerContent())
 	dialogWidth := min(m.width-6, 60)
-	return m.boxWithBodyRowsWidthOnBackdropError("Open Vault", body, m.pickerStatusBar(), m.err, m.pickerBodyRows(), dialogWidth, m.modalBackdrop())
+	opts := m.dialogOptions()
+	opts.Mode, opts.Title, opts.Body = dialogrender.Box, "Open Vault", body
+	opts.BodyRows, opts.StatusBar, opts.Error = m.pickerBodyRows(), m.pickerStatusBar(), safe(m.err)
+	opts.Backdrop, opts.Width = m.modalBackdrop(), dialogWidth
+	return dialogrender.Render(opts)
 }
 
 func (m *Model) helpLines() []string {

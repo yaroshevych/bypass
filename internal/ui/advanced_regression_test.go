@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -53,7 +54,7 @@ func TestClassicDialogTitlesAreUppercaseAndHeaderRulesJoinFrame(t *testing.T) {
 	m.width, m.height = 100, 30
 	m.settings.Appearance = "classic"
 	for name, lines := range map[string][]string{
-		"box":     m.box("Change Vault Credentials", []string{"body"}, ""),
+		"box":     testDialogBox(m, "Change Vault Credentials", []string{"body"}, ""),
 		"overlay": m.overlay("History", []string{"body"}, "", 60, 0, 0),
 	} {
 		stripped := make([]string, len(lines))
@@ -89,7 +90,7 @@ func TestDialogFootersAreRightAlignedWithoutSeparator(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 100, 30
 	for name, lines := range map[string][]string{
-		"box":     m.box("Test Dialog", []string{"body"}, "c copy"),
+		"box":     testDialogBox(m, "Test Dialog", []string{"body"}, "c copy"),
 		"overlay": m.overlay("Test Dialog", []string{"body"}, "c copy", 60, -1, -1),
 	} {
 		var stripped []string
@@ -221,4 +222,11 @@ func TestTinyTerminalDoesNotAcceptHiddenPINInput(t *testing.T) {
 	if m.gate.Protected() {
 		t.Fatal("resizing did not restore the PIN form")
 	}
+}
+
+func testDialogBox(m *Model, title string, body []string, status string) []string {
+	opts := m.dialogOptions()
+	opts.Mode, opts.Title, opts.Body = dialogrender.Box, title, body
+	opts.StatusBar, opts.Backdrop, opts.Width = status, m.modalBackdrop(), min(m.width-6, 82)
+	return dialogrender.Render(opts)
 }
