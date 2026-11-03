@@ -6,6 +6,7 @@ import (
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
 	"context"
+	"errors"
 	tea "github.com/charmbracelet/bubbletea"
 	"strings"
 	"time"
@@ -127,7 +128,8 @@ func (m *Model) updateExtras(msg tea.Msg) (tea.Cmd, bool) {
 			state.cancel = nil
 		}
 		state.loading = false
-		if _, entry := m.currentExtraEntry(state); entry == nil {
+		_, entry := m.currentExtraEntry(state)
+		if entry == nil {
 			wipebuf.Wipe(msg.result.Code)
 			m.clearExtras()
 			return nil, true
@@ -135,8 +137,12 @@ func (m *Model) updateExtras(msg tea.Msg) (tea.Cmd, bool) {
 		if msg.err != nil {
 			wipebuf.Wipe(msg.result.Code)
 			state.err = "Could not generate a TOTP code."
+			if errors.Is(msg.err, vault.ErrUnsupported) {
+				state.err = "No TOTP configured for this entry."
+			}
 			return nil, true
 		}
+		entry.HasTOTP = true
 		wipebuf.Wipe(state.totpCode)
 		state.totpCode = msg.result.Code
 		msg.result.Code = nil

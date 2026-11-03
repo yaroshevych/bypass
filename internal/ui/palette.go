@@ -215,7 +215,7 @@ func (m *Model) commands() []command {
 		grandReason = "Finish editing before viewing stored fields"
 	}
 	totpReason, historyReason := needEntry, needEntry
-	if entry != nil && !entry.HasTOTP {
+	if entry != nil && !entry.HasTOTP && (s == nil || s.DB == nil || !s.DB.Interactive()) {
 		totpReason = "No TOTP configured for this entry"
 	}
 	if entry != nil && len(entry.History) == 0 {
