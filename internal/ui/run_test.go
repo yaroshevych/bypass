@@ -351,6 +351,23 @@ func TestRunRequestsNavigationIncludesListAndButtons(t *testing.T) {
 	}
 }
 
+func TestRunRequestWheelMovesSelectionWithoutReachingButtons(t *testing.T) {
+	m := New(Options{})
+	m.runs = &runState{visible: true, pending: []*runpkg.Pending{{Context: context.Background()}, {Context: context.Background()}}}
+	wheel := func(button tea.MouseButton) {
+		m.updateRun(tea.MouseMsg{Action: tea.MouseActionPress, Button: button})
+	}
+	wheel(tea.MouseButtonWheelDown)
+	wheel(tea.MouseButtonWheelDown)
+	if m.runs.index != 1 || m.runs.buttonsFocused {
+		t.Fatal("wheel should stop at the last request")
+	}
+	wheel(tea.MouseButtonWheelUp)
+	if m.runs.index != 0 {
+		t.Fatal("wheel should select the previous request")
+	}
+}
+
 func TestBulkApprovalRequiresConfirmationAndCapturesQueue(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 48, 16
