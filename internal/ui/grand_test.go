@@ -94,16 +94,16 @@ func TestGrandViewUnicodeAndControlCharactersAreSafeAndRuneIndexed(t *testing.T)
 func TestGrandViewScrollsToFinalCharacters(t *testing.T) {
 	m, _ := operationModel(t)
 	focusGrandPassword(m)
-	value := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	value := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	setGrandPassword(t, m, value)
 	m.width, m.height = 48, 16
 	m.key(key("G"))
-	if columns, visible, total := m.grandGeometry(); columns != 10 || visible != 2 || total != 4 || m.grandOffset != 0 {
+	if columns, visible, total := m.grandGeometry(); columns != 10 || visible != 4 || total != 8 || m.grandOffset != 0 {
 		t.Fatalf("small Grand View geometry = %d columns, %d visible rows, %d total rows, offset %d", columns, visible, total, m.grandOffset)
 	}
 	m.key(tea.KeyMsg{Type: tea.KeyEnd})
 	view := ansi.Strip(strings.Join(m.grandLines(), "\n"))
-	if m.grandOffset != 2 || !strings.Contains(view, "36") || !strings.Contains(view, "Z") {
+	if m.grandOffset != 4 || !strings.Contains(view, "72") || !strings.Contains(view, "Z") {
 		t.Fatalf("Grand View did not reach the final indexed character:\n%s", view)
 	}
 }
@@ -201,7 +201,7 @@ func TestGrandViewSingleLineNotesStayPlainAndLongNotesScroll(t *testing.T) {
 		t.Fatal("single line notes used the character grid")
 	}
 	m.width, m.height = 48, 16
-	m.revealValue = []byte(strings.Repeat("Wrapped notes need the full terminal width. ", 10) + "FINAL")
+	m.revealValue = []byte(strings.Repeat("Wrapped notes need the full terminal width. ", 20) + "FINAL")
 	m.key(tea.KeyMsg{Type: tea.KeyEnd})
 	view = ansi.Strip(strings.Join(m.grandLines(), "\n"))
 	if m.grandOffset == 0 || !strings.Contains(view, "FINAL") {

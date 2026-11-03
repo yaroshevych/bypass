@@ -123,7 +123,9 @@ func (m *Model) historyEntryLines(state *extraState) []string {
 }
 
 func (m *Model) historyValueCapacity() int {
-	return max(1, max(1, m.height-8)-5)
+	opts := m.dialogOptions()
+	opts.Mode, opts.Width, opts.StatusBar = dialogrender.Overlay, min(78, m.width-4), "scroll"
+	return max(1, dialogrender.ContentCapacity(opts)-4)
 }
 
 func (m *Model) historyValueLines(entry vault.Entry, field vault.Field, state *extraState) []string {

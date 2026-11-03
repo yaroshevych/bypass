@@ -394,16 +394,6 @@ func renderFullscreen(o Options, background []string, footer string) []string {
 	return background
 }
 
-// BodyCapacity returns the number of dialog rows available for content after
-// reserving one row for a visible status bar.
-func BodyCapacity(height int, statusBar string) int {
-	capacity := max(1, height-8)
-	if statusBar != "" {
-		capacity = max(1, capacity-1)
-	}
-	return capacity
-}
-
 func renderOverlay(o Options, background []string, width int, border, horizontal, tl, tr, bl, br, leftRule, rightRule, title, footer string) []string {
 	wrap := func(text string, right bool) string {
 		if right && o.Compact {

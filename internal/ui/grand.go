@@ -1,6 +1,7 @@
 package ui
 
 import (
+	dialogrender "bypass/internal/ui/dialog"
 	"fmt"
 	"strconv"
 	"strings"
@@ -82,13 +83,19 @@ func (m *Model) grandGeometry() (columns, visible, total int) {
 	defer clear(runes)
 	cell := grandCellWidth(runes, m.settings.ASCII)
 	columns = max(1, (m.width-8)/cell)
-	visible = max(1, (m.height-10)/3)
+	visible = max(1, m.grandContentCapacity()/3)
 	total = max(1, (len(runes)+columns-1)/columns)
 	return
 }
 
 func (m *Model) grandTextCapacity() int {
-	return max(1, m.height-11)
+	return max(1, m.grandContentCapacity())
+}
+
+func (m *Model) grandContentCapacity() int {
+	opts := m.dialogOptions()
+	opts.Mode, opts.Width, opts.StatusBar = dialogrender.Overlay, min(m.width-4, 78), "scroll"
+	return max(1, dialogrender.ContentCapacity(opts)-2)
 }
 
 func grandCharacter(r rune, ascii bool) string {
