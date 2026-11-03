@@ -694,3 +694,18 @@ func TestHelpOwnsInputWhileEditorExists(t *testing.T) {
 		t.Fatal("closing help lost the underlying editor")
 	}
 }
+
+func TestHelpListsContextualShortcuts(t *testing.T) {
+	m, _ := operationModel(t)
+	groups, _ := m.helpActionGroups()
+	var lines []string
+	for _, group := range groups {
+		lines = append(lines, group...)
+	}
+	help := strings.Join(lines, "\n")
+	for _, want := range []string{"ctrl+x", "ctrl+l", "ctrl+pgup/down", "alt+1–9", "Context actions (unlocked)", "Open vault (workspace)", "Remove recent vault (welcome screen)"} {
+		if !strings.Contains(help, want) {
+			t.Errorf("help missing %q", want)
+		}
+	}
+}

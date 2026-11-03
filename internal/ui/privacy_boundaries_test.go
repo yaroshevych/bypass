@@ -523,3 +523,35 @@ func TestCtrlLFullLockCancelsPendingUnlockAndLocksOtherVault(t *testing.T) {
 		t.Fatal("canceled unlock resurrected a vault after full lock")
 	}
 }
+
+func TestCtrlXLocksFromWorkspaceDialogsAndPIN(t *testing.T) {
+	for _, layer := range []string{"workspace", "dialog", "pin"} {
+		t.Run(layer, func(t *testing.T) {
+			m := newBoundaryModel(t, &extrasTestBackend{}, fixture("/tmp/ctrl-x.kdbx"))
+			session := m.ws.ActiveSession()
+			switch layer {
+			case "dialog":
+				m.openPalette("actions", false)
+			case "pin":
+				if err := m.gate.Configure([]byte("2468")); err != nil {
+					t.Fatal(err)
+				}
+				updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlK})
+				if !m.gate.Protected() {
+					t.Fatal("PIN protection did not start")
+				}
+			}
+			updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlX})
+			if layer == "pin" {
+				if !m.pinFullLock || m.pinFocus != 1 {
+					t.Fatal("full lock confirmation did not default to Cancel")
+				}
+				updateKey(m, tea.KeyMsg{Type: tea.KeyUp})
+				updateKey(m, key("enter"))
+			}
+			if session.DB != nil {
+				t.Fatal("Ctrl+X did not lock vault")
+			}
+		})
+	}
+}

@@ -765,7 +765,7 @@ func (m *Model) helpActionGroups() (map[string][]string, int) {
 	for _, line := range []string{"↑↓ / j k       Change selection", "←→ / h l       Navigate", "tab            Cycle navigation", "/              Filter", "1–9            Switch tab", "[ ]            Cycle tabs"} {
 		add("VIEW", line)
 	}
-	for _, line := range []string{"a              Context actions", "ctrl+pgup/down Cycle tabs", "alt+1–9        Switch tab", "o              Open vault", "shift+l / ctrl+x Lock all vaults", "ctrl+l         Redraw screen", "delete         Remove recent vault (welcome)"} {
+	for _, line := range []string{"a              Context actions (unlocked)", "ctrl+pgup/down Cycle tabs", "alt+1–9        Switch tab", "o              Open vault (workspace)", "shift+l / ctrl+x Lock all vaults", "ctrl+l         Redraw screen", "delete         Remove recent vault (welcome screen)"} {
 		add("VIEW", line)
 	}
 	for _, command := range orderCommandChoices(m.commands()) {
