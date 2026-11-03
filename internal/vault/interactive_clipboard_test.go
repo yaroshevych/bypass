@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -26,9 +27,8 @@ func TestNativePasswordCopyUsesCurrentEntryAndLeavesClipboardUntouchedOnClose(t 
 	// Native clipboard programs write to a private fixture, never the desktop.
 	directory := t.TempDir()
 	clipboard := filepath.Join(directory, "clipboard")
-	t.Setenv("BYPASS_NATIVE_CLIPBOARD_TEST", clipboard)
 	for _, program := range []string{"pbcopy", "wl-copy", "xclip"} {
-		if err := os.WriteFile(filepath.Join(directory, program), []byte("#!/bin/sh\ncat > \"$BYPASS_NATIVE_CLIPBOARD_TEST\"\n"), 0700); err != nil {
+		if err := os.WriteFile(filepath.Join(directory, program), []byte("#!/bin/sh\ncat > "+strconv.Quote(clipboard)+"\n"), 0700); err != nil {
 			t.Fatal(err)
 		}
 	}
