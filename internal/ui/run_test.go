@@ -383,6 +383,19 @@ func TestRequestKeyboardRoutingToPaletteAndQuit(t *testing.T) {
 	}
 }
 
+func TestRequestShortcutAndLegacyAlias(t *testing.T) {
+	for _, message := range []tea.KeyMsg{
+		{Type: tea.KeyRunes, Alt: true, Runes: []rune{'b'}},
+		{Type: tea.KeyCtrlB},
+	} {
+		m := New(Options{})
+		m.Update(message)
+		if m.runs == nil || !m.runs.visible {
+			t.Fatalf("%s did not open requests", message.String())
+		}
+	}
+}
+
 func TestBulkApprovalRequiresConfirmationAndCapturesQueue(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 48, 16

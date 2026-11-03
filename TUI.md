@@ -36,12 +36,12 @@ the in-app reference.
 | Change Password… | — | Change the current vault's master password. Requires a writable vault and backend support. |
 | Read Only / Enable Writes | `shift+r` | Change the current vault's write mode, subject to startup and external-change restrictions. |
 | Quit bypass | `q` | Close Bypass. Unsaved entry drafts may require a decision first. |
-| Pending Secret Requests… | `ctrl+b` | Review requests from `bypass run`, including the readable name for an identified agent and requests waiting for vault selection or approval. |
+| Pending Secret Requests… | `alt+b` | Review requests from `bypass run`, including the readable name for an identified agent and requests waiting for vault selection or approval. `ctrl+b` also works outside tmux. |
 | Saved Run Permissions… | — | Open the current vault's saved permission entries for review or revocation. Requires an unlocked vault with saved permissions. |
 
 ### Secret requests
 
-Open Requests with `ctrl+b`. Select a request and press `enter` to review it.
+Open Requests with `alt+b`. Select a request and press `enter` to review it.
 The list also offers Deny all (`d`), Approve all (`a`), Reset saved permissions (`r`), and Close (`esc`). Approve all grants each resolvable request once; requests needing vault selection or unavailable secrets remain for individual review. Review opens over the request list and shows the
 requested fields without secret values. The field list is not selectable.
 

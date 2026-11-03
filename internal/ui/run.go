@@ -221,7 +221,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				r.newIdentity = map[*runpkg.Pending]bool{}
 			}
 			r.newIdentity[msg.Pending] = msg.Pending.Identity.Digest != ""
-			m.setNotice("secret request pending · ctrl+b to review", false)
+			m.setNotice("secret request pending · "+keyRequests+" to review", false)
 			choices, choiceIndex := r.choices, r.choiceIndex
 			targets, err := m.resolveRunTargets(msg.Pending)
 			r.choices, r.choiceIndex = choices, choiceIndex
@@ -320,7 +320,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			r.bulkPending = nil
 			return nil, false
 		}
-		if msg.String() == keyRequests && m.editor == nil && m.dialog == nil {
+		if (msg.String() == keyRequests || msg.String() == keyRequestsLegacy) && m.editor == nil && m.dialog == nil {
 			r.visible = !r.visible
 			r.bulkConfirm, r.bulkPending = false, nil
 			r.review, r.choosing, r.reviewed = false, false, nil

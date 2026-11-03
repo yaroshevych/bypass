@@ -48,7 +48,7 @@ func TestRunDialogsBackDefaultAndResponsiveTmux(t *testing.T) {
 				t.Fatal("could not start request")
 			}
 			e.mustShow("secret request pending")
-			e.key("C-b")
+			e.key("M-b")
 			snapshot := func(page string, width, height int) {
 				if dir := os.Getenv("BYPASS_REQUEST_SCREENSHOTS"); dir != "" {
 					if err := os.MkdirAll(dir, 0700); err != nil {

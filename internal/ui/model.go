@@ -572,7 +572,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	layer := m.activeLayer()
-	if layer != layerPrivacy && (key == keyRequests || layer == layerRequests) {
+	if layer != layerPrivacy && (key == keyRequests || key == keyRequestsLegacy || layer == layerRequests) {
 		if cmd, handled := m.updateRun(k); handled {
 			return cmd
 		}
