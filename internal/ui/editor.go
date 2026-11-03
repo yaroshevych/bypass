@@ -164,7 +164,7 @@ func (e *entryEditor) password() []byte {
 	if e == nil {
 		return nil
 	}
-	return []byte(string(e.inputs[editPassword].text))
+	return e.inputs[editPassword].bytes()
 }
 
 func (e *entryEditor) passwordChanged() bool {
@@ -176,6 +176,7 @@ func (e *entryEditor) setPassword(generated []byte) {
 		return
 	}
 	e.inputs[editPassword].clear()
+	e.inputs[editPassword].text = make([]rune, 0, utf8.RuneCount(generated))
 	for len(generated) > 0 {
 		r, size := utf8.DecodeRune(generated)
 		e.inputs[editPassword].text = append(e.inputs[editPassword].text, r)

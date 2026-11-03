@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -149,18 +150,22 @@ func (m *Model) lifecycleCredentials() (vault.Credentials, error) {
 	if l.kind == "create" {
 		passwordIndex = 1
 	}
-	password, confirmation := l.inputs[passwordIndex].value(), l.inputs[passwordIndex+1].value()
-	if password != confirmation {
+	password, confirmation := l.inputs[passwordIndex].bytes(), l.inputs[passwordIndex+1].bytes()
+	defer clear(confirmation)
+	if !bytes.Equal(password, confirmation) {
+		clear(password)
 		return vault.Credentials{}, fmt.Errorf("Passwords do not match.")
 	}
 	keyFile := strings.TrimSpace(l.inputs[passwordIndex+2].value())
-	if password == "" && keyFile == "" {
+	if len(password) == 0 && keyFile == "" {
+		clear(password)
 		return vault.Credentials{}, fmt.Errorf("Set a password or select an existing key file.")
 	}
-	if strings.ContainsAny(password, "\r\n\x00") {
+	if bytes.ContainsAny(password, "\r\n\x00") {
+		clear(password)
 		return vault.Credentials{}, fmt.Errorf("Password cannot contain line breaks.")
 	}
-	return vault.Credentials{Password: []byte(password), KeyFile: keyFile, NoPassword: password == ""}, nil
+	return vault.Credentials{Password: password, KeyFile: keyFile, NoPassword: len(password) == 0}, nil
 }
 
 func (m *Model) submitLifecycle() tea.Cmd {

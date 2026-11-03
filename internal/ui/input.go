@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -15,6 +16,14 @@ type input struct {
 }
 
 func (i *input) value() string { return string(i.text) }
+
+func (i *input) bytes() []byte {
+	b := make([]byte, 0, len(i.text)*utf8.UTFMax)
+	for _, r := range i.text {
+		b = utf8.AppendRune(b, r)
+	}
+	return b
+}
 
 func (i *input) clear() {
 	clear(i.text)
@@ -75,11 +84,19 @@ func (i *input) update(k tea.KeyMsg) {
 		if len(i.text)+len(runes) > 4096 {
 			return
 		}
-		tail := append([]rune(nil), i.text[i.cursor:]...)
-		i.text = append(i.text[:i.cursor], runes...)
-		i.text = append(i.text, tail...)
+		needed := len(i.text) + len(runes)
+		if needed > cap(i.text) {
+			old := i.text
+			next := make([]rune, len(old), max(needed, max(8, cap(old)*2)))
+			copy(next, old)
+			clear(old)
+			i.text = next
+		}
+		oldLen := len(i.text)
+		i.text = i.text[:needed]
+		copy(i.text[i.cursor+len(runes):], i.text[i.cursor:oldLen])
+		copy(i.text[i.cursor:], runes)
 		i.cursor += len(runes)
-		clear(tail)
 		clear(runes)
 	}
 }

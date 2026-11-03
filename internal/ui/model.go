@@ -920,7 +920,7 @@ func (m *Model) startOpen() tea.Cmd {
 	}
 	creds := vault.Credentials{KeyFile: expandOptional(m.inputs[1].value()), YubiKey: m.inputs[2].value(), NoPassword: m.noPassword}
 	if !m.noPassword {
-		creds.Password = []byte(m.inputs[0].value())
+		creds.Password = m.inputs[0].bytes()
 	}
 	for i := range m.inputs {
 		m.inputs[i].clear()

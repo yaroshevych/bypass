@@ -120,7 +120,7 @@ func (m *Model) pinSetupKey(k tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	if k.String() == "enter" {
-		value := []byte(d.input.value())
+		value := d.input.bytes()
 		defer clear(value)
 		if !validSessionPIN(value) {
 			d.err = "Use 4–12 digits."
@@ -207,7 +207,7 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	if key == "enter" && m.pinFocus != 2 && m.pinFocus != 3 {
-		value := []byte(m.pinInput.value())
+		value := m.pinInput.bytes()
 		defer clear(value)
 		m.pinInput.clear()
 		err := m.gate.Unlock(value, m.now())
