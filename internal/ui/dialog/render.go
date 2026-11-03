@@ -38,11 +38,7 @@ type Action struct {
 type Options struct {
 	Mode                       Mode
 	Title                      string
-	HeaderContent              string
-	HeaderDivider              int
-	CompactAccessory           string
-	CompactAccessoryStyle      lipgloss.Style
-	CompactCount               string
+	Header                     Header
 	Body                       []string
 	Actions                    []Action
 	Error                      string
@@ -367,10 +363,10 @@ func Render(o Options) []string {
 func renderFullscreen(o Options, background []string, footer string) []string {
 	width := max(1, o.ScreenWidth)
 	header := o.Accent.Render(" " + strings.ToUpper(o.Title))
-	if o.HeaderContent != "" {
-		header = o.HeaderContent
-	} else if o.CompactAccessory != "" {
-		header += " " + o.CompactAccessory
+	if o.Header.Content != "" {
+		header = o.Header.Content
+	} else if o.Header.Accessory != "" {
+		header += " " + o.Header.Accessory
 	}
 	lines := []string{fit(header, width)}
 	for _, line := range o.Body {
@@ -422,21 +418,21 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 	}
 	var box []string
 	if o.Compact {
-		box = []string{compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Divider, o.Pill, o.Surface, o.CompactAccessory, o.CompactAccessoryStyle, o.CompactCount)}
+		box = []string{compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Divider, o.Pill, o.Surface, o.Header.Accessory, o.Header.AccessoryStyle, o.Header.Count)}
 	} else {
 		header := o.Accent.Render(" " + title + " ")
-		if o.HeaderContent != "" {
-			header = o.HeaderContent
+		if o.Header.Content != "" {
+			header = o.Header.Content
 		}
 		topRule := tl + strings.Repeat(horizontal, width-2) + tr
 		bottomRule := leftRule + strings.Repeat(horizontal, width-2) + rightRule
-		if o.HeaderContent != "" {
+		if o.Header.Content != "" {
 			topJoin, cross := "┬", "┴"
 			if o.ASCII {
 				topJoin, cross = "+", "+"
 			}
-			topRule = ruleWithDivider(width, tl, tr, horizontal, o.HeaderDivider, topJoin)
-			bottomRule = ruleWithDivider(width, leftRule, rightRule, horizontal, o.HeaderDivider, cross)
+			topRule = ruleWithDivider(width, tl, tr, horizontal, o.Header.Divider, topJoin)
+			bottomRule = ruleWithDivider(width, leftRule, rightRule, horizontal, o.Header.Divider, cross)
 		}
 		box = []string{o.Divider.Render(topRule), wrap(header, false), o.Divider.Render(bottomRule)}
 	}
@@ -487,8 +483,8 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 	headerRuleRow := -1
 	if !o.Compact {
 		header := o.Accent.Render("   " + title + " ")
-		if o.HeaderContent != "" {
-			header = o.HeaderContent
+		if o.Header.Content != "" {
+			header = o.Header.Content
 		}
 		content = append(content, header)
 		if !o.HideHeaderRule {
@@ -522,12 +518,12 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 	topBorder := o.Divider.Render(tl + strings.Repeat(horizontal, width-2) + tr)
 	if o.Compact {
 		topBorder = compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Divider, o.Pill, o.Surface, "", lipgloss.NewStyle(), "")
-	} else if o.HeaderContent != "" {
+	} else if o.Header.Content != "" {
 		join := "┬"
 		if o.ASCII {
 			join = "+"
 		}
-		topBorder = o.Divider.Render(ruleWithDivider(width, tl, tr, horizontal, o.HeaderDivider, join))
+		topBorder = o.Divider.Render(ruleWithDivider(width, tl, tr, horizontal, o.Header.Divider, join))
 	}
 	frame(top-1, topBorder)
 	for i, line := range content {
@@ -537,12 +533,12 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 		}
 		if i == headerRuleRow {
 			rule := leftRule + strings.Repeat(horizontal, width-2) + rightRule
-			if o.HeaderContent != "" {
+			if o.Header.Content != "" {
 				join := "┴"
 				if o.ASCII {
 					join = "+"
 				}
-				rule = ruleWithDivider(width, leftRule, rightRule, horizontal, o.HeaderDivider, join)
+				rule = ruleWithDivider(width, leftRule, rightRule, horizontal, o.Header.Divider, join)
 			}
 			frame(top+i, o.Divider.Render(rule))
 			continue
@@ -614,7 +610,7 @@ func renderTitlePill(title string, width int, ascii bool, style, surface lipglos
 		return style.Render(fit(title, pillWidth))
 	}
 	edge := surface.Foreground(style.GetBackground())
-	return fit(edge.Render("")+style.Render(fit(title, pillWidth-2))+edge.Render(""), pillWidth)
+	return fit(edge.Render(glyphs.Left())+style.Render(fit(title, pillWidth-2))+edge.Render(glyphs.Right()), pillWidth)
 }
 
 func renderPill(text string, width int, style, surface lipgloss.Style) string {
@@ -623,7 +619,7 @@ func renderPill(text string, width int, style, surface lipgloss.Style) string {
 	}
 	center := style.Render(" ") + style.Render(fit(text, max(0, width-4))) + style.Render(" ")
 	edge := surface.Foreground(style.GetBackground())
-	return fit(edge.Render("")+center+edge.Render(""), width)
+	return fit(edge.Render(glyphs.Left())+center+edge.Render(glyphs.Right()), width)
 }
 
 func lowercaseShortcutLabels(text string) string {

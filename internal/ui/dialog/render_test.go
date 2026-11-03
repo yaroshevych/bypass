@@ -90,7 +90,7 @@ func TestClassicDialogBodyUsesOneCellInset(t *testing.T) {
 
 func TestClassicOverlayHeaderDividerConnectsTopAndBottomRules(t *testing.T) {
 	lines := Render(Options{
-		Mode: Overlay, Title: "Commands", HeaderContent: "COMMANDS │ type to filter 18 commands", HeaderDivider: 11,
+		Mode: Overlay, Title: "Commands", Header: Header{Content: "COMMANDS │ type to filter 18 commands", Divider: 11},
 		Body: []string{"APP"}, Backdrop: make([]string, 18), Width: 40, ScreenWidth: 50, Height: 18, X: -1, Y: -1,
 	})
 	var top, header, bottom string
@@ -120,7 +120,7 @@ func TestClassicOverlayHeaderDividerConnectsTopAndBottomRules(t *testing.T) {
 func TestClassicBoxHeaderDividerConnectsTopAndBottomRules(t *testing.T) {
 	const title = "KEYBOARD SHORTCUTS"
 	lines := Render(Options{
-		Mode: Box, Title: "Keyboard Shortcuts", HeaderContent: "  KEYBOARD SHORTCUTS │", HeaderDivider: len(title) + 3,
+		Mode: Box, Title: "Keyboard Shortcuts", Header: Header{Content: "  KEYBOARD SHORTCUTS │", Divider: len(title) + 3},
 		Body: []string{"Navigate"}, Backdrop: make([]string, 18), Width: 40, ScreenWidth: 50, Height: 18,
 	})
 	var top, header, bottom string

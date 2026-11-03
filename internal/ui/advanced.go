@@ -420,16 +420,11 @@ func (m *Model) overlay(title string, body []string, footer string, width, x, y 
 }
 
 func (m *Model) overlayError(title string, body []string, footer, message string, width, x, y int, header ...dialogrender.Header) []string {
-	headerContent, headerDivider, compactAccessory, compactCount := "", 0, "", ""
-	compactAccessoryStyle := lipgloss.NewStyle()
-	if len(header) > 0 {
-		headerContent, headerDivider = header[0].Content, header[0].Divider
-		compactAccessory, compactCount = header[0].Accessory, header[0].Count
-		compactAccessoryStyle = header[0].AccessoryStyle
-	}
 	opts := m.dialogOptions()
-	opts.Mode, opts.Title, opts.HeaderContent, opts.HeaderDivider = dialogrender.Overlay, title, headerContent, headerDivider
-	opts.CompactAccessory, opts.CompactAccessoryStyle, opts.CompactCount = compactAccessory, compactAccessoryStyle, compactCount
+	opts.Mode, opts.Title = dialogrender.Overlay, title
+	if len(header) > 0 {
+		opts.Header = header[0]
+	}
 	opts.Body, opts.StatusBar, opts.Backdrop = body, footer, m.modalBackdrop()
 	opts.Error = safe(message)
 	opts.Width, opts.X, opts.Y = width, x, y
