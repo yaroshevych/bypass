@@ -9,7 +9,7 @@ request secrets. Start it with `bypass`, or open a vault with
 
 <img width="1271" height="739" alt="Image" src="https://github.com/user-attachments/assets/6abc6b97-3920-411e-917f-934b32175dc8" />
 
-Press `ctrl+p` to open the command palette. Type to filter actions, move with
+From the workspace, Help, or Large View, press `ctrl+p` to open the command palette. Type to filter actions, move with
 Up/Down or Tab/Shift+Tab, and press Enter to select. Esc goes back or closes the
 palette. Disabled actions show a reason, such as **Unlock a vault first** or
 **Vault is read only**.
@@ -41,8 +41,8 @@ the in-app reference.
 
 ### Secret requests
 
-Open Requests with `alt+b`. Select a request and press `enter` to review it.
-The list also offers Deny all (`d`), Approve all (`a`), Reset saved permissions (`r`), and Close (`esc`). Approve all grants each resolvable request once; requests needing vault selection or unavailable secrets remain for individual review. Review opens over the request list and shows the
+From the workspace, open Requests with `alt+b` when no entry editor or dialog is open. Select a request and press `enter` to review it.
+The list also offers Deny all (`d`), Approve all (`a`), Reset saved permissions (`r`), and Close (`esc`). Approve all asks for confirmation and grants each resolvable request once; requests needing vault selection or unavailable secrets remain for individual review. Review opens over the request list and shows the
 requested fields without secret values. The field list is not selectable.
 
 Review actions are Deny (`d`), Allow (`a`, once), Allow for this identity (`i`,
@@ -52,7 +52,7 @@ writable vault. Use Tab or the arrow keys to focus buttons; Page Up and Page
 Down scroll the field list.
 
 Reset saved permissions removes remembered approvals from all unlocked vaults
-after confirmation. Cancel is selected by default; `ctrl+s` confirms the reset.
+after confirmation. Cancel is selected by default; `ctrl+s` or `r` confirms the reset.
 Locked vaults are unchanged, and pending requests stay queued.
 
 ### Locking and PIN protection
@@ -157,11 +157,9 @@ fields. Available caller ancestry is context, not proof of the initiating agent.
 | --- | --- |
 | Deny | Reject this batch and prevent command launch. |
 | Allow once | Authorize only this request. |
-| Allow for this path | Save approval for the executable and requested fields in the exact current working directory. |
-| Always allow | Save approval for that executable and those fields across working directories. |
+| Allow for this identity | Save approval for this identity and the requested fields across commands and directories. |
 
-Persistent approval requires writable vaults. Shells and known interpreters
-currently support one-time approval only. Requests expire at the CLI's deadline;
+Persistent approval requires an identity and writable vaults. Requests expire at the CLI's deadline;
 see [CLI.md](CLI.md#timeouts-and-configuration) to configure it.
 
 **Saved Run Permissions…** opens the vault's **Bypass Run Permissions** group.
