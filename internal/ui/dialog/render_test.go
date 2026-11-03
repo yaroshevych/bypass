@@ -332,3 +332,27 @@ func TestFixedBodyReservesFooterOnce(t *testing.T) {
 		t.Fatalf("body or footer clipped: %q", strings.Join(lines, "\n"))
 	}
 }
+
+func TestResponsiveDialogStaysWithinScreen(t *testing.T) {
+	for _, size := range [][2]int{{48, 16}, {80, 24}, {120, 35}} {
+		for _, compact := range []bool{false, true} {
+			for _, ascii := range []bool{false, true} {
+				for _, mode := range []Mode{Box, Overlay} {
+					o := Options{Mode: mode, Title: "Example", Body: []string{"Visible content"}, Actions: []Action{{Text: "Cancel (esc)", Target: 0}}, Error: "A useful error message", Width: 42, ScreenWidth: size[0], Height: size[1], Compact: compact, ASCII: ascii, Fullscreen: size[0] == 48, X: -1, Y: -1}
+					lines := Render(o)
+					if len(lines) != size[1] {
+						t.Fatalf("size %v mode %v compact %v ascii %v: got %d rows", size, mode, compact, ascii, len(lines))
+					}
+					for _, line := range lines {
+						if width := lipgloss.Width(line); width > size[0] {
+							t.Fatalf("size %v: line width %d", size, width)
+						}
+					}
+					if !strings.Contains(strings.Join(strip(lines), "\n"), "Cancel") {
+						t.Fatalf("size %v mode %v: missing action", size, mode)
+					}
+				}
+			}
+		}
+	}
+}
