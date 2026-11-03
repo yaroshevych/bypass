@@ -559,7 +559,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if key == keyRedraw {
 		return tea.ClearScreen
 	}
-	if key == keyLockAll && !m.gate.Protected() {
+	if (key == keyLockAll || key == keyLockAllFallback) && !m.gate.Protected() {
 		m.help = false
 		return m.lockCurrent(true)
 	}

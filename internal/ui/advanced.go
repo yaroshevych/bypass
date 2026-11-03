@@ -197,7 +197,7 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	}
-	if key == keyLockAll {
+	if key == keyLockAll || key == keyLockAllFallback {
 		m.pinInput.clear()
 		m.pinFullLock = true
 		m.pinFocus = 1

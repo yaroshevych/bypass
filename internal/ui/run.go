@@ -306,7 +306,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		if r.visible && m.activeLayer() == layerTiny {
 			return nil, false
 		}
-		if msg.String() == keyLockAll || msg.String() == "ctrl+c" {
+		if msg.String() == keyLockAll || msg.String() == keyLockAllFallback || msg.String() == "ctrl+c" {
 			return nil, false
 		}
 		if m.gate.Protected() {

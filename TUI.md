@@ -178,3 +178,5 @@ Only the launched command receives the resolved environment. A command that
 prints secrets can expose them to the invoking agent because output is not
 masked. See [CLI.md](CLI.md#supported-paths-and-security-limits) for the security
 limits of this workflow.
+
+Lock all vaults with `ctrl+x` or `alt+l`. On macOS, Alt shortcuts may require configuring Option to send Meta in your terminal.
