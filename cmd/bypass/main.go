@@ -99,7 +99,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 	defer cancel()
 	vaultBackend := vault.NewInteractiveCLI(*backend)
 	if *logPath != "" {
-		file, err := os.OpenFile(*logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+		file, err := openDiagnosticLog(*logPath)
 		if err != nil {
 			return fmt.Errorf("could not open diagnostic log: %w", err)
 		}
