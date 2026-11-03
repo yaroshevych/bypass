@@ -30,6 +30,13 @@ func TestLifecycleCreateIsEncryptedAndNeverClobbers(t *testing.T) {
 		t.Fatalf("create vault: %v", err)
 	}
 	defer db.Clear()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Fatalf("new vault mode = %o, want 600", info.Mode().Perm())
+	}
 	canonical, err := canonicalPath(path)
 	if err != nil {
 		t.Fatal(err)

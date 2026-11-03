@@ -42,6 +42,9 @@ func (c *InteractiveCLI) CreateWithOptions(ctx context.Context, path string, cre
 	if err := c.cli.runCreate(ctx, absolute, creds, options); err != nil {
 		return nil, err
 	}
+	if err := os.Chmod(absolute, 0600); err != nil {
+		return nil, fmt.Errorf("%w: could not restrict new vault permissions", ErrWrite)
+	}
 	return c.Open(ctx, absolute, creds)
 }
 
