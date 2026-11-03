@@ -83,8 +83,6 @@ func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	v := m.ws.ActiveView()
 	v.Focus = 2
 	v.Query = "Alpha"
-	v.NavFilter = "Root"
-	v.DetailFilter = "Password"
 	beforeView := *v
 	beforeSettings := m.settings
 	beforeStyles := m.styles

@@ -150,30 +150,7 @@ func (m *Model) allNavigation() []navItem {
 	return items
 }
 func (m *Model) buildNavigation() []navItem {
-	items := m.allNavigation()
-	v := m.ws.ActiveView()
-	if v == nil || v.NavFilter == "" {
-		return items
-	}
-	var docs []search.Document
-	for _, item := range items {
-		docs = append(docs, search.Document{ID: item.key, Title: item.label})
-	}
-	results, err := search.Find(v.NavFilter, docs)
-	if err != nil {
-		return nil
-	}
-	matched := map[string]bool{}
-	for _, result := range results {
-		matched[result.ID] = true
-	}
-	var filtered []navItem
-	for _, item := range items {
-		if matched[item.key] {
-			filtered = append(filtered, item)
-		}
-	}
-	return filtered
+	return m.allNavigation()
 }
 func (m *Model) navByKey(key string) navItem {
 	for _, item := range m.allNavigation() {
@@ -227,9 +204,7 @@ func (m *Model) remapNav() {
 				return
 			}
 		}
-		if v.NavFilter == "" {
-			v.NavIndex = 0
-		}
+		v.NavIndex = 0
 	}
 	v.NavIndex = min(max(0, v.NavIndex), len(items)-1)
 	v.NavKey = items[v.NavIndex].key
@@ -359,7 +334,6 @@ func (m *Model) beginSearch(global bool) tea.Cmd {
 	m.searchError = ""
 	m.hideReveal()
 	if global {
-		v.NavFilter = ""
 		v.NavKey = "all"
 		v.GroupUUID = ""
 		m.remapNav()
@@ -367,39 +341,10 @@ func (m *Model) beginSearch(global bool) tea.Cmd {
 	// Slash always searches the central entry list. In narrow mode, changing
 	// Focus also navigates the single visible pane to the entry list.
 	v.Focus = 1
-	m.searchColumn = 1
 	m.searching = true
-	m.previousQuery = m.paneFilter()
+	m.previousQuery = v.Query
 	m.query.set(m.previousQuery)
 	return nil
-}
-func (m *Model) paneFilter() string {
-	v := m.ws.ActiveView()
-	if v == nil {
-		return ""
-	}
-	switch m.searchColumn {
-	case 0:
-		return v.NavFilter
-	case 2:
-		return v.DetailFilter
-	default:
-		return v.Query
-	}
-}
-func (m *Model) setPaneFilter(value string) {
-	v := m.ws.ActiveView()
-	if v == nil {
-		return
-	}
-	switch m.searchColumn {
-	case 0:
-		v.NavFilter = value
-	case 2:
-		v.DetailFilter = value
-	default:
-		v.Query = value
-	}
 }
 func (m *Model) searchKey(k tea.KeyMsg) tea.Cmd {
 	v := m.ws.ActiveView()
@@ -423,7 +368,7 @@ func (m *Model) searchKey(k tea.KeyMsg) tea.Cmd {
 		m.normalize()
 	default:
 		m.query.update(k)
-		m.setPaneFilter(m.query.value())
+		v.Query = m.query.value()
 		m.searchError = ""
 		m.remapNav()
 		m.normalize()
@@ -441,20 +386,6 @@ func (m *Model) clearFilter() bool {
 	v := m.ws.ActiveView()
 	if v == nil {
 		return false
-	}
-	switch v.Focus {
-	case 0:
-		if v.NavFilter != "" {
-			v.NavFilter = ""
-			m.remapNav()
-			return true
-		}
-	case 2:
-		if v.DetailFilter != "" {
-			v.DetailFilter = ""
-			v.FieldIndex = 0
-			return true
-		}
 	}
 	if v.Query != "" {
 		v.Query = ""
@@ -484,26 +415,4 @@ func (m *Model) highlightText(text, query, field string) string {
 		}
 	}
 	return b.String()
-}
-
-func (m *Model) filteredFieldNames(names []string, query string) []string {
-	var docs []search.Document
-	for _, name := range names {
-		docs = append(docs, search.Document{ID: name, Title: editorLabel(name)})
-	}
-	results, err := search.Find(query, docs)
-	if err != nil {
-		return nil
-	}
-	matched := map[string]bool{}
-	for _, result := range results {
-		matched[result.ID] = true
-	}
-	var filtered []string
-	for _, name := range names {
-		if matched[name] {
-			filtered = append(filtered, name)
-		}
-	}
-	return filtered
 }

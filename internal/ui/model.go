@@ -115,7 +115,6 @@ type Model struct {
 	pinFocus                                int
 	saveSettings                            func(platform.Settings) error
 	helpQuery                               input
-	searchColumn                            int
 	searchError                             string
 	dragging                                int
 	dragStartX                              int

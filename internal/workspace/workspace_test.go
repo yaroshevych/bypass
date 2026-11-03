@@ -335,8 +335,7 @@ func TestPreviewSettingsDuplicateIndependently(t *testing.T) {
 	w.Open(database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root"))
 	view := w.ActiveView()
 	view.NavKey = "favorites"
-	view.NavFilter = "private nav filter"
-	view.DetailFilter = "private detail filter"
+	view.Query = "private query"
 	view.NavOffset, view.NavWidth, view.DetailWidth = 7, 31, 45
 	view.Zoom = true
 	view.QueryScope = "group-only"
@@ -344,12 +343,12 @@ func TestPreviewSettingsDuplicateIndependently(t *testing.T) {
 		t.Fatal("Duplicate failed")
 	}
 	duplicate := w.ActiveView()
-	if duplicate.NavKey != view.NavKey || duplicate.NavFilter != view.NavFilter || duplicate.DetailFilter != view.DetailFilter ||
+	if duplicate.NavKey != view.NavKey || duplicate.Query != view.Query ||
 		duplicate.NavOffset != view.NavOffset || duplicate.NavWidth != view.NavWidth || duplicate.DetailWidth != view.DetailWidth || !duplicate.Zoom || duplicate.QueryScope != view.QueryScope {
 		t.Fatalf("duplicate did not copy preview/view state: %#v", duplicate)
 	}
-	duplicate.NavFilter = "changed"
-	if view.NavFilter != "private nav filter" {
+	duplicate.Query = "changed"
+	if view.Query != "private query" {
 		t.Fatalf("duplicated view state aliases original: %#v", view)
 	}
 }
@@ -375,11 +374,11 @@ func TestUsageAndLockCleanup(t *testing.T) {
 		t.Fatalf("nonexistent entry created access state: %#v", session.Usage)
 	}
 	view := w.ActiveView()
-	view.NavFilter, view.DetailFilter = "nav secret", "detail secret"
+	view.Query = "private query"
 	if !w.LockSession(session.ID) {
 		t.Fatal("LockSession failed")
 	}
-	if len(session.Usage) != 0 || view.NavFilter != "" || view.DetailFilter != "" {
+	if len(session.Usage) != 0 || view.Query != "" {
 		t.Fatal("full session lock retained usage/filter state")
 	}
 }

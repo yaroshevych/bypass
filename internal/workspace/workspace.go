@@ -40,8 +40,6 @@ type View struct {
 	DetailManual bool
 	FieldIndex   int
 	NavKey       string
-	NavFilter    string
-	DetailFilter string
 	NavOffset    int
 	NavWidth     int
 	DetailWidth  int
@@ -275,8 +273,6 @@ func (w *Workspace) LockSession(sessionID string) bool {
 		if w.Views[i].SessionID == sessionID {
 			w.Views[i].Query = ""
 			w.Views[i].QueryScope = ""
-			w.Views[i].NavFilter = ""
-			w.Views[i].DetailFilter = ""
 			w.Views[i].DetailOffset = 0
 			w.Views[i].DetailManual = false
 			w.Views[i].FieldIndex = 0

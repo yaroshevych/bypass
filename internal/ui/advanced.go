@@ -430,7 +430,6 @@ func (m *Model) jumpKey(k tea.KeyMsg) tea.Cmd {
 		m.setNotice("field not present", false)
 		return nil
 	}
-	v.DetailFilter = ""
 	for i, field := range m.fieldNames() {
 		if field == name {
 			v.FieldIndex = i
@@ -565,15 +564,8 @@ func (m *Model) footerText() string {
 		}
 		return readOnlyFooter("/ " + safe(query))
 	}
-	if v != nil && (v.Query != "" || v.NavFilter != "" || v.DetailFilter != "") {
-		query := v.Query
-		if query == "" {
-			query = v.NavFilter
-		}
-		if query == "" {
-			query = v.DetailFilter
-		}
-		return readOnlyFooter("/ " + safe(query))
+	if v != nil && v.Query != "" {
+		return readOnlyFooter("/ " + safe(v.Query))
 	}
 	text := "/ filter · ctrl+p commands"
 	if m.searchError != "" {
@@ -596,7 +588,7 @@ func (m *Model) footerContext() string {
 	if v == nil {
 		return ""
 	}
-	if v.Query != "" || v.NavFilter != "" || v.DetailFilter != "" {
+	if v.Query != "" {
 		return "esc cancel"
 	}
 	switch v.Focus {

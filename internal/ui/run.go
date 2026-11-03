@@ -638,7 +638,6 @@ func (m *Model) openRunPermissions() {
 	if session != nil && session.DB != nil && view != nil {
 		for _, g := range session.DB.Groups {
 			if g.Name == runpkg.GrantGroup && g.ParentUUID == session.DB.RootUUID {
-				view.NavFilter = ""
 				for index, item := range m.navigation() {
 					if item.kind == "group" && item.group == g.UUID {
 						m.selectNav(index)

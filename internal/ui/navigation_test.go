@@ -104,8 +104,8 @@ func TestSlashAlwaysSearchesTheEntryList(t *testing.T) {
 				v := m.ws.ActiveView()
 				v.Focus = initialFocus
 				m.key(key("/"))
-				if !m.searching || m.searchColumn != 1 || v.Focus != 1 {
-					t.Fatalf("slash search state = searching %v, column %d, focus %d", m.searching, m.searchColumn, v.Focus)
+				if !m.searching || v.Focus != 1 {
+					t.Fatalf("slash search state = searching %v, focus %d", m.searching, v.Focus)
 				}
 				if tt.name == "narrow" && m.layout().Panes[0].Focus != 1 {
 					t.Fatalf("narrow layout did not navigate to the entry list: %+v", m.layout())

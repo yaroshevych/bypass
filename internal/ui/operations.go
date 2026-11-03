@@ -795,9 +795,6 @@ func (m *Model) fieldNames() []string {
 			}
 		}
 	}
-	if v := m.ws.ActiveView(); v != nil && v.DetailFilter != "" {
-		names = m.filteredFieldNames(names, v.DetailFilter)
-	}
 	return names
 }
 func (m *Model) focusedField() string {

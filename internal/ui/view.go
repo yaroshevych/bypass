@@ -496,7 +496,7 @@ func (m *Model) workspaceLines() []string {
 	footerLine := m.footerLine(footer, contextual)
 	if m.searching {
 		footerLine = m.searchFooterLine(footer, contextual, false)
-	} else if v := m.ws.ActiveView(); v != nil && (v.Query != "" || v.NavFilter != "" || v.DetailFilter != "") {
+	} else if v := m.ws.ActiveView(); v != nil && v.Query != "" {
 		footerLine = m.searchFooterLine(footer, contextual, true)
 	}
 	return append(lines, footerLine)
@@ -1020,9 +1020,6 @@ func (m *Model) navLines(width, height int, focused bool) []string {
 		item := items[i]
 		countValue := len(m.entriesFor(item, ""))
 		itemLabel := safe(item.label)
-		if v.NavFilter != "" {
-			itemLabel = m.highlightText(item.label, v.NavFilter, "Title")
-		}
 		indent := strings.Repeat("  ", min(item.depth, 5))
 		text := indent + itemLabel
 		if compact {
