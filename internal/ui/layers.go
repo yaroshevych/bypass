@@ -67,7 +67,10 @@ func (m *Model) helpPointer(msg tea.MouseMsg) tea.Cmd {
 }
 
 func (m *Model) runLayerKey(msg tea.KeyMsg) tea.Cmd {
-	cmd, _ := m.updateRun(msg)
+	cmd, handled := m.updateRun(msg)
+	if !handled && m.activeLayer() != layerRequests {
+		return m.key(msg)
+	}
 	return cmd
 }
 
