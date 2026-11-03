@@ -215,11 +215,11 @@ func (m *Model) welcomeBody() ([]string, []int, string) {
 	}
 	rows = append(rows, listComponentRow{kind: listComponentHeader, item: -1, text: headerIndent + "VAULTS ", divider: true})
 	openFocus := recentCount
-	openLabel, openShortcut := "Open", "ctrl+o"
-	createLabel, createShortcut := "Create", "ctrl+n"
+	openLabel, openShortcut := "Open", keyOpenVault
+	createLabel, createShortcut := "Create", keyNewVault
 	if !compact {
-		openLabel, openShortcut = " Open", "ctrl+o "
-		createLabel, createShortcut = " Create", "ctrl+n "
+		openLabel, openShortcut = " Open", keyOpenVault+" "
+		createLabel, createShortcut = " Create", keyNewVault+" "
 	}
 	rows = append(rows, listComponentRow{kind: listComponentItem, item: openFocus, text: openLabel, right: openShortcut, selected: m.landingFocus == openFocus, activeFill: true, pillSelected: true})
 	if m.canCreateVault() {

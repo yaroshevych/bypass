@@ -306,7 +306,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		if r.visible && m.activeLayer() == layerTiny {
 			return nil, false
 		}
-		if msg.String() == "ctrl+l" || msg.String() == "ctrl+c" {
+		if msg.String() == keyLockAll || msg.String() == "ctrl+c" {
 			return nil, false
 		}
 		if m.gate.Protected() {
@@ -320,7 +320,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			r.bulkPending = nil
 			return nil, false
 		}
-		if msg.String() == "ctrl+b" && m.editor == nil && m.dialog == nil {
+		if msg.String() == keyRequests && m.editor == nil && m.dialog == nil {
 			r.visible = !r.visible
 			r.bulkConfirm, r.bulkPending = false, nil
 			r.review, r.choosing, r.reviewed = false, false, nil

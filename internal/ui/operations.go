@@ -125,7 +125,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		return nil, false
 	}
 	switch k.String() {
-	case "n":
+	case keyNewEntry:
 		if !m.writable() {
 			return nil, true
 		}
@@ -139,7 +139,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		m.startEditor(nil, group)
 		return nil, true
-	case "e":
+	case keyEditEntry:
 		if !m.writable() {
 			return nil, true
 		}
@@ -150,7 +150,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 			m.startEditor(e, e.GroupUUID)
 		}
 		return nil, true
-	case "g":
+	case keyNewGroup:
 		if !m.writable() {
 			return nil, true
 		}
@@ -161,7 +161,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		m.hideReveal()
 		m.dialog = &actionDialog{kind: "group", title: "New Group", sessionID: s.ID, groupUUID: group}
 		return nil, true
-	case "ctrl+d", "delete":
+	case keyDelete, "delete":
 		if reason := m.nativeReason("rm"); reason != "" {
 			m.setNotice(reason, true)
 			return nil, true
@@ -171,7 +171,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		m.confirmDelete()
 		return nil, true
-	case "m":
+	case keyMoveEntry:
 		if !m.writable() {
 			return nil, true
 		}
@@ -181,14 +181,14 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		m.chooseDestination(e)
 		return nil, true
-	case "c":
+	case keyCopy:
 		return m.copyField(""), true
-	case "v":
+	case keyReveal:
 		return m.toggleReveal(), true
-	case "ctrl+g":
+	case keyGenerator:
 		m.openGenerator()
 		return nil, true
-	case "R":
+	case keyReadOnly:
 		if s.Stale {
 			m.setNotice("reload required", true)
 			return nil, true
@@ -200,7 +200,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 			m.setNotice("writes enabled · encrypted backup each change", false)
 		}
 		return nil, true
-	case "ctrl+r":
+	case keyReload:
 		return m.requestReload(s.ID), true
 	}
 	return nil, false

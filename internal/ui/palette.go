@@ -78,6 +78,9 @@ func (m *Model) commands() []command {
 	}
 	var commands []command
 	add := func(id, group, label, key, reason, next string, run func() tea.Cmd) {
+		if binding, ok := workspaceShortcuts[id]; ok {
+			key = binding.label
+		}
 		commands = append(commands, command{id: id, group: group, label: label, key: key, reason: reason, next: next, run: run})
 	}
 	invoke := func(key string) func() tea.Cmd {
@@ -96,14 +99,14 @@ func (m *Model) commands() []command {
 	if reason := m.nativeReason("db-create"); reason != "" {
 		createReason = reason
 	}
-	add("new-vault", "File", "New Vault…", "Ctrl+N", createReason, "", func() tea.Cmd { return m.leaveEditor(m.openCreateVault) })
-	add("open", "File", "Open Vault…", "Ctrl+O", "", "", func() tea.Cmd { return m.leaveEditor(m.openPicker) })
-	add("quit", "App", "Quit bypass", "q", "", "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }) })
+	add("new-vault", "File", "New Vault…", "", createReason, "", func() tea.Cmd { return m.leaveEditor(m.openCreateVault) })
+	add("open", "File", "Open Vault…", "", "", "", func() tea.Cmd { return m.leaveEditor(m.openPicker) })
+	add("quit", "App", "Quit bypass", "", "", "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }) })
 	closeReason := ""
 	if v == nil {
 		closeReason = "No open view"
 	}
-	add("close-view", "Tabs", "Close Tab", "Ctrl+W", closeReason, "", func() tea.Cmd {
+	add("close-view", "Tabs", "Close Tab", "", closeReason, "", func() tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd { m.ws.CloseView(); m.normalize(); m.syncPrivacyState(); return m.clearClipboard() })
 	})
 	add("close-vault", "File", "Close Vault", "", closeReason, "", func() tea.Cmd {
@@ -114,9 +117,9 @@ func (m *Model) commands() []command {
 	if !m.anyUnlocked() {
 		allReason = "No unlocked vaults"
 	}
-	add("lock-all", "Vault", "Lock All Vaults", "Ctrl+L", allReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) }) })
-	add("reload", "Vault", "Reload Vault", "Ctrl+R", needVault, "", func() tea.Cmd { return m.requestReload(s.ID) })
-	add("run-requests", "App", "Pending Secret Requests…", "Ctrl+B", "", "", func() tea.Cmd {
+	add("lock-all", "Vault", "Lock All Vaults", "", allReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) }) })
+	add("reload", "Vault", "Reload Vault", "", needVault, "", func() tea.Cmd { return m.requestReload(s.ID) })
+	add("run-requests", "App", "Pending Secret Requests…", "", "", "", func() tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd {
 			if m.runs == nil {
 				m.runs = &runState{}
@@ -174,10 +177,10 @@ func (m *Model) commands() []command {
 		credentialsReason = reason
 	}
 	add("credentials", "Vault", "Change Password…", "", credentialsReason, "", func() tea.Cmd { return m.leaveEditor(m.openCredentials) })
-	add("read-only", "Vault", readLabel, "Shift+R", readOnlyReason, "", invoke("R"))
-	add("new", "Entry", "New Entry…", "n", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("n")) })
-	add("edit", "Entry", "Edit Entry…", "e", editReason, "", invoke("e"))
-	add("group", "Entry", "New Group…", "g", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("g")) })
+	add("read-only", "Vault", readLabel, "", readOnlyReason, "", invoke("R"))
+	add("new", "Entry", "New Entry…", "", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("n")) })
+	add("edit", "Entry", "Edit Entry…", "", editReason, "", invoke("e"))
+	add("group", "Entry", "New Group…", "", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("g")) })
 	moveReason := writeReason
 	if moveReason == "" {
 		moveReason = needEntry
@@ -185,7 +188,7 @@ func (m *Model) commands() []command {
 	if m.editor != nil {
 		moveReason = "Finish editing first"
 	}
-	add("move", "Entry", "Move Entry…", "m", moveReason, "", func() tea.Cmd {
+	add("move", "Entry", "Move Entry…", "", moveReason, "", func() tea.Cmd {
 		if e := m.selected(); e != nil {
 			m.chooseDestination(e)
 		}
@@ -201,12 +204,12 @@ func (m *Model) commands() []command {
 	if m.editor != nil {
 		deleteReason = "Finish editing first"
 	}
-	add("delete", "Entry", "Delete…", "Ctrl+D", deleteReason, "", func() tea.Cmd { m.confirmDelete(); return nil })
+	add("delete", "Entry", "Delete…", "", deleteReason, "", func() tea.Cmd { m.confirmDelete(); return nil })
 	focusedCopyReason := needEntry
 	if m.editor != nil {
 		focusedCopyReason = "Finish editing before copying stored fields"
 	}
-	add("copy-focused", "Field", "Copy", "c", focusedCopyReason, "", func() tea.Cmd { return m.copyField("") })
+	add("copy-focused", "Field", "Copy", "", focusedCopyReason, "", func() tea.Cmd { return m.copyField("") })
 	grandReason := needEntry
 	if m.editor != nil {
 		grandReason = "Finish editing before viewing stored fields"
@@ -225,9 +228,9 @@ func (m *Model) commands() []command {
 		add("totp", "Field", "TOTP…", "", totpReason, "", func() tea.Cmd { return m.leaveEditor(m.openTOTP) })
 		add("history-view", "Entry", "History…", "", historyReason, "", func() tea.Cmd { return m.leaveEditor(m.openHistory) })
 	}
-	add("grand-view", "Field", "Large View…", "G", grandReason, "", m.openGrandView)
-	add("reveal", "Field", "Reveal", "v", needEntry, "", func() tea.Cmd { return m.toggleReveal() })
-	add("generator", "Field", "Password Generator…", "Ctrl+G", "", "", func() tea.Cmd { m.openGenerator(); return nil })
+	add("grand-view", "Field", "Large View…", "", grandReason, "", m.openGrandView)
+	add("reveal", "Field", "Reveal", "", needEntry, "", func() tea.Cmd { return m.toggleReveal() })
+	add("generator", "Field", "Password Generator…", "", "", "", func() tea.Cmd { m.openGenerator(); return nil })
 	saveReason := writeReason
 	if m.editor == nil {
 		saveReason = "No entry draft"
@@ -238,15 +241,15 @@ func (m *Model) commands() []command {
 		cancelReason = "No entry draft"
 	}
 	add("cancel-edit", "Editor", "Cancel", "Esc", cancelReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return nil }) })
-	add("search", "View", "Search", "/", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.beginSearch(true) }) })
-	add("jump", "Entry", "Jump…", "Shift+J", needEntry, "", m.beginJump)
-	add("zoom", "View", "Zoom", "z", needVault, "", func() tea.Cmd { v.Zoom = !v.Zoom; return nil })
+	add("search", "View", "Search", "", needVault, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.beginSearch(true) }) })
+	add("jump", "Entry", "Jump…", "", needEntry, "", m.beginJump)
+	add("zoom", "View", "Zoom", "", needVault, "", func() tea.Cmd { v.Zoom = !v.Zoom; return nil })
 	newTabReason := closeReason
 	if s == nil || s.DB == nil {
 		newTabReason = needVault
 	}
-	add("duplicate", "Tabs", "New Tab", "t", newTabReason, "", func() tea.Cmd { return m.leaveEditor(m.duplicateTab) })
-	add("previous-tab", "Tabs", "Previous Tab", "[", closeReason, "", func() tea.Cmd {
+	add("duplicate", "Tabs", "New Tab", "", newTabReason, "", func() tea.Cmd { return m.leaveEditor(m.duplicateTab) })
+	add("previous-tab", "Tabs", "Previous Tab", "", closeReason, "", func() tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd {
 			if m.moveTab(-1) {
 				m.normalize()
@@ -254,7 +257,7 @@ func (m *Model) commands() []command {
 			return nil
 		})
 	})
-	add("next-tab", "Tabs", "Next Tab", "]", closeReason, "", func() tea.Cmd {
+	add("next-tab", "Tabs", "Next Tab", "", closeReason, "", func() tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd {
 			if m.moveTab(1) {
 				m.normalize()
@@ -262,7 +265,7 @@ func (m *Model) commands() []command {
 			return nil
 		})
 	})
-	add("theme", "Settings", "Theme…", "Shift+T", "", "", func() tea.Cmd {
+	add("theme", "Settings", "Theme…", "", "", "", func() tea.Cmd {
 		m.openPalette("themes", false)
 		return nil
 	})
@@ -275,8 +278,8 @@ func (m *Model) commands() []command {
 	if pinReason == "" && !m.gate.Configured() {
 		pinReason = "PIN not set"
 	}
-	add("protect", "Vault", "Lock UI with PIN", "Ctrl+K", pinReason, "", m.protectScreen)
-	add("help", "Help", "Shortcuts", "?", "", "", func() tea.Cmd { m.help = true; m.helpOffset = 0; m.helpQuery.clear(); return nil })
+	add("protect", "Vault", "Lock UI with PIN", "", pinReason, "", m.protectScreen)
+	add("help", "Help", "Shortcuts", "", "", "", func() tea.Cmd { m.help = true; m.helpOffset = 0; m.helpQuery.clear(); return nil })
 	return commands
 }
 

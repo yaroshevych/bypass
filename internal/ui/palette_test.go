@@ -78,6 +78,20 @@ func TestModalHandlersProvideInputAndView(t *testing.T) {
 	}
 }
 
+func TestWorkspaceShortcutRegistryMatchesPalette(t *testing.T) {
+	m, _ := operationModel(t)
+	commands := make(map[string]command)
+	for _, command := range m.commands() {
+		commands[command.id] = command
+	}
+	for id, binding := range workspaceShortcuts {
+		command, ok := commands[id]
+		if !ok || binding.key == "" || command.key != binding.label {
+			t.Errorf("shortcut %q is not represented correctly in the palette", id)
+		}
+	}
+}
+
 func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	m, _ := operationModel(t)
 	v := m.ws.ActiveView()

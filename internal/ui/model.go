@@ -556,7 +556,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if m.debugAppearanceToggle(key) {
 		return nil
 	}
-	if key == "ctrl+l" && !m.gate.Protected() {
+	if key == keyLockAll && !m.gate.Protected() {
 		m.help = false
 		return m.lockCurrent(true)
 	}
@@ -572,7 +572,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	layer := m.activeLayer()
-	if layer != layerPrivacy && (key == "ctrl+b" || layer == layerRequests) {
+	if layer != layerPrivacy && (key == keyRequests || layer == layerRequests) {
 		if cmd, handled := m.updateRun(k); handled {
 			return cmd
 		}
@@ -581,7 +581,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if layer == layerRequests && key == "ctrl+c" {
 		return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit })
 	}
-	if layer != layerPrivacy && key == "ctrl+k" {
+	if layer != layerPrivacy && key == keyProtect {
 		return m.protectScreen()
 	}
 	if layer != layerWorkspace {
@@ -596,7 +596,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 			return nil
 		}
 	}
-	if key != "v" {
+	if key != keyReveal {
 		m.hideReveal()
 	}
 	if s := m.ws.ActiveSession(); s != nil && s.DB != nil && m.screen == browse {
@@ -625,22 +625,22 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		return m.searchKey(k)
 	}
 	switch key {
-	case "N", "ctrl+n":
+	case "N", keyNewVault:
 		return m.leaveEditor(m.openCreateVault)
-	case "q":
+	case keyQuit:
 		m.Close()
 		return tea.Quit
-	case "ctrl+o":
+	case keyOpenVault:
 		return m.openPicker()
-	case "?":
+	case keyHelp:
 		m.hideReveal()
 		m.help = true
 		m.helpOffset = 0
 		m.helpQuery.clear()
 		return nil
-	case "t":
+	case keyNewTab:
 		return m.duplicateTab()
-	case "T":
+	case keyThemes:
 		m.openPalette("themes", false)
 		return nil
 	case "ctrl+pgup":
@@ -653,17 +653,17 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 			m.normalize()
 		}
 		return nil
-	case "[":
+	case keyPreviousTab:
 		if m.moveTab(-1) {
 			m.normalize()
 		}
 		return nil
-	case "]":
+	case keyNextTab:
 		if m.moveTab(1) {
 			m.normalize()
 		}
 		return nil
-	case "ctrl+w":
+	case keyCloseView:
 		m.hideReveal()
 		m.ws.CloseView()
 		m.err = ""
@@ -762,7 +762,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 			}
 			v.Focus++
 		}
-	case "/":
+	case keySearch:
 		return m.beginSearch(false)
 	case "esc":
 		if v.Zoom {
@@ -773,11 +773,11 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 			}
 			m.normalize()
 		}
-	case "G":
+	case keyGrand:
 		return m.openGrandView()
-	case "J":
+	case keyJump:
 		return m.beginJump()
-	case "z":
+	case keyZoom:
 		v.Zoom = !v.Zoom
 	case "a":
 		m.openPalette("actions", true)
