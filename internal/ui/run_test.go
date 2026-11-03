@@ -368,6 +368,21 @@ func TestRunRequestWheelMovesSelectionWithoutReachingButtons(t *testing.T) {
 	}
 }
 
+func TestRequestKeyboardRoutingToPaletteAndQuit(t *testing.T) {
+	m := New(Options{})
+	m.runs = &runState{visible: true}
+	m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+	if m.runs.visible || m.palette == nil {
+		t.Fatal("ctrl+p did not leave requests and open the palette")
+	}
+	m.closePalette(false)
+	m.runs.visible = true
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if cmd == nil || !m.closed {
+		t.Fatal("ctrl+c did not quit from requests")
+	}
+}
+
 func TestBulkApprovalRequiresConfirmationAndCapturesQueue(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 48, 16

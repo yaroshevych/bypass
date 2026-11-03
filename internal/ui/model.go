@@ -364,8 +364,10 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if _, tick := msg.(tickMsg); !tick {
 		m.searchCache = nil
 	}
-	if cmd, ok := m.updateRun(msg); ok {
-		return m, cmd
+	if _, isKey := msg.(tea.KeyMsg); !isKey {
+		if cmd, ok := m.updateRun(msg); ok {
+			return m, cmd
+		}
 	}
 	if cmd, ok := m.updateLifecycle(msg); ok {
 		m.adjustViewport()
@@ -571,6 +573,15 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	layer := m.activeLayer()
+	if layer != layerPrivacy && (key == "ctrl+b" || layer == layerRequests) {
+		if cmd, handled := m.updateRun(k); handled {
+			return cmd
+		}
+		layer = m.activeLayer()
+	}
+	if layer == layerRequests && key == "ctrl+c" {
+		return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit })
+	}
 	if layer != layerPrivacy && key == "ctrl+k" {
 		return m.protectScreen()
 	}
