@@ -96,7 +96,7 @@ func (m *Model) commands() []command {
 	if reason := m.nativeReason("db-create"); reason != "" {
 		createReason = reason
 	}
-	add("new-vault", "File", "New Vault…", "Shift+N", createReason, "", func() tea.Cmd { return m.leaveEditor(m.openCreateVault) })
+	add("new-vault", "File", "New Vault…", "Ctrl+N", createReason, "", func() tea.Cmd { return m.leaveEditor(m.openCreateVault) })
 	add("open", "File", "Open Vault…", "Ctrl+O", "", "", func() tea.Cmd { return m.leaveEditor(m.openPicker) })
 	add("quit", "App", "Quit bypass", "q", "", "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }) })
 	closeReason := ""

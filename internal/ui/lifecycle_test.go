@@ -62,6 +62,26 @@ func TestLifecycleFocusedFieldsRemainVisible(t *testing.T) {
 		}
 	}
 }
+
+func TestNewVaultShortcutMatchesWelcomeAndPalette(t *testing.T) {
+	m := New(Options{Backend: &lifecycleBackend{}})
+	if view := ansi.Strip(m.View()); !strings.Contains(view, "ctrl+n") {
+		t.Fatal("welcome screen does not advertise ctrl+n")
+	}
+	found := false
+	for _, command := range m.commands() {
+		if command.id == "new-vault" {
+			found = command.key == "Ctrl+N"
+		}
+	}
+	if !found {
+		t.Fatal("palette does not advertise ctrl+n")
+	}
+	m.key(tea.KeyMsg{Type: tea.KeyCtrlN})
+	if m.lifecycle == nil || m.lifecycle.kind != "create" {
+		t.Fatal("ctrl+n did not open the create vault dialog")
+	}
+}
 func TestCreateVaultFormMasksInputsAndRetainsFailedDraft(t *testing.T) {
 	b := &lifecycleBackend{fail: true}
 	m := New(Options{Backend: b, Settings: platform.Settings{BackupDir: t.TempDir()}})

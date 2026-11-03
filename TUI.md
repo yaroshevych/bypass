@@ -29,7 +29,7 @@ the in-app reference.
 | Lock All Vaults | `ctrl+l` | Lock every unlocked vault and clear their authenticated sessions. |
 | Open Vault… | `ctrl+o` | Select a vault file and unlock it. |
 | Close Vault | — | Close the current vault and its views. |
-| New Vault… | `shift+n` | Create a vault. Requires backend support and permission to write. |
+| New Vault… | `ctrl+n` | Create a vault. Requires backend support and permission to write. |
 | Lock Vault | — | Lock the current vault. Other unlocked vaults remain available. |
 | Reload Vault | `ctrl+r` | Reload the current vault, including changes made outside Bypass. |
 | Database Info… | — | Show information about the current database when supported by the backend. |
