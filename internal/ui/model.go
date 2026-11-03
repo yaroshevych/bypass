@@ -301,18 +301,13 @@ func (m *Model) Close() {
 	}
 	m.closed = true
 	m.cancelFocusedDetails()
-	m.clearExtras()
-	m.clearLifecycle()
-	m.closePalette(false)
+	m.clearTransientUI()
 	m.gate.Clear()
 	m.pinInput.clear()
 	m.helpQuery.clear()
 	m.searchCache = nil
 	m.searchOrigin = nil
-	m.cancelOperation()
 	m.clearEditor()
-	m.clearDialog()
-	m.hideReveal()
 	if m.clipCancel != nil {
 		m.clipCancel()
 	}
@@ -333,6 +328,18 @@ func (m *Model) Close() {
 	m.query.clear()
 	m.previousQuery = ""
 	m.ws.Close()
+}
+
+// clearTransientUI tears down overlays and their pending work before locking
+// every session or closing the application.
+func (m *Model) clearTransientUI() {
+	m.clearLifecycle()
+	m.clearExtras()
+	m.cancelOperation()
+	m.clearDialog()
+	m.closePalette(false)
+	m.hideReveal()
+	m.jump = false
 }
 
 func (m *Model) CleanupError() error { return m.cleanupErr }

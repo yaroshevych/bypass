@@ -1004,13 +1004,7 @@ func compactNotice(text string) string {
 func (m *Model) lockCurrent(all bool) tea.Cmd {
 	if all {
 		m.cancelPendingOpen()
-		m.clearLifecycle()
-		m.clearExtras()
-		m.cancelOperation()
-		m.clearDialog()
-		m.closePalette(false)
-		m.hideReveal()
-		m.jump = false
+		m.clearTransientUI()
 		for id := range m.ws.Sessions {
 			m.lockSession(id)
 		}
