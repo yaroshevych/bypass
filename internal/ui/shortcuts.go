@@ -41,7 +41,7 @@ var workspaceShortcuts = map[string]shortcut{
 	"new": {keyNewEntry, "n"}, "edit": {keyEditEntry, "e"}, "group": {keyNewGroup, "g"},
 	"move": {keyMoveEntry, "m"}, "delete": {keyDelete, "Ctrl+D"},
 	"copy-focused": {keyCopy, "c"}, "reveal": {keyReveal, "v"}, "generator": {keyGenerator, "Ctrl+G"},
-	"grand-view": {keyGrand, "G"}, "search": {keySearch, "/"}, "jump": {keyJump, "Shift+J"},
+	"grand-view": {keyGrand, "Shift+G"}, "search": {keySearch, "/"}, "jump": {keyJump, "Shift+J"},
 	"zoom": {keyZoom, "z"}, "duplicate": {keyNewTab, "t"},
 	"previous-tab": {keyPreviousTab, "["}, "next-tab": {keyNextTab, "]"},
 	"theme": {keyThemes, "Shift+T"}, "help": {keyHelp, "?"}, "quit": {keyQuit, "q"},

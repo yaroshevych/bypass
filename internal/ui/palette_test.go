@@ -92,6 +92,31 @@ func TestWorkspaceShortcutRegistryMatchesPalette(t *testing.T) {
 	}
 }
 
+func TestLargeViewShortcutIsDistinguishedFromNewGroup(t *testing.T) {
+	m, _ := operationModel(t)
+	groups, _ := m.helpActionGroups()
+	var lines []string
+	for _, section := range groups {
+		lines = append(lines, section...)
+	}
+	joined := strings.Join(lines, "\n")
+	if !strings.Contains(joined, "shift+g") || !strings.Contains(joined, "Large View") {
+		t.Fatalf("help does not show the shifted Large View shortcut: %q", joined)
+	}
+	m.openPalette("actions", false)
+	choices := m.paletteChoices()
+	rows, _ := m.paletteRows(choices)
+	for _, row := range rows {
+		if row.choice >= 0 && choices[row.choice].id == "grand-view" {
+			if !strings.Contains(ansi.Strip(row.text), "shift+g") {
+				t.Fatal("palette did not distinguish Large View from New Group")
+			}
+			return
+		}
+	}
+	t.Fatal("Large View missing from palette")
+}
+
 func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	m, _ := operationModel(t)
 	v := m.ws.ActiveView()
