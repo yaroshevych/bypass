@@ -60,7 +60,7 @@ func (m *Model) requestTOTP(api interface {
 		}
 		defer resources.done()
 		result, err := api.TOTP(ctx, db, creds, entryID)
-		return extrasTOTPMsg{state: state, requestID: requestID, result: result, err: err}
+		return extrasTOTPMsg{state: state, requestID: requestID, result: result, err: err, secret: holdSecret(ctx, result.Code)}
 	}
 }
 

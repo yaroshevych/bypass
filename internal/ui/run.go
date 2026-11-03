@@ -31,7 +31,7 @@ type runTarget struct {
 type runResult struct {
 	pending         *runpkg.Pending
 	targets         []runTarget
-	secrets         *runSecretValues
+	secrets         *secretValues
 	err             error
 	updated         map[string]*vault.Database
 	needsApproval   bool
@@ -77,9 +77,9 @@ func clearRunValues(values map[string][]byte) {
 	}
 }
 
-// runSecretValues owns buffers between an async command and the UI update. The
+// secretValues owns buffers between an async command and the UI update. The
 // context watcher clears values if Bubble Tea drops the result during shutdown.
-type runSecretValues struct {
+type secretValues struct {
 	mu     sync.Mutex
 	ctx    context.Context
 	values map[string][]byte
@@ -88,8 +88,8 @@ type runSecretValues struct {
 	closed bool
 }
 
-func newRunSecretValues(ctx context.Context) *runSecretValues {
-	v := &runSecretValues{ctx: ctx, values: map[string][]byte{}, done: make(chan struct{})}
+func newSecretValues(ctx context.Context) *secretValues {
+	v := &secretValues{ctx: ctx, values: map[string][]byte{}, done: make(chan struct{})}
 	v.mu.Lock()
 	stop := context.AfterFunc(ctx, v.Clear)
 	v.stop = stop
@@ -105,7 +105,7 @@ func newRunSecretValues(ctx context.Context) *runSecretValues {
 	return v
 }
 
-func (v *runSecretValues) Put(key string, value []byte) {
+func (v *secretValues) Put(key string, value []byte) {
 	if v == nil {
 		clear(value)
 		return
@@ -131,7 +131,7 @@ func (v *runSecretValues) Put(key string, value []byte) {
 	v.mu.Unlock()
 }
 
-func (v *runSecretValues) Take() map[string][]byte {
+func (v *secretValues) Take() map[string][]byte {
 	if v == nil {
 		return nil
 	}
@@ -161,7 +161,7 @@ func (v *runSecretValues) Take() map[string][]byte {
 	return values
 }
 
-func (v *runSecretValues) Clear() {
+func (v *secretValues) Clear() {
 	if v == nil {
 		return
 	}
@@ -177,7 +177,7 @@ func (v *runSecretValues) Clear() {
 	}
 }
 
-func (v *runSecretValues) clearLocked() {
+func (v *secretValues) clearLocked() {
 	clearRunValues(v.values)
 	v.values = nil
 	v.closed = true

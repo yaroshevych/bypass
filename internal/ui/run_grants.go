@@ -32,7 +32,7 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 		permissionEpoch = m.runs.permissionEpoch
 	}
 	return func() tea.Msg {
-		secrets := newRunSecretValues(p.Context)
+		secrets := newSecretValues(p.Context)
 		result := runResult{pending: p, targets: targets, secrets: secrets, updated: map[string]*vault.Database{}}
 		result.permissionEpoch = permissionEpoch
 		result.newIdentity = p.Identity.Digest != ""

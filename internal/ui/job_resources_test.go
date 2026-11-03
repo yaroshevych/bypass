@@ -42,3 +42,19 @@ func TestJobResourcesWaitForRunningCommand(t *testing.T) {
 		t.Fatal("command did not release its input")
 	}
 }
+
+func TestUndeliveredSecretResultClearsOnCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	value := []byte("secret")
+	owner := holdSecret(ctx, value)
+	cancel()
+	<-owner.done
+	for _, b := range value {
+		if b != 0 {
+			t.Fatal("undelivered secret remained in memory")
+		}
+	}
+	if got := takeSecret(owner, value); got != nil {
+		t.Fatal("canceled secret result could still be taken")
+	}
+}

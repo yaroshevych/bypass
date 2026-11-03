@@ -16,6 +16,7 @@ import (
 
 type editorReadyMsg struct {
 	fields             []vault.Field
+	secret             *secretValues
 	id                 uint64
 	sessionID, entryID string
 	password           []byte
@@ -51,16 +52,32 @@ type nativeCopiedMsg struct {
 	err error
 }
 type resolvedCopyMsg struct {
-	id    uint64
-	label string
-	value []byte
-	err   error
+	id     uint64
+	label  string
+	value  []byte
+	err    error
+	secret *secretValues
 }
 type resolvedRevealMsg struct {
-	id    uint64
-	value []byte
-	err   error
+	id     uint64
+	value  []byte
+	err    error
+	secret *secretValues
 }
+
+func holdSecret(ctx context.Context, value []byte) *secretValues {
+	owner := newSecretValues(ctx)
+	owner.Put("value", value)
+	return owner
+}
+
+func takeSecret(owner *secretValues, fallback []byte) []byte {
+	if owner == nil {
+		return fallback
+	}
+	return owner.Take()["value"]
+}
+
 type clipboardClearedMsg struct{ err error }
 type clipboardExpiryMsg struct {
 	id  uint64
@@ -210,7 +227,7 @@ func (m *Model) prepareEditor(entry vault.Entry) tea.Cmd {
 			return editorReadyMsg{id: id, sessionID: sessionID, entryID: entry.UUID, err: err}
 		}
 		password, err := resolver.ResolveField(ctx, snapshot, vault.Credentials{}, entry.UUID, "Password")
-		return editorReadyMsg{id: id, sessionID: sessionID, entryID: entry.UUID, password: password, fields: fields, err: err}
+		return editorReadyMsg{id: id, sessionID: sessionID, entryID: entry.UUID, password: password, secret: holdSecret(ctx, password), fields: fields, err: err}
 	}
 }
 
@@ -477,6 +494,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 	case focusedDetailsMsg:
 		return m.acceptFocusedDetails(msg), true
 	case editorReadyMsg:
+		msg.password = takeSecret(msg.secret, msg.password)
 		defer clear(msg.password)
 		if msg.id != m.operation {
 			return nil, true
@@ -634,6 +652,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		delay := max(time.Duration(0), msg.expires.Sub(m.now()))
 		return tea.Tick(delay, func(now time.Time) tea.Msg { return clipboardExpiryMsg{id, now} }), true
 	case resolvedCopyMsg:
+		msg.value = takeSecret(msg.secret, msg.value)
 		if msg.id != m.clipGeneration {
 			clear(msg.value)
 			return nil, true
@@ -645,6 +664,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		return m.copyValue(msg.value, msg.label), true
 	case resolvedRevealMsg:
+		msg.value = takeSecret(msg.secret, msg.value)
 		defer clear(msg.value)
 		if msg.id != m.revealGeneration {
 			return nil, true
@@ -833,7 +853,7 @@ func (m *Model) copyField(name string) tea.Cmd {
 			}
 			defer resources.done()
 			value, err := resolver.ResolveField(ctx, db, creds, entryID, name)
-			return resolvedCopyMsg{id, label, value, err}
+			return resolvedCopyMsg{id: id, label: label, value: value, err: err, secret: holdSecret(ctx, value)}
 		}
 	}
 	return m.copyValue([]byte(e.Get(name)), label)
@@ -974,7 +994,7 @@ func (m *Model) requestRevealField() tea.Cmd {
 		}
 		defer resources.done()
 		value, err := resolver.ResolveField(ctx, db, creds, entryID, name)
-		return resolvedRevealMsg{id, value, err}
+		return resolvedRevealMsg{id: id, value: value, err: err, secret: holdSecret(ctx, value)}
 	}
 }
 func (m *Model) hideReveal() {

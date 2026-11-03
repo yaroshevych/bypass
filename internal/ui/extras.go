@@ -52,6 +52,7 @@ type extraState struct {
 }
 
 type extrasTOTPMsg struct {
+	secret    *secretValues
 	state     *extraState
 	requestID uint64
 	result    vault.TOTPResult
@@ -114,6 +115,7 @@ func (m *Model) clearExtras() {
 func (m *Model) updateExtras(msg tea.Msg) (tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case extrasTOTPMsg:
+		msg.result.Code = takeSecret(msg.secret, msg.result.Code)
 		if m.extras != msg.state || m.gate.Protected() || msg.state.requestID != msg.requestID {
 			clear(msg.result.Code)
 			return nil, true

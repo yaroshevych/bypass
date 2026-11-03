@@ -62,7 +62,7 @@ func TestRunUpdateClearsValuesForInvalidatedVault(t *testing.T) {
 	cancel()
 	p := &runpkg.Pending{Context: ctx, Request: runpkg.Request{Command: []string{"/app"}}}
 	secret := []byte("secret")
-	secrets := newRunSecretValues(context.Background())
+	secrets := newSecretValues(context.Background())
 	secrets.Put("ref", secret)
 	m.runs = &runState{busy: true, pending: []*runpkg.Pending{p}}
 	m.updateRun(runResult{
@@ -78,7 +78,7 @@ func TestRunUpdateClearsValuesForInvalidatedVault(t *testing.T) {
 func TestRunSecretValuesClearOnCancellationAfterCommandReturn(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	secrets := newRunSecretValues(ctx)
+	secrets := newSecretValues(ctx)
 	value := []byte("secret")
 	secrets.Put("ref", value)
 	cancel()
@@ -94,7 +94,7 @@ func TestRunSecretValuesClearOnCancellationAfterCommandReturn(t *testing.T) {
 }
 
 func TestRunSecretValuesTakeAndClearAreSafeConcurrently(t *testing.T) {
-	secrets := newRunSecretValues(context.Background())
+	secrets := newSecretValues(context.Background())
 	value := []byte("secret")
 	secrets.Put("ref", value)
 	start := make(chan struct{})

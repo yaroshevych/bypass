@@ -130,7 +130,7 @@ func TestRunResetDiscardsPriorAutomaticApproval(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	p := &runpkg.Pending{Context: ctx}
-	secrets := newRunSecretValues(ctx)
+	secrets := newSecretValues(ctx)
 	value := []byte("synthetic")
 	secrets.Put("field", value)
 	m.runs = &runState{permissionEpoch: 1, pending: []*runpkg.Pending{p}}
