@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	"context"
 	"fmt"
 	"sort"
@@ -99,12 +100,12 @@ func (m *Model) beginRunPermissionReset() tea.Cmd {
 				}
 				value, err := resolver.ResolveField(ctx, item.db, vault.Credentials{}, entry, "Notes")
 				if err != nil {
-					clear(value)
+					wipebuf.Wipe(value)
 					result.err = err
 					return result
 				}
 				_, decision := runpkg.DecodeGrant(string(value))
-				clear(value)
+				wipebuf.Wipe(value)
 				if !decision {
 					continue
 				}

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
@@ -305,13 +306,13 @@ func (m *Model) commitAttachmentImport(state *extraState) tea.Cmd {
 	defer file.Close()
 	data, err := io.ReadAll(io.LimitReader(file, attachmentInputLimit+1))
 	if err != nil || len(data) > attachmentInputLimit {
-		clear(data)
+		wipebuf.Wipe(data)
 		state.err = "Source must be a readable regular file no larger than 32 MiB."
 		return nil
 	}
 	info, err := file.Stat()
 	if err != nil || !info.Mode().IsRegular() {
-		clear(data)
+		wipebuf.Wipe(data)
 		state.err = "Source must be a readable regular file no larger than 32 MiB."
 		return nil
 	}
@@ -320,7 +321,7 @@ func (m *Model) commitAttachmentImport(state *extraState) tea.Cmd {
 		kind = vault.ReplaceAttachment
 	}
 	changeData := append([]byte(nil), data...)
-	clear(data)
+	wipebuf.Wipe(data)
 	change := vault.Change{Kind: kind, EntryUUID: state.entryUUID, GroupUUID: state.groupUUID, AttachmentName: state.targetName, AttachmentData: changeData}
 	state.phase = "working"
 	state.loading = true
@@ -402,7 +403,7 @@ func (m *Model) startAttachmentExport(state *extraState) tea.Cmd {
 				err = writePrivateExclusive(ctx, path, data)
 			}
 		}
-		clear(data)
+		wipebuf.Wipe(data)
 		return extrasExportMsg{state: state, err: err}
 	}
 }

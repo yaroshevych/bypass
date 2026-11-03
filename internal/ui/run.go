@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	"context"
 	"fmt"
 	"os"
@@ -73,7 +74,7 @@ type runState struct {
 
 func clearRunValues(values map[string][]byte) {
 	for _, value := range values {
-		clear(value)
+		wipebuf.Wipe(value)
 	}
 }
 
@@ -107,12 +108,12 @@ func newSecretValues(ctx context.Context) *secretValues {
 
 func (v *secretValues) Put(key string, value []byte) {
 	if v == nil {
-		clear(value)
+		wipebuf.Wipe(value)
 		return
 	}
 	v.mu.Lock()
 	if v.closed || v.ctx.Err() != nil {
-		clear(value)
+		wipebuf.Wipe(value)
 		if !v.closed {
 			v.clearLocked()
 		}
@@ -125,7 +126,7 @@ func (v *secretValues) Put(key string, value []byte) {
 		return
 	}
 	if previous := v.values[key]; previous != nil {
-		clear(previous)
+		wipebuf.Wipe(previous)
 	}
 	v.values[key] = value
 	v.mu.Unlock()

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
@@ -104,9 +105,9 @@ func (m *Model) clearExtras() {
 		state.cancel = nil
 	}
 	state.input.clear()
-	clear(state.totpCode)
+	wipebuf.Wipe(state.totpCode)
 	state.totpCode = nil
-	clear(state.revealedValue)
+	wipebuf.Wipe(state.revealedValue)
 	state.revealedValue = nil
 	state.history = nil
 	m.extras = nil
@@ -117,7 +118,7 @@ func (m *Model) updateExtras(msg tea.Msg) (tea.Cmd, bool) {
 	case extrasTOTPMsg:
 		msg.result.Code = takeSecret(msg.secret, msg.result.Code)
 		if m.extras != msg.state || m.gate.Protected() || msg.state.requestID != msg.requestID {
-			clear(msg.result.Code)
+			wipebuf.Wipe(msg.result.Code)
 			return nil, true
 		}
 		state := m.extras
@@ -127,16 +128,16 @@ func (m *Model) updateExtras(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		state.loading = false
 		if _, entry := m.currentExtraEntry(state); entry == nil {
-			clear(msg.result.Code)
+			wipebuf.Wipe(msg.result.Code)
 			m.clearExtras()
 			return nil, true
 		}
 		if msg.err != nil {
-			clear(msg.result.Code)
+			wipebuf.Wipe(msg.result.Code)
 			state.err = "Could not generate a TOTP code."
 			return nil, true
 		}
-		clear(state.totpCode)
+		wipebuf.Wipe(state.totpCode)
 		state.totpCode = msg.result.Code
 		msg.result.Code = nil
 		state.totpPeriod = msg.result.PeriodSeconds
@@ -185,7 +186,7 @@ func (m *Model) extrasTick(now time.Time) tea.Cmd {
 		}
 	}
 	if state.mode == extraHistoryEntry && len(state.revealedValue) != 0 && !now.Before(state.revealedUntil) {
-		clear(state.revealedValue)
+		wipebuf.Wipe(state.revealedValue)
 		state.revealedValue = nil
 		state.revealedField = ""
 		state.revealedUntil = time.Time{}
@@ -201,12 +202,12 @@ func (m *Model) extrasTick(now time.Time) tea.Cmd {
 		TOTP(context.Context, *vault.Database, vault.Credentials, string) (vault.TOTPResult, error)
 	})
 	if !ok {
-		clear(state.totpCode)
+		wipebuf.Wipe(state.totpCode)
 		state.totpCode = nil
 		state.err = "TOTP is not supported by this backend."
 		return nil
 	}
-	clear(state.totpCode)
+	wipebuf.Wipe(state.totpCode)
 	state.totpCode = nil
 	return m.requestTOTP(api, state)
 }
@@ -263,7 +264,7 @@ func (m *Model) extrasKey(k tea.KeyMsg) (tea.Cmd, bool) {
 				TOTP(context.Context, *vault.Database, vault.Credentials, string) (vault.TOTPResult, error)
 			})
 			if ok {
-				clear(state.totpCode)
+				wipebuf.Wipe(state.totpCode)
 				state.totpCode = nil
 				return m.requestTOTP(api, state), true
 			}

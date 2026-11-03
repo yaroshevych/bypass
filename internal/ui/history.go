@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"fmt"
@@ -178,7 +179,7 @@ func (m *Model) extraHistorySnapshot(state *extraState) *vault.Entry {
 }
 
 func (m *Model) clearHistoryReveal(state *extraState) {
-	clear(state.revealedValue)
+	wipebuf.Wipe(state.revealedValue)
 	state.revealedValue = nil
 	state.revealedField = ""
 	state.revealedUntil = time.Time{}

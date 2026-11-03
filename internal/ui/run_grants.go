@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	"context"
 	"fmt"
 	"path/filepath"
@@ -87,7 +88,7 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 							allowed = true
 						}
 					}
-					clear(value)
+					wipebuf.Wipe(value)
 				}
 				if !allowed {
 					result.needsApproval = true
@@ -158,7 +159,7 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 			}
 			value, err := resolver.ResolveField(p.Context, db, vault.Credentials{}, target.entry, target.field)
 			if err != nil {
-				clear(value)
+				wipebuf.Wipe(value)
 				result.err = err
 				return result
 			}

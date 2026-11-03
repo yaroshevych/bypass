@@ -36,3 +36,18 @@ func TestInteractiveReadUntilAcrossGrowthAndReadBoundaries(t *testing.T) {
 		t.Fatal("large framed read failed")
 	}
 }
+
+func TestInteractiveReadLimitWipesReadAhead(t *testing.T) {
+	reader := bufio.NewReader(bytes.NewReader([]byte("secret and unread plaintext")))
+	storage, err := reader.Peek(len("secret and unread plaintext"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &interactiveSession{reader: reader}
+	if _, err := s.readUntil([]byte("missing"), 4); err == nil {
+		t.Fatal("expected size limit")
+	}
+	if !bytes.Equal(storage, make([]byte, len(storage))) {
+		t.Fatal("reader retained plaintext after failure")
+	}
+}

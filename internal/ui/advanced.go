@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	"crypto/subtle"
 	"errors"
 	"fmt"
@@ -121,7 +122,7 @@ func (m *Model) pinSetupKey(k tea.KeyMsg) tea.Cmd {
 	}
 	if k.String() == "enter" {
 		value := d.input.bytes()
-		defer clear(value)
+		defer wipebuf.Wipe(value)
 		if !validSessionPIN(value) {
 			d.err = "Use 4–12 digits."
 			return nil
@@ -208,7 +209,7 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 	}
 	if key == "enter" && m.pinFocus != 2 && m.pinFocus != 3 {
 		value := m.pinInput.bytes()
-		defer clear(value)
+		defer wipebuf.Wipe(value)
 		m.pinInput.clear()
 		err := m.gate.Unlock(value, m.now())
 		if err != nil {

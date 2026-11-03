@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	"fmt"
 	"strings"
 
@@ -31,7 +32,7 @@ func (m *Model) clearDialog() {
 	if m.dialog != nil {
 		m.dialog.duplicates.Close()
 		m.dialog.input.clear()
-		clear(m.dialog.secret)
+		wipebuf.Wipe(m.dialog.secret)
 		m.dialog.secret = nil
 		m.dialog.after = nil
 	}

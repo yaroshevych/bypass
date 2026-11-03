@@ -2,6 +2,7 @@
 package run
 
 import (
+	wipebuf "bypass/internal/secret"
 	"bytes"
 	"fmt"
 	"net/url"
@@ -41,17 +42,17 @@ func SubstituteBytes(value []byte, resolve func(Reference) ([]byte, error)) ([]b
 		value = value[i+2:]
 		end := bytes.IndexByte(value, '}')
 		if end < 0 {
-			clear(out)
+			wipebuf.Wipe(out)
 			return nil, fmt.Errorf("unterminated secret reference")
 		}
 		ref, err := ParseReference(string(value[:end]))
 		if err != nil {
-			clear(out)
+			wipebuf.Wipe(out)
 			return nil, err
 		}
 		secret, err := resolve(ref)
 		if err != nil {
-			clear(out)
+			wipebuf.Wipe(out)
 			return nil, err
 		}
 		out = appendOwned(out, secret...)
@@ -66,7 +67,7 @@ func appendOwned(dst []byte, src ...byte) []byte {
 	out := make([]byte, len(dst)+len(src))
 	copy(out, dst)
 	copy(out[len(dst):], src)
-	clear(dst)
+	wipebuf.Wipe(dst)
 	return out
 }
 

@@ -1,6 +1,7 @@
 package run
 
 import (
+	wipebuf "bypass/internal/secret"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -64,7 +65,7 @@ func (p *Pending) Reply(r Response) {
 
 func clearResponse(r *Response) {
 	for _, value := range r.Values {
-		clear(value)
+		wipebuf.Wipe(value)
 	}
 	r.Values = nil
 }
@@ -175,15 +176,15 @@ func (s *Server) serve(conn *net.UnixConn, submit func(*Pending)) {
 		return
 	}
 	if len(request.Command) == 0 || len(request.References) == 0 {
-		clear(request.Identity)
+		wipebuf.Wipe(request.Identity)
 		return
 	}
 	identity, err := ParseIdentity(request.Identity)
 	if err != nil && len(request.Identity) > 0 {
-		clear(request.Identity)
+		wipebuf.Wipe(request.Identity)
 		return
 	}
-	clear(request.Identity)
+	wipebuf.Wipe(request.Identity)
 	request.Identity = nil
 	pending := &Pending{Caller: callerAncestry(conn), Request: request, Identity: identity, Context: ctx, reply: make(chan Response)}
 	// The request is one frame. Further client input or EOF cancels it.
@@ -200,7 +201,7 @@ func (s *Server) serve(conn *net.UnixConn, submit func(*Pending)) {
 	}
 }
 func Exchange(ctx context.Context, path string, request Request) (Response, error) {
-	defer clear(request.Identity)
+	defer wipebuf.Wipe(request.Identity)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var response Response
@@ -256,12 +257,12 @@ func writeRequest(w io.Writer, request Request) error {
 	if err != nil {
 		return err
 	}
-	defer clear(metadata)
+	defer wipebuf.Wipe(metadata)
 	if len(metadata) > MaxMessage-12 || len(request.Identity) > MaxMessage-12-len(metadata) {
 		return errors.New("request too large")
 	}
 	frame := make([]byte, 12+len(metadata)+len(request.Identity))
-	defer clear(frame)
+	defer wipebuf.Wipe(frame)
 	copy(frame, requestMagic[:])
 	binary.BigEndian.PutUint32(frame[4:8], uint32(len(metadata)))
 	copy(frame[8:], metadata)
@@ -289,7 +290,7 @@ func readRequest(r io.Reader) (Request, error) {
 		return request, errors.New("request too large")
 	}
 	metadata := make([]byte, metadataLen)
-	defer clear(metadata)
+	defer wipebuf.Wipe(metadata)
 	if _, err := io.ReadFull(r, metadata); err != nil {
 		return request, err
 	}
@@ -309,7 +310,7 @@ func readRequest(r io.Reader) (Request, error) {
 	if identityLen > 0 {
 		request.Identity = make([]byte, identityLen)
 		if _, err := io.ReadFull(r, request.Identity); err != nil {
-			clear(request.Identity)
+			wipebuf.Wipe(request.Identity)
 			request.Identity = nil
 			return Request{}, err
 		}
@@ -336,7 +337,7 @@ func writeResponse(w io.Writer, response Response) error {
 		total += 8 + len(key) + len(value)
 	}
 	frame := make([]byte, total)
-	defer clear(frame)
+	defer wipebuf.Wipe(frame)
 	offset := 0
 	copy(frame[offset:], responseMagic[:])
 	offset += 4
@@ -379,7 +380,7 @@ func readResponse(r io.Reader, response *Response) error {
 		return errors.New("response too large")
 	}
 	frame := make([]byte, errorLen+4)
-	defer clear(frame)
+	defer wipebuf.Wipe(frame)
 	if _, err := io.ReadFull(r, frame); err != nil {
 		return err
 	}
@@ -411,18 +412,18 @@ func readResponse(r io.Reader, response *Response) error {
 		remaining -= keyLen + valueLen
 		entry := make([]byte, keyLen+valueLen)
 		if _, err := io.ReadFull(r, entry); err != nil {
-			clear(entry)
+			wipebuf.Wipe(entry)
 			clearResponse(response)
 			return err
 		}
 		key := string(entry[:keyLen])
 		if _, exists := values[key]; exists {
-			clear(entry)
+			wipebuf.Wipe(entry)
 			clearResponse(response)
 			return errors.New("duplicate response key")
 		}
 		value := append([]byte(nil), entry[keyLen:]...)
-		clear(entry)
+		wipebuf.Wipe(entry)
 		values[key] = value
 	}
 	return nil

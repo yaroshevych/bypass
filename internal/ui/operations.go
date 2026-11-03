@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	"context"
 	"encoding/json"
 	"errors"
@@ -412,7 +413,7 @@ func (m *Model) saveEditor() tea.Cmd {
 
 func (m *Model) apply(change vault.Change) tea.Cmd {
 	if !m.writable() {
-		clear(change.Password)
+		wipebuf.Wipe(change.Password)
 		return nil
 	}
 	s := m.ws.ActiveSession()
@@ -426,8 +427,8 @@ func (m *Model) apply(change vault.Change) tea.Cmd {
 	resources := newJobResources(ctx, func() {
 		snapshot.Clear()
 		creds.Clear()
-		clear(password)
-		clear(attachment)
+		wipebuf.Wipe(password)
+		wipebuf.Wipe(attachment)
 	})
 	return func() tea.Msg {
 		if !resources.start() {
@@ -493,7 +494,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		return m.acceptFocusedDetails(msg), true
 	case editorReadyMsg:
 		msg.password = takeSecret(msg.secret, msg.password)
-		defer clear(msg.password)
+		defer wipebuf.Wipe(msg.password)
 		if msg.id != m.operation {
 			return nil, true
 		}
@@ -512,7 +513,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 				applyEntryDetails(entry, msg.fields)
 				m.startEditor(entry, entry.GroupUUID)
 				m.editor.setPassword(msg.password)
-				clear(m.editor.originalPassword)
+				wipebuf.Wipe(m.editor.originalPassword)
 				m.editor.originalPassword = append([]rune(nil), m.editor.inputs[editPassword].text...)
 				break
 			}
@@ -610,7 +611,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		m.setNotice("vault reloaded", false)
 		return nil, true
 	case generatedMsg:
-		defer clear(msg.value)
+		defer wipebuf.Wipe(msg.value)
 		if msg.id != m.operation {
 			return nil, true
 		}
@@ -622,7 +623,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			m.dialog.err = "Could not generate password."
 			return nil, true
 		}
-		clear(m.dialog.secret)
+		wipebuf.Wipe(m.dialog.secret)
 		m.dialog.secret = append([]byte(nil), msg.value...)
 		m.dialog.err = ""
 		return nil, true
@@ -652,18 +653,18 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 	case resolvedCopyMsg:
 		msg.value = takeSecret(msg.secret, msg.value)
 		if msg.id != m.clipGeneration {
-			clear(msg.value)
+			wipebuf.Wipe(msg.value)
 			return nil, true
 		}
 		if msg.err != nil {
-			clear(msg.value)
+			wipebuf.Wipe(msg.value)
 			m.setNotice("field unavailable · reload if vault changed", true)
 			return nil, true
 		}
 		return m.copyValue(msg.value, msg.label), true
 	case resolvedRevealMsg:
 		msg.value = takeSecret(msg.secret, msg.value)
-		defer clear(msg.value)
+		defer wipebuf.Wipe(msg.value)
 		if msg.id != m.revealGeneration {
 			return nil, true
 		}
@@ -676,7 +677,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			m.setNotice("field unavailable · reload if vault changed", true)
 			return nil, true
 		}
-		clear(m.revealValue)
+		wipebuf.Wipe(m.revealValue)
 		m.revealValue = append([]byte(nil), msg.value...)
 		if m.revealField == "TOTP" && !m.revealUntil.IsZero() && !m.now().Before(m.revealUntil) {
 			m.hideReveal()
@@ -887,7 +888,7 @@ func (m *Model) copyNativePassword(entryID string) tea.Cmd {
 
 func (m *Model) copyValue(value []byte, label string) tea.Cmd {
 	if m.clipboard == nil {
-		clear(value)
+		wipebuf.Wipe(value)
 		m.setNotice("clipboard unavailable", true)
 		return nil
 	}
@@ -902,7 +903,7 @@ func (m *Model) copyValue(value []byte, label string) tea.Cmd {
 	expires := now.Add(m.settings.ClipboardTimeout)
 	manager := m.clipboard
 	timeout := m.settings.ClipboardTimeout
-	resources := newJobResources(ctx, func() { clear(value) })
+	resources := newJobResources(ctx, func() { wipebuf.Wipe(value) })
 	return func() tea.Msg {
 		if !resources.start() {
 			return copiedMsg{id: id, label: label, expires: expires, err: ctx.Err()}
@@ -955,7 +956,7 @@ func (m *Model) toggleReveal() tea.Cmd {
 	if name == "TOTP" || strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Interactive() && (name == "Password" || (name == "Notes" && !e.DetailsLoaded))) {
 		return m.requestRevealField()
 	}
-	clear(m.revealValue)
+	wipebuf.Wipe(m.revealValue)
 	m.revealValue = []byte(e.Get(name))
 	m.revealUntil = m.now().Add(5 * time.Second)
 	return nil
@@ -1000,7 +1001,7 @@ func (m *Model) hideReveal() {
 		m.revealCancel = nil
 	}
 	m.revealGeneration++
-	clear(m.revealValue)
+	wipebuf.Wipe(m.revealValue)
 	m.revealValue = nil
 	m.revealEntry = ""
 	m.revealField = ""

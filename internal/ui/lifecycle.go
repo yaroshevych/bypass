@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	"bytes"
 	"context"
 	"errors"
@@ -151,18 +152,18 @@ func (m *Model) lifecycleCredentials() (vault.Credentials, error) {
 		passwordIndex = 1
 	}
 	password, confirmation := l.inputs[passwordIndex].bytes(), l.inputs[passwordIndex+1].bytes()
-	defer clear(confirmation)
+	defer wipebuf.Wipe(confirmation)
 	if !bytes.Equal(password, confirmation) {
-		clear(password)
+		wipebuf.Wipe(password)
 		return vault.Credentials{}, fmt.Errorf("Passwords do not match.")
 	}
 	keyFile := strings.TrimSpace(l.inputs[passwordIndex+2].value())
 	if len(password) == 0 && keyFile == "" {
-		clear(password)
+		wipebuf.Wipe(password)
 		return vault.Credentials{}, fmt.Errorf("Set a password or select an existing key file.")
 	}
 	if bytes.ContainsAny(password, "\r\n\x00") {
-		clear(password)
+		wipebuf.Wipe(password)
 		return vault.Credentials{}, fmt.Errorf("Password cannot contain line breaks.")
 	}
 	return vault.Credentials{Password: password, KeyFile: keyFile, NoPassword: len(password) == 0}, nil

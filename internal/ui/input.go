@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -26,7 +27,7 @@ func (i *input) bytes() []byte {
 }
 
 func (i *input) clear() {
-	clear(i.text)
+	wipebuf.Wipe(i.text)
 	i.text = nil
 	i.cursor = 0
 }
@@ -82,7 +83,7 @@ func (i *input) update(k tea.KeyMsg) {
 		}
 		// Bound paste size, including password paste, to keep rendering responsive.
 		if len(i.text)+len(runes) > 4096 {
-			clear(runes)
+			wipebuf.Wipe(runes)
 			return
 		}
 		needed := len(i.text) + len(runes)
@@ -90,7 +91,7 @@ func (i *input) update(k tea.KeyMsg) {
 			old := i.text
 			next := make([]rune, len(old), max(needed, max(8, cap(old)*2)))
 			copy(next, old)
-			clear(old)
+			wipebuf.Wipe(old)
 			i.text = next
 		}
 		oldLen := len(i.text)
@@ -98,13 +99,13 @@ func (i *input) update(k tea.KeyMsg) {
 		copy(i.text[i.cursor+len(runes):], i.text[i.cursor:oldLen])
 		copy(i.text[i.cursor:], runes)
 		i.cursor += len(runes)
-		clear(runes)
+		wipebuf.Wipe(runes)
 	}
 }
 
 func (i *input) erase(start, end int) {
 	n := copy(i.text[start:], i.text[end:])
-	clear(i.text[start+n:])
+	wipebuf.Wipe(i.text[start+n:])
 	i.text = i.text[:len(i.text)-(end-start)]
 	i.cursor = start
 }

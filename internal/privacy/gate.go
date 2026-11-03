@@ -1,6 +1,7 @@
 package privacy
 
 import (
+	wipebuf "bypass/internal/secret"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -58,7 +59,7 @@ func (g *Gate) Configure(pin []byte) error {
 	}
 	salt := make([]byte, saltSize)
 	if _, err := rand.Read(salt); err != nil {
-		clear(salt)
+		wipebuf.Wipe(salt)
 		return ErrUnavailable
 	}
 	hash := pinHash(salt, pin)
@@ -67,7 +68,7 @@ func (g *Gate) Configure(pin []byte) error {
 	g.clearLocked()
 	g.salt = salt
 	g.hash = hash
-	clear(hash[:])
+	wipebuf.Wipe(hash[:])
 	g.configured = true
 	return nil
 }
@@ -99,7 +100,7 @@ func (g *Gate) Unlock(pin []byte, now time.Time) error {
 	}
 	provided := pinHash(g.salt, pin)
 	match := subtle.ConstantTimeCompare(g.hash[:], provided[:])
-	clear(provided[:])
+	wipebuf.Wipe(provided[:])
 	if match != 1 {
 		if g.failed < int(^uint(0)>>1) {
 			g.failed++
@@ -145,9 +146,9 @@ func (g *Gate) Clear() {
 }
 
 func (g *Gate) clearLocked() {
-	clear(g.salt)
+	wipebuf.Wipe(g.salt)
 	g.salt = nil
-	clear(g.hash[:])
+	wipebuf.Wipe(g.hash[:])
 	g.configured = false
 	g.protected = false
 	g.failed = 0
@@ -171,6 +172,6 @@ func pinHash(salt, pin []byte) [sha256.Size]byte {
 	material = append(material, salt...)
 	material = append(material, pin...)
 	hash := sha256.Sum256(material)
-	clear(material)
+	wipebuf.Wipe(material)
 	return hash
 }

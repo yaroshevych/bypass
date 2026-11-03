@@ -183,6 +183,7 @@ type interactiveSession struct {
 	input         io.WriteCloser
 	output        *os.File
 	reader        *bufio.Reader
+	readerMu      sync.Mutex
 	done          chan struct{}
 	prompt        []byte
 	echo          bool
@@ -434,6 +435,8 @@ func (s *interactiveSession) commandPrompts(ctx context.Context, passwords [][]b
 }
 
 func (s *interactiveSession) readUntil(suffix []byte, limit int) ([]byte, error) {
+	s.readerMu.Lock()
+	defer s.readerMu.Unlock()
 	var data []byte
 	for len(data) < limit {
 		// Peek exposes the reader's backing storage so consumed plaintext can
@@ -444,6 +447,7 @@ func (s *interactiveSession) readUntil(suffix []byte, limit int) ([]byte, error)
 				s.unlockFailure = classifyUnlockFailure(data)
 			}
 			zero(data)
+			s.wipeBuffered()
 			return nil, ErrUnlock
 		}
 		b := chunk[0]
@@ -465,7 +469,22 @@ func (s *interactiveSession) readUntil(suffix []byte, limit int) ([]byte, error)
 		s.unlockFailure = "startup_output_limit"
 	}
 	zero(data)
+	s.wipeBuffered()
 	return nil, ErrTooLarge
+}
+
+// wipeBuffered runs with readerMu held and discards any read-ahead plaintext.
+func (s *interactiveSession) wipeBuffered() {
+	if s.reader == nil {
+		return
+	}
+	n := s.reader.Buffered()
+	if n == 0 {
+		return
+	}
+	data, _ := s.reader.Peek(n)
+	zero(data)
+	_, _ = s.reader.Discard(n)
 }
 
 func (s *interactiveSession) withContext(ctx context.Context, operation func() ([]byte, error)) ([]byte, error) {
@@ -505,6 +524,9 @@ func (s *interactiveSession) close() {
 		killInteractiveProcess(s.cmd)
 		_ = s.input.Close()
 		_ = s.output.Close()
+		s.readerMu.Lock()
+		s.wipeBuffered()
+		s.readerMu.Unlock()
 		<-s.done
 	})
 }

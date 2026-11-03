@@ -1,6 +1,7 @@
 package vault
 
 import (
+	wipebuf "bypass/internal/secret"
 	"bytes"
 	"context"
 	"errors"
@@ -94,11 +95,7 @@ func boundedContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, defaultTimeout)
 }
 
-func zero(b []byte) {
-	for i := range b {
-		b[i] = 0
-	}
-}
+func zero(b []byte) { wipebuf.Wipe(b) }
 
 type limitedBuffer struct {
 	buf      bytes.Buffer

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	dialogrender "bypass/internal/ui/dialog"
 	"fmt"
 	"strconv"
@@ -80,7 +81,7 @@ func (m *Model) grandGeometry() (columns, visible, total int) {
 		return max(1, m.width-8), m.grandTextCapacity(), len(m.grandTextRows())
 	}
 	runes := []rune(string(m.revealValue))
-	defer clear(runes)
+	defer wipebuf.Wipe(runes)
 	cell := grandCellWidth(runes, m.settings.ASCII)
 	columns = max(1, (m.width-8)/cell)
 	visible = max(1, m.grandContentCapacity()/3)
@@ -138,7 +139,7 @@ func (m *Model) grandLines() []string {
 		return m.grandTextView()
 	}
 	runes := []rune(string(m.revealValue))
-	defer clear(runes)
+	defer wipebuf.Wipe(runes)
 	columns, visible, total := m.grandGeometry()
 	start := min(m.grandOffset, max(0, total-visible))
 	cell := grandCellWidth(runes, m.settings.ASCII)

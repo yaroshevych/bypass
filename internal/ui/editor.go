@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	"fmt"
 	"sort"
 	"strings"
@@ -132,7 +133,7 @@ func (e *entryEditor) clear() {
 		e.readonlyFields[i].Value = ""
 	}
 	e.readonlyFields = nil
-	clear(e.originalPassword)
+	wipebuf.Wipe(e.originalPassword)
 	e.originalPassword = nil
 	for key := range e.original {
 		e.original[key] = ""
@@ -697,7 +698,7 @@ func (e *entryEditor) insertNotesNewline() {
 	value.text = append(value.text[:value.cursor], '\n')
 	value.text = append(value.text, tail...)
 	value.cursor++
-	clear(tail)
+	wipebuf.Wipe(tail)
 }
 
 func (e *entryEditor) moveNotesCursor(delta int) {
