@@ -92,10 +92,9 @@ func (c *InteractiveCLI) Apply(ctx context.Context, db *Database, _ Credentials,
 	if prompt != "" {
 		acknowledgement = bytes.TrimPrefix(acknowledgement, []byte(prompt+"\n"))
 	}
-	ack := string(acknowledgement)
-	succeeded := ack == expected+"\n"
+	succeeded := bytes.Equal(acknowledgement, []byte(expected+"\n"))
 	if change.Kind == DeleteEntry || change.Kind == DeleteGroup {
-		succeeded = succeeded || ack == strings.Replace(expected, "recycled", "deleted", 1)+"\n"
+		succeeded = succeeded || bytes.Equal(acknowledgement, []byte(strings.Replace(expected, "recycled", "deleted", 1)+"\n"))
 	}
 	if !succeeded {
 		// Native commands can update their in-memory model before a failed save.
@@ -110,7 +109,7 @@ func (c *InteractiveCLI) Apply(ctx context.Context, db *Database, _ Credentials,
 		s.close()
 		return nil, errors.Join(ErrInteractiveSessionLost, err)
 	}
-	if (change.Kind == DeleteEntry || change.Kind == DeleteGroup) && strings.HasPrefix(ack, "Successfully recycled ") {
+	if (change.Kind == DeleteEntry || change.Kind == DeleteGroup) && bytes.HasPrefix(acknowledgement, []byte("Successfully recycled ")) {
 		s.rememberRecycleBin(db, updated, change, selected)
 	}
 	s.markRecycled(updated)

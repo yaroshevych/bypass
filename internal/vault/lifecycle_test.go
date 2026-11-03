@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -67,5 +68,18 @@ func TestLifecycleCreateRejectsUnsupportedFactorsAndSettings(t *testing.T) {
 	}
 	if _, err := cli.Create(context.Background(), filepath.Join(t.TempDir(), "db.kdbx"), Credentials{Password: []byte("pw"), YubiKey: "slot"}); !errors.Is(err, ErrUnsupported) {
 		t.Fatalf("hardware factor creation should be unsupported, got %v", err)
+	}
+}
+
+func TestNativeEnvironmentExcludesUnrelatedSecrets(t *testing.T) {
+	t.Setenv("BYPASS_IDENTITY", "identity-secret")
+	t.Setenv("UNRELATED_SECRET", "other-secret")
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/bypass-test")
+	env := strings.Join(envWithLocaleC(), "\n")
+	if strings.Contains(env, "BYPASS_IDENTITY=") || strings.Contains(env, "UNRELATED_SECRET=") {
+		t.Fatal("native environment contains unrelated credentials")
+	}
+	if !strings.Contains(env, "XDG_CONFIG_HOME=/tmp/bypass-test") || !strings.Contains(env, "LC_ALL=C") {
+		t.Fatal("native environment is missing required settings")
 	}
 }

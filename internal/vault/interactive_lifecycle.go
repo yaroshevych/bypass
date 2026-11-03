@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -52,7 +53,7 @@ func (c *InteractiveCLI) ChangeCredentials(ctx context.Context, db *Database, _ 
 	output, err := s.commandPrompts(ctx, [][]byte{newCreds.Password, newCreds.Password}, prompts, "db-edit", "--set-password")
 	defer zero(output)
 	expected := prompts[0] + "\n" + prompts[1] + "\nSuccessfully edited the database.\n"
-	if err != nil || string(output) != expected {
+	if err != nil || !bytes.Equal(output, []byte(expected)) {
 		s.failed = true
 		s.close()
 		return nil, errors.Join(ErrInteractiveSessionLost, ErrWrite, err)

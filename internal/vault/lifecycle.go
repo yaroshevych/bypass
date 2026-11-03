@@ -60,6 +60,7 @@ func (c *commandCLI) runCreate(ctx context.Context, path string, creds Credentia
 	ctx, cancel := boundedContext(ctx)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, c.binary, args...)
+	cmd.Env = envWithLocaleC()
 	cmd.WaitDelay = 250 * time.Millisecond
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
@@ -108,9 +109,14 @@ func confirmedPasswordInput(password []byte) []byte {
 }
 
 func envWithLocaleC() []string {
-	env := make([]string, 0, len(os.Environ())+2)
+	env := make([]string, 0, 24)
 	for _, item := range os.Environ() {
-		if !strings.HasPrefix(item, "LC_ALL=") && !strings.HasPrefix(item, "LANG=") {
+		key, _, ok := strings.Cut(item, "=")
+		if !ok {
+			continue
+		}
+		switch {
+		case key == "PATH", key == "HOME", key == "USER", key == "LOGNAME", key == "SHELL", key == "TMPDIR", key == "DISPLAY", key == "WAYLAND_DISPLAY", key == "XAUTHORITY", key == "DBUS_SESSION_BUS_ADDRESS", key == "TERM", key == "COLUMNS", strings.HasPrefix(key, "XDG_"), strings.HasPrefix(key, "LC_") && key != "LC_ALL":
 			env = append(env, item)
 		}
 	}
