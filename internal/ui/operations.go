@@ -161,7 +161,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		m.hideReveal()
 		m.dialog = &actionDialog{kind: "group", title: "New Group", sessionID: s.ID, groupUUID: group}
 		return nil, true
-	case keyDelete, "delete":
+	case keyDelete, keyDeleteAlias:
 		if reason := m.nativeReason("rm"); reason != "" {
 			m.setNotice(reason, true)
 			return nil, true

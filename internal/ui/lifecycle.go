@@ -346,7 +346,7 @@ func (m *Model) lifecycleKey(k tea.KeyMsg) tea.Cmd {
 		m.Close()
 		return tea.Quit
 	}
-	if key == "ctrl+l" || key == "L" && l.kind == "info" {
+	if key == "L" && l.kind == "info" {
 		m.clearLifecycle()
 		return m.lockCurrent(true)
 	}

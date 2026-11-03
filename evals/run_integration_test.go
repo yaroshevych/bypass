@@ -322,7 +322,7 @@ func TestRunChildSurvivesVaultLockAndTUIClose(t *testing.T) {
 	e.waitFor("approved child starts", func() bool { _, err := os.Stat(marker); return err == nil })
 	e.key("Escape")
 	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "Pending secret requests") })
-	e.key("C-l")
+	e.key("M-l")
 	e.mustShow("Vault locked")
 	e.key("C-c")
 	e.waitForCleanQuit()

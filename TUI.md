@@ -26,7 +26,7 @@ the in-app reference.
 | Action | Shortcut | Behavior |
 | --- | --- | --- |
 | Lock UI with PIN | `ctrl+k` | Cover the interface with the session PIN. Requires an unlocked vault and a configured PIN when selected from the palette. |
-| Lock All Vaults | `ctrl+l` | Lock every unlocked vault and clear their authenticated sessions. `shift+l` also works in the workspace. |
+| Lock All Vaults | `alt+l` | Lock every unlocked vault and clear their authenticated sessions. `shift+l` also works in the workspace. |
 | Open Vault… | `ctrl+o` | Select a vault file and unlock it. `o` also works in the workspace. |
 | Close Vault | — | Close the current vault and its views. |
 | New Vault… | `ctrl+n` | Create a vault. Requires backend support and permission to write. |
@@ -109,7 +109,7 @@ the same.
 | New Group… | `g` | Create a group in a writable vault. |
 | Jump… | `shift+j` | Focus a field of the selected entry. |
 | Move Entry… | `m` | Choose a destination group for the selected entry. Requires a writable vault. |
-| Delete… | `ctrl+d` | Confirm deletion of the selected entry or group. `delete` is an alias. Requires a writable vault. |
+| Delete… | `delete` | Confirm deletion of the selected entry or group. `ctrl+d` is an alias. Requires a writable vault. |
 | Save Entry | `ctrl+s` | Save the active entry draft. |
 | Cancel | `esc` | Leave the entry editor, with a decision for an unsaved draft when needed. |
 
@@ -119,6 +119,7 @@ revealing the value.
 
 Letter shortcuts are case-sensitive: for example, `g` creates a group and
 `shift+g` opens Large View. Inputs and dialogs use their own shortcuts.
+`ctrl+l` redraws the terminal without changing the current vault or draft.
 
 Deletion uses the vault's recycle bin when applicable. Items already in the bin
 are deleted permanently after confirmation. Root and recycle-bin groups have

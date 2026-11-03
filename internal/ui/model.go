@@ -556,6 +556,9 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if m.debugAppearanceToggle(key) {
 		return nil
 	}
+	if key == keyRedraw {
+		return tea.ClearScreen
+	}
 	if key == keyLockAll && !m.gate.Protected() {
 		m.help = false
 		return m.lockCurrent(true)

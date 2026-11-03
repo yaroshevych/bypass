@@ -197,7 +197,7 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	}
-	if key == "ctrl+l" {
+	if key == keyLockAll {
 		m.pinInput.clear()
 		m.pinFullLock = true
 		m.pinFocus = 1
@@ -274,7 +274,7 @@ func (m *Model) pinContent() (opts dialogrender.Options, targets []int) {
 		if delay := m.gate.NextAttempt().Sub(m.now()); delay > 0 {
 			body = append(body, c.secondary.Render(fmt.Sprintf(" wait %ds", int(delay.Seconds())+1)))
 		}
-		actions = []dialogAction{{"Unlock", "enter"}, {"Full Lock", "ctrl+l"}, {"Quit", ""}}
+		actions = []dialogAction{{"Unlock", "enter"}, {"Full Lock", keyLockAll}, {"Quit", ""}}
 		actionBase, focus = 1, m.pinFocus-1
 	}
 	message := ""

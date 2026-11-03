@@ -93,7 +93,7 @@ func TestMilestone4VaultLifecycleTmux(t *testing.T) {
 	}
 
 	// Full-lock, prove the old credential fails, then unlock with the new one.
-	e.key("C-l")
+	e.key("M-l")
 	e.mustShow("Vault locked")
 	e.key("Enter")
 	e.mustShow("UNLOCK VAULT", "Password")

@@ -6,7 +6,8 @@ const (
 	keyNewVault       = "ctrl+n"
 	keyOpenVault      = "ctrl+o"
 	keyCloseView      = "ctrl+w"
-	keyLockAll        = "ctrl+l"
+	keyLockAll        = "alt+l"
+	keyRedraw         = "ctrl+l"
 	keyProtect        = "ctrl+k"
 	keyRequests       = "alt+b"
 	keyRequestsLegacy = "ctrl+b"
@@ -16,7 +17,8 @@ const (
 	keyEditEntry      = "e"
 	keyNewGroup       = "g"
 	keyMoveEntry      = "m"
-	keyDelete         = "ctrl+d"
+	keyDelete         = "delete"
+	keyDeleteAlias    = "ctrl+d"
 	keyCopy           = "c"
 	keyReveal         = "v"
 	keyGenerator      = "ctrl+g"
@@ -36,11 +38,11 @@ type shortcut struct{ key, label string }
 
 var workspaceShortcuts = map[string]shortcut{
 	"new-vault": {keyNewVault, "Ctrl+N"}, "open": {keyOpenVault, "Ctrl+O"},
-	"close-view": {keyCloseView, "Ctrl+W"}, "lock-all": {keyLockAll, "Ctrl+L"},
+	"close-view": {keyCloseView, "Ctrl+W"}, "lock-all": {keyLockAll, "Alt+L"},
 	"protect": {keyProtect, "Ctrl+K"}, "run-requests": {keyRequests, "Alt+B"},
 	"reload": {keyReload, "Ctrl+R"}, "read-only": {keyReadOnly, "Shift+R"},
 	"new": {keyNewEntry, "n"}, "edit": {keyEditEntry, "e"}, "group": {keyNewGroup, "g"},
-	"move": {keyMoveEntry, "m"}, "delete": {keyDelete, "Ctrl+D"},
+	"move": {keyMoveEntry, "m"}, "delete": {keyDelete, "Delete"},
 	"copy-focused": {keyCopy, "c"}, "reveal": {keyReveal, "v"}, "generator": {keyGenerator, "Ctrl+G"},
 	"grand-view": {keyGrand, "Shift+G"}, "search": {keySearch, "/"}, "jump": {keyJump, "Shift+J"},
 	"zoom": {keyZoom, "z"}, "duplicate": {keyNewTab, "t"},

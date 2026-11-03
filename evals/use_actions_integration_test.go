@@ -229,7 +229,7 @@ func TestKeyFileUnlockAndPasswordKeyFileRotationTmux(t *testing.T) {
 	e.key("Enter")
 	e.mustShowWrite("Credentials changed and verified. Encrypted backup created.")
 
-	e.key("C-l")
+	e.key("M-l")
 	e.mustShow("Vault locked")
 	e.key("Enter")
 	e.mustShow("Unlock Vault", "Key file (optional)")
@@ -268,7 +268,7 @@ func TestKeyFileUnlockAndPasswordKeyFileRotationTmux(t *testing.T) {
 	e.key("Right")
 	e.key("Enter")
 	e.mustShowWrite("Credentials changed and verified. Encrypted backup created.")
-	e.key("C-l")
+	e.key("M-l")
 	e.mustShow("Vault locked")
 	e.key("Enter")
 	e.mustShow("Unlock Vault")
@@ -311,7 +311,7 @@ func TestKeyFileUnlockAndPasswordKeyFileRotationTmux(t *testing.T) {
 	if !errors.Is(err, vault.ErrUnlock) {
 		t.Fatalf("native open with removed key file returned %v", err)
 	}
-	e.key("C-l")
+	e.key("M-l")
 	e.mustShow("Vault locked")
 	e.key("Enter")
 	e.mustShow("Unlock Vault")

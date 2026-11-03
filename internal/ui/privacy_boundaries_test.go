@@ -64,7 +64,7 @@ func TestPublicFullLockDropsPendingSecondaryOpen(t *testing.T) {
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.started)
 	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlK})
-	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlL})
+	updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
 	if !m.pinFullLock || m.pinFocus != 1 {
 		t.Fatal("full lock confirmation should default to Cancel")
 	}
@@ -105,9 +105,9 @@ func TestPublicFullLockDiscardsPendingVaultCreation(t *testing.T) {
 	result := make(chan tea.Msg, 1)
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.started)
-	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlL})
+	updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
 	if first.DB != nil {
-		t.Fatal("Ctrl+L did not full-lock every existing vault during creation")
+		t.Fatal("alt+l did not full-lock every existing vault during creation")
 	}
 	close(backend.release)
 	msg := awaitBoundary(t, result)
@@ -140,9 +140,9 @@ func TestPublicFullLockDropsLateSaveResultAndCredentials(t *testing.T) {
 	if cmd == nil || !m.writing {
 		t.Fatal("group save was not started through Update")
 	}
-	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlL})
+	updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
 	if session.DB != nil || len(session.Credentials.Password) != 0 {
-		t.Fatal("Ctrl+L did not full-lock the pending session")
+		t.Fatal("alt+l did not full-lock the pending session")
 	}
 	for _, b := range credentialBytes {
 		if b != 0 {
@@ -241,7 +241,7 @@ func TestPublicFullLockDropsLateReferenceCopy(t *testing.T) {
 	result := make(chan tea.Msg, 1)
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.resolveStarted)
-	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlL})
+	updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
 	close(backend.resolveRelease)
 	msg := awaitBoundary(t, result)
 	value := msg.(resolvedCopyMsg).value
@@ -304,7 +304,7 @@ func TestPublicFullLockCancelsPendingAttachmentExport(t *testing.T) {
 	result := make(chan tea.Msg, 1)
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.started)
-	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlL})
+	updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
 	close(backend.release)
 	msg := awaitBoundary(t, result)
 	m.Update(msg)
@@ -511,9 +511,9 @@ func TestCtrlLFullLockCancelsPendingUnlockAndLocksOtherVault(t *testing.T) {
 	result := make(chan tea.Msg, 1)
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.started)
-	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlL})
+	updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
 	if current.DB != nil || other.DB != nil || m.busy {
-		t.Fatal("Ctrl+L must cancel pending authentication and lock every vault")
+		t.Fatal("alt+l must cancel pending authentication and lock every vault")
 	}
 	close(backend.release)
 	msg := awaitBoundary(t, result)

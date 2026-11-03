@@ -160,7 +160,7 @@ func TestPINAndFullLockCloseGrandView(t *testing.T) {
 		setGrandPassword(t, m, "abc")
 		m.key(key("G"))
 		backing := m.revealValue
-		m.key(tea.KeyMsg{Type: tea.KeyCtrlL})
+		m.key(tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
 		if m.grand || len(m.revealValue) != 0 || m.ws.ActiveSession().DB != nil {
 			t.Fatal("full lock did not close Grand View and lock the vault")
 		}

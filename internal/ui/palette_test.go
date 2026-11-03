@@ -100,6 +100,20 @@ func TestWorkspaceShortcutRegistryMatchesPalette(t *testing.T) {
 	}
 }
 
+func TestRedrawKeepsDraftAndAltLLocks(t *testing.T) {
+	m, _ := operationModel(t)
+	m.startEditor(nil, "root")
+	m.editor.inputs[editTitle].set("unsaved draft")
+	_, redraw := m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+	if redraw == nil || m.editor == nil || m.editor.inputs[editTitle].value() != "unsaved draft" || m.ws.ActiveSession().DB == nil {
+		t.Fatal("redraw changed the editor draft or locked the vault")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
+	if m.editor != nil || m.ws.ActiveSession().DB != nil {
+		t.Fatal("alt+l did not clear the draft and lock the vault")
+	}
+}
+
 func TestLargeViewShortcutIsDistinguishedFromNewGroup(t *testing.T) {
 	m, _ := operationModel(t)
 	groups, _ := m.helpActionGroups()
@@ -555,7 +569,7 @@ func TestCtrlLLocksAllAndCurrentVaultRemainsInPalette(t *testing.T) {
 		t.Fatal("test requires two unlocked vaults")
 	}
 	header := ansi.Strip(m.workspaceLines()[0])
-	if !strings.Contains(header, "2 entries · ctrl+l lock") {
+	if !strings.Contains(header, "2 entries · alt+l lock") {
 		t.Fatalf("header lock hint = %q", header)
 	}
 	commands := m.commands()
@@ -569,12 +583,12 @@ func TestCtrlLLocksAllAndCurrentVaultRemainsInPalette(t *testing.T) {
 			all = cmd
 		}
 	}
-	if current == nil || current.key != "" || all == nil || all.key != "Ctrl+L" {
+	if current == nil || current.key != "" || all == nil || all.key != "Alt+L" {
 		t.Fatalf("lock command bindings: current=%+v all=%+v", current, all)
 	}
-	m.key(key("ctrl+l"))
+	m.key(tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
 	if first.DB != nil || second.DB != nil {
-		t.Fatal("Ctrl+L did not lock all open vaults")
+		t.Fatal("alt+l did not lock all open vaults")
 	}
 
 	m.ws.Open(fixture("/tmp/lock-current-first.kdbx"))
@@ -655,9 +669,9 @@ func TestGlobalLockWorksFromModalAndTinyScreens(t *testing.T) {
 			case "tiny":
 				m.width, m.height = 47, 15
 			}
-			m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
 			if m.ws.ActiveSession().DB != nil {
-				t.Fatal("ctrl+l did not lock the vault")
+				t.Fatal("alt+l did not lock the vault")
 			}
 			if m.palette != nil || m.help {
 				t.Fatal("lock left a modal open")
