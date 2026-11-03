@@ -169,6 +169,17 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 		m.clearDialog()
 		return nil
 	}
+	if d.kind == "run-permissions" {
+		page := m.runPermissionsPageSize()
+		switch key {
+		case "pgdown":
+			d.offset = min(max(0, len(d.message)-page), d.offset+page)
+			return nil
+		case "pgup":
+			d.offset = max(0, d.offset-page)
+			return nil
+		}
+	}
 	if d.kind == "duplicates" {
 		page := m.duplicatePageSize()
 		d.offset = min(d.offset, max(0, len(d.duplicates.Renames)-page))
@@ -328,6 +339,13 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 	case "enter":
 		choice := d.selected
 		switch d.kind {
+		case "run-permissions":
+			sessionID, groupID := d.sessionID, d.groupUUID
+			manage := groupID != "" && choice == 0
+			m.clearDialog()
+			if manage {
+				m.manageRunPermissions(sessionID, groupID)
+			}
 		case "duplicates":
 			if choice == 1 {
 				return m.renameDuplicates()
@@ -413,6 +431,26 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		body = wrapped
 	}
 	switch d.kind {
+	case "run-permissions":
+		page := m.runPermissionsPageSize()
+		start := min(d.offset, max(0, len(d.message)-page))
+		end := min(len(d.message), start+page)
+		body = make([]string, 0, end-start+1)
+		for _, line := range d.message[start:end] {
+			body = append(body, " "+safe(line))
+		}
+		if len(d.message) > page {
+			body = append(body, secondary.Render(" pgup/pgdn to scroll"))
+		}
+		for _, option := range d.options {
+			shortcut := ""
+			if option == "Close" {
+				shortcut = "esc"
+			} else {
+				shortcut = "enter"
+			}
+			actions = append(actions, dialogAction{option, shortcut})
+		}
 	case "pin-setup", "pin-confirm":
 		dialogWidth := min(m.width-6, 52)
 		actionWidth := m.dialogInnerWidth(dialogWidth)
@@ -499,6 +537,13 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: actionBase + i})
 	}
 	return opts, targets
+}
+
+func (m *Model) runPermissionsPageSize() int {
+	opts := m.dialogOptions()
+	opts.Width = min(m.width-6, 82)
+	opts.Actions = make([]dialogrender.Action, len(m.dialog.options))
+	return max(1, dialogrender.ContentCapacity(opts)-1)
 }
 
 func (m *Model) duplicatePageSize() int {

@@ -630,26 +630,50 @@ func runIdentityLabel(p *runpkg.Pending, isNew bool) string {
 }
 
 func (m *Model) openRunPermissions() {
-	if m.runs == nil {
-		m.runs = &runState{}
-	}
-	r := m.runs
+	m.hideReveal()
+	d := &actionDialog{kind: "run-permissions", title: "Saved Run Permissions", options: []string{"Close"}}
 	session := m.ws.ActiveSession()
-	view := m.ws.ActiveView()
-	if session != nil && session.DB != nil && view != nil {
-		for _, g := range session.DB.Groups {
-			if g.Name == runpkg.GrantGroup && g.ParentUUID == session.DB.RootUUID {
-				for index, item := range m.navigation() {
-					if item.kind == "group" && item.group == g.UUID {
-						m.selectNav(index)
-						break
-					}
-				}
-				view.Focus = 1
-				r.visible = false
-				m.setNotice("delete permission entries to revoke; delete group to revoke all", false)
+	if session == nil || session.DB == nil {
+		d.message = []string{"Unlock a vault to view saved permissions."}
+	} else {
+		d.sessionID = session.ID
+		for _, group := range session.DB.Groups {
+			if group.Name == runpkg.GrantGroup && group.ParentUUID == session.DB.RootUUID {
+				d.groupUUID = group.UUID
 				break
 			}
+		}
+		for _, entry := range session.DB.Entries {
+			if d.groupUUID != "" && entry.GroupUUID == d.groupUUID && !entry.Recycled {
+				title := entry.Get("Title")
+				if title == "" {
+					title = "Untitled permission"
+				}
+				d.message = append(d.message, safe(title))
+			}
+		}
+		if len(d.message) == 0 {
+			d.message = []string{"No saved permissions in this vault."}
+		}
+		if d.groupUUID != "" {
+			d.options = []string{"Manage permissions", "Close"}
+		}
+	}
+	m.dialog = d
+}
+
+func (m *Model) manageRunPermissions(sessionID, groupID string) {
+	session := m.ws.ActiveSession()
+	view := m.ws.ActiveView()
+	if session == nil || session.ID != sessionID || session.DB == nil || view == nil {
+		return
+	}
+	for index, item := range m.navigation() {
+		if item.kind == "group" && item.group == groupID {
+			m.selectNav(index)
+			view.Focus = 1
+			m.setNotice("delete permission entries to revoke; delete group to revoke all", false)
+			return
 		}
 	}
 }
