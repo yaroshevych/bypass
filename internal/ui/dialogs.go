@@ -173,7 +173,8 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	if d.kind == "duplicates" {
-		page := max(1, min(8, m.height-14))
+		page := m.duplicatePageSize()
+		d.offset = min(d.offset, max(0, len(d.duplicates.Renames)-page))
 		if key == "pgdown" {
 			d.offset = min(max(0, len(d.duplicates.Renames)-page), d.offset+page)
 			return nil
@@ -384,9 +385,10 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 	var contentTargets []int
 	footer := ""
 	if d.kind == "duplicates" {
-		end := min(len(d.duplicates.Renames), d.offset+max(1, min(8, m.height-14)))
-		body = []string{fmt.Sprintf("Rename %d entries (%d–%d shown)", len(d.duplicates.Renames), d.offset+1, end), "Encrypted backup first. pgup/pgdn to view names."}
-		for _, rename := range d.duplicates.Renames[d.offset:end] {
+		start := min(d.offset, max(0, len(d.duplicates.Renames)-m.duplicatePageSize()))
+		end := min(len(d.duplicates.Renames), start+m.duplicatePageSize())
+		body = []string{fmt.Sprintf("Rename %d entries (%d–%d shown)", len(d.duplicates.Renames), start+1, end), "Encrypted backup first. pgup/pgdn to view names."}
+		for _, rename := range d.duplicates.Renames[start:end] {
 			body = append(body, safe(rename.Path)+" -> "+safe(rename.Title))
 		}
 	}
@@ -500,6 +502,17 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: actionBase + i})
 	}
 	return opts, targets
+}
+
+func (m *Model) duplicatePageSize() int {
+	opts := m.dialogOptions()
+	opts.Width, opts.Error = min(m.width-6, 60), safe(m.dialog.err)
+	opts.Actions = make([]dialogrender.Action, len(m.dialog.options))
+	reserved := 3 // Two explanatory rows and the spacer before actions.
+	if m.writing {
+		reserved++
+	}
+	return max(1, dialogrender.ContentCapacity(opts)-reserved)
 }
 
 func (m *Model) dialogLines() []string {

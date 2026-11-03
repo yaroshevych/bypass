@@ -17,7 +17,7 @@ func TestDuplicateConfirmationPreviewAndCancel(t *testing.T) {
 			defer m.Close()
 			m.width, m.height = 80, 24
 			plan := &vault.DuplicateEntries{}
-			for i := 1; i <= 12; i++ {
+			for i := 1; i <= 30; i++ {
 				plan.Renames = append(plan.Renames, vault.EntryRename{Path: "/Amazon", Title: fmt.Sprintf("Amazon %d", i)})
 			}
 			m.Update(openedMsg{request: m.request, err: plan})
@@ -36,6 +36,23 @@ func TestDuplicateConfirmationPreviewAndCancel(t *testing.T) {
 				t.Fatal("default confirmation did not cancel")
 			}
 		})
+	}
+}
+
+func TestDuplicatePreviewUsesSmallPaneSpace(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 48, 16
+	plan := &vault.DuplicateEntries{}
+	for i := 0; i < 20; i++ {
+		plan.Renames = append(plan.Renames, vault.EntryRename{Title: fmt.Sprintf("Entry %d", i)})
+	}
+	m.dialog = &actionDialog{kind: "duplicates", duplicates: plan, options: []string{"Cancel", "Rename and Open"}}
+	if page := m.duplicatePageSize(); page < 4 {
+		t.Fatalf("small pane shows only %d duplicate entries", page)
+	}
+	m.dialogKey(tea.KeyMsg{Type: tea.KeyPgDown})
+	if m.dialog.offset == 0 {
+		t.Fatal("duplicate list did not page")
 	}
 }
 
