@@ -588,9 +588,6 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 			m.openPalette("actions", false)
 			return nil
 		}
-		if key == "ctrl+k" {
-			return m.protectScreen()
-		}
 	}
 	if key != "v" {
 		m.hideReveal()
@@ -602,7 +599,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit })
 	}
 	if m.writing {
-		if key == "ctrl+l" || key == "L" {
+		if key == "L" {
 			return m.lockCurrent(true)
 		}
 		return nil
@@ -665,8 +662,6 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		m.err = ""
 		m.normalize()
 		return m.clearClipboard()
-	case "ctrl+l":
-		return m.lockCurrent(true)
 	case "L":
 		return m.lockCurrent(true)
 	}
