@@ -323,40 +323,6 @@ func (m *Model) pinLines() []string {
 	return lines
 }
 
-func (m *Model) resizeFocused(delta int) {
-	v := m.ws.ActiveView()
-	if v == nil || delta == 0 {
-		return
-	}
-	layout := m.layout()
-	if layout.Zoomed || layout.Mode == "tiny" || layout.Mode == "narrow" || len(layout.Panes) < 2 {
-		return
-	}
-	navWidth := layout.Panes[0].Width
-	if layout.Mode == "medium" {
-		// Medium layout has one resizable divider: growing the focused sidebar
-		// adds its width, while growing the main pane subtracts from it.
-		if v.Focus == 0 {
-			v.NavWidth = max(18, navWidth+delta)
-		} else {
-			v.NavWidth = max(18, navWidth-delta)
-		}
-		return
-	}
-	if layout.Mode != "wide" || len(layout.Panes) < 3 {
-		return
-	}
-	detailWidth := layout.Panes[2].Width
-	switch v.Focus {
-	case 0:
-		v.NavWidth = max(18, navWidth+delta)
-	case 1:
-		// Growing the center pane takes width from the details pane.
-		v.DetailWidth = max(24, detailWidth-delta)
-	case 2:
-		v.DetailWidth = max(24, detailWidth+delta)
-	}
-}
 func (m *Model) resizePointer(msg tea.MouseMsg) bool {
 	v := m.ws.ActiveView()
 	if v == nil || m.editor != nil || m.screen != browse {
