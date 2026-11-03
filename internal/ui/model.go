@@ -361,7 +361,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	m.searchCache = nil
+	if _, tick := msg.(tickMsg); !tick {
+		m.searchCache = nil
+	}
 	if cmd, ok := m.updateRun(msg); ok {
 		return m, cmd
 	}

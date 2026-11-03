@@ -1063,6 +1063,9 @@ func (m *Model) lockCurrent(all bool) tea.Cmd {
 	return m.clearClipboard()
 }
 func (m *Model) lockSession(id string) {
+	if session := m.ws.Sessions[id]; session != nil && m.searchCache != nil && m.searchCache.db == session.DB {
+		m.searchCache = nil
+	}
 	if m.detailSession == id {
 		m.cancelFocusedDetails()
 	}

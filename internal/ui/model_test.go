@@ -110,6 +110,23 @@ func TestHoverDoesNotInvalidateSearchOrReloadDetails(t *testing.T) {
 	}
 }
 
+func TestTickKeepsSearchCacheUntilVaultLocks(t *testing.T) {
+	m := New(Options{})
+	m.ws.Open(fixture("/tmp/tick-search.kdbx"))
+	m.normalize()
+	m.ws.ActiveView().Query = "alice"
+	m.refreshSearchCache()
+	cache := m.searchCache
+	m.Update(tickMsg(m.now()))
+	if cache == nil || m.searchCache != cache {
+		t.Fatal("idle tick invalidated the search cache")
+	}
+	m.lockSession(m.ws.ActiveSession().ID)
+	if m.searchCache != nil {
+		t.Fatal("locking retained the vault's search cache")
+	}
+}
+
 func TestViewDoesNotChangeEditorAppearance(t *testing.T) {
 	m := New(Options{})
 	m.ws.Open(fixture("/tmp/editor-view.kdbx"))
