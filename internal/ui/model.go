@@ -176,6 +176,7 @@ type Model struct {
 	changeDismissed                         map[string]bool
 	ticks                                   uint64
 	cleanupErr                              error
+	closed                                  bool
 }
 
 type fileItem struct {
@@ -295,6 +296,10 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func (m *Model) Close() {
+	if m.closed {
+		return
+	}
+	m.closed = true
 	m.cancelFocusedDetails()
 	m.clearExtras()
 	m.clearLifecycle()

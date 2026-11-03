@@ -87,6 +87,16 @@ func TestWelcomeShowsStartupWarning(t *testing.T) {
 	}
 }
 
+func TestCloseIsIdempotent(t *testing.T) {
+	m := New(Options{})
+	m.Close()
+	request, generation := m.request, m.clipGeneration
+	m.Close()
+	if m.request != request || m.clipGeneration != generation {
+		t.Fatal("repeated close ran teardown again")
+	}
+}
+
 func TestViewDoesNotChangeEditorAppearance(t *testing.T) {
 	m := New(Options{})
 	m.ws.Open(fixture("/tmp/editor-view.kdbx"))
