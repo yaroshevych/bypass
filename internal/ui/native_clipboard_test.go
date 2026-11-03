@@ -33,6 +33,9 @@ func TestNativePasswordCopiesFollowSelectionWithoutReadingOrClearingClipboard(t 
 	for _, entry := range []string{"a", "b", "a"} {
 		m.ws.ActiveView().SelectedUUID = entry
 		execute(t, m, m.copyField("Password"))
+		if m.notice != "password copied · clipboard will not clear automatically" || !m.noticeExpires.IsZero() {
+			t.Fatal("native password copy must disclose its clipboard policy persistently")
+		}
 		if !m.clipboardExpires.IsZero() {
 			t.Fatal("native password copy scheduled clearing")
 		}

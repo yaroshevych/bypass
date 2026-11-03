@@ -603,7 +603,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			m.setNotice("native password copy failed", true)
 			return nil, true
 		}
-		m.setNotice("password copied", false)
+		m.setNotice("password copied · clipboard will not clear automatically", true)
 		return nil, true
 	case copiedMsg:
 		if msg.id != m.clipGeneration {
