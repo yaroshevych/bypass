@@ -74,7 +74,7 @@ func (i *input) update(k tea.KeyMsg) {
 		if k.Alt {
 			return
 		}
-		var runes []rune
+		runes := make([]rune, 0, len(k.Runes))
 		for _, r := range k.Runes {
 			if !unicode.IsControl(r) && r != '\u2028' && r != '\u2029' {
 				runes = append(runes, r)
@@ -82,6 +82,7 @@ func (i *input) update(k tea.KeyMsg) {
 		}
 		// Bound paste size, including password paste, to keep rendering responsive.
 		if len(i.text)+len(runes) > 4096 {
+			clear(runes)
 			return
 		}
 		needed := len(i.text) + len(runes)
