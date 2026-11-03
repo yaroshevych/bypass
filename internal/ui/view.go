@@ -1459,7 +1459,7 @@ func (m *Model) helpBody() ([]string, int, int) {
 	var actions []string
 	sections := []string{"VAULTS", "VIEW", "ENTRIES", "SECRETS", "SETTINGS"}
 	if strings.TrimSpace(m.helpQuery.value()) != "" || m.width < 88 {
-		actions = m.helpActionColumn(groups, sections, max(1, width-4))
+		actions = m.helpActionColumn(groups, sections, m.dialogInnerWidth(width))
 	} else {
 		gap := 4
 		columnWidth := max(1, (width-4-gap)/2)
