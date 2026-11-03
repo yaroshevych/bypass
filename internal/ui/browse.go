@@ -9,37 +9,10 @@ import (
 
 func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	m.tabHovered = false
-	switch m.activeLayer() {
-	case layerTiny, layerRequests:
-		return nil
-	case layerHelp:
-		if msg.Action == tea.MouseActionPress {
-			switch msg.Button {
-			case tea.MouseButtonWheelUp:
-				m.scrollHelp(-1)
-			case tea.MouseButtonWheelDown:
-				m.scrollHelp(1)
-			}
+	if layer := m.activeLayer(); layer != layerWorkspace {
+		if pointer := m.handlersFor(layer).pointer; pointer != nil {
+			return pointer(msg)
 		}
-		return nil
-	case layerPrivacy:
-		return m.pinPointer(msg)
-	case layerDialog:
-		m.dragging = 0
-		if !m.writing && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
-			return m.dialogPointer(msg)
-		}
-		return nil
-	case layerLifecycle:
-		return m.lifecyclePointer(msg)
-	case layerExtras:
-		cmd, _ := m.extrasPointer(msg)
-		return cmd
-	case layerGrand:
-		return m.grandPointer(msg)
-	case layerPalette:
-		return m.palettePointer(msg)
-	case layerJump:
 		return nil
 	}
 	if msg.Action == tea.MouseActionMotion && m.dragging == 0 {

@@ -80,17 +80,8 @@ func (m *Model) View() string {
 			left := max(0, (w-lipgloss.Width(line))/2)
 			lines = append(lines, strings.Repeat(" ", left)+line)
 		}
-	} else if m.activeLayer() == layerRequests {
-		lines = m.runDialogView()
-		modal = true
 	} else if advanced, ok := m.advancedScreen(); ok {
 		lines = advanced
-		modal = true
-	} else if m.dialog != nil {
-		lines = m.dialogLines()
-		modal = true
-	} else if m.activeLayer() == layerHelp {
-		lines = m.helpLines()
 		modal = true
 	} else if m.screen == chooseFile {
 		lines = m.pickerLines()

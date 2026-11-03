@@ -444,30 +444,8 @@ func (m *Model) jumpKey(k tea.KeyMsg) tea.Cmd {
 }
 
 func (m *Model) advancedScreen() ([]string, bool) {
-	switch m.activeLayer() {
-	case layerPrivacy:
-		return m.pinLines(), true
-	case layerDialog:
-		return m.dialogLines(), true
-	case layerLifecycle:
-		return m.lifecycleLines(), true
-	case layerExtras:
-		return m.extrasLines(), true
-	case layerGrand:
-		return m.grandLines(), true
-	case layerPalette:
-		return m.paletteLines(), true
-	case layerJump:
-		body := []string{"p Password   u Username   w URL   n Notes"}
-		if e := m.selected(); e != nil {
-			for _, field := range e.Fields {
-				if field.Name == "Email" {
-					body = append(body, "e Email")
-					break
-				}
-			}
-		}
-		return m.overlay("Jump to Field", body, "", min(66, m.width-4), -1, -1), true
+	if view := m.handlersFor(m.activeLayer()).view; view != nil {
+		return view(), true
 	}
 	return nil, false
 }

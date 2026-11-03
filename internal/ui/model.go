@@ -570,28 +570,15 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	}
-	if m.activeLayer() == layerPrivacy {
-		return m.pinKey(k)
-	}
-	if key == "ctrl+k" {
+	layer := m.activeLayer()
+	if layer != layerPrivacy && key == "ctrl+k" {
 		return m.protectScreen()
 	}
-	switch m.activeLayer() {
-	case layerDialog:
-		return m.dialogKey(k)
-	case layerLifecycle:
-		return m.lifecycleKey(k)
-	case layerExtras:
-		cmd, _ := m.extrasKey(k)
-		return cmd
-	case layerGrand:
-		return m.grandKey(k)
-	case layerPalette:
-		return m.paletteKey(k)
-	case layerJump:
-		return m.jumpKey(k)
-	case layerHelp:
-		return m.helpKey(k)
+	if layer != layerWorkspace {
+		if handle := m.handlersFor(layer).key; handle != nil {
+			return handle(k)
+		}
+		return nil
 	}
 	if m.dialog == nil && m.screen == browse && !m.writing {
 		if key == "ctrl+p" {

@@ -355,7 +355,7 @@ func TestRunRequestWheelMovesSelectionWithoutReachingButtons(t *testing.T) {
 	m := New(Options{})
 	m.runs = &runState{visible: true, pending: []*runpkg.Pending{{Context: context.Background()}, {Context: context.Background()}}}
 	wheel := func(button tea.MouseButton) {
-		m.updateRun(tea.MouseMsg{Action: tea.MouseActionPress, Button: button})
+		m.pointer(tea.MouseMsg{Action: tea.MouseActionPress, Button: button})
 	}
 	wheel(tea.MouseButtonWheelDown)
 	wheel(tea.MouseButtonWheelDown)
@@ -599,7 +599,7 @@ func TestRunRequestMouseSelectsVisibleRow(t *testing.T) {
 			for y, line := range m.runDialogView() {
 				plain := ansi.Strip(line)
 				if x := strings.Index(plain, "second-agent"); x >= 0 {
-					m.updateRun(tea.MouseMsg{X: len([]rune(plain[:x])), Y: y, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+					m.pointer(tea.MouseMsg{X: len([]rune(plain[:x])), Y: y, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
 					if m.runs.index != 1 || m.runs.buttonsFocused {
 						t.Fatalf("%s %v: request click missed", appearance, size)
 					}

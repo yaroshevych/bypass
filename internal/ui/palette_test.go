@@ -65,6 +65,19 @@ func TestHelpFilterAcceptsNavigationLetters(t *testing.T) {
 	}
 }
 
+func TestModalHandlersProvideInputAndView(t *testing.T) {
+	m := New(Options{})
+	for _, layer := range []uiLayer{layerPrivacy, layerRequests, layerDialog, layerLifecycle, layerExtras, layerGrand, layerPalette, layerJump, layerHelp} {
+		h := m.handlersFor(layer)
+		if h.key == nil || h.view == nil {
+			t.Errorf("layer %d has no keyboard or view handler", layer)
+		}
+		if layer != layerJump && h.pointer == nil {
+			t.Errorf("layer %d has no pointer handler", layer)
+		}
+	}
+}
+
 func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	m, _ := operationModel(t)
 	v := m.ws.ActiveView()

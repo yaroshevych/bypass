@@ -207,38 +207,6 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		}
 	}
 	switch msg := msg.(type) {
-	case tea.MouseMsg:
-		if m.activeLayer() == layerRequests {
-			if msg.Action == tea.MouseActionPress && !r.busy && !r.resetBusy && !r.resetConfirm && !r.bulkConfirm {
-				delta := 0
-				if msg.Button == tea.MouseButtonWheelUp {
-					delta = -1
-				} else if msg.Button == tea.MouseButtonWheelDown {
-					delta = 1
-				}
-				if delta != 0 {
-					if r.review && r.choosing {
-						r.choiceIndex = min(max(0, len(r.choices)-1), max(0, r.choiceIndex+delta))
-					} else if r.review {
-						r.fieldOffset = min(max(0, len(r.targets)-m.runFieldPageSize()), max(0, r.fieldOffset+delta))
-					} else if len(r.pending) > 0 {
-						r.index = min(len(r.pending)-1, max(0, r.index+delta))
-						r.buttonsFocused = false
-					}
-					return nil, true
-				}
-			}
-			if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft && !r.busy && !r.resetBusy {
-				if action, ok := m.runActionAt(msg.X, msg.Y); ok {
-					return m.activateRunAction(action), true
-				}
-				if index := m.runRequestAt(msg.X, msg.Y); index >= 0 && index < len(r.pending) {
-					r.index, r.buttonsFocused = index, false
-				}
-			}
-			return nil, true
-		}
-
 	case RunDisconnectedMsg:
 		m.pruneRuns()
 		return nil, true
