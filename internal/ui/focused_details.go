@@ -52,8 +52,12 @@ func (m *Model) loadFocusedDetails() tea.Cmd {
 	m.detailDatabase, m.detailSession, m.detailEntry = session.DB, session.ID, entry.UUID
 	request, database, sessionID, entryID := m.detailRequest, session.DB, session.ID, entry.UUID
 	snapshot := database.Clone()
+	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
-		defer snapshot.Clear()
+		if !resources.start() {
+			return focusedDetailsMsg{request: request, sessionID: sessionID, entryID: entryID, database: database, err: ctx.Err()}
+		}
+		defer resources.done()
 		fields, err := reader.EntryDetails(ctx, snapshot, entryID)
 		return focusedDetailsMsg{request, sessionID, entryID, database, fields, err}
 	}

@@ -150,9 +150,11 @@ func TestPublicFullLockDropsLateSaveResultAndCredentials(t *testing.T) {
 		}
 	}
 	msg := cmd().(appliedMsg)
-	lateDB := msg.db
+	if msg.db != nil || !errors.Is(msg.err, context.Canceled) {
+		t.Fatal("canceled save command should not start after full lock")
+	}
 	m.Update(msg)
-	if session.DB != nil || len(lateDB.Groups) != 0 {
+	if session.DB != nil {
 		t.Fatal("late save result resurrected the locked session")
 	}
 }

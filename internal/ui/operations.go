@@ -199,8 +199,12 @@ func (m *Model) prepareEditor(entry vault.Entry) tea.Cmd {
 	id := m.beginOperation(session.ID)
 	ctx := m.operationContext()
 	sessionID := session.ID
+	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
-		defer snapshot.Clear()
+		if !resources.start() {
+			return editorReadyMsg{id: id, sessionID: sessionID, entryID: entry.UUID, err: ctx.Err()}
+		}
+		defer resources.done()
 		fields, err := detailReader.EntryDetails(ctx, snapshot, entry.UUID)
 		if err != nil {
 			return editorReadyMsg{id: id, sessionID: sessionID, entryID: entry.UUID, err: err}
@@ -403,11 +407,18 @@ func (m *Model) apply(change vault.Change) tea.Cmd {
 	id := m.beginOperation(s.ID)
 	ctx := m.operationContext()
 	backupDir := m.settings.BackupDir
+	password, attachment := change.Password, change.AttachmentData
+	resources := newJobResources(ctx, func() {
+		snapshot.Clear()
+		creds.Clear()
+		clear(password)
+		clear(attachment)
+	})
 	return func() tea.Msg {
-		defer snapshot.Clear()
-		defer creds.Clear()
-		defer clear(change.Password)
-		defer clear(change.AttachmentData)
+		if !resources.start() {
+			return appliedMsg{id: id, sessionID: s.ID, err: ctx.Err()}
+		}
+		defer resources.done()
 		db, err := writer.Apply(ctx, snapshot, creds, change, backupDir)
 		// The result carries only metadata needed to restore selection, never password bytes.
 		change.Password = nil
@@ -450,8 +461,12 @@ func (m *Model) reload(id string) tea.Cmd {
 	creds := s.Credentials.Clone()
 	backend := m.backend
 	path := s.Path
+	resources := newJobResources(ctx, creds.Clear)
 	return func() tea.Msg {
-		defer creds.Clear()
+		if !resources.start() {
+			return reloadedMsg{request, id, nil, ctx.Err()}
+		}
+		defer resources.done()
 		db, err := backend.Open(ctx, path, creds)
 		return reloadedMsg{request, id, db, err}
 	}
