@@ -335,6 +335,13 @@ func (m *Model) extrasPointer(msg tea.MouseMsg) (tea.Cmd, bool) {
 	if state == nil {
 		return nil, false
 	}
+	if msg.Action == tea.MouseActionPress && (msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown) && !state.loading && (state.mode == extraHistory || (state.mode == extraAttachments && state.phase == "")) {
+		key := tea.KeyDown
+		if msg.Button == tea.MouseButtonWheelUp {
+			key = tea.KeyUp
+		}
+		return m.extrasKey(tea.KeyMsg{Type: key})
+	}
 	if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
 		return nil, true
 	}

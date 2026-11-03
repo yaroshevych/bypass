@@ -650,3 +650,45 @@ func TestSmallDialogControlsUseFullWidth(t *testing.T) {
 		}
 	}
 }
+
+func TestExtrasWheelNavigatesLists(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		t.Run(appearance, func(t *testing.T) {
+			db := extrasEntryDB("/tmp/wheel-test.kdbx")
+			db.Entries[0].AttachmentNames = []string{"a", "b"}
+			m := newExtrasTestModel(t, db, &extrasTestBackend{})
+			defer m.Close()
+			m.settings.Appearance, m.width, m.height = appearance, 48, 16
+			m.extras = &extraState{mode: extraHistory, history: []vault.Entry{{}, {}, {}}}
+			wheel := func(button tea.MouseButton) {
+				m.extrasPointer(tea.MouseMsg{Action: tea.MouseActionPress, Button: button})
+			}
+			wheel(tea.MouseButtonWheelDown)
+			if m.extras.historyIndex != 1 {
+				t.Fatal("history wheel did not advance")
+			}
+			wheel(tea.MouseButtonWheelUp)
+			if m.extras.historyIndex != 0 {
+				t.Fatal("history wheel did not reverse")
+			}
+			m.openAttachments()
+			if m.extras == nil || m.extras.mode != extraAttachments {
+				t.Fatal("attachments did not open")
+			}
+			wheel(tea.MouseButtonWheelDown)
+			if m.extras.selected != 1 {
+				t.Fatal("attachment wheel did not advance")
+			}
+			m.extras.phase = "path"
+			wheel(tea.MouseButtonWheelDown)
+			if m.extras.selected != 1 {
+				t.Fatal("wheel changed selection while editing path")
+			}
+			m.extras.phase = ""
+			wheel(tea.MouseButtonWheelUp)
+			if m.extras.selected != 0 {
+				t.Fatal("attachment wheel did not reverse")
+			}
+		})
+	}
+}
