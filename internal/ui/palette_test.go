@@ -33,6 +33,7 @@ func TestPaletteSelectionVisibleAtResponsiveSizes(t *testing.T) {
 
 func TestHelpWheelScrollDoesNotReachWorkspace(t *testing.T) {
 	m, _ := operationModel(t)
+	m.width, m.height = 48, 16
 	m.help = true
 	selected := m.ws.ActiveView().SelectedUUID
 	m.pointer(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelDown})
@@ -42,6 +43,14 @@ func TestHelpWheelScrollDoesNotReachWorkspace(t *testing.T) {
 	m.pointer(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelUp})
 	if m.helpOffset != 0 {
 		t.Fatal("wheel did not scroll help up")
+	}
+	for i := 0; i < 100; i++ {
+		m.pointer(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelDown})
+	}
+	last := m.helpOffset
+	m.pointer(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelUp})
+	if last == 0 || m.helpOffset != last-1 {
+		t.Fatal("scrolling up did not move immediately after reaching the end")
 	}
 }
 

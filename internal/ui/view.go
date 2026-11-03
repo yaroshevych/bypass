@@ -1436,14 +1436,24 @@ func (m *Model) pickerLines() []string {
 
 func (m *Model) helpLines() []string {
 	title := "Keyboard Shortcuts"
-	groups, actionCount := m.helpActionGroups()
+	body, width, actionCount := m.helpBody()
 	count := fmt.Sprintf("%d shortcuts", actionCount)
 	compact := m.compactAppearance()
 	if compact {
 		count = fmt.Sprintf("%d", actionCount)
 	}
+	filterWidth := max(1, width-4)
+	header := dialogrender.FilterHeader(title, safe(m.helpQuery.value()), m.helpQuery.cursor, "type to filter", count, filterWidth, compact, m.settings.ASCII, filterDialogStyles(m.colors()))
+	capacity := m.helpCapacity(width)
+	start := min(m.helpOffset, max(0, len(body)-capacity))
+	end := min(len(body), start+capacity)
+	return m.overlay(title, body[start:end], "", width, -1, -1, header)
+}
+
+func (m *Model) helpBody() ([]string, int, int) {
+	groups, actionCount := m.helpActionGroups()
 	width := min(86, m.width-4)
-	if compact {
+	if m.compactAppearance() {
 		width = min(86, m.width-2)
 	}
 	var actions []string
@@ -1467,13 +1477,18 @@ func (m *Model) helpLines() []string {
 			actions[i] = leftLine + strings.Repeat(" ", gap) + rightLine
 		}
 	}
-	body := append([]string{""}, actions...)
-	filterWidth := max(1, width-4)
-	header := dialogrender.FilterHeader(title, safe(m.helpQuery.value()), m.helpQuery.cursor, "type to filter", count, filterWidth, compact, m.settings.ASCII, filterDialogStyles(m.colors()))
-	capacity := max(1, m.height-8)
-	start := min(m.helpOffset, max(0, len(body)-capacity))
-	end := min(len(body), start+capacity)
-	return m.overlay(title, body[start:end], "", width, -1, -1, header)
+	return append([]string{""}, actions...), width, actionCount
+}
+
+func (m *Model) helpCapacity(width int) int {
+	opts := m.dialogOptions()
+	opts.Mode, opts.Width = dialogrender.Overlay, width
+	return max(1, dialogrender.ContentCapacity(opts))
+}
+
+func (m *Model) scrollHelp(delta int) {
+	body, width, _ := m.helpBody()
+	m.helpOffset = min(max(0, m.helpOffset+delta), max(0, len(body)-m.helpCapacity(width)))
 }
 
 func (m *Model) helpActionColumn(groups map[string][]string, sections []string, width int) []string {

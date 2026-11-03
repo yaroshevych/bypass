@@ -16,9 +16,9 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		if msg.Action == tea.MouseActionPress {
 			switch msg.Button {
 			case tea.MouseButtonWheelUp:
-				m.helpOffset = max(0, m.helpOffset-1)
+				m.scrollHelp(-1)
 			case tea.MouseButtonWheelDown:
-				m.helpOffset++
+				m.scrollHelp(1)
 			}
 		}
 		return nil

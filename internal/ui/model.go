@@ -834,13 +834,13 @@ func (m *Model) helpKey(k tea.KeyMsg) tea.Cmd {
 		m.openPalette("actions", false)
 		return nil
 	case "up", "k":
-		m.helpOffset = max(0, m.helpOffset-1)
+		m.scrollHelp(-1)
 	case "down", "j":
-		m.helpOffset++
+		m.scrollHelp(1)
 	case "pgup":
-		m.helpOffset = max(0, m.helpOffset-8)
+		m.scrollHelp(-8)
 	case "pgdown":
-		m.helpOffset += 8
+		m.scrollHelp(8)
 	case "esc", "?", "enter":
 		m.help = false
 	default:
