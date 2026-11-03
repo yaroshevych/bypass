@@ -334,8 +334,19 @@ func (m *Model) filterEntries(nav navItem, query string) []vault.Entry {
 	for _, result := range results {
 		entries = append(entries, byID[result.ID])
 	}
-	m.searchCache = &entrySearchCache{db: s.DB, key: cacheKey, entries: entries}
 	return entries
+}
+
+func (m *Model) refreshSearchCache() {
+	s, v := m.ws.ActiveSession(), m.ws.ActiveView()
+	if s == nil || s.DB == nil || v == nil || v.Query == "" || m.gate.Protected() {
+		return
+	}
+	nav := m.currentNav()
+	key := nav.key + "\x00" + v.Query
+	if m.searchCache == nil || m.searchCache.db != s.DB || m.searchCache.key != key {
+		m.searchCache = &entrySearchCache{db: s.DB, key: key, entries: m.filterEntries(nav, v.Query)}
+	}
 }
 
 func (m *Model) beginSearch(global bool) tea.Cmd {

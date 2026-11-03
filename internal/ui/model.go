@@ -342,6 +342,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.pointer(mouse)
 	}
 	model, cmd := m.update(msg)
+	m.refreshSearchCache()
 	details := m.loadFocusedDetails()
 	if cmd == nil {
 		return model, details

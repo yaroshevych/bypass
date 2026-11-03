@@ -101,7 +101,8 @@ func TestHoverDoesNotInvalidateSearchOrReloadDetails(t *testing.T) {
 	m := New(Options{})
 	m.ws.Open(fixture("/tmp/hover.kdbx"))
 	m.normalize()
-	m.filterEntries(navItem{key: "all", kind: "all"}, "alice")
+	m.ws.ActiveView().Query = "alice"
+	m.refreshSearchCache()
 	cache, request := m.searchCache, m.detailRequest
 	m.Update(tea.MouseMsg{Action: tea.MouseActionMotion, X: 2, Y: 2})
 	if cache == nil || m.searchCache != cache || m.detailRequest != request {
@@ -120,6 +121,21 @@ func TestViewDoesNotChangeEditorAppearance(t *testing.T) {
 	_ = m.View()
 	if m.editor.compact || m.editor.ascii {
 		t.Fatal("rendering changed editor appearance state")
+	}
+}
+
+func TestViewDoesNotPopulateSearchCache(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 100, 30
+	m.ws.Open(fixture("/tmp/search-view.kdbx"))
+	m.normalize()
+	m.ws.ActiveView().Query = "alice"
+	m.searchCache = nil
+	if view := ansi.Strip(m.View()); !strings.Contains(view, "Alpha") || strings.Contains(view, "Beta") {
+		t.Fatalf("search rendering is incorrect: %q", view)
+	}
+	if m.searchCache != nil {
+		t.Fatal("view populated the search cache")
 	}
 }
 func TestSearchExcludesSecretsAndFiltersLive(t *testing.T) {

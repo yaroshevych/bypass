@@ -64,10 +64,6 @@ func displayVaultPath(path, home string) string {
 }
 
 func (m *Model) View() string {
-	// Rendering may ask the browser for filtered entries. Keep that read path
-	// from populating its optional cache so View remains side-effect free.
-	searchCache := m.searchCache
-	defer func() { m.searchCache = searchCache }()
 	w, h := max(1, m.width), max(1, m.height)
 	styles := m.colors()
 	primary := styles.primary
