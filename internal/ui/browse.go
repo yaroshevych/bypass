@@ -472,7 +472,7 @@ func (m *Model) adjustViewport() {
 	}
 	if d := m.dialog; d != nil && d.kind == "destination" {
 		groups := d.filteredGroups()
-		start, _ := d.destinationViewport(m.height, groups)
+		start, _ := m.destinationViewport(groups)
 		d.offset = start
 	}
 	v := m.ws.ActiveView()

@@ -302,6 +302,20 @@ func prepareBody(o Options) ([]string, []int) {
 // PrepareBody returns rendered body rows and their source indices; -1 marks an error or padding row.
 func PrepareBody(o Options) ([]string, []int) { return prepareBody(o) }
 
+// ContentCapacity reports how many ordinary body rows survive the frame's
+// clipping after its error, status and actions have been reserved.
+func ContentCapacity(o Options) int {
+	o.Body = make([]string, max(1, o.Height))
+	_, indices := prepareBody(o)
+	capacity := 0
+	for _, index := range indices {
+		if index >= 0 && index < len(o.Body) {
+			capacity++
+		}
+	}
+	return capacity
+}
+
 // Render places a framed dialog over a pre-rendered, already shaded backdrop.
 func Render(o Options) []string {
 	if o.Height <= 0 {

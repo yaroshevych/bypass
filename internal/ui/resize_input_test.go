@@ -60,18 +60,15 @@ func TestDestinationViewportAndMouseShareScrollOffset(t *testing.T) {
 	for i := range groups {
 		groups[i] = vault.Group{UUID: fmt.Sprintf("g-%02d", i), Path: fmt.Sprintf("Root/Group %02d", i)}
 	}
-	m.dialog = &actionDialog{kind: "destination", title: "Move Entry", entryUUID: "a", groups: groups, selected: 12}
+	m.dialog = &actionDialog{kind: "destination", title: "Move Entry", entryUUID: "a", groups: groups, selected: 30}
 	d := m.dialog
-	start, capacity := d.destinationViewport(m.height, d.filteredGroups())
-	if capacity != 13 || start != 2 {
-		t.Fatalf("destination viewport = start %d, capacity %d; want 2, 13", start, capacity)
-	}
+	start, capacity := m.destinationViewport(d.filteredGroups())
 	if d.selected-start != capacity-3 {
 		t.Fatalf("selected destination row %d, want two rows after it", d.selected-start)
 	}
 	d.offset = start
 	d.selected++
-	next, _ := d.destinationViewport(m.height, d.filteredGroups())
+	next, _ := m.destinationViewport(d.filteredGroups())
 	if d.selected-next != capacity-3 {
 		t.Fatalf("selected destination row after scrolling = %d, want %d", d.selected-next, capacity-3)
 	}
@@ -93,6 +90,22 @@ func TestDestinationViewportAndMouseShareScrollOffset(t *testing.T) {
 	m.pointer(msg)
 	if d.selected != target {
 		t.Fatalf("mouse selected destination %d, want %d", d.selected, target)
+	}
+}
+
+func TestDestinationUsesAvailableSmallScreenRows(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 48, 16
+	m.dialog = &actionDialog{kind: "destination", groups: make([]vault.Group, 20)}
+	_, capacity := m.destinationViewport(m.dialog.groups)
+	if capacity < 5 {
+		t.Fatalf("destination list has only %d rows at 48x16", capacity)
+	}
+	withError := capacity
+	m.dialog.err = "Could not move item"
+	_, withError = m.destinationViewport(m.dialog.groups)
+	if withError >= capacity {
+		t.Fatal("destination capacity did not reserve room for error")
 	}
 }
 

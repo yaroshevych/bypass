@@ -1,6 +1,7 @@
 package ui
 
 import (
+	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
 	"context"
@@ -109,7 +110,16 @@ func (m *Model) attachmentLines(state *extraState) []string {
 }
 
 func (m *Model) attachmentListCapacity() int {
-	return max(1, m.height-14)
+	opts := m.dialogOptions()
+	opts.Mode, opts.Width, opts.StatusBar = dialogrender.Overlay, min(76, m.width-4), "a add · r replace · d remove · e export"
+	reserved := 2
+	if m.extras != nil {
+		opts.Error = safe(m.extras.err)
+		if session, _ := m.currentExtraEntry(m.extras); !m.extrasWritable(session) {
+			reserved += 2
+		}
+	}
+	return max(1, dialogrender.ContentCapacity(opts)-reserved)
 }
 
 func (m *Model) attachmentConfirmation(state *extraState) []string {

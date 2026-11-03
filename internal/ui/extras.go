@@ -281,10 +281,10 @@ func (m *Model) extrasKey(k tea.KeyMsg) (tea.Cmd, bool) {
 			m.clearExtras()
 		case "up", "k":
 			state.historyIndex = max(0, state.historyIndex-1)
-			state.offset = viewportOffset(state.historyIndex, len(state.history), max(1, m.height-12), state.offset)
+			state.offset = viewportOffset(state.historyIndex, len(state.history), m.historyListCapacity(), state.offset)
 		case "down", "j":
 			state.historyIndex = min(max(0, len(state.history)-1), state.historyIndex+1)
-			state.offset = viewportOffset(state.historyIndex, len(state.history), max(1, m.height-12), state.offset)
+			state.offset = viewportOffset(state.historyIndex, len(state.history), m.historyListCapacity(), state.offset)
 		case "enter":
 			state.mode = extraHistoryEntry
 			state.fieldIndex = 0
@@ -305,7 +305,7 @@ func (m *Model) extrasKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		switch k.String() {
 		case "esc", "left", "h":
 			state.mode = extraHistory
-			state.offset = viewportOffset(state.historyIndex, len(state.history), max(1, m.height-12), state.offset)
+			state.offset = viewportOffset(state.historyIndex, len(state.history), m.historyListCapacity(), state.offset)
 			state.valueOffset = 0
 		case "up", "k":
 			state.fieldIndex = max(0, state.fieldIndex-1)
@@ -344,7 +344,7 @@ func (m *Model) extrasPointer(msg tea.MouseMsg) (tea.Cmd, bool) {
 	}
 	switch state.mode {
 	case extraHistory:
-		capacity := max(1, m.height-12)
+		capacity := m.historyListCapacity()
 		body, targets := listContent(m.historyContent(state))
 		opts := m.dialogOptions()
 		opts.Mode, opts.Width, opts.X, opts.Y = dialogrender.Overlay, min(78, m.width-4), -1, -1

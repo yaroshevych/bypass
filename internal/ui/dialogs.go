@@ -130,8 +130,16 @@ func (d *actionDialog) filteredGroups() []vault.Group {
 	return d.groups
 }
 
-func (d *actionDialog) destinationViewport(height int, groups []vault.Group) (start, capacity int) {
-	capacity = max(1, height-17)
+func (m *Model) destinationViewport(groups []vault.Group) (start, capacity int) {
+	d := m.dialog
+	opts := m.dialogOptions()
+	opts.Width, opts.Error = min(m.width-6, 60), safe(d.err)
+	opts.Actions = []dialogrender.Action{{}, {}}
+	capacity = dialogrender.ContentCapacity(opts) - len(d.message) - 2
+	if m.writing {
+		capacity--
+	}
+	capacity = max(1, capacity)
 	start = viewportOffset(d.selected, len(groups), capacity, d.offset)
 	return start, capacity
 }
@@ -525,7 +533,7 @@ func (m *Model) destinationDialogBody() ([]string, []int) {
 	}
 	rows = append(rows, listComponentOutput{text: m.colors().secondary.Render(" Move item to:"), item: -1}, listComponentOutput{item: -1})
 	groups := d.filteredGroups()
-	start, capacity := d.destinationViewport(m.height, groups)
+	start, capacity := m.destinationViewport(groups)
 	start, end := viewportRange(len(groups), capacity, start)
 	items := make([]listComponentRow, 0, capacity)
 	for i := start; i < end; i++ {

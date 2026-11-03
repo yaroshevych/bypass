@@ -1,6 +1,7 @@
 package ui
 
 import (
+	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
@@ -48,7 +49,7 @@ func (m *Model) openHistory() tea.Cmd {
 
 func (m *Model) historyContent(state *extraState) []listComponentOutput {
 	body := []listComponentOutput{{text: m.colors().secondary.Render("Read-only history · snapshots cannot be restored from this view."), item: -1}, {item: -1}}
-	capacity := max(1, m.height-12)
+	capacity := m.historyListCapacity()
 	start := viewportOffset(state.historyIndex, len(state.history), capacity, state.offset)
 	start, end := viewportRange(len(state.history), capacity, start)
 	rows := make([]listComponentRow, 0, capacity)
@@ -82,6 +83,12 @@ func (m *Model) historyContent(state *extraState) []listComponentOutput {
 		body = append(body, listComponentOutput{text: "No history snapshots", item: -1})
 	}
 	return body
+}
+
+func (m *Model) historyListCapacity() int {
+	opts := m.dialogOptions()
+	opts.Mode, opts.Width = dialogrender.Overlay, min(78, m.width-4)
+	return max(1, dialogrender.ContentCapacity(opts)-2)
 }
 
 func (m *Model) historyLines(state *extraState) []string {
