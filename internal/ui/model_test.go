@@ -846,3 +846,31 @@ func TestNumberKeysRemainTextInInputs(t *testing.T) {
 		}
 	})
 }
+
+func TestWorkspaceDeleteAliasesRequireConfirmation(t *testing.T) {
+	for _, input := range []tea.KeyMsg{{Type: tea.KeyDelete}, {Type: tea.KeyCtrlD}} {
+		t.Run(input.String(), func(t *testing.T) {
+			m, _ := operationModel(t)
+			m.ws.ActiveView().Focus = 1
+			updateKey(m, input)
+			if m.dialog == nil {
+				t.Fatal("delete shortcut did not request confirmation")
+			}
+			if len(m.ws.ActiveSession().DB.Entries) == 0 {
+				t.Fatal("delete shortcut removed an entry without confirmation")
+			}
+		})
+	}
+}
+
+func TestWorkspaceOpenAliases(t *testing.T) {
+	for _, input := range []tea.KeyMsg{key("o"), key("O"), {Type: tea.KeyCtrlO}} {
+		t.Run(input.String(), func(t *testing.T) {
+			m, _ := operationModel(t)
+			updateKey(m, input)
+			if m.screen != chooseFile {
+				t.Fatal("open shortcut did not show the vault picker")
+			}
+		})
+	}
+}
