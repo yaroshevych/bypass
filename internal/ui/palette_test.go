@@ -11,6 +11,26 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+func TestPaletteSelectionVisibleAtResponsiveSizes(t *testing.T) {
+	for _, size := range [][2]int{{48, 16}, {60, 20}, {80, 24}, {120, 35}} {
+		m, _ := operationModel(t)
+		m.width, m.height = size[0], size[1]
+		m.openPalette("actions", false)
+		m.palette.selected = len(m.paletteChoices()) - 1
+		m.refreshPalette()
+		_, rows, _ := m.paletteContent()
+		found := false
+		for _, row := range rows {
+			if row.item == m.palette.selected {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("%dx%d: selected palette action is not visible", size[0], size[1])
+		}
+	}
+}
+
 func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	m, _ := operationModel(t)
 	v := m.ws.ActiveView()

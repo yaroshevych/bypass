@@ -642,11 +642,15 @@ func (m *Model) paletteKey(k tea.KeyMsg) tea.Cmd {
 	return nil
 }
 func (m *Model) paletteCapacity() int {
-	capacity := m.dialogContentCapacity(12, 1)
-	if m.smallDialogScreen() && m.compactAppearance() {
-		capacity = max(1, capacity-1)
+	opts := m.dialogOptions()
+	opts.Mode = dialogrender.Overlay
+	opts.Width = m.paletteDialogWidth(m.paletteChoices())
+	opts.Error = safe(m.palette.err)
+	capacity := dialogrender.ContentCapacity(opts)
+	if m.compactAppearance() {
+		capacity-- // The compact palette includes a blank row below its header.
 	}
-	return capacity
+	return max(1, capacity)
 }
 
 func (m *Model) paletteContent() (string, []listComponentOutput, string) {
