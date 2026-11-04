@@ -55,6 +55,13 @@ type Options struct {
 	Pill                       lipgloss.Style
 	Divider                    lipgloss.Style
 	RestoreResets              func(string) string
+	Scrollbar                  *Scrollbar
+	scrollbarRows              []bool
+}
+
+// Scrollbar places a scroll thumb on the right frame beside a range of body rows.
+type Scrollbar struct {
+	Start, Height, Offset, Total int
 }
 
 // OverlayWidth returns the actual width used by an overlay frame.
@@ -324,7 +331,17 @@ func Render(o Options) []string {
 	if width <= 0 {
 		width = max(1, o.Width)
 	}
-	o.Body, _ = prepareBody(o)
+	var indices []int
+	o.Body, indices = prepareBody(o)
+	if s := o.Scrollbar; s != nil && s.Height > 0 && s.Total > s.Height {
+		thumbHeight := max(1, s.Height*s.Height/s.Total)
+		thumbStart := (s.Height - thumbHeight) * min(max(0, s.Offset), s.Total-s.Height) / (s.Total - s.Height)
+		o.scrollbarRows = make([]bool, len(indices))
+		for i, source := range indices {
+			row := source - s.Start
+			o.scrollbarRows[i] = source >= 0 && row >= thumbStart && row < thumbStart+thumbHeight
+		}
+	}
 	o.Actions = nil
 	o.Error = ""
 	statusBar := lowercaseShortcutLabels(o.StatusBar)
@@ -426,12 +443,16 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 		}
 		box = []string{o.Divider.Render(topRule), wrap(header, false), o.Divider.Render(bottomRule)}
 	}
-	for _, line := range o.Body {
+	for i, line := range o.Body {
 		if line == bodyRule {
 			box = append(box, o.Divider.Render(leftRule+strings.Repeat(horizontal, max(0, width-2))+rightRule))
 			continue
 		}
-		box = append(box, wrap(line, false))
+		wrapped := wrap(line, false)
+		if i < len(o.scrollbarRows) && o.scrollbarRows[i] {
+			wrapped = ansi.Cut(wrapped, 0, width-1) + scrollbarThumb(o)
+		}
+		box = append(box, wrapped)
 	}
 	if footer != "" {
 		box = append(box, wrap(o.Secondary.Render(footer), true))
@@ -516,6 +537,10 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 		topBorder = o.Divider.Render(ruleWithDivider(width, tl, tr, horizontal, o.Header.Divider, join))
 	}
 	frame(top-1, topBorder)
+	bodyStart := len(content) - len(o.Body)
+	if footer != "" {
+		bodyStart--
+	}
 	for i, line := range content {
 		if line == bodyRule {
 			frame(top+i, o.Divider.Render(leftRule+strings.Repeat(horizontal, max(0, width-2))+rightRule))
@@ -541,10 +566,22 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 			frame(top+i, o.Divider.Render(border)+o.Surface.Render(" "+footerContent)+o.Divider.Render(border))
 			continue
 		}
-		frame(top+i, o.Divider.Render(border)+o.Surface.Render(" "+fit(ansi.Cut(line, 2, width-2), inner)+" ")+o.Divider.Render(border))
+		rightBorder := o.Divider.Render(border)
+		bodyRow := i - bodyStart
+		if bodyRow >= 0 && bodyRow < len(o.scrollbarRows) && o.scrollbarRows[bodyRow] {
+			rightBorder = scrollbarThumb(o)
+		}
+		frame(top+i, o.Divider.Render(border)+o.Surface.Render(" "+fit(ansi.Cut(line, 2, width-2), inner)+" ")+rightBorder)
 	}
 	frame(top+len(content), o.Divider.Render(bl+strings.Repeat(horizontal, width-2)+br))
 	return background
+}
+
+func scrollbarThumb(o Options) string {
+	if o.ASCII {
+		return o.Secondary.Render("#")
+	}
+	return o.Secondary.Render("▐")
 }
 
 func compactTopBorder(width int, title string, ascii bool, horizontal, leftCorner, rightCorner string, line, pillStyle, surface lipgloss.Style, accessory string, accessoryStyle lipgloss.Style, count string) string {

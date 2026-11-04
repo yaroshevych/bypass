@@ -675,12 +675,23 @@ func (m *Model) paletteLines() []string {
 	count := paletteCountLabel(m.palette.scope, len(choices))
 	styles := m.colors()
 	width := m.paletteDialogWidth(choices)
-	if !m.compactAppearance() {
-		header := dialogrender.FilterHeader(title, safe(m.palette.query.value()), m.palette.query.cursor, "type to filter", count, width-4, false, m.settings.ASCII, filterDialogStyles(styles))
-		return m.overlayError(title, body, footer, m.palette.err, width, m.palette.x, m.palette.y, header)
+	compact := m.compactAppearance()
+	headerWidth := width - 4
+	if compact {
+		headerWidth = 0
 	}
-	header := dialogrender.FilterHeader(title, safe(m.palette.query.value()), m.palette.query.cursor, "type to filter", count, 0, true, m.settings.ASCII, filterDialogStyles(styles))
-	return m.overlayError(title, body, footer, m.palette.err, width, m.palette.x, m.palette.y, header)
+	header := dialogrender.FilterHeader(title, safe(m.palette.query.value()), m.palette.query.cursor, "type to filter", count, headerWidth, compact, m.settings.ASCII, filterDialogStyles(styles))
+	opts := m.dialogOptions()
+	opts.Mode, opts.Title, opts.Header = dialogrender.Overlay, title, header
+	opts.Body, opts.StatusBar, opts.Backdrop = body, footer, m.modalBackdrop()
+	opts.Error, opts.Width, opts.X, opts.Y = safe(m.palette.err), width, m.palette.x, m.palette.y
+	rows, _ := m.paletteRows(choices)
+	start := 0
+	if compact {
+		start = 1
+	}
+	opts.Scrollbar = &dialogrender.Scrollbar{Start: start, Height: m.paletteCapacity(), Offset: m.palette.offset, Total: len(rows)}
+	return dialogrender.Render(opts)
 }
 
 func paletteCountLabel(scope string, count int) string {

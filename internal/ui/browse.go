@@ -384,7 +384,7 @@ func (m *Model) scrollFocusedField(delta int) bool {
 			break
 		}
 	}
-	lines, positions := m.detailLayout(width)
+	lines, positions, _ := m.detailViewportLayout(width, height)
 	if v.FieldIndex < 0 || v.FieldIndex >= len(positions) {
 		return false
 	}
@@ -465,8 +465,11 @@ func (m *Model) mouse(msg tea.MouseMsg) {
 			v.DetailManual = false
 		}
 	case 2:
+		_, positions, scrollbar := m.detailViewportLayout(pane.Width, pane.Height)
+		if scrollbar && msg.X == pane.X+pane.Width-1 {
+			return
+		}
 		v.DetailManual = false
-		_, positions := m.detailLayout(pane.Width)
 		row := msg.Y - pane.Y + v.DetailOffset
 		for i, start := range positions {
 			if row >= start {
@@ -536,7 +539,7 @@ func (m *Model) adjustViewport() {
 		}
 	}
 	v.EntryOffset = viewportOffset(index, len(entries), max(1, listHeight-1), v.EntryOffset)
-	lines, positions := m.detailLayout(detailWidth)
+	lines, positions, _ := m.detailViewportLayout(detailWidth, detailHeight)
 	if v.Focus == 2 && len(positions) > 0 && !v.DetailManual {
 		v.FieldIndex = min(max(0, v.FieldIndex), len(positions)-1)
 		if v.FieldIndex == 0 {

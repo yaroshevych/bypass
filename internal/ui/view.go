@@ -1144,7 +1144,7 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 
 func (m *Model) detailLines(width, height int, focused bool) []string {
 	accent := m.colors().accent
-	lines := m.detailContent(width)
+	lines, _, scrollbar := m.detailViewportLayout(width, height)
 	if focused && len(lines) > 0 {
 		lines[0] = accent.Render(ansi.Strip(lines[0]))
 	}
@@ -1153,7 +1153,35 @@ func (m *Model) detailLines(width, height int, focused bool) []string {
 	if v != nil {
 		offset = min(v.DetailOffset, max(0, len(lines)-height))
 	}
-	return padLines(lines[offset:], height)
+	visible := padLines(lines[offset:], height)
+	if scrollbar {
+		for i := range visible {
+			visible[i] = fit(visible[i], width-1) + m.scrollbarMarker(i, height, offset, len(lines))
+		}
+	}
+	return visible
+}
+
+func (m *Model) detailViewportLayout(width, height int) ([]string, []int, bool) {
+	lines, positions := m.detailLayout(width)
+	if width > 2 && height > 0 && len(lines) > height {
+		lines, positions = m.detailLayout(width - 1)
+		return lines, positions, true
+	}
+	return lines, positions, false
+}
+
+func (m *Model) scrollbarMarker(row, height, offset, total int) string {
+	thumbHeight := max(1, height*height/total)
+	thumbStart := (height - thumbHeight) * offset / (total - height)
+	track, thumb := "│", "▐"
+	if m.settings.ASCII {
+		track, thumb = "|", "#"
+	}
+	if row >= thumbStart && row < thumbStart+thumbHeight {
+		return m.colors().secondary.Render(thumb)
+	}
+	return m.colors().divider.Render(track)
 }
 
 func (m *Model) detailContent(width int) []string {
@@ -1373,6 +1401,8 @@ func (m *Model) pickerLines() []string {
 	opts.Mode, opts.Title, opts.Body = dialogrender.Box, "Open Vault", body
 	opts.BodyRows, opts.StatusBar, opts.Error = m.pickerBodyRows(), m.pickerStatusBar(), safe(m.err)
 	opts.Backdrop, opts.Width = m.modalBackdrop(), dialogWidth
+	start, capacity := m.fileViewport()
+	opts.Scrollbar = &dialogrender.Scrollbar{Start: m.pickerFixedRows(), Height: capacity, Offset: start, Total: len(m.files)}
 	return dialogrender.Render(opts)
 }
 
