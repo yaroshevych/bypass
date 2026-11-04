@@ -143,6 +143,34 @@ func TestRunAmbiguityRequiresExplicitSelection(t *testing.T) {
 	}
 }
 
+func TestRunAmbiguityShowsEntryContext(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 120, 35
+	m.ws.Open(&vault.Database{Path: "/test.kdbx", RootUUID: "root", Entries: []vault.Entry{
+		{UUID: "first-id", GroupPath: "Passwords", Fields: []vault.Field{{Name: "Title", Value: "Shared"}}},
+		{UUID: "second-id", GroupPath: "Passwords/Other", Fields: []vault.Field{{Name: "Title", Value: "Shared"}}},
+	}})
+	p := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{References: []string{"bypass://Shared#password"}}}
+	m.Update(RunRequestMsg{p})
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	want := m.runs.choices[m.runs.choiceIndex]
+	for _, size := range [][2]int{{48, 16}, {120, 35}} {
+		m.width, m.height = size[0], size[1]
+		for _, value := range []string{want.database.Path, runTargetPath(want), want.entry} {
+			if !strings.Contains(ansi.Strip(m.View()), value) {
+				t.Fatalf("chooser at %v omitted %q", size, value)
+			}
+		}
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	for _, value := range []string{want.database.Path, runTargetPath(want), want.entry} {
+		if !strings.Contains(strings.Join(m.runReviewFieldLines(), "\n"), value) {
+			t.Fatalf("approval omitted %q", value)
+		}
+	}
+}
+
 func TestRunPermissionRequestOpensRequestsDialog(t *testing.T) {
 	m := New(Options{})
 	p := &runpkg.Pending{Context: context.Background()}

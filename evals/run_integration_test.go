@@ -249,7 +249,7 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 	e.mustShow("secret request pending")
 	e.mustShow("Deny all")
 	e.key("Enter")
-	e.mustShow("Select vault for this reference")
+	e.mustShow("Select entry with up/down")
 	e.key("Tab")
 	e.key("Enter")
 	e.mustShow("Approve for this session")

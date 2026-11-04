@@ -107,7 +107,7 @@ func (m *Model) runReviewActions() []runAction {
 		return []runAction{{"Back", "esc"}}
 	}
 	if r.choosing {
-		return []runAction{{"Select vault", "enter"}, {"Back", "esc"}}
+		return []runAction{{"Select entry", "enter"}, {"Back", "esc"}}
 	}
 	if r.unavailable != "" {
 		return []runAction{{"Deny", "d"}, {"Back", "esc"}}
@@ -152,9 +152,10 @@ func (m *Model) runReviewBody() []string {
 				body = append(body, runIdentityLabel(p, r.newIdentity[p]))
 			}
 		} else if r.choosing {
-			body = append(body, "Select vault for this reference:")
+			body = append(body, "Select entry with up/down:")
 			if len(r.choices) > 0 {
-				body = append(body, "Vault: "+safe(r.choices[r.choiceIndex].database.Path))
+				choice := r.choices[r.choiceIndex]
+				body = append(body, "Vault: "+safe(choice.database.Path), "Entry: "+safe(runTargetPath(choice)), "ID: "+safe(choice.entry))
 			}
 		} else if m.height <= 16 {
 			agent := "Anonymous"
@@ -185,15 +186,6 @@ func (m *Model) runReviewBody() []string {
 				body = append(body, lines[start:min(len(lines), start+visible)]...)
 			}
 			body = append(body, suffix...)
-		}
-		if r.choosing && m.height > 16 {
-			for i, choice := range r.choices {
-				prefix := "  "
-				if i == r.choiceIndex {
-					prefix = "> "
-				}
-				body = append(body, prefix+safe(choice.database.Path))
-			}
 		}
 	}
 	return body
@@ -267,8 +259,27 @@ func (m *Model) runReviewFieldLines() []string {
 	for _, target := range m.runs.targets {
 		wrapped := ansi.Hardwrap(ansi.Wrap(m.runSecretLine(target), width, ""), width, false)
 		lines = append(lines, strings.Split(wrapped, "\n")...)
+		if p := m.runReviewed(); p != nil {
+			if _, selected := m.runs.chosen[p][target.ref]; selected {
+				for _, detail := range []string{"Vault: " + target.database.Path, "Entry: " + runTargetPath(target), "ID: " + target.entry} {
+					wrapped := ansi.Hardwrap(ansi.Wrap(safe(detail), width, ""), width, false)
+					lines = append(lines, strings.Split(wrapped, "\n")...)
+				}
+			}
+		}
 	}
 	return lines
+}
+
+func runTargetPath(target runTarget) string {
+	if target.database != nil {
+		for _, e := range target.database.Entries {
+			if e.UUID == target.entry {
+				return strings.TrimRight(e.GroupPath, "/") + "/" + e.Get("Title")
+			}
+		}
+	}
+	return "Unknown"
 }
 
 func (m *Model) runSecretLine(target runTarget) string {

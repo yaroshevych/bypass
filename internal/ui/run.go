@@ -578,7 +578,7 @@ func (m *Model) resolveRunTargets(p *runpkg.Pending) ([]runTarget, error) {
 			if len(matches) > 1 {
 				m.runs.choices = matches
 				m.runs.choiceIndex = 0
-				return nil, fmt.Errorf("select the vault for this reference")
+				return nil, fmt.Errorf("select the entry for this reference")
 			}
 		}
 		targets = append(targets, matches[0])
