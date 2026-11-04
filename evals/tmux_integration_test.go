@@ -363,7 +363,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.mustShow("Eval Entry", "••••••••")
 	e.mustNotShow(secretSentinel)
 	e.key("n")
-	e.mustShow("read-only · press r to enable")
+	e.mustShow("read-only · restricted at startup")
 	e.mustNotShow("New Entry")
 
 	// Ctrl+F searches all entries even when details have focus. Fuzzy matches
