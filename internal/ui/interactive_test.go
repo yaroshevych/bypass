@@ -90,10 +90,9 @@ func TestInteractiveUnlockDropsCredentialsAndResolvesOnDemand(t *testing.T) {
 		t.Fatal("on-demand password resolution failed")
 	}
 	m.operationKey(key("r"))
-	if session.ReadOnly {
-		t.Fatal("manual read-only toggle did not enable writes")
+	if !session.ReadOnly {
+		t.Fatal("startup read-only restriction was bypassed")
 	}
-	m.operationKey(key("r"))
 	if m.requestReload(session.ID) != nil || !strings.Contains(m.notice, "lock and unlock") {
 		t.Fatal("reload did not explain authentication requirement")
 	}

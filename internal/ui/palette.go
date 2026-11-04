@@ -145,6 +145,9 @@ func (m *Model) commands() []command {
 	readOnlyReason := needVault
 	if s != nil && s.Stale {
 		readOnlyReason = "Reload required"
+	} else if s != nil && s.ReadOnly && m.writeRestriction() != "" {
+		readLabel = "Read Only"
+		readOnlyReason = m.writeRestriction()
 	}
 	infoReason := needVault
 	_, sessionInfo := m.backend.(sessionDatabaseInspector)

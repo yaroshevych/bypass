@@ -3,6 +3,8 @@ package ui
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -181,6 +183,35 @@ func TestReadOnlyAndStaleWritesBlocked(t *testing.T) {
 	m.key(key("e"))
 	if m.editor != nil || m.dialog == nil || m.dialog.kind != "external" {
 		t.Fatal("stale edit wasn't blocked")
+	}
+}
+
+func TestReadOnlyRestrictionsCannotBeToggled(t *testing.T) {
+	for _, mode := range []string{"startup", "file"} {
+		t.Run(mode, func(t *testing.T) {
+			m, backend := operationModel(t)
+			s := m.ws.ActiveSession()
+			path := filepath.Join(t.TempDir(), "vault.kdbx")
+			if err := os.WriteFile(path, []byte("fixture"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			s.Path = path
+			s.ReadOnly = true
+			if mode == "startup" {
+				m.readOnly = true
+			} else if err := os.Chmod(path, 0400); err != nil {
+				t.Fatal(err)
+			}
+			m.operationKey(key("r"))
+			if !s.ReadOnly || m.writable() || backend.applied != 0 {
+				t.Fatal("restricted vault became writable")
+			}
+			for _, command := range m.commands() {
+				if command.id == "read-only" && command.reason == "" {
+					t.Fatal("restricted toggle is enabled in palette")
+				}
+			}
+		})
 	}
 }
 

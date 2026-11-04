@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -106,7 +107,11 @@ func (m *Model) writable() bool {
 		return false
 	}
 	if s.ReadOnly {
-		m.setNotice("read-only · press r to enable", true)
+		if reason := m.writeRestriction(); reason != "" {
+			m.setNotice(reason, true)
+		} else {
+			m.setNotice("read-only · press r to enable", true)
+		}
 		return false
 	}
 	if m.settings.BackupDir == "" {
@@ -118,6 +123,18 @@ func (m *Model) writable() bool {
 		return false
 	}
 	return true
+}
+
+func (m *Model) writeRestriction() string {
+	if m.readOnly {
+		return "read-only · restricted at startup"
+	}
+	if s := m.ws.ActiveSession(); s != nil {
+		if info, err := os.Stat(s.Path); err == nil && info.Mode().Perm()&0222 == 0 {
+			return "read-only · vault file is not writable"
+		}
+	}
+	return ""
 }
 
 func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
@@ -193,6 +210,12 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		if s.Stale {
 			m.setNotice("reload required", true)
 			return nil, true
+		}
+		if s.ReadOnly {
+			if reason := m.writeRestriction(); reason != "" {
+				m.setNotice(reason, true)
+				return nil, true
+			}
 		}
 		s.ReadOnly = !s.ReadOnly
 		if s.ReadOnly {
