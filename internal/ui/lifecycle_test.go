@@ -85,6 +85,26 @@ func TestNewVaultShortcutMatchesWelcomeAndPalette(t *testing.T) {
 		t.Fatal("n did not open the create vault dialog")
 	}
 }
+
+func TestCreateVaultExpandsHomePath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	b := &lifecycleBackend{}
+	m := New(Options{Backend: b})
+	t.Cleanup(m.Close)
+	m.openCreateVault()
+	m.lifecycle.inputs[0].set("~/Downloads/example.kdbx")
+	m.lifecycle.inputs[1].set("fixture-password")
+	m.lifecycle.inputs[2].set("fixture-password")
+	cmd := m.submitLifecycle()
+	if cmd == nil {
+		t.Fatal("create was not submitted")
+	}
+	m.Update(cmd())
+	if want := filepath.Join(home, "Downloads", "example.kdbx"); b.createdPath != want {
+		t.Fatalf("create path = %q, want %q", b.createdPath, want)
+	}
+}
 func TestCreateVaultFormMasksInputsAndRetainsFailedDraft(t *testing.T) {
 	b := &lifecycleBackend{fail: true}
 	m := New(Options{Backend: b, Settings: platform.Settings{BackupDir: t.TempDir()}})

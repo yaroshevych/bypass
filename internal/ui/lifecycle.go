@@ -183,6 +183,7 @@ func (m *Model) submitLifecycle() tea.Cmd {
 			l.err = "Choose a new .kdbx file path."
 			return nil
 		}
+		path = expandPath(path)
 		options := vault.CreateOptions{}
 		if raw := strings.TrimSpace(l.inputs[4].value()); raw != "" {
 			options.DecryptionTimeMS, err = strconv.Atoi(raw)
