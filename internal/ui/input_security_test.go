@@ -1,6 +1,7 @@
 package ui
 
 import (
+	wipebuf "bypass/internal/secret"
 	"bytes"
 	"testing"
 
@@ -37,5 +38,11 @@ func TestSecretKeystrokesAreConsumedAndWiped(t *testing.T) {
 			t.Fatal("key event retained secret")
 		}
 	}
+	m.key(tea.KeyMsg{Type: tea.KeySpace})
+	encoded := m.inputs[0].bytes()
+	if !bytes.Equal(encoded, []byte("héllo ")) {
+		t.Fatal("space was not added to password input")
+	}
+	wipebuf.Wipe(encoded)
 	m.inputs[0].clear()
 }
