@@ -145,7 +145,9 @@ def capture(args, fixture, cli, output):
                             key('e')
                             wait('Ctrl+S')
                         elif args.screen == 'generator':
-                            key('C-g')
+                            key('C-p')
+                            text('Password Generator')
+                            key('Enter')
                             wait('Generator')
                         elif args.screen == 'delete':
                             key('d')

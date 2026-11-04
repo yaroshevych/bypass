@@ -31,7 +31,7 @@ func TestMilestone4VaultLifecycleTmux(t *testing.T) {
 	e.mustShow("bypass", "VAULTS", "Open")
 
 	// Create a synthetic vault from the welcome screen, with a modest KDF target.
-	e.key("C-n")
+	e.key("n")
 	e.mustShow("NEW VAULT", "New .kdbx path")
 	e.typeText(e.realDB)
 	e.key("Tab")
