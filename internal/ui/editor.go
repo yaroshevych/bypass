@@ -449,7 +449,7 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 		}
 		lines = append(lines, editorLine{text: label, focus: i})
 		if i != editNotes || !strings.Contains(e.inputs[i].value(), "\n") {
-			field := inputFieldView{value: &e.inputs[i], focused: i == e.focus, indent: 1}
+			field := inputFieldView{value: &e.inputs[i], secret: i == editPassword, focused: i == e.focus, indent: 1}
 			value := renderInputBox(field, max(1, width-1), e.compact, 0, styles)
 			lines = append(lines, editorLine{text: value, focus: i})
 		} else {

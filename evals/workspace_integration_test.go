@@ -230,7 +230,8 @@ func TestWorkspaceTinyResizePreservesNativeDraftAndGuardsInput(t *testing.T) {
 
 	e.resize(120, 35)
 	e.mustDimensions(120, 35)
-	e.mustShow("New Entry", "Preserved Tiny Draft", fixtureEntryPassword)
+	e.mustShow("New Entry", "Preserved Tiny Draft", "PASSWORD *")
+	e.mustNotShow(fixtureEntryPassword)
 	e.key("C-s")
 	e.mustShowWrite("Preserved Tiny Draft", "saved · backup created")
 	e.mustNotShow(fixtureEntryPassword)

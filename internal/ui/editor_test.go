@@ -32,8 +32,8 @@ func TestEntryEditorDirtyValuesAndPasswordSeparation(t *testing.T) {
 	}
 	newEditor.focus = editPassword
 	view := strings.Join(newEditor.render(65, 22), "\n")
-	if !strings.Contains(view, "secret-value") {
-		t.Fatalf("new password is not visible in edit form:\n%s", view)
+	if strings.Contains(view, "secret-value") || !strings.Contains(view, "••••••") {
+		t.Fatal("new password must be masked in edit form")
 	}
 	if got := strings.Count(view, "▏"); got != 1 {
 		t.Fatalf("render shows %d cursors, want only the focused-field cursor", got)
@@ -49,6 +49,20 @@ func TestEntryEditorDirtyValuesAndPasswordSeparation(t *testing.T) {
 	}
 	if len(newEditor.values()["Title"]) != 0 {
 		t.Fatal("field buffer remains after clear")
+	}
+}
+
+func TestEntryEditorMasksExistingPassword(t *testing.T) {
+	entry := &vault.Entry{Fields: []vault.Field{{Name: "Password", Value: "private-password", Protected: true}}}
+	for _, compact := range []bool{false, true} {
+		for _, focus := range []int{editTitle, editPassword} {
+			e := newEntryEditor(entry, "group")
+			e.focus = focus
+			view := strings.Join(e.renderAppearance(65, 22, compact, false), "\n")
+			if strings.Contains(view, "private-password") || !strings.Contains(view, "••••••") {
+				t.Fatalf("password not masked: compact=%t focus=%d", compact, focus)
+			}
+		}
 	}
 }
 
@@ -151,10 +165,13 @@ func TestEntryEditorPasswordGeneratorAndSecretVisibility(t *testing.T) {
 	}
 	e.focus = editPassword
 	view := strings.Join(e.render(65, 40), "\n")
-	for _, secret := range []string{"Private title", "Private user", "generated-secret"} {
+	for _, secret := range []string{"Private title", "Private user"} {
 		if !strings.Contains(view, secret) {
 			t.Fatalf("edit form does not show %q", secret)
 		}
+	}
+	if strings.Contains(view, "generated-secret") {
+		t.Fatal("generated password is visible in edit form")
 	}
 
 	e.focus = editUserName

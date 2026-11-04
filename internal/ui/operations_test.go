@@ -95,8 +95,8 @@ func TestInlineEditorSavesAndSelectsNewEntry(t *testing.T) {
 	m.key(key("n"))
 	m.editor.inputs[editTitle].set("New example")
 	m.editor.inputs[editPassword].set("NEW-SECRET")
-	if !strings.Contains(m.View(), "NEW-SECRET") {
-		t.Fatal("new password is not visible in the edit form")
+	if strings.Contains(m.View(), "NEW-SECRET") {
+		t.Fatal("new password is visible in the edit form")
 	}
 	execute(t, m, m.key(tea.KeyMsg{Type: tea.KeyCtrlS}))
 	if b.applied != 1 || m.editor != nil || m.selected() == nil || m.selected().Get("Title") != "New example" {
