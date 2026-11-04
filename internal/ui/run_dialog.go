@@ -484,11 +484,6 @@ func (m *Model) activateRunKey(key string) tea.Cmd {
 			if p == nil {
 				return nil
 			}
-			if key == "s" && p.Identity.Digest == "" {
-				r.err = "identity required for session approval"
-				return nil
-			}
-
 			r.busy = true
 			r.busyPending = p
 			return m.runGrantJob(p, append([]runTarget(nil), r.targets...), key)

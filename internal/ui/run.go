@@ -268,6 +268,12 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		if msg.needsApproval {
 			msg.secrets.Clear()
+			// A check can finish after another request has just been approved
+			// for this identity. Recheck against the current grant map so that
+			// this request does not remain stuck awaiting manual approval.
+			if msg.mode == "check" && msg.pending != nil && msg.pending.Context.Err() == nil && runTargetsHaveSessionGrants(r.grants, runSessionPrincipal(msg.pending.Identity, msg.targets), msg.targets) {
+				return m.runGrantJob(msg.pending, append([]runTarget(nil), msg.targets...), "check"), true
+			}
 			return nil, true
 		}
 		values := msg.secrets.Take()
@@ -290,8 +296,9 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				if r.grants == nil {
 					r.grants = make(map[runSessionGrant]string)
 				}
+				principal := runSessionPrincipal(msg.pending.Identity, msg.targets)
 				for _, target := range msg.targets {
-					r.grants[runSessionGrant{target.session, msg.pending.Identity.Digest, target.entry, target.field}] = msg.pending.Identity.Name
+					r.grants[runSessionGrant{target.session, principal, target.entry, target.field}] = msg.pending.Identity.Name
 				}
 			}
 			values = nil // Reply owns the byte slices, including rejected replies.
@@ -598,6 +605,9 @@ func osStatPlain(path string) (bool, error) {
 }
 
 func runIdentityLabel(p *runpkg.Pending, isNew bool) string {
+	if p.Identity.Name == "" {
+		return "Agent: (not provided)"
+	}
 	state := "known agent"
 	if isNew {
 		state = "new agent"
@@ -620,6 +630,9 @@ func (m *Model) openRunPermissions() {
 					name = entry.Get("Title")
 					break
 				}
+			}
+			if agent == "" {
+				agent = "unnamed request"
 			}
 			line := safe(agent) + " · " + safe(name) + " · " + safe(grant.field)
 			if len(m.ws.Sessions) > 1 {

@@ -3,26 +3,55 @@ package ui
 import (
 	wipebuf "bypass/internal/secret"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"sort"
+	"strings"
 
 	runpkg "bypass/internal/run"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func runSessionPrincipal(identity runpkg.Identity, targets []runTarget) string {
+	if identity.Name != "" {
+		return "agent:" + identity.Name
+	}
+	items := make([]string, 0, len(targets))
+	for _, target := range targets {
+		items = append(items, target.entry+"\x00"+target.field)
+	}
+	sort.Strings(items)
+	unique := items[:0]
+	for _, item := range items {
+		if len(unique) == 0 || unique[len(unique)-1] != item {
+			unique = append(unique, item)
+		}
+	}
+	sum := sha256.Sum256([]byte(strings.Join(unique, "\x00")))
+	return "items:" + hex.EncodeToString(sum[:])
+}
+
+func runTargetsHaveSessionGrants(grants map[runSessionGrant]string, principal string, targets []runTarget) bool {
+	if principal == "" || len(targets) == 0 {
+		return false
+	}
+	for _, target := range targets {
+		if _, ok := grants[runSessionGrant{target.session, principal, target.entry, target.field}]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // runGrantJob resolves fields in private snapshots. Session permissions are
 // checked on the UI goroutine and only committed after successful resolution.
 func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string) tea.Cmd {
 	snapshots := map[string]*vault.Database{}
 	allowed := mode != "check"
-	if mode == "check" && p.Identity.Digest != "" && m.runs != nil {
-		allowed = true
-		for _, target := range targets {
-			if _, ok := m.runs.grants[runSessionGrant{target.session, p.Identity.Digest, target.entry, target.field}]; !ok {
-				allowed = false
-				break
-			}
-		}
+	if mode == "check" && m.runs != nil {
+		allowed = runTargetsHaveSessionGrants(m.runs.grants, runSessionPrincipal(p.Identity, targets), targets)
 	}
 	for _, target := range targets {
 		if snapshots[target.session] == nil {
@@ -49,10 +78,6 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 		}()
 		if mode == "check" && !allowed {
 			result.needsApproval = true
-			return result
-		}
-		if mode == "s" && p.Identity.Digest == "" {
-			result.err = fmt.Errorf("identity required for session approval")
 			return result
 		}
 		resolver, ok := backend.(interface {
