@@ -9,10 +9,15 @@ request secrets. Start it with `bypass`, or open a vault with
 
 <img width="1271" height="739" alt="Image" src="https://github.com/user-attachments/assets/6abc6b97-3920-411e-917f-934b32175dc8" />
 
-From the workspace, Help, or Large View, press `ctrl+p` to open the command palette. Type to filter actions, move with
+From the workspace (including text inputs), Help, Large View, or Requests, press `ctrl+p` to open the command palette. Close other overlays first. Type to filter actions, move with
 Up/Down or Tab/Shift+Tab, and press Enter to select. Esc goes back or closes the
 palette. Disabled actions show a reason, such as **Unlock a vault first** or
 **Vault is read only**.
+
+Zellij's default bindings intercept `ctrl+p` and `ctrl+s`. Configure Zellij to
+forward them or use its locked mode. Some terminals send `ctrl+shift+p` and
+`ctrl+shift+s` as the same input as `ctrl+p` and `ctrl+s`; this does not reliably
+avoid multiplexer bindings.
 
 The following tables follow the palette's sections. Shortcuts apply in the
 relevant workspace context; inputs and dialogs have their own bindings. An em
@@ -26,10 +31,10 @@ the in-app reference.
 | Action | Shortcut | Behavior |
 | --- | --- | --- |
 | Lock UI with PIN | `shift+p` | Cover the interface with the session PIN. Requires an unlocked vault and a configured PIN. |
-| Lock All Vaults | `shift+l` | Lock every unlocked vault and clear their authenticated sessions. |
+| Lock All Vaults | `shift+l` | Lock every unlocked vault and clear their authenticated sessions. Unsaved entry drafts require a decision first. |
 | Open Vault… | `o` | Select a vault file and unlock it. |
 | Close Vault | — | Close the current vault and its views. |
-| New Vault… | `ctrl+n` | Create a vault. Requires backend support and permission to write. |
+| New Vault… | `n` on welcome screen | Create a vault. Elsewhere, use the command palette. Requires backend support and permission to write. |
 | Lock Vault | — | Lock the current vault. Other unlocked vaults remain available. |
 | Reload Vault | `ctrl+r` | Reload the current vault, including changes made outside Bypass. |
 | Database Info… | — | Show information about the current database when supported by the backend. |
@@ -130,7 +135,7 @@ additional deletion restrictions.
 | --- | --- | --- |
 | Copy | `c` | Copy the selected field. Finish editing before copying a stored field. |
 | Reveal | `v` | Toggle visibility of the selected field. Passwords are masked by default. |
-| Password Generator… | `ctrl+g` | Open the password generator. |
+| Password Generator… | — | Open the password generator from the editor or command palette. |
 | Large View… | `shift+g` | Display the selected field in large, individually readable characters. Requires a selected entry and no active entry editor. |
 
 Copy feedback does not include the value. Password copying uses KeePassXC's
