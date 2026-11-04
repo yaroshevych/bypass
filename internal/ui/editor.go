@@ -497,7 +497,7 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 			label    string
 			index    int
 			shortcut string
-		}{"Move…", editMove, "m"})
+		}{"Move…", editMove, ""})
 		actions = append(actions, struct {
 			label    string
 			index    int

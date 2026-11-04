@@ -99,6 +99,20 @@ func TestEntryEditorExistingDirtyTracksPasswordAndPreservesIdentity(t *testing.T
 	}
 }
 
+func TestEntryEditorDoesNotAdvertiseMoveShortcutWhileTyping(t *testing.T) {
+	e := newEntryEditor(&vault.Entry{UUID: "id", Fields: []vault.Field{{Name: "Title", Value: "Site"}}}, "group")
+	view := ansi.Strip(strings.Join(e.render(65, 25), "\n"))
+	for _, line := range strings.Split(view, "\n") {
+		if strings.Contains(line, "Move…") && strings.HasSuffix(strings.TrimSpace(line), "m") {
+			t.Fatal("editor advertises m as a shortcut while it types into fields")
+		}
+	}
+	e.key(editorTeaKey("m"))
+	if e.inputs[editTitle].value() != "Sitem" {
+		t.Fatal("typing m changed editor behavior")
+	}
+}
+
 func TestEntryEditorTabActionsAndNotesEnter(t *testing.T) {
 	e := newEntryEditor(nil, "group")
 	for range e.focusOrder() {
@@ -346,7 +360,7 @@ func TestExistingEntryActionsShowShortcutsAndMoveDialog(t *testing.T) {
 		}
 		return out
 	}(), "\n")
-	for _, want := range []string{"Generate Password…", "ctrl+g", "Move…", "m", "Add to favorites", "ctrl+s", "esc"} {
+	for _, want := range []string{"Generate Password…", "ctrl+g", "Move…", "Add to favorites", "ctrl+s", "esc"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("edit actions missing %q:\n%s", want, joined)
 		}
