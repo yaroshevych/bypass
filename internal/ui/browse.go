@@ -359,9 +359,54 @@ func (m *Model) move(delta int) {
 		v.SelectedUUID = entries[index].UUID
 		v.DetailOffset = 0
 	case 2:
+		if m.scrollFocusedField(delta) {
+			return
+		}
 		v.DetailManual = false
 		v.FieldIndex = min(max(0, v.FieldIndex+delta), max(0, len(m.fieldNames())-1))
 	}
+}
+
+// scrollFocusedField keeps a long field readable before moving to another field.
+func (m *Model) scrollFocusedField(delta int) bool {
+	if delta != 1 && delta != -1 {
+		return false
+	}
+	v := m.ws.ActiveView()
+	layout := m.layout()
+	height, width := max(1, layout.BodyHeight), m.width
+	if layout.Breadcrumb {
+		height--
+	}
+	for _, pane := range layout.Panes {
+		if pane.Focus == 2 {
+			height, width = pane.Height, pane.Width
+			break
+		}
+	}
+	lines, positions := m.detailLayout(width)
+	if v.FieldIndex < 0 || v.FieldIndex >= len(positions) {
+		return false
+	}
+	start := positions[v.FieldIndex]
+	end := len(lines)
+	if v.FieldIndex+1 < len(positions) {
+		end = positions[v.FieldIndex+1] - 2
+	}
+	if delta > 0 && end > v.DetailOffset+height {
+		v.DetailManual = true
+		v.DetailOffset++
+		return true
+	}
+	anchor := max(0, start+2-height)
+	if v.FieldIndex == 0 {
+		anchor = 0
+	}
+	if delta < 0 && v.DetailManual && v.DetailOffset > anchor {
+		v.DetailOffset--
+		return true
+	}
+	return false
 }
 
 func (m *Model) mouse(msg tea.MouseMsg) {

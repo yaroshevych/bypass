@@ -419,6 +419,45 @@ func TestLongNotesScrollWithoutMovingFieldFocus(t *testing.T) {
 	}
 }
 
+func TestLongNotesScrollWithArrowKeys(t *testing.T) {
+	m, _ := operationModel(t)
+	m.width, m.height = 100, 24
+	s := m.ws.ActiveSession()
+	s.DB.Entries[0].Fields = append(s.DB.Entries[0].Fields, vault.Field{Name: "Notes", Value: strings.Repeat("long note line\n", 60) + "last note line"})
+	v := m.ws.ActiveView()
+	v.Focus, v.FieldIndex = 2, 3
+	m.adjustViewport()
+	initial := v.DetailOffset
+	for i := 0; i < 100 && !strings.Contains(m.View(), "last note line"); i++ {
+		m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	}
+	if v.DetailOffset <= initial || v.FieldIndex != 3 || !strings.Contains(m.View(), "last note line") {
+		t.Fatal("down did not scroll to the end of the focused notes")
+	}
+	end := v.DetailOffset
+	m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	if v.DetailOffset != end-1 || v.FieldIndex != 3 {
+		t.Fatal("up did not scroll back through the focused notes")
+	}
+}
+
+func TestDetailArrowScrollReachesTags(t *testing.T) {
+	m, _ := operationModel(t)
+	m.width, m.height = 100, 24
+	entry := &m.ws.ActiveSession().DB.Entries[0]
+	entry.Fields = append(entry.Fields, vault.Field{Name: "Notes", Value: strings.Repeat("long note line\n", 60)})
+	entry.Tags = []string{"Favourite"}
+	v := m.ws.ActiveView()
+	v.Focus, v.FieldIndex = 2, 3
+	m.adjustViewport()
+	for i := 0; i < 150 && !strings.Contains(m.View(), "Tags: Favourite"); i++ {
+		m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	}
+	if !strings.Contains(m.View(), "Tags: Favourite") {
+		t.Fatal("down did not reach tags at the bottom of the details pane")
+	}
+}
+
 func TestCopyAndRevealResolveReferences(t *testing.T) {
 	m, _ := operationModel(t)
 	driver := &memoryClipboard{}
