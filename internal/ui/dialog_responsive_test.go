@@ -43,7 +43,7 @@ func TestDialogsKeepActionsVisibleInSmallWindows(t *testing.T) {
 			p := &runpkg.Pending{Context: context.Background()}
 			m.runs = &runState{visible: true, pending: []*runpkg.Pending{p}}
 			view := strings.Join(m.runDialogView(), "\n")
-			for _, label := range []string{"Deny all", "Approve all", "Reset saved permissions", "Close"} {
+			for _, label := range []string{"Deny all", "Approve all", "Review session permissions", "Close"} {
 				if !strings.Contains(view, label) {
 					t.Errorf("%s %v requests hides %q", appearance, size, label)
 				}
@@ -135,10 +135,14 @@ func TestErrorStatesWrapInSmallWindows(t *testing.T) {
 						m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, err: message}
 						if screen == "reset" {
 							m.runs.review = false
-							m.runs.resetConfirm = true
-							m.runs.resetErr = message
+							m.openRunPermissions()
+							m.dialog.err = message
 						}
-						lines = m.runDialogView()
+						if screen == "reset" {
+							lines = m.dialogLines()
+						} else {
+							lines = m.runDialogView()
+						}
 					case "editor", "editor-validation":
 						e := newEntryEditor(nil, "root")
 						e.compact = appearance == "compact"

@@ -50,11 +50,11 @@ Approve the request in Bypass. The script receives `DEPLOY_TOKEN` through its
 environment. The agent needs only the reference and command, without retrieving
 the token or including it in the prompt or command line.
 
-Allow a request once, or remember access to its fields for that agent identity.
-Saved permissions stay inside the vault and can be reviewed or revoked from the
-command menu.
+Approve a request once, or allow its fields for an agent identity until the
+vault locks or Bypass exits. Session permissions stay in memory and can be
+reviewed or reset in the TUI.
 
-Agents can use `--identity NAME-SECRET` or `BYPASS_IDENTITY` to keep saved
+Agents can use `--identity NAME-SECRET` or `BYPASS_IDENTITY` to keep session
 permissions separate by agent.
 
 The command retains its terminal behavior and exit status. Once launched,
@@ -69,7 +69,7 @@ bypass run [--identity NAME-SECRET] [--env-file FILE]... [--timeout DURATION] --
 
 | Option | Behavior |
 | --- | --- |
-| `--identity NAME-SECRET` | Scope saved permissions to an agent. Defaults to `BYPASS_IDENTITY`. |
+| `--identity NAME-SECRET` | Scope session permissions to an agent. Defaults to `BYPASS_IDENTITY`. |
 | `--env-file FILE` | Load variables from a file. Repeat to combine files; later files win. |
 | `--timeout DURATION` | Limit the wait for approval and secrets. Default: `60s`. |
 | `--help` | Show command help. |

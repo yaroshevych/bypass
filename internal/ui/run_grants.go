@@ -4,49 +4,57 @@ import (
 	wipebuf "bypass/internal/secret"
 	"context"
 	"fmt"
-	"path/filepath"
-	"strings"
 
 	runpkg "bypass/internal/run"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// runGrantJob owns snapshots only. Model updates are accepted on the UI thread
-// after checking that each original unlocked session is still current.
+// runGrantJob resolves fields in private snapshots. Session permissions are
+// checked on the UI goroutine and only committed after successful resolution.
 func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string) tea.Cmd {
 	snapshots := map[string]*vault.Database{}
-	writable := true
+	allowed := mode != "check"
+	if mode == "check" && p.Identity.Digest != "" && m.runs != nil {
+		allowed = true
+		for _, target := range targets {
+			if _, ok := m.runs.grants[runSessionGrant{target.session, p.Identity.Digest, target.entry, target.field}]; !ok {
+				allowed = false
+				break
+			}
+		}
+	}
 	for _, target := range targets {
 		if snapshots[target.session] == nil {
 			snapshots[target.session] = target.database.Clone()
 		}
-		s := m.ws.Sessions[target.session]
-		if s == nil || s.ReadOnly || s.Stale || m.readOnly {
-			writable = false
-		}
 	}
 	backend := m.backend
-	backup := m.settings.BackupDir
-	permissionEpoch := uint64(0)
+	epoch := uint64(0)
 	if m.runs != nil {
-		permissionEpoch = m.runs.permissionEpoch
+		epoch = m.runs.permissionEpoch
 	}
 	return func() tea.Msg {
 		secrets := newSecretValues(p.Context)
-		result := runResult{pending: p, targets: targets, secrets: secrets, updated: map[string]*vault.Database{}}
-		result.permissionEpoch = permissionEpoch
-		result.newIdentity = p.Identity.Digest != ""
-		defer func() {
-			if result.err != nil || result.needsApproval || p.Context.Err() != nil {
-				secrets.Clear()
-			}
-		}()
+		result := runResult{pending: p, targets: targets, secrets: secrets, permissionEpoch: epoch, mode: mode, newIdentity: p.Identity.Digest != ""}
 		defer func() {
 			for _, db := range snapshots {
 				db.Clear()
 			}
 		}()
+		defer func() {
+			if result.err != nil || result.needsApproval || p.Context.Err() != nil {
+				secrets.Clear()
+			}
+		}()
+		if mode == "check" && !allowed {
+			result.needsApproval = true
+			return result
+		}
+		if mode == "s" && p.Identity.Digest == "" {
+			result.err = fmt.Errorf("identity required for session approval")
+			return result
+		}
 		resolver, ok := backend.(interface {
 			ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
 		})
@@ -54,110 +62,8 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 			result.err = fmt.Errorf("field resolution unavailable")
 			return result
 		}
-		writer, _ := backend.(vault.Writer)
-		if mode == "i" && p.Identity.Digest == "" {
-			result.err = fmt.Errorf("identity required to save access")
-			return result
-		}
-		if mode != "a" && mode != "check" && (writer == nil || !writable) {
-			result.err = fmt.Errorf("vault is not writable")
-			return result
-		}
 		for _, target := range targets {
-			db := snapshots[target.session]
-			if mode == "check" {
-				want := runpkg.Grant{Version: 1, Entry: target.entry, Field: target.field, Executable: p.Request.Command[0], Directory: p.Request.Directory, Identity: p.Identity.Digest}
-				for _, entry := range db.Entries {
-					if entry.UUID == target.entry {
-						want.Name = entry.Get("Title")
-						want.Group = entry.GroupPath
-					}
-				}
-				allowed := false
-				for _, entry := range db.Entries {
-					if entry.Recycled || !strings.HasSuffix(strings.Trim(entry.GroupPath, "/"), runpkg.GrantGroup) {
-						continue
-					}
-					value, err := resolver.ResolveField(p.Context, db, vault.Credentials{}, entry.UUID, "Notes")
-					if err == nil {
-						grant, ok := runpkg.DecodeGrant(string(value))
-						if ok && p.Identity.Digest != "" && grant.Identity == p.Identity.Digest {
-							result.newIdentity = false
-						}
-						if ok && grant.Allows(want) && (grant.Scope == "identity" || grantEligible(p.Request.Command)) {
-							allowed = true
-						}
-					}
-					wipebuf.Wipe(value)
-				}
-				if !allowed {
-					result.needsApproval = true
-					return result
-				}
-			}
-			if mode != "a" && mode != "check" {
-				grant := runpkg.Grant{Version: 1, Entry: target.entry, Field: target.field, Executable: p.Request.Command[0], Identity: p.Identity.Digest, Agent: p.Identity.Name}
-				if mode == "i" {
-					grant.Version = 2
-					grant.Scope = "identity"
-					grant.Executable = ""
-				}
-				for _, entry := range db.Entries {
-					if entry.UUID == target.entry {
-						grant.Name = entry.Get("Title")
-						grant.Group = entry.GroupPath
-					}
-				}
-				if mode == "p" {
-					grant.Directory = p.Request.Directory
-				}
-				group := ""
-				for _, g := range db.Groups {
-					if g.Name == runpkg.GrantGroup && g.ParentUUID == db.RootUUID {
-						group = g.UUID
-					}
-				}
-				apply := func(change vault.Change) error {
-					updated, err := writer.Apply(p.Context, db, vault.Credentials{}, change, backup)
-					if err != nil {
-						return err
-					}
-					updated.BorrowInteractiveOwnership()
-					db.Clear()
-					db = updated
-					snapshots[target.session] = db
-					return nil
-				}
-				if group == "" {
-					if err := apply(vault.Change{Kind: vault.CreateGroup, GroupUUID: db.RootUUID, NewName: runpkg.GrantGroup}); err != nil {
-						result.err = err
-						return result
-					}
-					for _, g := range db.Groups {
-						if g.Name == runpkg.GrantGroup && g.ParentUUID == db.RootUUID {
-							group = g.UUID
-						}
-					}
-				}
-				if group == "" {
-					result.err = fmt.Errorf("permission group unavailable")
-					return result
-				}
-				exists := false
-				for _, entry := range db.Entries {
-					if entry.GroupUUID == group && entry.Get("Title") == grant.Title() {
-						exists = true
-					}
-				}
-				if !exists {
-					if err := apply(vault.Change{Kind: vault.AddEntry, GroupUUID: group, Values: map[string]string{"Title": grant.Title(), "Notes": grant.Encode()}}); err != nil {
-						result.err = err
-						return result
-					}
-				}
-				result.updated[target.session] = db.Clone()
-			}
-			value, err := resolver.ResolveField(p.Context, db, vault.Credentials{}, target.entry, target.field)
+			value, err := resolver.ResolveField(p.Context, snapshots[target.session], vault.Credentials{}, target.entry, target.field)
 			if err != nil {
 				wipebuf.Wipe(value)
 				result.err = err
@@ -167,19 +73,4 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 		}
 		return result
 	}
-}
-
-func grantEligible(command []string) bool {
-	if len(command) == 0 {
-		return false
-	}
-	name := strings.ToLower(filepath.Base(command[0]))
-	// Interpreter invocations need a dedicated, verified script identity. Until
-	// that can be established, they can only receive one-time approval.
-	for _, prefix := range []string{"sh", "bash", "zsh", "dash", "fish", "python", "node", "ruby", "perl", "php", "env", "busybox", "deno", "bun", "lua", "pwsh"} {
-		if strings.HasPrefix(name, prefix) {
-			return false
-		}
-	}
-	return true
 }

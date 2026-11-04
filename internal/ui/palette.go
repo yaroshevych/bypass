@@ -118,7 +118,7 @@ func (m *Model) commands() []command {
 	}
 	add("lock-all", "Vault", "Lock All Vaults", "", allReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) }) })
 	add("reload", "Vault", "Reload Vault", "", needVault, "", func() tea.Cmd { return m.requestReload(s.ID) })
-	add("run-requests", "App", "Pending Secret Requests…", "", "", "", func() tea.Cmd {
+	add("run-requests", "App", "Secret Requests…", "", "", "", func() tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd {
 			if m.runs == nil {
 				m.runs = &runState{}
@@ -130,7 +130,6 @@ func (m *Model) commands() []command {
 			return nil
 		})
 	})
-	add("run-permissions", "Vault", "Saved Run Permissions…", "", "", "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.openRunPermissions(); return nil }) })
 
 	readLabel := "Enable Read Only"
 	if s != nil && s.Stale {

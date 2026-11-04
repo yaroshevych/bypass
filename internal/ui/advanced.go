@@ -433,6 +433,16 @@ func (m *Model) overlayError(title string, body []string, footer, message string
 }
 
 func (m *Model) modalBackdrop() []string {
+	var background []string
+	if m.ws.ActiveSession() == nil {
+		background = m.welcomeLines()
+	} else {
+		background = m.workspaceLines()
+	}
+	return m.dimBackdrop(background)
+}
+
+func (m *Model) dimBackdrop(background []string) []string {
 	c := colorsForTheme(m.settings.Theme)
 	// Blend both text and surface toward black. Explicit cell backgrounds keep
 	// the scrim consistent in light themes and terminal multiplexers.
@@ -444,12 +454,6 @@ func (m *Model) modalBackdrop() []string {
 	scrimForeground := shade(c.secondary, .60)
 	scrimBackground := shade(c.background, .78)
 	scrim := lipgloss.NewStyle().Foreground(scrimForeground).Background(scrimBackground)
-	var background []string
-	if m.ws.ActiveSession() == nil {
-		background = m.welcomeLines()
-	} else {
-		background = m.workspaceLines()
-	}
 	background = padLines(background, m.height)
 	for i := range background {
 		line := scrim.Render(dimANSIColors(fit(background[i], m.width), .60, .58, c.background))

@@ -71,6 +71,8 @@ func (m *Model) activeLayer() uiLayer {
 		return layerTiny
 	case m.gate.Protected():
 		return layerPrivacy
+	case m.runs != nil && m.runs.visible && m.dialog != nil && m.dialog.kind == "run-permissions":
+		return layerDialog
 	case m.runs != nil && m.runs.visible:
 		return layerRequests
 	case m.dialog != nil:
@@ -295,6 +297,9 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func (m *Model) Close() {
+	if m.runs != nil {
+		clear(m.runs.grants)
+	}
 	if m.closed {
 		return
 	}
@@ -348,6 +353,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.pointer(mouse)
 	}
 	model, cmd := m.update(msg)
+	m.pruneRunSessionGrants()
 	m.refreshSearchCache()
 	details := m.loadFocusedDetails()
 	if cmd == nil {

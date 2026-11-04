@@ -65,7 +65,7 @@ bypass run [--identity NAME-SECRET] [--env-file FILE]... [--timeout DURATION] --
 
 | Argument | Description | Default |
 | --- | --- | --- |
-| `--identity NAME-SECRET` | Select an agent identity for saved permissions. Overrides `BYPASS_IDENTITY`; an explicit empty value selects anonymous mode. | `BYPASS_IDENTITY`, otherwise anonymous. |
+| `--identity NAME-SECRET` | Select an agent identity for session permissions. Overrides `BYPASS_IDENTITY`; an explicit empty value selects anonymous mode. | `BYPASS_IDENTITY`, otherwise anonymous. |
 | `--env-file FILE` | Read variables from an environment file. Repeatable; files are processed in order. | No files; inherited environment only. |
 | `--timeout DURATION` | Positive duration for IPC connection, approval, unlocking, and receipt of secrets. Examples: `30s`, `2m`, `1m30s`. | `60s`, or the configured value. |
 | `--` | Separate Bypass options from the command. Required. | — |
@@ -90,7 +90,7 @@ for the agent that will reuse it. `--identity` overrides the environment value;
 `--identity=` explicitly uses anonymous access. `BYPASS_IDENTITY` is reserved:
 environment files cannot set it, and Bypass removes it from the launched
 command's environment even when no references are used. The approval screen
-shows only the readable name. Bypass stores only a one-way digest in saved
+shows only the readable name. Bypass keeps only a one-way digest in session
 permissions. No registration is required.
 Prefer the environment variable to keep the bearer out of command arguments.
 Other processes under the same local user may still inspect the environment.
@@ -224,45 +224,30 @@ DATABASE_URL=postgres://${bypass://Database#username}:${bypass://Database#passwo
 
 Only the reference portions are replaced. Ordinary text is preserved.
 
-## Approval and saved permissions
+## Approval and session permissions
 
-The TUI must be running when a request needs secret resolution. Open pending
-requests with `alt+b` (`ctrl+b` is also available outside tmux). The Requests dialog lists callers and commands. Select
-a request and press `enter` to review it. Use Deny all (`d`) or Approve all
-(`a`) for pending requests, or Close (`esc`). After confirmation, Approve all grants resolvable
-requests once; requests needing vault selection or unavailable secrets remain
-for individual review.
-Reset saved permissions (`r`) clears remembered approvals in all unlocked
-vaults after confirmation. Cancel is selected by default; use `ctrl+s` or `r` to reset.
-Locked vaults are unchanged, and pending requests stay queued.
+The TUI must be running to resolve secrets. Open requests with `alt+b` (`ctrl+b`
+is also available outside tmux). Select a request and press `enter` to review it.
+Approve all once (`a`) approves the current resolvable requests once after
+confirmation. Review session permissions (`r`) opens the permissions dialog.
+Clear all (`c`) removes session access; pending requests stay queued.
 
-Review opens a second dialog over the request list. It shows the requested
-fields without their values. The fields are not selectable; use Page Up and
-Page Down to scroll. Back is selected by default, so pressing Enter returns to
-the list. Caller ancestry, when available, is informational.
+The review dialog shows the requested fields without their values. Use Page Up
+and Page Down to scroll. Back is selected by default.
 
 | Decision | Effect |
 | --- | --- |
-| Deny (`d`) | Reject the batch; do not launch the command. |
-| Allow (`a`) | Authorize this request only. |
-| Allow for this identity (`i`) | Remember access to these fields for this identity across commands and directories. Requires an identity. |
-| Back (`esc`) | Return to Requests without approving or denying. |
+| Deny (`d`) | Reject the request. |
+| Approve once (`a`) | Authorize this request only. |
+| Approve for this session (`s`) | Allow this identity to access these fields until the vault locks or Bypass exits. |
+| Back (`esc`) | Return to Requests without a decision. |
 
-Each saved grant covers a particular vault entry and field. Different identity
-secrets with the same readable name do not share grants. Anonymous requests
-support one-time approval. Existing grants from earlier versions retain their
-original executable, directory, and identity scopes; anonymous runs do not
-inherit grants saved for a named identity.
-
-Persistent grants require a writable vault and are saved in its **Bypass Run
-Permissions** group. Use **Saved Run Permissions** in the command menu to review
-them. Delete a grant entry to revoke it, or delete the group to revoke all grants
-in that vault. Renaming or moving a secret entry requires fresh approval;
-changing its value does not.
-
-Saves across vaults are not atomic. If saving any required grant fails, the
-command does not launch, but earlier saves can remain. The failure reports
-confirmed saves.
+Agent identity is self-claimed and not verified. Session permissions are held in
+memory, work with read-only vaults, and apply to
+the specified identity, vault, entry, and field across commands and directories.
+Anonymous requests support one-time approval. Existing permission entries in a
+vault are left untouched and do not authorize requests. Use **Review session
+permissions** in Secret Requests to view active permissions.
 
 ## Timeouts and configuration
 
@@ -288,8 +273,7 @@ to `$XDG_CONFIG_HOME/bypass/config.json`.
 
 The configuration value is a positive whole number of seconds. The CLI option
 accepts positive durations, including fractional seconds. Zero does not disable
-the deadline. A grant save already in progress can finish after a client timeout;
-review saved permissions if you need to revoke it.
+the deadline.
 
 ## Process behavior and exit status
 
@@ -330,8 +314,8 @@ Go runtime, operating system, or crash-dump copies are erased.
 The IPC protocol requires the TUI and runner to use the same version.
 Restart the TUI after upgrading Bypass.
 
-Recipient-specific grants trust the authenticated Bypass client to launch the
-reported command. These checks are best-effort local authentication, not a
+Session permissions trust the authenticated Bypass client to report its identity.
+These checks are best-effort local authentication, not a
 strong security boundary against malicious same-user processes.
 
 ## `bypass`: start the TUI
@@ -351,7 +335,7 @@ welcome screen. With a path, it opens the vault's unlock screen.
 | --- | --- | --- |
 | `VAULT` | Vault file to open. | None. |
 | `--backend EXECUTABLE` | KeePassXC CLI executable to use. | `keepassxc-cli`. |
-| `--read-only` | Open vaults read only. Persistent grants cannot be saved; one-time approval remains available. | Disabled. |
+| `--read-only` | Open vaults read only. Session and one-time approvals remain available. | Disabled. |
 | `--idle-timeout DURATION` | Vault lock timeout without a PIN. Explicit nonzero values must be between `1s` and `24h`. | Configuration, otherwise `15m`. |
 | `--clipboard-timeout DURATION` | Clipboard timeout. Explicit nonzero values must be between `1s` and `10m`. | Configuration, otherwise `10s`. |
 | `--log-file FILE` | Write private vault-open diagnostics to a file with mode `0600`. | No diagnostic file. |

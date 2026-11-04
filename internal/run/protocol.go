@@ -41,7 +41,7 @@ type Pending struct {
 	once     sync.Once
 }
 
-func (p *Pending) Reply(r Response) {
+func (p *Pending) Reply(r Response) bool {
 	if r.Error != "" {
 		clearResponse(&r)
 	}
@@ -61,6 +61,7 @@ func (p *Pending) Reply(r Response) {
 	if !accepted {
 		clearResponse(&r)
 	}
+	return accepted
 }
 
 func clearResponse(r *Response) {

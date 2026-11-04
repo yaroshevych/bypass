@@ -52,7 +52,7 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 	e.key("Enter")
 	e.mustShow("Seed Entry")
 
-	// A directly launched script supports saved grants, and asserts that the
+	// A directly launched script supports session approvals, and asserts that the
 	// recipient receives its requested value but never the identity credential.
 	recipient := filepath.Join(e.pickerRoot, "identity-recipient")
 	script := "#!/bin/sh\ntest \"$RUN_SECRET\" = \"$EXPECTED\" && test -z \"${BYPASS_IDENTITY+x}\" || exit 1\nprintf approved\n"
@@ -107,18 +107,18 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 	e.mustShow("dev-rw")
 	assertHidden(dev)
 	e.key("Enter")
-	e.mustShow("Allow for this identity")
+	e.mustShow("Approve for this session")
 	assertHidden(dev)
-	e.key("i")
+	e.key("s")
 	if err := cmd.Wait(); err != nil || out.String() != "approved" {
 		t.Fatal("identity approval failed or bearer reached the recipient")
 	}
-	e.mustShow("Pending secret requests (0)")
+	e.mustShow("No pending requests")
 	cmd, out = launch(dev, false)
 	if err := cmd.Wait(); err != nil || out.String() != "approved" {
 		t.Fatal("saved identity grant did not authorize a repeat request")
 	}
-	e.mustShow("Pending secret requests (0)")
+	e.mustShow("No pending requests")
 	otherRecipient := filepath.Join(filepath.Dir(recipient), "identity-recipient-second")
 	if err := os.WriteFile(otherRecipient, []byte(script), 0700); err != nil {
 		t.Fatal(err)
@@ -128,14 +128,14 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 	if err := cmd.Wait(); err != nil || out.String() != "approved" {
 		t.Fatal("identity grant did not apply to another command")
 	}
-	e.mustShow("Pending secret requests (0)")
+	e.mustShow("No pending requests")
 	for _, tc := range []struct {
 		identity string
 		name     string
 		flag     bool
 	}{{prod, "prod-ro", true}, {otherDev, "dev-rw", false}, {"", "", false}} {
 		cmd, out := launch(tc.identity, tc.flag)
-		e.mustShow("Pending secret requests (1)")
+		e.mustShow("(enter)")
 		if tc.name != "" {
 			e.mustShow(tc.name)
 			assertHidden(tc.identity)
@@ -149,6 +149,25 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 		if !strings.Contains(out.String(), "denied") {
 			e.failWithScreen("request did not receive the denial: "+out.String(), e.capture())
 		}
-		e.mustShow("Pending secret requests (0)")
+		e.mustShow("No pending requests")
 	}
+	e.key("Escape")
+	e.key("M-l")
+	e.mustShow("Vault locked")
+	e.key("Enter")
+	e.mustShow("UNLOCK VAULT")
+	e.typeText(fixturePassword)
+	e.key("Enter")
+	e.mustShow("Seed Entry")
+	cmd, out = launch(dev, false)
+	e.mustShow("secret request pending")
+	e.key("C-b")
+	e.mustShow("dev-rw")
+	e.key("Enter")
+	e.mustShow("REVIEW REQUEST")
+	e.key("d")
+	if err := cmd.Wait(); err == nil || !strings.Contains(out.String(), "denied") {
+		t.Fatal("vault lock did not revoke session permission")
+	}
+
 }

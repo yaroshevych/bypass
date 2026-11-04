@@ -2,15 +2,18 @@ package ui
 
 import (
 	runpkg "bypass/internal/run"
+	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -229,19 +232,14 @@ func TestRunActionMouseHitUsesRenderedGeometry(t *testing.T) {
 		}{
 			{name: "requests"},
 			{name: "review", review: true, err: "Review could not complete"},
-			{name: "reset", reset: true, err: "Reset could not complete"},
 		} {
 			t.Run(appearance+"/"+tc.name, func(t *testing.T) {
 				m := New(Options{})
 				m.settings.Appearance = appearance
 				m.width, m.height = 80, 24
 				p := &runpkg.Pending{Context: context.Background()}
-				m.runs = &runState{visible: true, review: tc.review, resetConfirm: tc.reset, reviewed: p, pending: []*runpkg.Pending{p}, targets: []runTarget{{ref: "bypass://entry"}}}
-				if tc.reset {
-					m.runs.resetErr = tc.err
-				} else {
-					m.runs.err = tc.err
-				}
+				m.runs = &runState{visible: true, review: tc.review, reviewed: p, pending: []*runpkg.Pending{p}, targets: []runTarget{{ref: "bypass://entry"}}}
+				m.runs.err = tc.err
 				layout := m.runLayout(tc.review)
 				rows := renderRunLayer(m, make([]string, m.height), layout)
 				for i, action := range layout.actions {
@@ -277,24 +275,32 @@ func TestRunActionMouseHitUsesRenderedGeometry(t *testing.T) {
 	}
 }
 
-func TestRunResetConfirmationDefaultsToCancel(t *testing.T) {
+func TestRunPermissionsDialogKeepsParentFocusAndClearsSessionGrants(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 80, 24
 	p := &runpkg.Pending{Context: context.Background()}
-	m.runs = &runState{visible: true, pending: []*runpkg.Pending{p}}
-	m.updateRun(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
-	if !m.runs.resetConfirm || m.runResetActions()[m.runs.resetFocus].key != "esc" {
-		t.Fatal("permission reset did not open with Cancel selected")
+	grant := runSessionGrant{session: "vault", identity: "agent", entry: "entry", field: "Password"}
+	m.runs = &runState{visible: true, pending: []*runpkg.Pending{p}, buttonsFocused: true, actionFocus: 2, grants: map[runSessionGrant]string{grant: "agent"}}
+	m.key(key("r"))
+	if m.dialog == nil || m.activeLayer() != layerDialog || m.dialog.selected != 1 {
+		t.Fatal("permissions dialog did not open with Close selected")
 	}
-	view := m.View()
-	for _, text := range []string{"RESET SAVED PERMISSIONS", "Reset affects unlocked vaults", "Locked vaults stay unchanged", "Pending requests stay queued", "Cancel", "Reset"} {
-		if !strings.Contains(view, text) {
-			t.Errorf("reset confirmation omitted %q", text)
-		}
+	m.key(tea.KeyMsg{Type: tea.KeyUp})
+	if m.runs.actionFocus != 2 || m.dialog.selected != 0 {
+		t.Fatal("keyboard changed parent focus")
 	}
-	m.updateRun(tea.KeyMsg{Type: tea.KeyEnter})
-	if m.runs.resetConfirm || m.runs.resetBusy || len(m.runs.pending) != 1 {
-		t.Fatal("Enter did not safely cancel the reset confirmation")
+	m.key(key("esc"))
+	if m.dialog != nil || !m.runs.visible || len(m.runs.grants) != 1 {
+		t.Fatal("back did not preserve parent or permissions")
+	}
+	m.key(key("r"))
+	m.key(key("c"))
+	if m.dialog == nil || len(m.runs.grants) != 0 || m.runs.permissionEpoch != 1 {
+		t.Fatal("clear all did not reset permissions")
+	}
+	m.key(key("esc"))
+	if !m.runs.visible {
+		t.Fatal("closing permissions did not return to requests")
 	}
 }
 
@@ -305,11 +311,11 @@ func TestRunRequestsSmallScreenShowsSelectedQueueItem(t *testing.T) {
 		m.width, m.height = 48, 16
 		pending := make([]*runpkg.Pending, 4)
 		for i := range pending {
-			pending[i] = &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{fmt.Sprintf("/tools/app%d", i+1)}}}
+			pending[i] = &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{References: []string{fmt.Sprintf("bypass://app%d", i+1)}}}
 		}
 		m.runs = &runState{visible: true, pending: pending, index: 3}
 		view := ansi.Strip(m.View())
-		if !strings.Contains(view, "Pending secret requests (4)") || !strings.Contains(view, "app4") {
+		if !strings.Contains(view, "app4") {
 			t.Errorf("%s 48x16 view hid the selected queue item: %q", appearance, view)
 		}
 	}
@@ -443,36 +449,14 @@ func TestRunReviewPagesFieldsWithoutSkipping(t *testing.T) {
 	}
 	m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, targets: targets}
 	first := ansi.Strip(m.View())
-	if !strings.Contains(first, "1/20: field1") || !strings.Contains(first, "5/20: field5") || strings.Contains(first, "6/20: field6") {
-		t.Fatalf("first field page did not match its visible rows: %q", first)
-	}
 	size := m.runFieldPageSize()
-	if size != 5 {
-		t.Fatalf("page size ignored visible metadata: %d", size)
+	if size < 1 || !strings.Contains(first, "field1") {
+		t.Fatal("first field page missing")
 	}
 	m.updateRun(tea.KeyMsg{Type: tea.KeyPgDown})
 	second := ansi.Strip(m.View())
-	if !strings.Contains(second, "6/20: field6") || !strings.Contains(second, "10/20: field10") || strings.Contains(second, "11/20: field11") {
-		t.Fatalf("second field page skipped or hid rows: %q", second)
-	}
-}
-
-func TestRunIdentitySaveIsBlockedForReadOnlyVault(t *testing.T) {
-	m := New(Options{})
-	db := &vault.Database{Path: "/vault", RootUUID: "root"}
-	m.ws.Open(db)
-	session := m.ws.ActiveSession()
-	session.ReadOnly = true
-	p := &runpkg.Pending{
-		Context: context.Background(), Identity: runpkg.Identity{Name: "dev", Digest: "digest"},
-	}
-	m.runs = &runState{
-		visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p},
-		targets: []runTarget{{ref: "bypass://entry", session: session.ID, database: db}},
-	}
-	cmd, handled := m.updateRun(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
-	if !handled || cmd != nil || m.runs.busy || m.runs.err != "vault is read-only; use Allow" {
-		t.Fatal("identity permission save started for a read-only vault")
+	if !strings.Contains(second, fmt.Sprintf("field%d", size+1)) {
+		t.Fatalf("second field page skipped rows: %q", second)
 	}
 }
 
@@ -485,7 +469,7 @@ func TestRunApprovalActionsRemainVisibleAcrossLayouts(t *testing.T) {
 			p := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{"/app"}, Directory: "/project"}}
 			m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, targets: []runTarget{{ref: "bypass://entry", field: "Password", database: &vault.Database{}}}}
 			view := m.View()
-			for _, label := range []string{"Deny", "Allow", "Allow for this identity", "Back"} {
+			for _, label := range []string{"Deny", "Approve once", "Approve for this session", "Back"} {
 				if !strings.Contains(view, label) {
 					t.Errorf("%s %v hides %s", appearance, size, label)
 				}
@@ -513,10 +497,8 @@ func TestRunIdentityLabelIsSafeAcrossCompactLayouts(t *testing.T) {
 				newIdentity: map[*runpkg.Pending]bool{p: true}, err: "approval unavailable",
 			}
 			view := m.View()
-			labels := []string{"Luna", "Deny", "Allow", "Allow for this identity", "Back"}
-			if size[1] > 16 {
-				labels = append(labels, "new agent")
-			}
+			labels := []string{"Luna", "Deny", "Approve once", "Approve for this session", "Back"}
+
 			for _, label := range labels {
 				if !strings.Contains(view, label) {
 					t.Errorf("%s %v layout omitted %q", appearance, size, label)
@@ -566,13 +548,13 @@ func TestUnavailableRunReferenceExplainsFailureAndCanRetry(t *testing.T) {
 					t.Errorf("%s %v missing reference feedback %q", appearance, size, text)
 				}
 			}
-			if strings.Contains(view, "Allow") {
+			if strings.Contains(view, "Approve") {
 				t.Fatal("unresolved reference offered approval")
 			}
 			m.updateRun(tea.KeyMsg{Type: tea.KeyEsc})
 			m.ws.Open(&vault.Database{Path: "/vault", RootUUID: "root", Entries: []vault.Entry{{UUID: "entry", Fields: []vault.Field{{Name: "Title", Value: "Missing Entry"}, {Name: "Password", Protected: true}}}}})
 			m.updateRun(tea.KeyMsg{Type: tea.KeyEnter})
-			if m.runs.unavailable != "" || m.runs.err != "" || len(m.runs.targets) != 1 || !strings.Contains(m.View(), "Allow") {
+			if m.runs.unavailable != "" || m.runs.err != "" || len(m.runs.targets) != 1 || !strings.Contains(m.View(), "Approve") {
 				t.Errorf("%s %v retry did not enable approval after vault became available", appearance, size)
 			}
 		}
@@ -621,8 +603,8 @@ func TestRunRequestMouseSelectsVisibleRow(t *testing.T) {
 		for _, size := range [][2]int{{48, 16}, {80, 24}} {
 			m := New(Options{})
 			m.width, m.height, m.settings.Appearance = size[0], size[1], appearance
-			first := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{"first-agent"}}}
-			second := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{"second-agent"}}}
+			first := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{References: []string{"bypass://first-agent"}}}
+			second := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{References: []string{"bypass://second-agent"}}}
 			m.runs = &runState{visible: true, pending: []*runpkg.Pending{first, second}, buttonsFocused: true}
 			for y, line := range m.runDialogView() {
 				plain := ansi.Strip(line)
@@ -637,6 +619,183 @@ func TestRunRequestMouseSelectsVisibleRow(t *testing.T) {
 			if m.runs.index != 1 {
 				t.Fatalf("%s %v: second request not visible", appearance, size)
 			}
+		}
+	}
+}
+
+func TestRunReviewDetailsAndNote(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 80, 24
+	db := &vault.Database{Entries: []vault.Entry{{UUID: "one", Fields: []vault.Field{{Name: "Title", Value: "Gmail"}}}, {UUID: "two", Fields: []vault.Field{{Name: "Title", Value: "Linkedin"}}}}}
+	p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "dev-rw", Digest: "digest"}, Request: runpkg.Request{Command: []string{"/usr/bin/true"}, Directory: "/project"}}
+	m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, targets: []runTarget{{entry: "one", field: "Password", database: db}, {entry: "two", field: "Username", database: db}}}
+	text := ansi.Strip(m.View())
+	for _, expected := range []string{"Agent:", "dev-rw", "Command:", "/usr/bin/true", "Directory:", "/project", "REQUESTED SECRETS", "Gmail:", "Password", "Linkedin:", "Username", "Session approval retained until vault is locked.", "Agent identity is self-claimed and not verified."} {
+		if !strings.Contains(text, expected) {
+			t.Errorf("review missing %q", expected)
+		}
+	}
+	if strings.Contains(text, "REQUEST DETAILS:") {
+		t.Fatal("unexpected details heading")
+	}
+	body := m.runReviewBody()
+	note := -1
+	for i, line := range body {
+		if strings.Contains(ansi.Strip(line), "Session approval retained") {
+			note = i
+			break
+		}
+	}
+	if note < 2 || body[note-1] != "" || body[note-2] != "" {
+		t.Fatal("review note must follow two empty lines")
+	}
+	opts := m.runLayerOptions(m.runLayout(true))
+	for _, line := range opts.Body {
+		if !strings.HasPrefix(line, " ") || !strings.HasSuffix(line, " ") {
+			t.Fatal("review content missing horizontal padding")
+		}
+	}
+}
+
+func TestRunReviewNoteInSmallPane(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 48, 16
+	p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "dev", Digest: "digest"}, Request: runpkg.Request{Command: []string{"/app"}}}
+	m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, targets: []runTarget{{field: "Password", database: &vault.Database{}}}}
+	text := ansi.Strip(m.View())
+	for _, expected := range []string{"Session approval retained until vault", "is locked.", "Agent identity is self-claimed and", "not verified.", "Approve for this session"} {
+		if !strings.Contains(text, expected) {
+			t.Errorf("small review missing %q: %s", expected, text)
+		}
+	}
+}
+
+func TestRunRequestSummaryShowsIdentityAndFields(t *testing.T) {
+	refs := []string{"bypass://Gmail", "bypass://Work/Linkedin#username", "bypass://Proton%20Mail#email"}
+	p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "dev-rw"}, Request: runpkg.Request{References: refs}}
+	want := "dev-rw: Gmail Password, Linkedin Username, Proton Mail Email"
+	if got := runRequestSummary(p); got != want {
+		t.Fatalf("summary = %q, want %q", got, want)
+	}
+	p.Identity = runpkg.Identity{}
+	if got := runRequestSummary(p); got != "Gmail Password, Linkedin Username, Proton Mail Email" {
+		t.Fatalf("anonymous summary = %q", got)
+	}
+}
+
+func TestRunRequestSummaryTruncatesAndKeepsEnterHint(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 48, 16
+	p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "dev-rw"}, Request: runpkg.Request{References: []string{"bypass://Gmail", "bypass://Linkedin", "bypass://ProtonMail#email"}}}
+	m.runs = &runState{visible: true, pending: []*runpkg.Pending{p}}
+	view := ansi.Strip(m.View())
+	for _, text := range []string{"dev-rw: Gmail Password", "…", "(enter)"} {
+		if !strings.Contains(view, text) {
+			t.Errorf("missing %q in %q", text, view)
+		}
+	}
+}
+
+func TestRunReviewWidthFitsNotes(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		m := New(Options{})
+		m.width, m.height = 120, 35
+		m.settings.Appearance = appearance
+		p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "agent", Digest: "digest"}}
+		m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, targets: []runTarget{{field: "Password", database: &vault.Database{}}}}
+		width := m.runLayout(true).width
+		if width != max(lipgloss.Width(runSessionNote), lipgloss.Width(runIdentityNote))+6 {
+			t.Fatalf("%s width = %d", appearance, width)
+		}
+		view := ansi.Strip(m.View())
+		if !strings.Contains(view, runSessionNote) || !strings.Contains(view, runIdentityNote) {
+			t.Fatalf("%s note was clipped", appearance)
+		}
+	}
+}
+
+func TestEmptyRequestsMessageHasHorizontalPadding(t *testing.T) {
+	m := New(Options{})
+	m.runs = &runState{visible: true}
+	body, _ := m.runRequestsBody()
+	if len(body) != 1 || body[0] != " No pending requests " {
+		t.Fatalf("empty request body = %q", body)
+	}
+}
+
+func TestRunReviewWrapsLongSecretsAndPagesAllLines(t *testing.T) {
+	for _, size := range [][2]int{{48, 16}, {80, 24}} {
+		m := New(Options{})
+		m.width, m.height = size[0], size[1]
+		name := strings.Repeat("LongEntryName", 9)
+		field := strings.Repeat("LongFieldName", 7)
+		db := &vault.Database{Entries: []vault.Entry{{UUID: "entry", Fields: []vault.Field{{Name: "Title", Value: name}}}}}
+		m.ws.Open(db)
+		p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "agent", Digest: "digest"}}
+		m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, targets: []runTarget{{session: m.ws.ActiveSession().ID, entry: "entry", field: field, database: db}}}
+		lines := m.runReviewFieldLines()
+		if len(lines) < 3 {
+			t.Fatalf("%v: long entry did not wrap", size)
+		}
+		var all strings.Builder
+		for _, line := range lines {
+			all.WriteString(ansi.Strip(line))
+		}
+		if !strings.Contains(all.String(), name) || !strings.Contains(all.String(), field) {
+			t.Fatalf("%v: wrapping lost text", size)
+		}
+		seen := make(map[string]bool)
+		for range len(lines) + 1 {
+			view := ansi.Strip(m.View())
+			for _, line := range lines {
+				if strings.Contains(view, ansi.Strip(line)) {
+					seen[ansi.Strip(line)] = true
+				}
+			}
+			previous := m.runs.fieldOffset
+			m.updateRun(tea.KeyMsg{Type: tea.KeyPgDown})
+			if previous == m.runs.fieldOffset {
+				break
+			}
+		}
+		for _, line := range lines {
+			if !seen[ansi.Strip(line)] {
+				t.Errorf("%v: wrapped line not visible while paging: %q", size, ansi.Strip(line))
+			}
+		}
+	}
+}
+
+func TestRunSessionApprovalShortcut(t *testing.T) {
+	m := New(Options{})
+	p := &runpkg.Pending{Context: context.Background()}
+	m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}}
+	if m.runActionForKey("s") < 0 || m.runActionForKey("i") >= 0 {
+		t.Fatal("session approval shortcut must be s")
+	}
+}
+
+func TestRunReviewCenteredAndDimsParent(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		m := New(Options{})
+		m.width, m.height = 120, 35
+		m.settings.Appearance = appearance
+		p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "parent-agent", Digest: "digest"}, Request: runpkg.Request{References: []string{"bypass://Synthetic"}}}
+		m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, targets: []runTarget{{field: "Password", database: &vault.Database{}}}}
+		parent := renderRunLayer(m, m.modalBackdrop(), m.runRequestsLayout())
+		expected := m.dimBackdrop(append([]string(nil), parent...))
+		actual := m.runDialogView()
+		shaded := renderRunLayer(m, expected, m.runLayout(true))
+		if !reflect.DeepEqual(actual, shaded) {
+			t.Fatalf("%s: parent request not shaded", appearance)
+		}
+
+		layout := m.runLayout(true)
+		opts := m.runLayerOptions(layout)
+		body, _ := dialogrender.PrepareBody(opts)
+		centered := m.centeredDialogGeometry(layout.width, len(body))
+		if layout.x != centered.X || layout.y != centered.Y {
+			t.Errorf("%s: review not centered", appearance)
 		}
 	}
 }

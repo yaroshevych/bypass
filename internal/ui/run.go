@@ -29,15 +29,19 @@ type runTarget struct {
 	field    string
 	database *vault.Database
 }
+type runSessionGrant struct {
+	session, identity, entry, field string
+}
+
 type runResult struct {
 	pending         *runpkg.Pending
 	targets         []runTarget
 	secrets         *secretValues
 	err             error
-	updated         map[string]*vault.Database
 	needsApproval   bool
 	newIdentity     bool
 	permissionEpoch uint64
+	mode            string
 	bulk            bool
 }
 type runState struct {
@@ -58,10 +62,6 @@ type runState struct {
 	bulkConfirm     bool
 	bulkFocus       int
 	bulkPending     []*runpkg.Pending
-	resetConfirm    bool
-	resetFocus      int
-	resetBusy       bool
-	resetErr        string
 	permissionEpoch uint64
 	targets         []runTarget
 	choices         []runTarget
@@ -70,6 +70,19 @@ type runState struct {
 	err             string
 	unavailable     string
 	newIdentity     map[*runpkg.Pending]bool
+	grants          map[runSessionGrant]string
+}
+
+func (m *Model) pruneRunSessionGrants() {
+	if m.runs == nil {
+		return
+	}
+	for grant := range m.runs.grants {
+		session := m.ws.Sessions[grant.session]
+		if session == nil || session.DB == nil {
+			delete(m.runs.grants, grant)
+		}
+	}
 }
 
 func clearRunValues(values map[string][]byte) {
@@ -190,9 +203,6 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		m.runs = &runState{}
 	}
 	r := m.runs
-	if cmd, handled := m.updateRunPermissionReset(msg); handled {
-		return cmd, true
-	}
 	if !r.busy {
 		for _, target := range r.targets {
 			session := m.ws.Sessions[target.session]
@@ -226,7 +236,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			choices, choiceIndex := r.choices, r.choiceIndex
 			targets, err := m.resolveRunTargets(msg.Pending)
 			r.choices, r.choiceIndex = choices, choiceIndex
-			if err == nil && !r.resetBusy {
+			if err == nil {
 				return m.runGrantJob(msg.Pending, targets, "check"), true
 			}
 		}
@@ -245,9 +255,6 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		if msg.permissionEpoch != r.permissionEpoch {
 			if msg.secrets != nil {
 				msg.secrets.Clear()
-			}
-			for _, db := range msg.updated {
-				db.Clear()
 			}
 			return nil, true
 		}
@@ -271,33 +278,22 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				break
 			}
 		}
-		savedVaults := []string{}
-		for id, db := range msg.updated {
-			savedVaults = append(savedVaults, db.Path)
-			session := m.ws.Sessions[id]
-			valid := false
-			for _, target := range msg.targets {
-				if target.session == id && session != nil && session.DB == target.database {
-					valid = true
-				}
-			}
-			if valid {
-				m.ws.ReplaceDatabase(id, db)
-			} else {
-				db.Clear()
-			}
-		}
+
 		if msg.err != nil {
 			message := "could not resolve requested secrets: " + msg.err.Error()
-			if len(savedVaults) > 0 {
-				sort.Strings(savedVaults)
-				message += "; permissions already saved in: " + strings.Join(savedVaults, ", ")
-				m.setNotice("request failed; some permissions were saved", true)
-			}
+
 			msg.pending.Reply(runpkg.Response{Error: message})
 			clearRunValues(values)
 		} else {
-			msg.pending.Reply(runpkg.Response{Values: values})
+			accepted := msg.pending.Reply(runpkg.Response{Values: values})
+			if accepted && msg.mode == "s" {
+				if r.grants == nil {
+					r.grants = make(map[runSessionGrant]string)
+				}
+				for _, target := range msg.targets {
+					r.grants[runSessionGrant{target.session, msg.pending.Identity.Digest, target.entry, target.field}] = msg.pending.Identity.Name
+				}
+			}
 			values = nil // Reply owns the byte slices, including rejected replies.
 		}
 		clearRunValues(values)
@@ -314,10 +310,10 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			return nil, false
 		}
 		if msg.String() == "ctrl+p" && r.visible {
-			if r.busy || r.resetBusy {
+			if r.busy {
 				return nil, true
 			}
-			r.visible, r.review, r.choosing, r.reviewed, r.resetConfirm, r.bulkConfirm = false, false, false, nil, false, false
+			r.visible, r.review, r.choosing, r.reviewed, r.bulkConfirm = false, false, false, nil, false
 			r.bulkPending = nil
 			return nil, false
 		}
@@ -350,23 +346,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			}
 			return nil, true
 		}
-		if r.resetConfirm {
-			if r.resetBusy {
-				return nil, true
-			}
-			switch msg.String() {
-			case "esc":
-				r.resetConfirm = false
-				r.resetErr = ""
-			case "tab", "shift+tab", "up", "down":
-				dialogActionFocus(msg.String(), len(m.runResetActions()), &r.resetFocus)
-			case "enter":
-				return m.activateRunAction(r.resetFocus), true
-			case "ctrl+s", "r":
-				return m.activateRunAction(1), true
-			}
-			return nil, true
-		}
+
 		if r.review {
 			if r.choosing && (msg.String() == "up" || msg.String() == "down") {
 				if msg.String() == "up" {
@@ -386,13 +366,13 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				dialogActionFocus(msg.String(), len(m.runReviewActions()), &r.reviewFocus)
 			case "enter":
 				return m.activateRunAction(r.reviewFocus), true
-			case "d", "a", "i":
+			case "d", "a", "s":
 				if action := m.runActionForKey(msg.String()); action >= 0 {
 					return m.activateRunAction(action), true
 				}
 			case "pgdown":
 				size := m.runFieldPageSize()
-				r.fieldOffset = min(max(0, len(r.targets)-size), r.fieldOffset+size)
+				r.fieldOffset = min(max(0, len(m.runReviewFieldLines())-size), r.fieldOffset+size)
 				r.err = ""
 			case "pgup":
 				r.fieldOffset = max(0, r.fieldOffset-m.runFieldPageSize())
@@ -421,12 +401,8 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			}
 			return m.activateRunAction(r.actionFocus), true
 		case "r":
-			if r.busy {
-				r.resetErr = "finish the current approval before resetting"
-				return nil, true
-			}
-			r.resetConfirm = true
-			r.resetFocus = 0
+			m.openRunPermissions()
+			return nil, true
 		case "d", "a":
 			return m.activateRunKey(msg.String()), true
 		}
@@ -631,49 +607,30 @@ func runIdentityLabel(p *runpkg.Pending, isNew bool) string {
 
 func (m *Model) openRunPermissions() {
 	m.hideReveal()
-	d := &actionDialog{kind: "run-permissions", title: "Saved Run Permissions", options: []string{"Close"}}
-	session := m.ws.ActiveSession()
-	if session == nil || session.DB == nil {
-		d.message = []string{"Unlock a vault to view saved permissions."}
-	} else {
-		d.sessionID = session.ID
-		for _, group := range session.DB.Groups {
-			if group.Name == runpkg.GrantGroup && group.ParentUUID == session.DB.RootUUID {
-				d.groupUUID = group.UUID
-				break
+	d := &actionDialog{kind: "run-permissions", title: "Session Secret Permissions", options: []string{"Clear all", "Close"}, selected: 1}
+	if m.runs != nil {
+		for grant, agent := range m.runs.grants {
+			session := m.ws.Sessions[grant.session]
+			if session == nil || session.DB == nil {
+				continue
 			}
-		}
-		for _, entry := range session.DB.Entries {
-			if d.groupUUID != "" && entry.GroupUUID == d.groupUUID && !entry.Recycled {
-				title := entry.Get("Title")
-				if title == "" {
-					title = "Untitled permission"
+			name := grant.entry
+			for _, entry := range session.DB.Entries {
+				if entry.UUID == grant.entry {
+					name = entry.Get("Title")
+					break
 				}
-				d.message = append(d.message, safe(title))
 			}
+			line := safe(agent) + " · " + safe(name) + " · " + safe(grant.field)
+			if len(m.ws.Sessions) > 1 {
+				line = safe(vaultLabel(session.Path)) + " · " + line
+			}
+			d.message = append(d.message, line)
 		}
-		if len(d.message) == 0 {
-			d.message = []string{"No saved permissions in this vault."}
-		}
-		if d.groupUUID != "" {
-			d.options = []string{"Manage permissions", "Close"}
-		}
+	}
+	sort.Strings(d.message)
+	if len(d.message) == 0 {
+		d.message = []string{"No session permissions."}
 	}
 	m.dialog = d
-}
-
-func (m *Model) manageRunPermissions(sessionID, groupID string) {
-	session := m.ws.ActiveSession()
-	view := m.ws.ActiveView()
-	if session == nil || session.ID != sessionID || session.DB == nil || view == nil {
-		return
-	}
-	for index, item := range m.navigation() {
-		if item.kind == "group" && item.group == groupID {
-			m.selectNav(index)
-			view.Focus = 1
-			m.setNotice("delete permission entries to revoke; delete group to revoke all", false)
-			return
-		}
-	}
 }

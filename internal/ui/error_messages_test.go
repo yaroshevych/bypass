@@ -23,7 +23,7 @@ func TestLiteralErrorMessagesWrapWithoutLosingText(t *testing.T) {
 	count := 0
 	isErrorField := func(name string) bool {
 		switch name {
-		case "err", "pinError", "resetErr", "validation":
+		case "err", "pinError", "validation":
 			return true
 		default:
 			return false

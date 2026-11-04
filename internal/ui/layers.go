@@ -76,10 +76,10 @@ func (m *Model) runLayerKey(msg tea.KeyMsg) tea.Cmd {
 
 func (m *Model) runPointer(msg tea.MouseMsg) tea.Cmd {
 	r := m.runs
-	if r == nil || msg.Action != tea.MouseActionPress || r.busy || r.resetBusy {
+	if r == nil || msg.Action != tea.MouseActionPress || r.busy {
 		return nil
 	}
-	if !r.resetConfirm && !r.bulkConfirm {
+	if !r.bulkConfirm {
 		delta := 0
 		if msg.Button == tea.MouseButtonWheelUp {
 			delta = -1
@@ -90,7 +90,7 @@ func (m *Model) runPointer(msg tea.MouseMsg) tea.Cmd {
 			if r.review && r.choosing {
 				r.choiceIndex = min(max(0, len(r.choices)-1), max(0, r.choiceIndex+delta))
 			} else if r.review {
-				r.fieldOffset = min(max(0, len(r.targets)-m.runFieldPageSize()), max(0, r.fieldOffset+delta))
+				r.fieldOffset = min(max(0, len(m.runReviewFieldLines())-m.runFieldPageSize()), max(0, r.fieldOffset+delta))
 			} else if len(r.pending) > 0 {
 				r.index = min(len(r.pending)-1, max(0, r.index+delta))
 				r.buttonsFocused = false

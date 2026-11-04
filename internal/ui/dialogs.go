@@ -170,6 +170,9 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 	if d.kind == "run-permissions" {
+		if key == "c" {
+			return m.clearRunPermissionsDialog()
+		}
 		page := m.runPermissionsPageSize()
 		switch key {
 		case "pgdown":
@@ -340,12 +343,10 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 		choice := d.selected
 		switch d.kind {
 		case "run-permissions":
-			sessionID, groupID := d.sessionID, d.groupUUID
-			manage := groupID != "" && choice == 0
-			m.clearDialog()
-			if manage {
-				m.manageRunPermissions(sessionID, groupID)
+			if choice == 0 {
+				return m.clearRunPermissionsDialog()
 			}
+			m.clearDialog()
 		case "duplicates":
 			if choice == 1 {
 				return m.renameDuplicates()
@@ -447,7 +448,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 			if option == "Close" {
 				shortcut = "esc"
 			} else {
-				shortcut = "enter"
+				shortcut = "c"
 			}
 			actions = append(actions, dialogAction{option, shortcut})
 		}
@@ -539,6 +540,19 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 	return opts, targets
 }
 
+func (m *Model) clearRunPermissionsDialog() tea.Cmd {
+	if m.runs == nil {
+		return nil
+	}
+	if m.runs.busy || m.writing || m.busy {
+		m.dialog.err = "Wait for the current operation to finish."
+		return nil
+	}
+	m.beginRunPermissionReset()
+	m.openRunPermissions()
+	return nil
+}
+
 func (m *Model) runPermissionsPageSize() int {
 	opts := m.dialogOptions()
 	opts.Width = min(m.width-6, 82)
@@ -560,6 +574,9 @@ func (m *Model) duplicatePageSize() int {
 func (m *Model) dialogLines() []string {
 	opts, _ := m.dialogContent()
 	opts.Backdrop = m.modalBackdrop()
+	if m.dialog.kind == "run-permissions" && m.runs != nil && m.runs.visible {
+		opts.Backdrop = m.dimBackdrop(m.runDialogView())
+	}
 	return dialogrender.Render(opts)
 }
 

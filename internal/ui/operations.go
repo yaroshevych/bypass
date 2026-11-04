@@ -1059,6 +1059,13 @@ func (m *Model) lockCurrent(all bool) tea.Cmd {
 	return m.clearClipboard()
 }
 func (m *Model) lockSession(id string) {
+	if m.runs != nil {
+		for grant := range m.runs.grants {
+			if grant.session == id {
+				delete(m.runs.grants, grant)
+			}
+		}
+	}
 	if session := m.ws.Sessions[id]; session != nil && m.searchCache != nil && m.searchCache.db == session.DB {
 		m.searchCache = nil
 	}
@@ -1104,6 +1111,9 @@ func (m *Model) lockSession(id string) {
 	}
 	delete(m.changeDismissed, id)
 	delete(m.checking, id)
+	if m.dialog != nil && m.dialog.kind == "run-permissions" {
+		m.openRunPermissions()
+	}
 }
 
 func (m *Model) onTick(now time.Time) tea.Cmd {
