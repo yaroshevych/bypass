@@ -610,7 +610,7 @@ func (m *Model) runTargetsCurrent(targets []runTarget) bool {
 func (m *Model) runLayerOptions(layout runDialogLayout) dialogrender.Options {
 	opts := m.dialogOptions()
 	opts.Mode, opts.Title, opts.Body, opts.Error = dialogrender.Overlay, layout.title, layout.body, safe(layout.errorMessage)
-	if layout.title == "Review request" {
+	if layout.title == "Review request" || layout.title == "Approve requests?" {
 		opts.Body = make([]string, len(layout.body))
 		for i, line := range layout.body {
 			opts.Body[i] = " " + line + " "

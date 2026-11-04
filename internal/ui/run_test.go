@@ -412,7 +412,7 @@ func TestBulkApprovalRequiresConfirmationAndCapturesQueue(t *testing.T) {
 	if cmd != nil || !m.runs.bulkConfirm || m.runs.bulkFocus != 0 || len(m.runs.bulkPending) != 1 {
 		t.Fatal("bulk approval should open confirmation with Cancel focused")
 	}
-	if view := ansi.Strip(m.View()); !strings.Contains(view, "Approve 1 pending request(s) once?") {
+	if view := ansi.Strip(m.View()); !strings.Contains(view, " Approve 1 pending request(s) once? ") || !strings.Contains(view, " New requests are not included. ") {
 		t.Fatalf("confirmation does not show approval scope: %q", view)
 	}
 	m.runs.pending = append(m.runs.pending, second)
