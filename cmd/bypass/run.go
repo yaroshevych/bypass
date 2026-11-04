@@ -15,6 +15,7 @@ import (
 
 	"bypass/internal/platform"
 	runpkg "bypass/internal/run"
+	wipebuf "bypass/internal/secret"
 )
 
 type envFiles []string
@@ -90,7 +91,7 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 		return fmt.Errorf("command is required after --")
 	}
 	identityBytes := selectedIdentity(identityOption, os.LookupEnv)
-	defer clear(identityBytes)
+	defer wipebuf.Wipe(identityBytes)
 	if len(identityBytes) > 0 {
 		_, err := runpkg.ParseIdentity(identityBytes)
 		if err != nil {
@@ -193,13 +194,13 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 		}
 		defer func() {
 			for _, value := range response.Values {
-				clear(value)
+				wipebuf.Wipe(value)
 			}
 		}()
 		resolvedEnvironment := make(map[string][]byte, len(environment))
 		defer func() {
 			for _, value := range resolvedEnvironment {
-				clear(value)
+				wipebuf.Wipe(value)
 			}
 		}()
 		for key, value := range environment {
@@ -220,7 +221,7 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 				}
 				return nil, fmt.Errorf("missing secret response")
 			})
-			clear(source)
+			wipebuf.Wipe(source)
 			if err != nil {
 				return err
 			}
@@ -236,25 +237,25 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 				assignment[len(key)] = '='
 				copy(assignment[len(key)+1:], resolved)
 				env = append(env, string(assignment))
-				clear(assignment)
+				wipebuf.Wipe(assignment)
 			} else {
 				env = append(env, key+"="+value)
 			}
 		}
 		for _, value := range response.Values {
-			clear(value)
+			wipebuf.Wipe(value)
 		}
 		for _, value := range resolvedEnvironment {
-			clear(value)
+			wipebuf.Wipe(value)
 		}
-		clear(identityBytes)
+		wipebuf.Wipe(identityBytes)
 		return syscall.Exec(executable, command, env)
 	}
 	env := make([]string, 0, len(environment))
 	for key, value := range environment {
 		env = append(env, key+"="+value)
 	}
-	clear(identityBytes)
+	wipebuf.Wipe(identityBytes)
 	// Replacing the client preserves the terminal, process group, signals and exit
 	// status. The IPC deadline never limits the launched process.
 	return syscall.Exec(executable, command, env)
