@@ -80,6 +80,9 @@ func (m *Model) commands() []command {
 		if binding, ok := workspaceShortcuts[id]; ok {
 			key = binding.label
 		}
+		if id == "close-view" && m.editor != nil {
+			key = ""
+		}
 		commands = append(commands, command{id: id, group: group, label: label, key: key, reason: reason, next: next, run: run})
 	}
 	invoke := func(key string) func() tea.Cmd {
@@ -163,7 +166,7 @@ func (m *Model) commands() []command {
 		credentialsReason = reason
 	}
 	add("credentials", "Vault", "Change Password…", "", credentialsReason, "", func() tea.Cmd { return m.leaveEditor(m.openCredentials) })
-	add("read-only", "Vault", readLabel, "", readOnlyReason, "", invoke("R"))
+	add("read-only", "Vault", readLabel, "", readOnlyReason, "", invoke(keyReadOnly))
 	add("new", "Entry", "New Entry…", "", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("n")) })
 	add("edit", "Entry", "Edit Entry…", "", editReason, "", invoke("e"))
 	add("group", "Entry", "New Group…", "", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("g")) })

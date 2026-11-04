@@ -86,8 +86,8 @@ func TestFailedWritesKeepVaultAndDraftAndAllowRetryTmux(t *testing.T) {
 			if failure == "file-permissions" {
 				e.mustShow("read only")
 				e.key("e")
-				e.mustShow("read-only · press shift+r to enable")
-				e.key("R")
+				e.mustShow("read-only · press r to enable")
+				e.key("r")
 				e.mustShow("writes enabled")
 			}
 			e.key("e")

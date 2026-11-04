@@ -365,7 +365,7 @@ func TestReadOnlyBlocksHighImpactPaletteActionsTmux(t *testing.T) {
 	e.key("Escape")
 	e.waitFor("commands closed", func() bool { return !strings.Contains(e.capture(), "COMMANDS") })
 	e.key("n")
-	e.mustShow("read-only · press shift+r to enable")
+	e.mustShow("read-only · press r to enable")
 	e.mustNotShow("New Entry")
 	t.Run("attachment controls", func(t *testing.T) {
 		t.Skip("attachment controls are hidden in beta")

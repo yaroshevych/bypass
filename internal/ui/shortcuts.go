@@ -11,7 +11,7 @@ const (
 	keyProtect     = "P"
 	keyRequests    = "S"
 	keyReload      = "ctrl+r"
-	keyReadOnly    = "R"
+	keyReadOnly    = "r"
 	keyNewEntry    = "n"
 	keyEditEntry   = "e"
 	keyNewGroup    = "g"
@@ -39,7 +39,7 @@ var workspaceShortcuts = map[string]shortcut{
 	"new-vault": {keyNewVault, "Ctrl+N"}, "open": {keyOpenVault, "Ctrl+O"},
 	"close-view": {keyCloseView, "Ctrl+W"}, "lock-all": {keyLockAll, "Shift+L"},
 	"protect": {keyProtect, "Shift+P"}, "run-requests": {keyRequests, "Shift+S"},
-	"reload": {keyReload, "Ctrl+R"}, "read-only": {keyReadOnly, "Shift+R"},
+	"reload": {keyReload, "Ctrl+R"}, "read-only": {keyReadOnly, "r"},
 	"new": {keyNewEntry, "n"}, "edit": {keyEditEntry, "e"}, "group": {keyNewGroup, "g"},
 	"move": {keyMoveEntry, "m"}, "delete": {keyDelete, "Delete"},
 	"copy-focused": {keyCopy, "c"}, "reveal": {keyReveal, "v"}, "generator": {keyGenerator, "Ctrl+G"},

@@ -202,7 +202,7 @@ func TestExternalChangeCannotDisableReadOnly(t *testing.T) {
 		t.Fatal("read-only palette command should be disabled after external change")
 	}
 	readOnly.run()
-	m.key(key("R"))
+	m.key(key("r"))
 	if !s.ReadOnly {
 		t.Fatal("external-change protection allowed writes to be enabled")
 	}

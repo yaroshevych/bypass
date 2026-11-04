@@ -34,7 +34,7 @@ the in-app reference.
 | Reload Vault | `ctrl+r` | Reload the current vault, including changes made outside Bypass. |
 | Database Info… | — | Show information about the current database when supported by the backend. |
 | Change Password… | — | Change the current vault's master password. Requires a writable vault and backend support. |
-| Read Only / Enable Writes | `shift+r` | Change the current vault's write mode, subject to startup and external-change restrictions. |
+| Read Only / Enable Writes | `r` | Change the current vault's write mode, subject to startup and external-change restrictions. |
 | Quit bypass | `q` | Close Bypass. Unsaved entry drafts may require a decision first. |
 | Pending Secret Requests… | `shift+s` | Review requests from `bypass run`, including the readable name for an identified agent and requests waiting for entry selection or approval. |
 
@@ -78,7 +78,7 @@ changes, or has no usable backup location.
 | Action | Shortcut | Behavior |
 | --- | --- | --- |
 | New Tab | `t` | Create another view of the current unlocked vault. It does not create a new vault. |
-| Close Tab | `ctrl+w` | Close the current view. |
+| Close Tab | `ctrl+w` | Close the current view from the workspace. In text fields, `ctrl+w` deletes the previous word. Close Tab is also available in the command palette. |
 | Previous Tab | `[` | Switch to the previous tab. |
 | Next Tab | `]` | Switch to the next tab. |
 | Search | `/` | Search the current entry list. The palette's Search action starts from All Entries. |

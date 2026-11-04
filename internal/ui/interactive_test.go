@@ -89,11 +89,11 @@ func TestInteractiveUnlockDropsCredentialsAndResolvesOnDemand(t *testing.T) {
 	if resolved.err != nil || string(resolved.value) != "synthetic UI entry password" {
 		t.Fatal("on-demand password resolution failed")
 	}
-	m.operationKey(key("R"))
+	m.operationKey(key("r"))
 	if session.ReadOnly {
 		t.Fatal("manual read-only toggle did not enable writes")
 	}
-	m.operationKey(key("R"))
+	m.operationKey(key("r"))
 	if m.requestReload(session.ID) != nil || !strings.Contains(m.notice, "lock and unlock") {
 		t.Fatal("reload did not explain authentication requirement")
 	}

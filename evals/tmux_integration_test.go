@@ -277,10 +277,10 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 
 	})
 	// Read-only mode blocks new writes with a visible reason.
-	e.key("R")
+	e.key("r")
 	e.mustShow("read-only enabled")
 	e.key("n")
-	e.mustShow("read-only · press shift+r to enable")
+	e.mustShow("read-only · press r to enable")
 	e.mustNotShow("New Entry")
 
 	e.key("q")
@@ -359,7 +359,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.mustShow("Eval Entry", "••••••••")
 	e.mustNotShow(secretSentinel)
 	e.key("n")
-	e.mustShow("read-only · press shift+r to enable")
+	e.mustShow("read-only · press r to enable")
 	e.mustNotShow("New Entry")
 
 	// Ctrl+F searches all entries even when details have focus. Fuzzy matches

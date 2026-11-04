@@ -106,7 +106,7 @@ func (m *Model) writable() bool {
 		return false
 	}
 	if s.ReadOnly {
-		m.setNotice("read-only · press shift+r to enable", true)
+		m.setNotice("read-only · press r to enable", true)
 		return false
 	}
 	if m.settings.BackupDir == "" {
@@ -335,8 +335,6 @@ func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 	switch k.String() {
 	case "ctrl+o":
 		return m.leaveEditor(m.openPicker)
-	case "ctrl+w":
-		return m.leaveEditor(func() tea.Cmd { m.ws.CloseView(); m.normalize(); return m.clearClipboard() })
 	case "ctrl+g":
 		m.openGenerator()
 		return nil
@@ -345,10 +343,6 @@ func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 			return m.requestReload(s.ID)
 		}
 		return nil
-	}
-	if key := k.String(); strings.HasPrefix(key, "alt+") && len(key) == 5 && key[4] >= '1' && key[4] <= '9' {
-		index := int(key[4] - '1')
-		return m.leaveEditor(func() tea.Cmd { m.switchTabPosition(index); m.normalize(); return nil })
 	}
 	switch m.editor.key(k) {
 	case editorSave:
