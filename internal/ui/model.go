@@ -586,7 +586,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	if key == keyLockAll && !m.gate.Protected() && shortcutContext {
 		m.help = false
-		return m.lockCurrent(true)
+		return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) })
 	}
 	if m.activeLayer() == layerTiny {
 		if key == "ctrl+c" {
@@ -634,7 +634,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	if m.writing {
 		if key == "L" {
-			return m.lockCurrent(true)
+			return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) })
 		}
 		return nil
 	}

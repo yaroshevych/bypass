@@ -37,7 +37,7 @@ func (m *Model) grandKey(k tea.KeyMsg) tea.Cmd {
 		m.Close()
 		return tea.Quit
 	case "L":
-		return m.lockCurrent(true)
+		return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) })
 	case "ctrl+p":
 		m.openPalette("actions", false)
 	case "up", "k":

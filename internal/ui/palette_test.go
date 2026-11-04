@@ -110,8 +110,8 @@ func TestRedrawKeepsDraftAndAltLLocks(t *testing.T) {
 	}
 	m.editor.focus = editGenerate
 	m.Update(key("L"))
-	if m.editor != nil || m.ws.ActiveSession().DB != nil {
-		t.Fatal("shift+l did not clear the draft and lock the vault")
+	if m.editor == nil || m.ws.ActiveSession().DB == nil || m.dialog == nil || m.dialog.kind != "unsaved" {
+		t.Fatal("shift+l did not prompt before locking the dirty draft")
 	}
 }
 

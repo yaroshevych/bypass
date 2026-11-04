@@ -215,6 +215,20 @@ func TestReadOnlyRestrictionsCannotBeToggled(t *testing.T) {
 	}
 }
 
+func TestLockAllPromptsForDirtyEditor(t *testing.T) {
+	m, _ := operationModel(t)
+	m.key(key("e"))
+	if m.editor == nil {
+		t.Fatal("editor did not open")
+	}
+	m.editor.inputs[editTitle].set("changed")
+	m.editor.focus = editSave
+	m.key(key("L"))
+	if m.dialog == nil || m.dialog.kind != "unsaved" || m.ws.ActiveSession() == nil {
+		t.Fatal("lock did not preserve the draft and request confirmation")
+	}
+}
+
 func TestExternalChangeCannotDisableReadOnly(t *testing.T) {
 	m, _ := operationModel(t)
 	s := m.ws.ActiveSession()

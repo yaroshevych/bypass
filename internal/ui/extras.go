@@ -227,7 +227,7 @@ func (m *Model) extrasKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }), true
 	case "L":
 		m.clearExtras()
-		return m.lockCurrent(true), true
+		return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) }), true
 	case "q":
 		if state.mode != extraAttachments || state.phase != "path" {
 			m.clearExtras()

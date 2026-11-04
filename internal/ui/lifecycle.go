@@ -354,7 +354,7 @@ func (m *Model) lifecycleKey(k tea.KeyMsg) tea.Cmd {
 	}
 	if key == "L" && l.kind == "info" {
 		m.clearLifecycle()
-		return m.lockCurrent(true)
+		return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) })
 	}
 	if l.busy {
 		return nil
