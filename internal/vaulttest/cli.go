@@ -2,6 +2,7 @@
 package vaulttest
 
 import (
+	wipebuf "bypass/internal/secret"
 	"bypass/internal/vault"
 	"bypass/internal/vaulttest/xmlparse"
 	"bytes"
@@ -137,9 +138,7 @@ func boundedContext(ctx context.Context) (context.Context, context.CancelFunc) {
 }
 
 func zero(b []byte) {
-	for i := range b {
-		b[i] = 0
-	}
+	wipebuf.Wipe(b)
 }
 
 type limitedBuffer struct {
