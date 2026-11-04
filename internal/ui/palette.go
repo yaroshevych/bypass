@@ -747,11 +747,11 @@ func (m *Model) helpActionGroups() (map[string][]string, int) {
 	for _, line := range []string{"↑↓ / j k       Change selection", "←→ / h l       Navigate", "tab            Cycle navigation", "1–9 / [ ]      Switch tab"} {
 		add("VIEW", line)
 	}
-	for _, line := range []string{"a              Context actions"} {
-		add("VIEW", line)
-	}
 	var quitLine string
 	for _, command := range orderCommandChoices(m.commands()) {
+		if command.id == "search" {
+			add("VIEW", "a              Context actions")
+		}
 		if command.key == "" || command.id == "previous-tab" || command.id == "next-tab" || command.id == "cancel-edit" {
 			continue
 		}

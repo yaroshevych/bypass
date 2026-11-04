@@ -728,6 +728,9 @@ func TestHelpListsContextualShortcuts(t *testing.T) {
 	if !strings.Contains(view, "1–9 / [ ]      Switch tab") || strings.Contains(view, "/              Filter") {
 		t.Fatalf("tab row is missing or duplicate filter row remains: %q", view)
 	}
+	if !strings.Contains(view, "a              Context actions\n/              Search") {
+		t.Fatalf("context actions should appear immediately above Search: %q", view)
+	}
 	if strings.Contains(help, "Redraw screen") {
 		t.Fatal("redraw should not appear in the shortcut dialog")
 	}
