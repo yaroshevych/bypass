@@ -6,6 +6,19 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func TestJumpCapturesGlobalShortcuts(t *testing.T) {
+	for _, msg := range []tea.KeyMsg{{Type: tea.KeyCtrlC}, {Type: tea.KeyCtrlP}, key("L"), key("P")} {
+		t.Run(msg.String(), func(t *testing.T) {
+			m, _ := operationModel(t)
+			m.jump = true
+			m.key(msg)
+			if !m.jump || m.ws.ActiveSession().DB == nil || m.palette != nil || m.gate.Protected() {
+				t.Fatal("shortcut escaped the Jump overlay")
+			}
+		})
+	}
+}
+
 func TestPrintableShortcutsRemainTextInEditor(t *testing.T) {
 	m, _ := operationModel(t)
 	if err := m.gate.Configure([]byte("1234")); err != nil {
