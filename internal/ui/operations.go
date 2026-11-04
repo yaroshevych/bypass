@@ -540,6 +540,9 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			if m.editor != nil {
 				m.editor.err = text
 			}
+			if m.dialog != nil && m.dialog.sessionID == msg.sessionID {
+				m.dialog.err = text
+			}
 			m.afterSave = nil
 			m.setNotice(text, true)
 			if errors.Is(msg.err, vault.ErrExternalChanged) {

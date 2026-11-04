@@ -103,6 +103,27 @@ func TestInlineEditorSavesAndSelectsNewEntry(t *testing.T) {
 		t.Fatal("save did not refresh/select persisted entry")
 	}
 }
+
+func TestFailedDialogWritesShowInlineErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"group", vault.ErrInteractiveSessionLost},
+		{"destination", vault.ErrAmbiguous},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, _ := operationModel(t)
+			id := m.ws.ActiveSession().ID
+			m.dialog = &actionDialog{kind: tc.name, sessionID: id}
+			m.dialog.input.set("keep this")
+			m.updateOperation(appliedMsg{id: m.operation, sessionID: id, err: tc.err})
+			if m.dialog == nil || m.dialog.err != writeError(tc.err) || m.dialog.input.value() != "keep this" {
+				t.Fatal("failed write did not preserve the dialog and show the error")
+			}
+		})
+	}
+}
 func TestSaveFailureRetainsDraftAndShowsError(t *testing.T) {
 	m, b := operationModel(t)
 	b.failure = vault.ErrBackup
