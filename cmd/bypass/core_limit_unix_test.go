@@ -19,8 +19,8 @@ func TestDisableCoreDumps(t *testing.T) {
 		if err := unix.Getrlimit(unix.RLIMIT_CORE, &limit); err != nil {
 			t.Fatal(err)
 		}
-		if limit.Cur != 0 {
-			t.Fatalf("core limit = %d", limit.Cur)
+		if limit.Cur != 0 || limit.Max != 0 {
+			t.Fatalf("core limits = (%d, %d)", limit.Cur, limit.Max)
 		}
 		return
 	}

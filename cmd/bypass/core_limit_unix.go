@@ -10,5 +10,6 @@ func disableCoreDumps() error {
 		return err
 	}
 	limit.Cur = 0
+	limit.Max = 0
 	return unix.Setrlimit(unix.RLIMIT_CORE, &limit)
 }
