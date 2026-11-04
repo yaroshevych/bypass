@@ -718,6 +718,10 @@ func TestHelpListsContextualShortcuts(t *testing.T) {
 	if strings.Contains(help, "Open vault (workspace)") {
 		t.Fatal("Open vault label should not include the workspace qualifier")
 	}
+	vaults := strings.Join(groups["VAULTS"], "\n")
+	if !strings.Contains(vaults, "o              Open Vault") || strings.Contains(vaults, "ctrl+o") {
+		t.Fatalf("shortcut dialog should show only o for Open Vault: %q", vaults)
+	}
 	view := strings.Join(groups["VIEW"], "\n")
 	if strings.Contains(view, "Open vault") {
 		t.Fatal("Open vault should not be duplicated in the View section")

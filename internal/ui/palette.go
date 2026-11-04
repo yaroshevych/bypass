@@ -758,7 +758,11 @@ func (m *Model) helpActionGroups() (map[string][]string, int) {
 		if command.key == "" || command.id == "previous-tab" || command.id == "next-tab" || command.id == "cancel-edit" {
 			continue
 		}
-		line := fmt.Sprintf("%-14s %s", strings.ToLower(command.key), command.label)
+		keyLabel := strings.ToLower(command.key)
+		if command.id == "open" {
+			keyLabel = "o"
+		}
+		line := fmt.Sprintf("%-14s %s", keyLabel, command.label)
 		if command.reason != "" && command.id != "protect" && command.id != "save" && command.id != "cancel-edit" {
 			line += " (" + command.reason + ")"
 		}
