@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -39,6 +40,28 @@ func TestSidebarOmitsEmptyTagsSectionAndFavoriteTag(t *testing.T) {
 	}
 	if !foundWork || !foundTagsSection {
 		t.Fatalf("regular tags missing: tag=%v section=%v", foundWork, foundTagsSection)
+	}
+}
+
+func TestJumpSelectsEmailWhenPresent(t *testing.T) {
+	m, _ := operationModel(t)
+	e := m.selected()
+	if e == nil {
+		t.Fatal("expected selected entry")
+	}
+	for i := range m.ws.ActiveSession().DB.Entries {
+		entry := &m.ws.ActiveSession().DB.Entries[i]
+		if entry.UUID == e.UUID {
+			entry.Fields = append(entry.Fields, vault.Field{Name: "Email", Value: "user@example.test"})
+		}
+	}
+	m.searchCache = nil
+	m.jump = true
+	m.jumpKey(key("e"))
+	v := m.ws.ActiveView()
+	names := m.fieldNames()
+	if m.jump || v.Focus != 2 || v.FieldIndex >= len(names) || names[v.FieldIndex] != "Email" {
+		t.Fatalf("email jump failed: focus=%d index=%d fields=%v", v.Focus, v.FieldIndex, names)
 	}
 }
 
