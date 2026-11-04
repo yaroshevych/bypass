@@ -239,6 +239,8 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			if err == nil {
 				return m.runGrantJob(msg.Pending, targets, "check"), true
 			}
+			// Requests that need user intervention should surface immediately.
+			r.visible = true
 		}
 		return nil, true
 	case runResult:
@@ -274,6 +276,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			if msg.mode == "check" && msg.pending != nil && msg.pending.Context.Err() == nil && runTargetsHaveSessionGrants(r.grants, runSessionPrincipal(msg.pending.Identity, msg.targets), msg.targets) {
 				return m.runGrantJob(msg.pending, append([]runTarget(nil), msg.targets...), "check"), true
 			}
+			r.visible = true
 			return nil, true
 		}
 		values := msg.secrets.Take()

@@ -126,7 +126,9 @@ func TestRunAmbiguityRequiresExplicitSelection(t *testing.T) {
 	}
 	p := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{"/bin/sh"}, References: []string{"bypass://Seed Entry"}}}
 	m.Update(RunRequestMsg{p})
-	m.Update(tea.KeyMsg{Type: tea.KeyCtrlB})
+	if !m.runs.visible {
+		t.Fatal("ambiguous request did not open the requests dialog")
+	}
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if len(m.runs.choices) != 2 || len(m.runs.targets) != 0 {
 		t.Fatalf("ambiguity skipped: choices=%d targets=%d", len(m.runs.choices), len(m.runs.targets))
@@ -137,6 +139,18 @@ func TestRunAmbiguityRequiresExplicitSelection(t *testing.T) {
 		t.Fatal("selection failed")
 	}
 }
+
+func TestRunPermissionRequestOpensRequestsDialog(t *testing.T) {
+	m := New(Options{})
+	p := &runpkg.Pending{Context: context.Background()}
+	m.runs = &runState{pending: []*runpkg.Pending{p}}
+	secrets := newSecretValues(p.Context)
+	_, handled := m.updateRun(runResult{pending: p, secrets: secrets, needsApproval: true, mode: "check"})
+	if !handled || !m.runs.visible {
+		t.Fatal("request needing approval did not open the requests dialog")
+	}
+}
+
 func TestRunSwitchingRequestClearsReviewedTargets(t *testing.T) {
 	m := New(Options{})
 	m.runs = &runState{visible: true, pending: []*runpkg.Pending{{Context: context.Background()}, {Context: context.Background()}}, targets: []runTarget{{ref: "old"}}}
@@ -540,7 +554,9 @@ func TestUnavailableRunReferenceExplainsFailureAndCanRetry(t *testing.T) {
 			m.width, m.height = size[0], size[1]
 			p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "dev-rw", Digest: "scope"}, Request: runpkg.Request{Command: []string{"/bin/sh"}, References: []string{"bypass://Missing%20Entry#password"}}}
 			m.updateRun(RunRequestMsg{Pending: p})
-			m.updateRun(tea.KeyMsg{Type: tea.KeyCtrlB})
+			if !m.runs.visible {
+				t.Fatalf("%s %v unavailable request did not open requests dialog", appearance, size)
+			}
 			m.updateRun(tea.KeyMsg{Type: tea.KeyEnter})
 			view := m.View()
 			for _, text := range []string{"REVIEW REQUEST", "URI: bypass://Missing%20Entry#password", "Unlock vault or check entry name", "Deny", "Back"} {
