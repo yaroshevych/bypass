@@ -307,6 +307,24 @@ func TestEntryEditorNotesCursorRemainsVisibleWhenPaneIsShort(t *testing.T) {
 	}
 }
 
+func TestEntryEditorLongNotesKeepAdjacentLinesVisible(t *testing.T) {
+	e := newEntryEditor(nil, "root")
+	e.focus = editNotes
+	e.inputs[editNotes].set("one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven\ntwelve")
+	for _, cursor := range []int{len("one\ntwo\nthree\nfour\nfive"), len("one\ntwo\nthree\nfour\nfive\nsix")} {
+		e.inputs[editNotes].cursor = cursor
+		view := ansi.Strip(strings.Join(e.render(40, 9), "\n"))
+		for _, want := range []string{"four", "five", "six", "seven"} {
+			if !strings.Contains(view, want) {
+				t.Fatalf("cursor %d: missing adjacent line %q:\n%s", cursor, want, view)
+			}
+		}
+		if strings.Contains(view, "Cancel") {
+			t.Fatalf("unrelated action interrupts long notes:\n%s", view)
+		}
+	}
+}
+
 func TestEntryEditorPointerSharesRenderedFocusMetadata(t *testing.T) {
 	e := newEntryEditor(nil, "root")
 	for _, actionCase := range []struct {

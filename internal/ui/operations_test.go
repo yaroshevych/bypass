@@ -486,6 +486,55 @@ func TestLongNotesScrollWithArrowKeys(t *testing.T) {
 	}
 }
 
+func TestLongNotesScrollPastControlToBlankRow(t *testing.T) {
+	m, _ := operationModel(t)
+	m.width, m.height = 100, 24
+	m.ws.ActiveSession().DB.Entries[0].Fields = append(m.ws.ActiveSession().DB.Entries[0].Fields,
+		vault.Field{Name: "Notes", Value: strings.Repeat("line\n", 60) + "last note line"})
+	v := m.ws.ActiveView()
+	v.Focus, v.FieldIndex = 2, 3
+	m.adjustViewport()
+	for i := 0; i < 100; i++ {
+		if !m.scrollFocusedField(1) {
+			break
+		}
+	}
+	for _, pane := range m.layout().Panes {
+		if pane.Focus != 2 {
+			continue
+		}
+		lines, _, _ := m.detailViewportLayout(pane.Width, pane.Height)
+		if v.DetailOffset+pane.Height != len(lines) || lines[len(lines)-1] != "" {
+			t.Fatalf("notes end not scrolled into view: offset=%d height=%d total=%d", v.DetailOffset, pane.Height, len(lines))
+		}
+		return
+	}
+	t.Fatal("details pane missing")
+}
+
+func TestHoldingDownAtEndOfLongNotesKeepsScrollPosition(t *testing.T) {
+	m, _ := operationModel(t)
+	m.width, m.height = 100, 24
+	m.ws.ActiveSession().DB.Entries[0].Fields = append(m.ws.ActiveSession().DB.Entries[0].Fields,
+		vault.Field{Name: "Notes", Value: strings.Repeat("line\n", 60) + "last note line"})
+	v := m.ws.ActiveView()
+	v.Focus, v.FieldIndex = 2, 3
+	m.adjustViewport()
+	for i := 0; i < 100; i++ {
+		m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	}
+	end := v.DetailOffset
+	if !v.DetailManual || !strings.Contains(m.View(), "last note line") {
+		t.Fatal("repeated down presses did not stay at the end of notes")
+	}
+	for i := 0; i < 10; i++ {
+		m.Update(tea.KeyMsg{Type: tea.KeyDown})
+		if v.DetailOffset != end || !v.DetailManual {
+			t.Fatalf("down at end moved offset from %d to %d", end, v.DetailOffset)
+		}
+	}
+}
+
 func TestDetailArrowScrollReachesTags(t *testing.T) {
 	m, _ := operationModel(t)
 	m.width, m.height = 100, 24

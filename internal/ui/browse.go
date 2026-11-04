@@ -362,8 +362,11 @@ func (m *Model) move(delta int) {
 		if m.scrollFocusedField(delta) {
 			return
 		}
-		v.DetailManual = false
-		v.FieldIndex = min(max(0, v.FieldIndex+delta), max(0, len(m.fieldNames())-1))
+		next := min(max(0, v.FieldIndex+delta), max(0, len(m.fieldNames())-1))
+		if next != v.FieldIndex {
+			v.DetailManual = false
+			v.FieldIndex = next
+		}
 	}
 }
 
@@ -392,6 +395,9 @@ func (m *Model) scrollFocusedField(delta int) bool {
 	end := len(lines)
 	if v.FieldIndex+1 < len(positions) {
 		end = positions[v.FieldIndex+1] - 2
+		if names := m.fieldNames(); v.FieldIndex < len(names) && names[v.FieldIndex] == "Notes" {
+			end++ // Include the blank row after Notes.
+		}
 	}
 	if delta > 0 && end > v.DetailOffset+height {
 		v.DetailManual = true

@@ -1274,6 +1274,8 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 	}
 	if len(e.Tags) > 0 {
 		lines = append(lines, "", secondary.Render(" Tags: "+safe(strings.Join(e.Tags, ", "))))
+	} else if len(names) > 0 && names[len(names)-1] == "Notes" && strings.Contains(e.Get("Notes"), "\n") {
+		lines = append(lines, "")
 	}
 	return lines, positions
 }

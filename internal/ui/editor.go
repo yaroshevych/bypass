@@ -3,7 +3,6 @@ package ui
 import (
 	wipebuf "bypass/internal/secret"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -576,12 +575,11 @@ func renderEditorViewport(lines []editorLine, focusedLine, focus, height int) []
 	if height <= 0 {
 		return nil
 	}
-	pinned := map[int]bool{0: true, len(lines) - 1: true}
+	// Keep the heading and focused field label visible, then display a
+	// contiguous window around the cursor. Selecting individual nearby lines
+	// lets unrelated controls jump into and out of the middle of long notes.
 	focusLabel, cursorLine := -1, -1
 	for i, line := range lines {
-		if line.error {
-			pinned[i] = true
-		}
 		if line.focus != focus {
 			continue
 		}
@@ -591,60 +589,46 @@ func renderEditorViewport(lines []editorLine, focusedLine, focus, height int) []
 			focusLabel = i
 		}
 	}
-	if focusLabel >= 0 {
-		pinned[focusLabel] = true
-	}
-	if cursorLine >= 0 {
-		pinned[cursorLine] = true
-	}
-
-	indices := make([]int, 0, len(lines))
-	for i := range lines {
-		if !pinned[i] {
-			indices = append(indices, i)
-		}
-	}
 	anchor := focusedLine
 	if cursorLine >= 0 {
 		anchor = cursorLine
 	} else if focusLabel >= 0 {
 		anchor = focusLabel
 	}
-	sort.SliceStable(indices, func(i, j int) bool {
-		di := absInt(indices[i] - anchor)
-		dj := absInt(indices[j] - anchor)
-		if di == dj {
-			return indices[i] < indices[j]
-		}
-		return di < dj
-	})
+	anchor = max(0, min(anchor, len(lines)-1))
+	pinned := map[int]bool{0: true}
+	if focusLabel >= 0 && focusLabel != anchor && height > 2 {
+		pinned[focusLabel] = true
+	}
 	capacity := max(0, height-len(pinned))
-	if capacity < len(indices) {
-		indices = indices[:capacity]
+	start, end := anchor, anchor
+	for capacity > 0 && (start > 0 || end < len(lines)) {
+		if end < len(lines) {
+			if !pinned[end] {
+				capacity--
+			}
+			end++
+		}
+		if capacity <= 0 {
+			break
+		}
+		if start > 0 {
+			start--
+			if !pinned[start] {
+				capacity--
+			}
+		}
 	}
-	for _, i := range indices {
-		pinned[i] = true
-	}
-	visible := make([]editorLine, 0, min(height, len(pinned)))
+	visible := make([]editorLine, 0, height)
 	for i, line := range lines {
-		if pinned[i] {
+		if pinned[i] || (i >= start && i < end) {
 			visible = append(visible, line)
 		}
-	}
-	if len(visible) > height {
-		visible = visible[:height]
 	}
 	for len(visible) < height {
 		visible = append(visible, editorLine{focus: -1})
 	}
 	return visible
-}
-
-func absInt(n int) int {
-	if n < 0 {
-		return -n
-	}
-	return n
 }
 
 func (e *entryEditor) renderValue(field, width int) ([]string, int) {
