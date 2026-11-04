@@ -37,23 +37,20 @@ the in-app reference.
 | Read Only / Enable Writes | `shift+r` | Change the current vault's write mode, subject to startup and external-change restrictions. |
 | Quit bypass | `q` | Close Bypass. Unsaved entry drafts may require a decision first. |
 | Pending Secret Requests… | `alt+b` | Review requests from `bypass run`, including the readable name for an identified agent and requests waiting for vault selection or approval. `ctrl+b` also works outside tmux. |
-| Saved Run Permissions… | — | Open the current vault's saved permission entries for review or revocation. Requires an unlocked vault with saved permissions. |
 
 ### Secret requests
 
 From the workspace, open Requests with `alt+b` when no entry editor or dialog is open. Select a request and press `enter` to review it.
-The list also offers Deny all (`d`), Approve all (`a`), Reset saved permissions (`r`), and Close (`esc`). Approve all asks for confirmation and grants each resolvable request once; requests needing vault selection or unavailable secrets remain for individual review. Review opens over the request list and shows the
+The list also offers Deny all (`d`), Approve all once (`a`), Review session permissions (`r`), and Close (`esc`). Approve all asks for confirmation and grants each resolvable request once; requests needing vault selection or unavailable secrets remain for individual review. Review opens over the request list and shows the
 requested fields without secret values. The field list is not selectable.
 
-Review actions are Deny (`d`), Allow (`a`, once), Allow for this identity (`i`,
-remember these fields across commands and directories), and Back (`esc`). Back
-is selected by default. Remembered approval requires a named identity and a
-writable vault. Use Tab or the arrow keys to focus buttons; Page Up and Page
+Review actions are Deny (`d`), Approve once (`a`), Approve for this session (`s`),
+and Back (`esc`). Back is selected by default. Session approval requires a named
+identity and also works with read-only vaults. Use Tab or the arrow keys to focus buttons; Page Up and Page
 Down scroll the field list.
 
-Reset saved permissions removes remembered approvals from all unlocked vaults
-after confirmation. Cancel is selected by default; `ctrl+s` or `r` confirms the reset.
-Locked vaults are unchanged, and pending requests stay queued.
+Review session permissions shows active permissions. Clear all (`c`) removes
+session access; pending requests stay queued.
 
 ### Locking and PIN protection
 
@@ -164,15 +161,14 @@ fields. Available caller ancestry is context, not proof of the initiating agent.
 | --- | --- |
 | Deny | Reject this batch and prevent command launch. |
 | Allow once | Authorize only this request. |
-| Allow for this identity | Save approval for this identity and the requested fields across commands and directories. |
+| Approve for this session | Allow this identity to access the requested fields across commands and directories until the vault locks or Bypass exits. |
 
-Persistent approval requires an identity and writable vaults. Requests expire at the CLI's deadline;
+Session approval requires an identity. Requests expire at the CLI's deadline;
 see [CLI.md](CLI.md#timeouts-and-configuration) to configure it.
 
-**Saved Run Permissions…** opens the vault's **Bypass Run Permissions** group.
-Select a permission entry to inspect its details. Delete an entry to revoke that
-grant, or delete the group to revoke all grants in the vault. Renaming or moving
-a secret entry requires fresh approval; changing its value retains the grant.
+Session permissions stay in memory. Use **Review session permissions** in Secret
+Requests to inspect or clear them. Existing permission entries in a vault do not
+authorize requests.
 
 Only the launched command receives the resolved environment. A command that
 prints secrets can expose them to the invoking agent because output is not

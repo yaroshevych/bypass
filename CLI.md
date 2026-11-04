@@ -361,5 +361,5 @@ bypass --backend /opt/keepassxc/bin/keepassxc-cli work.kdbx
 | Symlink path rejected | Use the physical executable, file, or working-directory path. |
 | Command unavailable | Check `PATH`, the executable path, and execute permissions. |
 | Expected variable missing | Name each environment file explicitly and check later files for overrides. |
-| Persistent approval unavailable | Check that the vault is writable and the recipient is not a shell or known interpreter. |
+| Session approval unavailable | Supply a valid named identity; anonymous requests support one-time approval only. |
 | IPC executable mismatch | Use the same Bypass build for the TUI and CLI; restart the TUI after updating it. |
