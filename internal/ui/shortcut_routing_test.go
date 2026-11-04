@@ -42,6 +42,8 @@ func TestRemovedShortcutsDoNotActivate(t *testing.T) {
 		{Type: tea.KeyRunes, Alt: true, Runes: []rune{'b'}},
 		{Type: tea.KeyCtrlX},
 		{Type: tea.KeyCtrlB},
+		{Type: tea.KeyCtrlN},
+		{Type: tea.KeyCtrlG},
 		{Type: tea.KeyRunes, Alt: true, Runes: []rune{'1'}},
 		{Type: tea.KeyCtrlPgUp},
 		{Type: tea.KeyCtrlPgDown},

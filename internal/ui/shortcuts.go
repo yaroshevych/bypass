@@ -3,7 +3,7 @@ package ui
 // Workspace shortcuts use the same key values in handlers and palette/help.
 // Modal-specific shortcuts remain with the modal that owns them.
 const (
-	keyNewVault    = "ctrl+n"
+	keyNewVault    = "n"
 	keyOpenVault   = "o"
 	keyCloseView   = "ctrl+w"
 	keyLockAll     = "L"
@@ -19,7 +19,6 @@ const (
 	keyDelete      = "delete"
 	keyCopy        = "c"
 	keyReveal      = "v"
-	keyGenerator   = "ctrl+g"
 	keyGrand       = "G"
 	keySearch      = "/"
 	keyJump        = "J"
@@ -35,13 +34,13 @@ const (
 type shortcut struct{ key, label string }
 
 var workspaceShortcuts = map[string]shortcut{
-	"new-vault": {keyNewVault, "Ctrl+N"}, "open": {keyOpenVault, "o"},
+	"open":       {keyOpenVault, "o"},
 	"close-view": {keyCloseView, "Ctrl+W"}, "lock-all": {keyLockAll, "Shift+L"},
 	"protect": {keyProtect, "Shift+P"}, "run-requests": {keyRequests, "Shift+S"},
 	"reload": {keyReload, "Ctrl+R"}, "read-only": {keyReadOnly, "r"},
 	"new": {keyNewEntry, "n"}, "edit": {keyEditEntry, "e"}, "group": {keyNewGroup, "g"},
 	"move": {keyMoveEntry, "m"}, "delete": {keyDelete, "Delete"},
-	"copy-focused": {keyCopy, "c"}, "reveal": {keyReveal, "v"}, "generator": {keyGenerator, "Ctrl+G"},
+	"copy-focused": {keyCopy, "c"}, "reveal": {keyReveal, "v"},
 	"grand-view": {keyGrand, "Shift+G"}, "search": {keySearch, "/"}, "jump": {keyJump, "Shift+J"},
 	"zoom": {keyZoom, "z"}, "duplicate": {keyNewTab, "t"},
 	"previous-tab": {keyPreviousTab, "["}, "next-tab": {keyNextTab, "]"},

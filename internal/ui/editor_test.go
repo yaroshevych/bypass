@@ -360,7 +360,7 @@ func TestExistingEntryActionsShowShortcutsAndMoveDialog(t *testing.T) {
 		}
 		return out
 	}(), "\n")
-	for _, want := range []string{"Generate Password…", "ctrl+g", "Move…", "Add to favorites", "ctrl+s", "esc"} {
+	for _, want := range []string{"Generate Password…", "Move…", "Add to favorites", "ctrl+s", "esc"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("edit actions missing %q:\n%s", want, joined)
 		}

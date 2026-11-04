@@ -91,7 +91,7 @@ func TestPublicFullLockDiscardsPendingVaultCreation(t *testing.T) {
 	m.ws.SetCredentials(first.ID, vault.Credentials{Password: []byte("existing password")})
 	m.normalize()
 	t.Cleanup(m.Close)
-	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlN})
+	m.openCreateVault()
 	if m.lifecycle == nil || m.lifecycle.kind != "create" {
 		t.Fatal("public create shortcut did not open the new vault form")
 	}
@@ -472,7 +472,7 @@ func TestIdleFullLockDropsPendingVaultCreation(t *testing.T) {
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	m.now = func() time.Time { return base }
 	m.ws.ActiveSession().LastActivity = base
-	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlN})
+	m.openCreateVault()
 	m.lifecycle.inputs[0].set(filepath.Join(t.TempDir(), "idle-create.kdbx"))
 	m.lifecycle.inputs[1].set("new vault password")
 	m.lifecycle.inputs[2].set("new vault password")

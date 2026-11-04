@@ -68,28 +68,28 @@ func TestLifecycleFocusedFieldsRemainVisible(t *testing.T) {
 
 func TestNewVaultShortcutMatchesWelcomeAndPalette(t *testing.T) {
 	m := New(Options{Backend: &lifecycleBackend{}})
-	if view := ansi.Strip(m.View()); !strings.Contains(view, "ctrl+n") {
-		t.Fatal("welcome screen does not advertise ctrl+n")
+	if view := ansi.Strip(m.View()); !strings.Contains(view, "Create") {
+		t.Fatal("welcome screen does not advertise Create")
 	}
 	found := false
 	for _, command := range m.commands() {
 		if command.id == "new-vault" {
-			found = command.key == "Ctrl+N"
+			found = command.key == ""
 		}
 	}
 	if !found {
-		t.Fatal("palette does not advertise ctrl+n")
+		t.Fatal("palette did not offer New Vault without a global shortcut")
 	}
-	m.key(tea.KeyMsg{Type: tea.KeyCtrlN})
+	m.key(key("n"))
 	if m.lifecycle == nil || m.lifecycle.kind != "create" {
-		t.Fatal("ctrl+n did not open the create vault dialog")
+		t.Fatal("n did not open the create vault dialog")
 	}
 }
 func TestCreateVaultFormMasksInputsAndRetainsFailedDraft(t *testing.T) {
 	b := &lifecycleBackend{fail: true}
 	m := New(Options{Backend: b, Settings: platform.Settings{BackupDir: t.TempDir()}})
 	t.Cleanup(m.Close)
-	m.key(tea.KeyMsg{Type: tea.KeyCtrlN})
+	m.key(key("n"))
 	if m.lifecycle == nil {
 		t.Fatal("New Vault did not open")
 	}
@@ -264,7 +264,7 @@ func TestNativeCapabilitiesGateDirectActionsAndPalette(t *testing.T) {
 	m, _ := operationModel(t)
 	m.backend = &lifecycleBackend{}
 	m.backendCapabilities = map[string]bool{"db-create": false, "db-edit": false, "db-info": false}
-	m.key(tea.KeyMsg{Type: tea.KeyCtrlN})
+	m.openCreateVault()
 	if m.lifecycle != nil || m.canCreateVault() {
 		t.Fatal("New Vault shortcut bypassed native capability checks")
 	}

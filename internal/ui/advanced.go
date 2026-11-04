@@ -545,7 +545,7 @@ func (m *Model) footerContext() string {
 		return ""
 	}
 	if m.editor != nil {
-		return "tab focus · ctrl+g generator"
+		return "tab focus"
 	}
 	if m.searching {
 		return "enter apply · esc cancel"

@@ -653,7 +653,11 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	switch key {
 	case keyNewVault:
-		return m.leaveEditor(m.openCreateVault)
+		if m.ws.ActiveSession() == nil || m.ws.ActiveSession().DB == nil {
+			return m.openCreateVault()
+		}
+		cmd, _ := m.operationKey(k)
+		return cmd
 	case keyQuit:
 		m.Close()
 		return tea.Quit

@@ -203,9 +203,6 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		return m.copyField(""), true
 	case keyReveal:
 		return m.toggleReveal(), true
-	case keyGenerator:
-		m.openGenerator()
-		return nil, true
 	case keyReadOnly:
 		if s.Stale {
 			m.setNotice("reload required", true)
@@ -356,9 +353,6 @@ func (m *Model) leaveEditor(action func() tea.Cmd) tea.Cmd {
 }
 func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 	switch k.String() {
-	case "ctrl+g":
-		m.openGenerator()
-		return nil
 	case "ctrl+r":
 		if s := m.ws.ActiveSession(); s != nil {
 			return m.requestReload(s.ID)

@@ -491,7 +491,7 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 		label    string
 		index    int
 		shortcut string
-	}{{"Generate Password…", editGenerate, "ctrl+g"}}
+	}{{"Generate Password…", editGenerate, ""}}
 	if !e.isNew {
 		actions = append(actions, struct {
 			label    string
