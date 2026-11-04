@@ -18,7 +18,7 @@ func TestPINProtectsPendingSaveWithoutCancelingIt(t *testing.T) {
 	if save == nil || !m.writing {
 		t.Fatal("save was not started")
 	}
-	m.Update(tea.KeyMsg{Type: tea.KeyCtrlK})
+	m.Update(key("P"))
 	if !m.gate.Protected() || !m.writing || m.editor == nil {
 		t.Fatal("PIN must mask a pending save while retaining its draft and operation")
 	}

@@ -63,8 +63,8 @@ func TestPublicFullLockDropsPendingSecondaryOpen(t *testing.T) {
 	result := make(chan tea.Msg, 1)
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.started)
-	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlK})
-	updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
+	updateKey(m, key("P"))
+	updateKey(m, key("L"))
 	if !m.pinFullLock || m.pinFocus != 1 {
 		t.Fatal("full lock confirmation should default to Cancel")
 	}
@@ -105,9 +105,9 @@ func TestPublicFullLockDiscardsPendingVaultCreation(t *testing.T) {
 	result := make(chan tea.Msg, 1)
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.started)
-	updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
+	updateKey(m, key("L"))
 	if first.DB != nil {
-		t.Fatal("alt+l did not full-lock every existing vault during creation")
+		t.Fatal("shift+l did not full-lock every existing vault during creation")
 	}
 	close(backend.release)
 	msg := awaitBoundary(t, result)
@@ -140,9 +140,9 @@ func TestPublicFullLockDropsLateSaveResultAndCredentials(t *testing.T) {
 	if cmd == nil || !m.writing {
 		t.Fatal("group save was not started through Update")
 	}
-	updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
+	updateKey(m, key("L"))
 	if session.DB != nil || len(session.Credentials.Password) != 0 {
-		t.Fatal("alt+l did not full-lock the pending session")
+		t.Fatal("shift+l did not full-lock the pending session")
 	}
 	for _, b := range credentialBytes {
 		if b != 0 {
@@ -178,7 +178,7 @@ func TestPublicPINProtectionDropsLateReferenceReveal(t *testing.T) {
 	result := make(chan tea.Msg, 1)
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.resolveStarted)
-	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlK})
+	updateKey(m, key("P"))
 	if !m.gate.Protected() || m.revealEntry != "" {
 		t.Fatal("PIN protection did not clear reveal state")
 	}
@@ -210,7 +210,8 @@ func TestPublicPINProtectionPreservesCredentialFormDraft(t *testing.T) {
 	}
 	lifecycle := m.lifecycle
 	lifecycle.inputs[0].set("sensitive credential draft")
-	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlK})
+	lifecycle.focus = len(lifecycleVisibleInputs(lifecycle))
+	updateKey(m, key("P"))
 	if !m.gate.Protected() || m.lifecycle != lifecycle || lifecycle.inputs[0].value() != "sensitive credential draft" {
 		t.Fatal("PIN protection discarded or changed the credential form draft")
 	}
@@ -241,7 +242,7 @@ func TestPublicFullLockDropsLateReferenceCopy(t *testing.T) {
 	result := make(chan tea.Msg, 1)
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.resolveStarted)
-	updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
+	updateKey(m, key("L"))
 	close(backend.resolveRelease)
 	msg := awaitBoundary(t, result)
 	value := msg.(resolvedCopyMsg).value
@@ -271,7 +272,7 @@ func TestPublicPINProtectionDropsLateTOTPResult(t *testing.T) {
 	result := make(chan tea.Msg, 1)
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.started)
-	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlK})
+	updateKey(m, key("P"))
 	if !m.gate.Protected() || m.extras != nil {
 		t.Fatal("PIN protection left TOTP state visible")
 	}
@@ -304,7 +305,7 @@ func TestPublicFullLockCancelsPendingAttachmentExport(t *testing.T) {
 	result := make(chan tea.Msg, 1)
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.started)
-	updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
+	updateKey(m, key("L"))
 	close(backend.release)
 	msg := awaitBoundary(t, result)
 	m.Update(msg)
@@ -331,9 +332,9 @@ func TestPublicPINProtectionAllowsAuthorizedAttachmentExport(t *testing.T) {
 	result := make(chan tea.Msg, 1)
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.started)
-	updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlK})
+	updateKey(m, key("P"))
 	if !m.gate.Protected() {
-		t.Fatal("Ctrl+K did not mask the pending export")
+		t.Fatal("Shift+P did not mask the pending export")
 	}
 	close(backend.release)
 	msg := awaitBoundary(t, result)
@@ -511,9 +512,9 @@ func TestCtrlLFullLockCancelsPendingUnlockAndLocksOtherVault(t *testing.T) {
 	result := make(chan tea.Msg, 1)
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.started)
-	updateKey(m, tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
+	updateKey(m, key("L"))
 	if current.DB != nil || other.DB != nil || m.busy {
-		t.Fatal("alt+l must cancel pending authentication and lock every vault")
+		t.Fatal("shift+l must cancel pending authentication and lock every vault")
 	}
 	close(backend.release)
 	msg := awaitBoundary(t, result)
@@ -531,17 +532,17 @@ func TestCtrlXLocksFromWorkspaceDialogsAndPIN(t *testing.T) {
 			session := m.ws.ActiveSession()
 			switch layer {
 			case "dialog":
-				m.openPalette("actions", false)
+				m.dialog = &actionDialog{kind: "delete", sessionID: session.ID}
 			case "pin":
 				if err := m.gate.Configure([]byte("2468")); err != nil {
 					t.Fatal(err)
 				}
-				updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlK})
+				updateKey(m, key("P"))
 				if !m.gate.Protected() {
 					t.Fatal("PIN protection did not start")
 				}
 			}
-			updateKey(m, tea.KeyMsg{Type: tea.KeyCtrlX})
+			updateKey(m, key("L"))
 			if layer == "pin" {
 				if !m.pinFullLock || m.pinFocus != 1 {
 					t.Fatal("full lock confirmation did not default to Cancel")
@@ -550,7 +551,7 @@ func TestCtrlXLocksFromWorkspaceDialogsAndPIN(t *testing.T) {
 				updateKey(m, key("enter"))
 			}
 			if session.DB != nil {
-				t.Fatal("Ctrl+X did not lock vault")
+				t.Fatal("Shift+L did not lock vault")
 			}
 		})
 	}

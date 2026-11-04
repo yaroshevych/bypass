@@ -147,7 +147,7 @@ func (m *Model) pinSetupKey(k tea.KeyMsg) tea.Cmd {
 		}
 		after := d.after
 		m.clearDialog()
-		m.setNotice("session pin set · ctrl+k locks screen", false)
+		m.setNotice("session pin set · shift+p locks screen", false)
 		if after != nil {
 			return after()
 		}
@@ -198,7 +198,7 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	}
-	if key == keyLockAll || key == keyLockAllFallback {
+	if key == keyLockAll {
 		m.pinInput.clear()
 		m.pinFullLock = true
 		m.pinFocus = 1
@@ -275,7 +275,7 @@ func (m *Model) pinContent() (opts dialogrender.Options, targets []int) {
 		if delay := m.gate.NextAttempt().Sub(m.now()); delay > 0 {
 			body = append(body, c.secondary.Render(fmt.Sprintf(" wait %ds", int(delay.Seconds())+1)))
 		}
-		actions = []dialogAction{{"Unlock", "enter"}, {"Full Lock", keyLockAll}, {"Quit", ""}}
+		actions = []dialogAction{{"Unlock", "enter"}, {"Full Lock", "shift+l"}, {"Quit", ""}}
 		actionBase, focus = 1, m.pinFocus-1
 	}
 	message := ""

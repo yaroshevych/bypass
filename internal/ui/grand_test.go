@@ -143,7 +143,7 @@ func TestPINAndFullLockCloseGrandView(t *testing.T) {
 		if err := m.gate.Configure([]byte("1234")); err != nil {
 			t.Fatal(err)
 		}
-		m.key(tea.KeyMsg{Type: tea.KeyCtrlK})
+		m.key(key("P"))
 		if !m.gate.Protected() || m.grand || len(m.revealValue) != 0 {
 			t.Fatal("PIN protection did not close Grand View and clear its buffer")
 		}
@@ -160,7 +160,7 @@ func TestPINAndFullLockCloseGrandView(t *testing.T) {
 		setGrandPassword(t, m, "abc")
 		m.key(key("G"))
 		backing := m.revealValue
-		m.key(tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
+		m.key(key("L"))
 		if m.grand || len(m.revealValue) != 0 || m.ws.ActiveSession().DB != nil {
 			t.Fatal("full lock did not close Grand View and lock the vault")
 		}

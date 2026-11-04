@@ -360,9 +360,9 @@ func (m *Model) workspaceLines() []string {
 	}
 	right := status
 	if s.DB != nil {
-		right = fmt.Sprintf("%d entries · %s lock", len(s.DB.Entries), keyLockAll)
+		right = fmt.Sprintf("%d entries · shift+l lock", len(s.DB.Entries))
 		if s.Stale {
-			right = "Changed externally · ctrl+r reload · " + keyLockAll + " lock"
+			right = "Changed externally · ctrl+r reload · shift+l lock"
 		}
 	}
 	compact := m.compactAppearance()

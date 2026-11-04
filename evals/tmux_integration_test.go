@@ -109,7 +109,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	e.key("Enter")
 	e.mustShow("Eval Entry", "read only", "3 EVAL ENTRY")
 	e.mustNotShow(secretSentinel)
-	e.key("M-l")
+	e.key("L")
 	e.mustShow("Vault locked", "second.kdbx")
 	e.key("1")
 	e.mustActiveVault("first.kdbx")
@@ -416,7 +416,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.typeText("1234")
 	e.key("Enter")
 	e.mustShow("session pin set")
-	e.key("C-k")
+	e.key("P")
 	e.mustShow("Screen protected")
 	e.mustNotShow("Eval Entry")
 	e.mustNotShow("first.kdbx")
@@ -438,14 +438,14 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 
 	// Full lock uses the vault credential path and does not require the session
 	// PIN again after the master password unlocks the vault.
-	e.key("C-k")
+	e.key("P")
 	e.mustShow("Screen protected")
-	e.key("M-l")
+	e.key("L")
 	e.mustShow("Full lock all vaults?")
 	e.mustNotShow("Eval Entry")
 	e.key("Enter")
 	e.mustShow("Screen protected")
-	e.key("M-l")
+	e.key("L")
 	e.mustShow("Full lock all vaults?")
 	e.key("Up")
 	e.key("Enter")
@@ -585,7 +585,8 @@ func (e *evalSession) startApp(backend string, appArgs ...string) {
 	for _, arg := range appArgs {
 		command += " " + shellQuote(arg)
 	}
-	script := "#!/bin/sh\nexec env HOME=" + shellQuote(filepath.Join(e.root, "home")) +
+	// Start with XON/XOFF enabled so Ctrl+S journeys verify the application's raw mode.
+	script := "#!/bin/sh\nstty ixon\nexec env HOME=" + shellQuote(filepath.Join(e.root, "home")) +
 		" XDG_CONFIG_HOME=" + shellQuote(filepath.Join(e.root, "xdg-config")) +
 		" XDG_DATA_HOME=" + shellQuote(filepath.Join(e.root, "xdg-data")) +
 		" XDG_STATE_HOME=" + shellQuote(filepath.Join(e.root, "xdg-state")) +

@@ -58,8 +58,9 @@
 - Omit empty or redundant dialog footers. Right-align any remaining dialog hints.
   Keep workspace hints lowercase and notices brief, lowercase, and without final
   punctuation. Prevent overlap with status text and the clipboard countdown.
-- Match shortcut hints to actual bindings. `ctrl+l` locks all vaults, including
-  from the editor; `[` and `]` switch tabs. Resize panes by dragging dividers.
+- Match shortcut hints to actual bindings. `shift+l` locks all vaults when a
+  text input is not focused; `ctrl+l` redraws. `[` and `]` switch tabs. Resize
+  panes by dragging dividers.
 - Mask passwords by default; show other standard fields. Cache list/search fields
   in memory and load remaining details on item focus. Copy feedback must not contain
   the copied value.

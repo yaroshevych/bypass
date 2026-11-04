@@ -57,7 +57,7 @@ func TestPINMasksNativeSaveAndFullLockCancelsNextSaveTmux(t *testing.T) {
 	e.typeText(" Protected")
 	e.key("C-s")
 	e.waitFor("native save reached controlled boundary", func() bool { _, err := os.Stat(started); return err == nil })
-	e.key("C-k")
+	e.key("P")
 	e.mustShow("Screen protected")
 	e.mustNotShow("Seed Entry")
 	e.mustNotShow("real-cli.kdbx")
@@ -102,7 +102,7 @@ func TestPINMasksNativeSaveAndFullLockCancelsNextSaveTmux(t *testing.T) {
 	e.typeText(" Discarded")
 	e.key("C-s")
 	e.waitFor("second native save reached controlled boundary", func() bool { _, err := os.Stat(started); return err == nil })
-	e.key("M-l")
+	e.key("L")
 	e.mustShow("Vault locked")
 	if err := os.WriteFile(release, nil, 0o600); err != nil {
 		t.Fatal(err)

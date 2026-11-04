@@ -161,7 +161,7 @@ def capture(args, fixture, cli, output):
                         elif args.screen == 'history':
                             palette('History', 'History')
                         elif args.screen == 'pin':
-                            key('C-k')
+                            key('P')
                             wait('Set Session PIN')
                             text('2468')
                             key('Enter')

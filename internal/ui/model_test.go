@@ -804,8 +804,8 @@ func TestNumberKeysSwitchViewsIncludingLockedVault(t *testing.T) {
 		t.Fatal("unavailable view number changed selection")
 	}
 	m.key(tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'1'}})
-	if m.ws.Active != 0 {
-		t.Fatal("Alt+1 alias broken")
+	if m.ws.Active != 1 {
+		t.Fatal("removed Alt+1 alias changed the selected tab")
 	}
 }
 

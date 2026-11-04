@@ -232,7 +232,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				r.newIdentity = map[*runpkg.Pending]bool{}
 			}
 			r.newIdentity[msg.Pending] = msg.Pending.Identity.Digest != ""
-			m.setNotice("secret request pending · "+keyRequests+" to review", false)
+			m.setNotice("secret request pending · shift+s to review", false)
 			choices, choiceIndex := r.choices, r.choiceIndex
 			targets, err := m.resolveRunTargets(msg.Pending)
 			r.choices, r.choiceIndex = choices, choiceIndex
@@ -313,7 +313,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		if r.visible && m.activeLayer() == layerTiny {
 			return nil, false
 		}
-		if msg.String() == keyLockAll || msg.String() == keyLockAllFallback || msg.String() == "ctrl+c" {
+		if msg.String() == keyLockAll || msg.String() == "ctrl+c" {
 			return nil, false
 		}
 		if m.gate.Protected() {
@@ -327,7 +327,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			r.bulkPending = nil
 			return nil, false
 		}
-		if (msg.String() == keyRequests || msg.String() == keyRequestsLegacy) && m.editor == nil && m.dialog == nil {
+		if msg.String() == keyRequests && m.editor == nil && m.dialog == nil && (r.visible || !m.searching) && m.screen == browse {
 			r.visible = !r.visible
 			r.bulkConfirm, r.bulkPending = false, nil
 			r.review, r.choosing, r.reviewed = false, false, nil

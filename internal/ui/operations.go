@@ -337,18 +337,6 @@ func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 		return m.leaveEditor(m.openPicker)
 	case "ctrl+w":
 		return m.leaveEditor(func() tea.Cmd { m.ws.CloseView(); m.normalize(); return m.clearClipboard() })
-	case "L": // Uppercase text is ordinary editor input; keep the all-vault action global.
-	case "ctrl+pgup", "ctrl+pgdown":
-		delta := 1
-		if k.String() == "ctrl+pgup" {
-			delta = -1
-		}
-		return m.leaveEditor(func() tea.Cmd {
-			if m.moveTab(delta) {
-				m.normalize()
-			}
-			return nil
-		})
 	case "ctrl+g":
 		m.openGenerator()
 		return nil

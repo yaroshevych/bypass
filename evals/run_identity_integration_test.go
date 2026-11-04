@@ -159,7 +159,7 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 		e.mustShow("No pending requests")
 	}
 	e.key("Escape")
-	e.key("M-l")
+	e.key("L")
 	e.mustShow("Vault locked")
 	e.key("Enter")
 	e.mustShow("UNLOCK VAULT")

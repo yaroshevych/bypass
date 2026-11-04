@@ -25,8 +25,8 @@ the in-app reference.
 
 | Action | Shortcut | Behavior |
 | --- | --- | --- |
-| Lock UI with PIN | `ctrl+k` | Cover the interface with the session PIN. Requires an unlocked vault and a configured PIN when selected from the palette. |
-| Lock All Vaults | `alt+l` | Lock every unlocked vault and clear their authenticated sessions. `shift+l` also works in the workspace. |
+| Lock UI with PIN | `shift+p` | Cover the interface with the session PIN. Requires an unlocked vault and a configured PIN. |
+| Lock All Vaults | `shift+l` | Lock every unlocked vault and clear their authenticated sessions. |
 | Open Vault… | `ctrl+o` | Select a vault file and unlock it. `o` also works in the workspace. |
 | Close Vault | — | Close the current vault and its views. |
 | New Vault… | `ctrl+n` | Create a vault. Requires backend support and permission to write. |
@@ -36,11 +36,11 @@ the in-app reference.
 | Change Password… | — | Change the current vault's master password. Requires a writable vault and backend support. |
 | Read Only / Enable Writes | `shift+r` | Change the current vault's write mode, subject to startup and external-change restrictions. |
 | Quit bypass | `q` | Close Bypass. Unsaved entry drafts may require a decision first. |
-| Pending Secret Requests… | `alt+b` | Review requests from `bypass run`, including the readable name for an identified agent and requests waiting for vault selection or approval. `ctrl+b` also works outside tmux. |
+| Pending Secret Requests… | `shift+s` | Review requests from `bypass run`, including the readable name for an identified agent and requests waiting for entry selection or approval. |
 
 ### Secret requests
 
-From the workspace, open Requests with `alt+b` when no entry editor or dialog is open. Select a request and press `enter` to review it.
+From the workspace, open Requests with `shift+s` when no entry editor or dialog is open. Select a request and press `enter` to review it.
 The list also offers Deny all (`d`), Approve all once (`a`), Review session permissions (`r`), and Close (`esc`). Approve all asks for confirmation and grants each resolvable request once; requests needing vault selection or unavailable secrets remain for individual review. Review opens over the request list and shows the
 requested fields without secret values. The field list is not selectable.
 
@@ -79,15 +79,14 @@ changes, or has no usable backup location.
 | --- | --- | --- |
 | New Tab | `t` | Create another view of the current unlocked vault. It does not create a new vault. |
 | Close Tab | `ctrl+w` | Close the current view. |
-| Previous Tab | `[` | Switch to the previous tab. `ctrl+pgup` also works where the terminal passes it through. |
-| Next Tab | `]` | Switch to the next tab. `ctrl+pgdown` also works where the terminal passes it through. |
+| Previous Tab | `[` | Switch to the previous tab. |
+| Next Tab | `]` | Switch to the next tab. |
 | Search | `/` | Search the current entry list. The palette's Search action starts from All Entries. |
 | Zoom | `z` | Toggle zoom for the current view. |
 
 Views of the same vault share its data, write mode, and lock state. Their
 selection, filters, and pane positions are independent. Bypass supports up to
-nine tabs; number keys `1`–`9` or `alt+1`–`alt+9` select tabs directly when
-the terminal passes them through. Press `a` in an unlocked workspace to open
+nine tabs; number keys `1`–`9` select tabs directly. Press `a` in an unlocked workspace to open
 the contextual action palette. On the welcome screen, `delete` or `backspace`
 removes the selected recent vault from the list.
 
@@ -117,6 +116,9 @@ revealing the value.
 Letter shortcuts are case-sensitive: for example, `g` creates a group and
 `shift+g` opens Large View. Inputs and dialogs use their own shortcuts.
 `ctrl+l` redraws the terminal without changing the current vault or draft.
+The `shift+p` and `shift+l` shortcuts do not intercept text input; move focus
+to an action or the workspace before using them. Open requests with `shift+s`
+from the workspace after closing the editor or dialog.
 
 Deletion uses the vault's recycle bin when applicable. Items already in the bin
 are deleted permanently after confirmation. Root and recycle-bin groups have
@@ -175,4 +177,4 @@ prints secrets can expose them to the invoking agent because output is not
 masked. See [CLI.md](CLI.md#supported-paths-and-security-limits) for the security
 limits of this workflow.
 
-Lock all vaults with `ctrl+x` or `alt+l`. On macOS, Alt shortcuts may require configuring Option to send Meta in your terminal.
+Lock all vaults with `shift+l`.

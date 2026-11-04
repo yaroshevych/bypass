@@ -226,8 +226,8 @@ Only the reference portions are replaced. Ordinary text is preserved.
 
 ## Approval and session permissions
 
-The TUI must be running to resolve secrets. Open requests with `alt+b` (`ctrl+b`
-is also available outside tmux). Select a request and press `enter` to review it.
+The TUI must be running to resolve secrets. Open requests with `shift+s`.
+Select a request and press `enter` to review it.
 Approve all once (`a`) approves the current resolvable requests once after
 confirmation. Review session permissions (`r`) opens the permissions dialog.
 Clear all (`c`) removes session access; pending requests stay queued.

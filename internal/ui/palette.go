@@ -744,24 +744,29 @@ func (m *Model) helpActionGroups() (map[string][]string, int) {
 			count++
 		}
 	}
-	for _, line := range []string{"↑↓ / j k       Change selection", "←→ / h l       Navigate", "tab            Cycle navigation", "/              Filter", "1–9            Switch tab", "[ ]            Cycle tabs"} {
+	for _, line := range []string{"↑↓ / j k       Change selection", "←→ / h l       Navigate", "tab            Cycle navigation", "1–9 / [ ]      Switch tab"} {
 		add("VIEW", line)
 	}
-	for _, line := range []string{"a              Context actions (unlocked)", "ctrl+pgup/down Cycle tabs", "alt+1–9        Switch tab", "o              Open vault (workspace)", "shift+l / ctrl+x Lock all vaults", "ctrl+l         Redraw screen", "delete         Remove recent vault (welcome screen)"} {
+	for _, line := range []string{"a              Context actions"} {
 		add("VIEW", line)
 	}
+	var quitLine string
 	for _, command := range orderCommandChoices(m.commands()) {
-		if command.key == "" || command.id == "previous-tab" || command.id == "next-tab" {
+		if command.key == "" || command.id == "previous-tab" || command.id == "next-tab" || command.id == "cancel-edit" {
 			continue
 		}
-		line := strings.ToLower(command.key) + " " + command.label
-		if command.id != "help" {
-			line = fmt.Sprintf("%-14s %s", strings.ToLower(command.key), command.label)
-		}
+		line := fmt.Sprintf("%-14s %s", strings.ToLower(command.key), command.label)
 		if command.reason != "" && command.id != "protect" && command.id != "save" && command.id != "cancel-edit" {
 			line += " (" + command.reason + ")"
 		}
+		if command.id == "quit" {
+			quitLine = line
+			continue
+		}
 		add(commandSection(command.group), line)
+	}
+	if quitLine != "" {
+		add("SETTINGS", quitLine)
 	}
 	return groups, count
 }

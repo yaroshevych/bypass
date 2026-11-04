@@ -108,9 +108,10 @@ func TestRedrawKeepsDraftAndAltLLocks(t *testing.T) {
 	if redraw == nil || m.editor == nil || m.editor.inputs[editTitle].value() != "unsaved draft" || m.ws.ActiveSession().DB == nil {
 		t.Fatal("redraw changed the editor draft or locked the vault")
 	}
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
+	m.editor.focus = editGenerate
+	m.Update(key("L"))
 	if m.editor != nil || m.ws.ActiveSession().DB != nil {
-		t.Fatal("alt+l did not clear the draft and lock the vault")
+		t.Fatal("shift+l did not clear the draft and lock the vault")
 	}
 }
 
@@ -569,7 +570,7 @@ func TestCtrlLLocksAllAndCurrentVaultRemainsInPalette(t *testing.T) {
 		t.Fatal("test requires two unlocked vaults")
 	}
 	header := ansi.Strip(m.workspaceLines()[0])
-	if !strings.Contains(header, "2 entries · alt+l lock") {
+	if !strings.Contains(header, "2 entries · shift+l lock") {
 		t.Fatalf("header lock hint = %q", header)
 	}
 	commands := m.commands()
@@ -583,12 +584,12 @@ func TestCtrlLLocksAllAndCurrentVaultRemainsInPalette(t *testing.T) {
 			all = cmd
 		}
 	}
-	if current == nil || current.key != "" || all == nil || all.key != "Alt+L" {
+	if current == nil || current.key != "" || all == nil || all.key != "Shift+L" {
 		t.Fatalf("lock command bindings: current=%+v all=%+v", current, all)
 	}
-	m.key(tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
+	m.key(key("L"))
 	if first.DB != nil || second.DB != nil {
-		t.Fatal("alt+l did not lock all open vaults")
+		t.Fatal("shift+l did not lock all open vaults")
 	}
 
 	m.ws.Open(fixture("/tmp/lock-current-first.kdbx"))
@@ -657,7 +658,7 @@ func TestActiveLayerPrioritizesPrivacyAndModalSurfaces(t *testing.T) {
 }
 
 func TestGlobalLockWorksFromModalAndTinyScreens(t *testing.T) {
-	for _, where := range []string{"palette", "help", "tiny"} {
+	for _, where := range []string{"tiny"} {
 		t.Run(where, func(t *testing.T) {
 			m, _ := operationModel(t)
 			m.width, m.height = 120, 35
@@ -669,9 +670,9 @@ func TestGlobalLockWorksFromModalAndTinyScreens(t *testing.T) {
 			case "tiny":
 				m.width, m.height = 47, 15
 			}
-			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
+			m.Update(key("L"))
 			if m.ws.ActiveSession().DB != nil {
-				t.Fatal("alt+l did not lock the vault")
+				t.Fatal("shift+l did not lock the vault")
 			}
 			if m.palette != nil || m.help {
 				t.Fatal("lock left a modal open")
@@ -703,9 +704,45 @@ func TestHelpListsContextualShortcuts(t *testing.T) {
 		lines = append(lines, group...)
 	}
 	help := strings.Join(lines, "\n")
-	for _, want := range []string{"ctrl+x", "ctrl+l", "ctrl+pgup/down", "alt+1–9", "Context actions (unlocked)", "Open vault (workspace)", "Remove recent vault (welcome screen)"} {
+	for _, want := range []string{"shift+l", "Context actions"} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help missing %q", want)
 		}
+	}
+	if strings.Contains(help, "Remove recent vault") {
+		t.Fatal("welcome-screen removal should not appear in the shortcut dialog")
+	}
+	if strings.Contains(help, "Context actions (unlocked)") {
+		t.Fatal("context action label should not include the unlocked qualifier")
+	}
+	if strings.Contains(help, "Open vault (workspace)") {
+		t.Fatal("Open vault label should not include the workspace qualifier")
+	}
+	view := strings.Join(groups["VIEW"], "\n")
+	if strings.Contains(view, "Open vault") {
+		t.Fatal("Open vault should not be duplicated in the View section")
+	}
+	if strings.Contains(view, "Lock all vaults") {
+		t.Fatal("lock-all should not be duplicated in the View section")
+	}
+	if !strings.Contains(view, "1–9 / [ ]      Switch tab") || strings.Contains(view, "/              Filter") {
+		t.Fatalf("tab row is missing or duplicate filter row remains: %q", view)
+	}
+	if strings.Contains(help, "Redraw screen") {
+		t.Fatal("redraw should not appear in the shortcut dialog")
+	}
+	if !strings.Contains(help, "?              Shortcuts") {
+		t.Fatal("Shortcuts key should align with the other actions")
+	}
+	for _, line := range lines {
+		if strings.HasPrefix(line, "esc") && strings.Contains(line, "Cancel") {
+			t.Fatal("cancel should not appear in the shortcut dialog")
+		}
+	}
+	if settings := groups["SETTINGS"]; len(settings) == 0 || !strings.Contains(settings[len(settings)-1], "Quit bypass") {
+		t.Fatalf("Quit bypass should be last in Settings: %v", settings)
+	}
+	if strings.Contains(strings.Join(groups["VAULTS"], "\n"), "Quit bypass") {
+		t.Fatal("Quit bypass should not appear in Vaults")
 	}
 }

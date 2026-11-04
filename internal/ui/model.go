@@ -571,7 +571,20 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if key == keyRedraw {
 		return tea.ClearScreen
 	}
-	if (key == keyLockAll || key == keyLockAllFallback) && !m.gate.Protected() {
+	layer := m.activeLayer()
+	shortcutContext := (layer == layerWorkspace && m.screen == browse && !m.searching && (m.editor == nil || m.editor.focus >= editGenerate)) || layer == layerRequests || layer == layerGrand || layer == layerTiny || m.writing || m.busy || (m.lifecycle != nil && m.lifecycle.busy)
+	if layer == layerLifecycle && m.lifecycle != nil && (m.lifecycle.confirm || m.lifecycle.kind == "info" || m.lifecycle.focus >= len(lifecycleVisibleInputs(m.lifecycle))) {
+		shortcutContext = true
+	}
+	if layer == layerDialog && m.dialog != nil {
+		switch m.dialog.kind {
+		case "group", "generator", "pin-setup", "pin-confirm":
+			shortcutContext = shortcutContext || m.dialog.selected != 0
+		default:
+			shortcutContext = true
+		}
+	}
+	if key == keyLockAll && !m.gate.Protected() && shortcutContext {
 		m.help = false
 		return m.lockCurrent(true)
 	}
@@ -586,8 +599,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	}
-	layer := m.activeLayer()
-	if layer != layerPrivacy && layer != layerRequests && (key == keyRequests || key == keyRequestsLegacy) {
+	if layer != layerRequests && key == keyRequests && shortcutContext && m.editor == nil {
 		if cmd, handled := m.updateRun(k); handled {
 			return cmd
 		}
@@ -596,7 +608,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if layer == layerRequests && key == "ctrl+c" {
 		return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit })
 	}
-	if layer != layerPrivacy && key == keyProtect {
+	if key == keyProtect && shortcutContext {
 		return m.protectScreen()
 	}
 	if layer != layerWorkspace {
@@ -658,16 +670,6 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	case keyThemes:
 		m.openPalette("themes", false)
 		return nil
-	case "ctrl+pgup":
-		if m.moveTab(-1) {
-			m.normalize()
-		}
-		return nil
-	case "ctrl+pgdown":
-		if m.moveTab(1) {
-			m.normalize()
-		}
-		return nil
 	case keyPreviousTab:
 		if m.moveTab(-1) {
 			m.normalize()
@@ -684,10 +686,8 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		m.err = ""
 		m.normalize()
 		return m.clearClipboard()
-	case "L":
-		return m.lockCurrent(true)
 	}
-	tabKey := strings.TrimPrefix(key, "alt+")
+	tabKey := key
 	if len(tabKey) == 1 && tabKey[0] >= '1' && tabKey[0] <= '9' {
 		if m.switchTabPosition(int(tabKey[0] - '1')) {
 			m.normalize()
@@ -780,12 +780,12 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	case keySearch:
 		return m.beginSearch(false)
 	case "esc":
-		if v.Zoom {
+		if m.clearFilter() {
+			m.normalize()
+		} else if v.Zoom {
 			v.Zoom = false
-		} else {
-			if !m.clearFilter() && m.layout().Mode != "wide" && v.Focus > 0 {
-				v.Focus--
-			}
+		} else if m.layout().Mode != "wide" && v.Focus > 0 {
+			v.Focus--
 			m.normalize()
 		}
 	case keyGrand:

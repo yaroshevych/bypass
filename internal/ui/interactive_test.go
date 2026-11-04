@@ -127,7 +127,7 @@ func TestInteractiveUnlockDropsCredentialsAndResolvesOnDemand(t *testing.T) {
 	if ready.err != nil {
 		t.Fatal(ready.err)
 	}
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Alt: true, Runes: []rune{'l'}})
+	m.Update(key("L"))
 	m.Update(ready)
 	if m.editor != nil {
 		t.Fatal("late editor result reopened secrets after full lock")

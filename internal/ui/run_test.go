@@ -436,8 +436,7 @@ func TestRequestKeyboardRoutingToPaletteAndQuit(t *testing.T) {
 
 func TestRequestShortcutAndLegacyAlias(t *testing.T) {
 	for _, message := range []tea.KeyMsg{
-		{Type: tea.KeyRunes, Alt: true, Runes: []rune{'b'}},
-		{Type: tea.KeyCtrlB},
+		key("S"),
 	} {
 		m := New(Options{})
 		m.Update(message)
@@ -565,7 +564,7 @@ func TestRunLockInvalidatesReviewedApproval(t *testing.T) {
 	m.ws.Open(&vault.Database{Path: "/vault", RootUUID: "root", Entries: []vault.Entry{{UUID: "entry", GroupPath: "Passwords", Fields: []vault.Field{{Name: "Title", Value: "Secret"}}}}})
 	p := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{"/bin/sh"}, References: []string{"bypass://Secret"}}}
 	m.Update(RunRequestMsg{p})
-	m.Update(tea.KeyMsg{Type: tea.KeyCtrlB})
+	m.Update(key("S"))
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if len(m.runs.targets) != 1 {
 		t.Fatal("request was not reviewed")

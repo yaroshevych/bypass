@@ -47,7 +47,7 @@ func TestKeyFileOnlyCreationUnlockAndPasswordAdditionTmux(t *testing.T) {
 	e.typeText("100")
 	e.key("C-s")
 	e.mustShowWrite("Vault created and unlocked.", "No entries")
-	e.key("M-l")
+	e.key("L")
 	e.mustShow("Vault locked")
 	e.key("Enter")
 	e.mustShow("Unlock Vault")

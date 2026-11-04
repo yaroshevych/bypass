@@ -52,11 +52,11 @@ func TestNativeTOTPFieldRevealAndLockTmux(t *testing.T) {
 			e.waitFor("TOTP remasked", func() bool { return !codePattern.MatchString(e.capture()) })
 			e.key("v")
 			e.waitFor("TOTP revealed again", func() bool { return codePattern.MatchString(e.capture()) })
-			e.key("M-l")
+			lastCode := codePattern.FindString(e.capture())
+			e.registerSecret(lastCode)
+			e.key("L")
 			e.mustShow("Vault locked")
-			if codePattern.MatchString(e.capture()) {
-				t.Fatal("TOTP survived full lock")
-			}
+			e.mustNotShow(lastCode)
 			e.key("q")
 			e.waitForCleanQuit()
 		})

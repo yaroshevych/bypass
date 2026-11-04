@@ -13,6 +13,9 @@ func (m *Model) secretRunes(k tea.KeyMsg) bool {
 	}
 	switch m.activeLayer() {
 	case layerPrivacy:
+		if !k.Alt && k.Type == tea.KeyRunes && len(k.Runes) == 1 && k.Runes[0] == 'L' {
+			return false
+		}
 		if m.pinFullLock || m.pinFocus != 0 {
 			return false
 		}
