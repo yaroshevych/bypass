@@ -36,6 +36,20 @@ func TestLimitedBufferDoesNotExposeReaderFromAndCapsOutput(t *testing.T) {
 	}
 }
 
+func TestLimitedBufferWipeOverwritesItsStorage(t *testing.T) {
+	var buffer limitedBuffer
+	secret := []byte("synthetic clipboard secret")
+	buffer.limit = len(secret)
+	if _, err := buffer.Write(secret); err != nil {
+		t.Fatal(err)
+	}
+	storage := buffer.Bytes()
+	buffer.wipe()
+	if string(storage) != string(make([]byte, len(storage))) || buffer.buf.Len() != 0 {
+		t.Fatal("limited buffer retained plaintext after wipe")
+	}
+}
+
 func TestSystemWriteSendsSecretOnlyOnStdin(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX fake commands are used")

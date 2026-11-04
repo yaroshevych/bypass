@@ -19,6 +19,43 @@ type memoryDriver struct {
 	writes         int
 }
 
+type observingWipeDriver struct {
+	writeInput []byte
+	readOutput []byte
+}
+
+func (d *observingWipeDriver) Write(_ context.Context, value []byte) error {
+	if len(value) > 0 {
+		d.writeInput = value
+	}
+	return nil
+}
+
+func (d *observingWipeDriver) Read(context.Context) ([]byte, error) {
+	return d.readOutput, nil
+}
+
+func TestManagerWipesOwnedAndTemporarySecretBuffers(t *testing.T) {
+	driver := &observingWipeDriver{readOutput: []byte("synthetic secret")}
+	manager := New(driver)
+	if err := manager.Copy(context.Background(), []byte("synthetic secret"), time.Now(), time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	owned := manager.owned
+	if !bytes.Equal(driver.writeInput, make([]byte, len(driver.writeInput))) {
+		t.Fatal("temporary clipboard write buffer was not wiped")
+	}
+	if err := manager.Clear(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(owned, make([]byte, len(owned))) {
+		t.Fatal("owned clipboard buffer was not wiped")
+	}
+	if !bytes.Equal(driver.readOutput, make([]byte, len(driver.readOutput))) {
+		t.Fatal("temporary clipboard read buffer was not wiped")
+	}
+}
+
 func (d *memoryDriver) Write(_ context.Context, value []byte) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()

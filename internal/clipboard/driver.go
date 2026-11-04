@@ -1,6 +1,7 @@
 package clipboard
 
 import (
+	wipebuf "bypass/internal/secret"
 	"bytes"
 	"context"
 	"errors"
@@ -85,11 +86,11 @@ func (d systemDriver) Read(ctx context.Context) ([]byte, error) {
 	cmd.Stdout = &output
 	cmd.Stderr = io.Discard
 	if err := cmd.Run(); err != nil || output.exceeded {
-		clear(output.Bytes())
+		output.wipe()
 		return nil, ErrOperation
 	}
 	result := bytes.Clone(output.Bytes())
-	clear(output.Bytes())
+	output.wipe()
 	return result, nil
 }
 
@@ -104,6 +105,11 @@ type limitedBuffer struct {
 	buf      bytes.Buffer
 	limit    int
 	exceeded bool
+}
+
+func (b *limitedBuffer) wipe() {
+	wipebuf.Wipe(b.buf.Bytes())
+	b.buf.Reset()
 }
 
 func (b *limitedBuffer) Bytes() []byte { return b.buf.Bytes() }

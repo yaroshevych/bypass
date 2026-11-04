@@ -1,6 +1,7 @@
 package clipboard
 
 import (
+	wipebuf "bypass/internal/secret"
 	"bytes"
 	"context"
 	"errors"
@@ -55,7 +56,7 @@ func (m *Manager) Copy(ctx context.Context, value []byte, now time.Time, timeout
 	err := m.driver.Write(ctx, toWrite)
 	if err != nil {
 		matched, cleanupErr := m.clearIfMatchesAfterWriteError(owned)
-		clear(toWrite)
+		wipebuf.Wipe(toWrite)
 		if matched {
 			if cleanupErr == nil {
 				m.dropOwned()
@@ -68,10 +69,10 @@ func (m *Manager) Copy(ctx context.Context, value []byte, now time.Time, timeout
 				m.expires = now.Add(timeout)
 			}
 		}
-		clear(owned)
+		wipebuf.Wipe(owned)
 		return err
 	}
-	clear(toWrite)
+	wipebuf.Wipe(toWrite)
 	m.dropOwned()
 	m.owned = owned
 	m.hasOwned = true
@@ -120,7 +121,7 @@ func (m *Manager) clearLocked(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer clear(current)
+	defer wipebuf.Wipe(current)
 	if !bytes.Equal(current, m.owned) {
 		return nil
 	}
@@ -134,7 +135,7 @@ func (m *Manager) clearIfMatchesAfterWriteError(value []byte) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer clear(current)
+	defer wipebuf.Wipe(current)
 	if !bytes.Equal(current, value) {
 		return false, nil
 	}
@@ -149,7 +150,7 @@ func contextError(ctx context.Context) error {
 }
 
 func (m *Manager) dropOwned() {
-	clear(m.owned)
+	wipebuf.Wipe(m.owned)
 	m.owned = nil
 	m.hasOwned = false
 	m.expires = time.Time{}
