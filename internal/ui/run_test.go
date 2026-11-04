@@ -133,9 +133,12 @@ func TestRunAmbiguityRequiresExplicitSelection(t *testing.T) {
 	if len(m.runs.choices) != 2 || len(m.runs.targets) != 0 {
 		t.Fatalf("ambiguity skipped: choices=%d targets=%d", len(m.runs.choices), len(m.runs.targets))
 	}
-	m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if m.runReviewActions()[m.runs.reviewFocus].key != "esc" {
+		t.Fatal("ambiguous review did not default to Back")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
 	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if len(m.runs.targets) != 1 {
+	if len(m.runs.targets) != 1 || m.runs.targets[0].database.Path != "/two" {
 		t.Fatal("selection failed")
 	}
 }

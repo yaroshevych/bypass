@@ -364,6 +364,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				} else {
 					r.choiceIndex = min(len(r.choices)-1, r.choiceIndex+1)
 				}
+				m.focusRunAction("enter")
 				return nil, true
 			}
 			switch msg.String() {
