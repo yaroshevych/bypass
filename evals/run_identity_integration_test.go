@@ -103,7 +103,6 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 	}
 	cmd, out := launch(dev, false)
 	e.mustShow("secret request pending")
-	e.key("C-b")
 	e.mustShow("dev-rw")
 	assertHidden(dev)
 	e.key("Enter")
@@ -133,8 +132,16 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 		identity string
 		name     string
 		flag     bool
-	}{{prod, "prod-ro", true}, {otherDev, "dev-rw", false}, {"", "", false}} {
+		allowed  bool
+	}{{prod, "prod-ro", true, false}, {otherDev, "dev-rw", false, true}, {"", "", false, false}} {
 		cmd, out := launch(tc.identity, tc.flag)
+		if tc.allowed {
+			if err := cmd.Wait(); err != nil || out.String() != "approved" {
+				t.Fatal("same agent name did not reuse its approved item")
+			}
+			e.mustShow("No pending requests")
+			continue
+		}
 		e.mustShow("(enter)")
 		if tc.name != "" {
 			e.mustShow(tc.name)
@@ -161,7 +168,6 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 	e.mustShow("Seed Entry")
 	cmd, out = launch(dev, false)
 	e.mustShow("secret request pending")
-	e.key("C-b")
 	e.mustShow("dev-rw")
 	e.key("Enter")
 	e.mustShow("REVIEW REQUEST")
