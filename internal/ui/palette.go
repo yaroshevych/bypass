@@ -774,6 +774,7 @@ func (m *Model) helpActionGroups() (map[string][]string, int) {
 	for _, item := range [][2]string{{"↑↓ / j k", "Change selection"}, {"←→ / h l", "Navigate"}, {"tab", "Cycle navigation"}, {"1–9 / [ ]", "Switch tab"}} {
 		add("VIEW", helpShortcutLine(item[0], item[1]))
 	}
+	add("VIEW", helpShortcutLine("ctrl+p", "Command palette"))
 	var quitLine string
 	for _, command := range orderCommandChoices(m.commands()) {
 		if command.id == "search" {
