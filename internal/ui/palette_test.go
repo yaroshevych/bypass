@@ -429,6 +429,32 @@ func TestPaletteDisabledReasonIsRightAlignedAndFirstGroupHasNoLeadingBlank(t *te
 	}
 }
 
+func TestPaletteShowsEditorShortcutsWithoutDraft(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		for selected := 0; selected < 2; selected++ {
+			m, _ := operationModel(t)
+			m.width, m.height, m.settings.Appearance = 120, 35, appearance
+			m.openPalette("actions", false)
+			choices := []command{
+				{id: "save", group: "Editor", label: "Save Entry", key: "Ctrl+S", reason: "No entry draft"},
+				{id: "cancel-edit", group: "Editor", label: "Cancel", key: "Esc", reason: "No entry draft"},
+			}
+			m.palette.selected = selected
+			rows, _ := m.paletteRows(choices)
+			for _, row := range rows {
+				if row.choice < 0 {
+					continue
+				}
+				line := ansi.Strip(row.text)
+				want := []string{"ctrl+s", "esc"}[row.choice]
+				if !strings.Contains(line, want) || strings.Contains(line, "No entry draft") {
+					t.Fatalf("%s selected=%d row=%q, want %q", appearance, selected, line, want)
+				}
+			}
+		}
+	}
+}
+
 func TestPaletteFilterPlaceholderHasStableHighlightedWidthAndRightAlignedCount(t *testing.T) {
 	styles := stylesForTheme("macchiato")
 	placeholderInput := input{}

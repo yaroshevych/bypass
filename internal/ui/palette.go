@@ -406,17 +406,13 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 			group = section
 		}
 		text := m.highlightText(choice.label, p.query.value(), "title")
-		right := strings.ToLower(choice.key)
+		right := paletteChoiceRight(choice)
 		if choice.reason != "" {
 			label := safe(choice.label)
 			text = c.secondary.Render(label)
-			right = choice.reason
 		}
 		if i == p.selected {
 			text = safe(choice.label)
-			if choice.reason != "" {
-				right = choice.reason
-			}
 		}
 		if !m.compactAppearance() {
 			text = " " + text
@@ -436,6 +432,13 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 		}
 	}
 	return rows, selectedRow
+}
+
+func paletteChoiceRight(choice command) string {
+	if choice.reason != "" && !((choice.id == "save" || choice.id == "cancel-edit") && choice.reason == "No entry draft") {
+		return choice.reason
+	}
+	return strings.ToLower(choice.key)
 }
 
 func (m *Model) paletteTitle() string {
@@ -459,10 +462,7 @@ func (m *Model) paletteDialogWidth(choices []command) int {
 	contentWidth := lipgloss.Width(strings.ToUpper(m.paletteTitle())) + 2 + lipgloss.Width(" type to filter ") + 1 + lipgloss.Width(paletteCountLabel(m.palette.scope, len(choices)))
 	for _, choice := range choices {
 		left := lipgloss.Width(safe(choice.label))
-		right := choice.key
-		if choice.reason != "" {
-			right = choice.reason
-		}
+		right := paletteChoiceRight(choice)
 		rowWidth := left + lipgloss.Width(right)
 		if right != "" {
 			rowWidth++
