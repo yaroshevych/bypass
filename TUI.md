@@ -27,7 +27,7 @@ the in-app reference.
 | --- | --- | --- |
 | Lock UI with PIN | `shift+p` | Cover the interface with the session PIN. Requires an unlocked vault and a configured PIN. |
 | Lock All Vaults | `shift+l` | Lock every unlocked vault and clear their authenticated sessions. |
-| Open Vault… | `ctrl+o` | Select a vault file and unlock it. `o` also works in the workspace. |
+| Open Vault… | `o` | Select a vault file and unlock it. |
 | Close Vault | — | Close the current vault and its views. |
 | New Vault… | `ctrl+n` | Create a vault. Requires backend support and permission to write. |
 | Lock Vault | — | Lock the current vault. Other unlocked vaults remain available. |
@@ -35,7 +35,7 @@ the in-app reference.
 | Database Info… | — | Show information about the current database when supported by the backend. |
 | Change Password… | — | Change the current vault's master password. Requires a writable vault and backend support. |
 | Read Only / Enable Writes | `r` | Change the current vault's write mode, subject to startup and external-change restrictions. |
-| Quit bypass | `q` | Close Bypass. Unsaved entry drafts may require a decision first. |
+| Quit bypass | `q`, `ctrl+c` | Close Bypass. Unsaved entry drafts may require a decision first. |
 | Pending Secret Requests… | `shift+s` | Review requests from `bypass run`, including the readable name for an identified agent and requests waiting for entry selection or approval. |
 
 ### Secret requests
@@ -105,7 +105,7 @@ the same.
 | New Group… | `g` | Create a group in a writable vault. |
 | Jump… | `shift+j` | Focus a field of the selected entry. |
 | Move Entry… | `m` | Choose a destination group for the selected entry. Requires a writable vault. |
-| Delete… | `delete` | Confirm deletion of the selected entry or group. `ctrl+d` is an alias. Requires a writable vault. |
+| Delete… | `delete` | Confirm deletion of the selected entry or group. Requires a writable vault. |
 | Save Entry | `ctrl+s` | Save the active entry draft. |
 | Cancel | `esc` | Leave the entry editor, with a decision for an unsaved draft when needed. |
 

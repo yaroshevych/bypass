@@ -89,7 +89,7 @@ func TestCreateVaultFormMasksInputsAndRetainsFailedDraft(t *testing.T) {
 	b := &lifecycleBackend{fail: true}
 	m := New(Options{Backend: b, Settings: platform.Settings{BackupDir: t.TempDir()}})
 	t.Cleanup(m.Close)
-	m.key(key("N"))
+	m.key(tea.KeyMsg{Type: tea.KeyCtrlN})
 	if m.lifecycle == nil {
 		t.Fatal("New Vault did not open")
 	}
@@ -264,7 +264,7 @@ func TestNativeCapabilitiesGateDirectActionsAndPalette(t *testing.T) {
 	m, _ := operationModel(t)
 	m.backend = &lifecycleBackend{}
 	m.backendCapabilities = map[string]bool{"db-create": false, "db-edit": false, "db-info": false}
-	m.key(key("N"))
+	m.key(tea.KeyMsg{Type: tea.KeyCtrlN})
 	if m.lifecycle != nil || m.canCreateVault() {
 		t.Fatal("New Vault shortcut bypassed native capability checks")
 	}

@@ -106,8 +106,8 @@ func TestLockedVaultFooterRightAlignsTabAndQuitActions(t *testing.T) {
 		t.Fatal("locked view should leave one blank row after the vault path")
 	}
 	for i, row := range rows {
-		if strings.Contains(ansi.Strip(row), "enter to unlock") && (i+1 >= len(rows) || !strings.Contains(ansi.Strip(rows[i+1]), "ctrl+o open another vault")) {
-			t.Fatal("locked view should not leave a blank row before the Ctrl+O hint")
+		if strings.Contains(ansi.Strip(row), "enter to unlock") && (i+1 >= len(rows) || !strings.Contains(ansi.Strip(rows[i+1]), "o open another vault")) {
+			t.Fatal("locked view should not leave a blank row before the o hint")
 		}
 	}
 	line := ansi.Strip(rows[m.height-1])

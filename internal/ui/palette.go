@@ -613,9 +613,15 @@ func (m *Model) paletteKey(k tea.KeyMsg) tea.Cmd {
 		p.query.update(k)
 		p.selected = 0
 	case "up", "shift+tab":
-		p.selected = max(0, p.selected-1)
+		count := len(m.paletteChoices())
+		if count > 0 {
+			p.selected = (p.selected + count - 1) % count
+		}
 	case "down", "tab":
-		p.selected = min(max(0, len(m.paletteChoices())-1), p.selected+1)
+		count := len(m.paletteChoices())
+		if count > 0 {
+			p.selected = (p.selected + 1) % count
+		}
 	case "enter":
 		return m.executePalette()
 	default:
@@ -737,6 +743,10 @@ func (m *Model) palettePointer(msg tea.MouseMsg) tea.Cmd {
 	return nil
 }
 
+func helpShortcutLine(key, label string) string {
+	return key + strings.Repeat(" ", max(1, 13-lipgloss.Width(key))) + label
+}
+
 func (m *Model) helpActionGroups() (map[string][]string, int) {
 	query := strings.ToLower(m.helpQuery.value())
 	groups := map[string][]string{}
@@ -747,22 +757,22 @@ func (m *Model) helpActionGroups() (map[string][]string, int) {
 			count++
 		}
 	}
-	for _, line := range []string{"↑↓ / j k       Change selection", "←→ / h l       Navigate", "tab            Cycle navigation", "1–9 / [ ]      Switch tab"} {
-		add("VIEW", line)
+	for _, item := range [][2]string{{"↑↓ / j k", "Change selection"}, {"←→ / h l", "Navigate"}, {"tab", "Cycle navigation"}, {"1–9 / [ ]", "Switch tab"}} {
+		add("VIEW", helpShortcutLine(item[0], item[1]))
 	}
 	var quitLine string
 	for _, command := range orderCommandChoices(m.commands()) {
 		if command.id == "search" {
-			add("VIEW", "a              Context actions")
+			add("VIEW", helpShortcutLine("a", "Context actions"))
 		}
 		if command.key == "" || command.id == "previous-tab" || command.id == "next-tab" || command.id == "cancel-edit" {
 			continue
 		}
 		keyLabel := strings.ToLower(command.key)
-		if command.id == "open" {
-			keyLabel = "o"
+		if command.id == "quit" {
+			keyLabel = "q, ctrl+c"
 		}
-		line := fmt.Sprintf("%-14s %s", keyLabel, command.label)
+		line := helpShortcutLine(keyLabel, command.label)
 		if command.reason != "" && command.id != "protect" && command.id != "save" && command.id != "cancel-edit" {
 			line += " (" + command.reason + ")"
 		}

@@ -34,7 +34,7 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	e.mustShow("Seed Entry", "Survivor")
 	e.key("Right")
 	initial := vaultFileHash(t, e.realDB)
-	e.key("C-d")
+	e.key("DC")
 	e.mustShow("DELETE", "Cancel")
 	e.key("Enter")
 	e.waitFor("entry-delete cancel closes dialog", func() bool { return !strings.Contains(e.capture(), "DELETE") })
@@ -42,7 +42,7 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	if vaultFileHash(t, e.realDB) != initial {
 		t.Fatal("default delete confirmation mutated the vault")
 	}
-	e.key("C-d")
+	e.key("DC")
 	e.mustShow("DELETE")
 	e.key("Right")
 	e.key("Enter")
@@ -54,7 +54,7 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	e.key("Right")
 	e.mustShow("Bin", "Seed Entry")
 	recycledHash := vaultFileHash(t, e.realDB)
-	e.key("C-d")
+	e.key("DC")
 	e.mustShow("DELETE", "Cancel", "Items already in", "permanently.")
 	e.key("Enter")
 	e.waitFor("permanent-delete cancel closes dialog", func() bool { return !strings.Contains(e.capture(), "DELETE") })
@@ -62,7 +62,7 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	if vaultFileHash(t, e.realDB) != recycledHash {
 		t.Fatal("default permanent-delete confirmation mutated the vault")
 	}
-	e.key("C-d")
+	e.key("DC")
 	e.mustShow("DELETE")
 	e.key("Right")
 	e.key("Enter")
@@ -81,14 +81,14 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	e.mustShowWrite("Temporary Group", "saved · backup created")
 	e.key("Left")
 	groupHash := vaultFileHash(t, e.realDB)
-	e.key("C-d")
+	e.key("DC")
 	e.mustShow("DELETE", "Temporary Group", "Cancel")
 	e.key("Enter")
 	e.waitFor("group-delete cancel closes dialog", func() bool { return !strings.Contains(e.capture(), "DELETE") })
 	if vaultFileHash(t, e.realDB) != groupHash {
 		t.Fatal("default group-delete confirmation mutated the vault")
 	}
-	e.key("C-d")
+	e.key("DC")
 	e.mustShow("DELETE", "Temporary Group")
 	e.key("Right")
 	e.key("Enter")

@@ -162,7 +162,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		m.hideReveal()
 		m.dialog = &actionDialog{kind: "group", title: "New Group", sessionID: s.ID, groupUUID: group}
 		return nil, true
-	case keyDelete, keyDeleteAlias:
+	case keyDelete:
 		if reason := m.nativeReason("rm"); reason != "" {
 			m.setNotice(reason, true)
 			return nil, true
@@ -333,8 +333,6 @@ func (m *Model) leaveEditor(action func() tea.Cmd) tea.Cmd {
 }
 func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 	switch k.String() {
-	case "ctrl+o":
-		return m.leaveEditor(m.openPicker)
 	case "ctrl+g":
 		m.openGenerator()
 		return nil

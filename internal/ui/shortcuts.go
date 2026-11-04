@@ -4,7 +4,7 @@ package ui
 // Modal-specific shortcuts remain with the modal that owns them.
 const (
 	keyNewVault    = "ctrl+n"
-	keyOpenVault   = "ctrl+o"
+	keyOpenVault   = "o"
 	keyCloseView   = "ctrl+w"
 	keyLockAll     = "L"
 	keyRedraw      = "ctrl+l"
@@ -17,7 +17,6 @@ const (
 	keyNewGroup    = "g"
 	keyMoveEntry   = "m"
 	keyDelete      = "delete"
-	keyDeleteAlias = "ctrl+d"
 	keyCopy        = "c"
 	keyReveal      = "v"
 	keyGenerator   = "ctrl+g"
@@ -36,7 +35,7 @@ const (
 type shortcut struct{ key, label string }
 
 var workspaceShortcuts = map[string]shortcut{
-	"new-vault": {keyNewVault, "Ctrl+N"}, "open": {keyOpenVault, "Ctrl+O"},
+	"new-vault": {keyNewVault, "Ctrl+N"}, "open": {keyOpenVault, "o"},
 	"close-view": {keyCloseView, "Ctrl+W"}, "lock-all": {keyLockAll, "Shift+L"},
 	"protect": {keyProtect, "Shift+P"}, "run-requests": {keyRequests, "Shift+S"},
 	"reload": {keyReload, "Ctrl+R"}, "read-only": {keyReadOnly, "r"},

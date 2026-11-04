@@ -40,6 +40,17 @@ func TestRemovedShortcutsDoNotActivate(t *testing.T) {
 	}
 }
 
+func TestRemovedVaultAndDeleteAliasesDoNotActivate(t *testing.T) {
+	m, _ := operationModel(t)
+	m.ws.ActiveView().Focus = 1
+	for _, msg := range []tea.KeyMsg{key("O"), key("N"), {Type: tea.KeyCtrlO}, {Type: tea.KeyCtrlD}} {
+		m.Update(msg)
+		if m.screen != browse || m.dialog != nil || m.lifecycle != nil {
+			t.Fatalf("removed shortcut %q opened an action", msg.String())
+		}
+	}
+}
+
 func TestEscapePriority(t *testing.T) {
 	m, _ := operationModel(t)
 	m.width, m.height = 48, 16

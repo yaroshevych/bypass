@@ -652,7 +652,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		return m.searchKey(k)
 	}
 	switch key {
-	case "N", keyNewVault:
+	case keyNewVault:
 		return m.leaveEditor(m.openCreateVault)
 	case keyQuit:
 		m.Close()
@@ -698,8 +698,6 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	session := m.ws.ActiveSession()
 	if session == nil {
 		switch key {
-		case "o", "O":
-			return m.openPicker()
 		case "enter":
 			return m.activateLandingFocus()
 		case "up", "k":
@@ -725,8 +723,6 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		m.hideReveal()
 	}
 	switch key {
-	case "o", "O":
-		return m.openPicker()
 	case "tab":
 		v.DetailManual = false
 		if v.Focus == 2 && v.FieldIndex < len(m.fieldNames())-1 {

@@ -451,7 +451,7 @@ func (m *Model) workspaceLines() []string {
 	}
 	if s.DB == nil {
 		home, _ := os.UserHomeDir()
-		lines = append(lines, "", accent.Render("  Vault locked"), secondary.Render("  "+displayVaultPath(s.Path, home)), "", secondary.Render("  enter to unlock"), secondary.Render("  ctrl+o open another vault"))
+		lines = append(lines, "", accent.Render("  Vault locked"), secondary.Render("  "+displayVaultPath(s.Path, home)), "", secondary.Render("  enter to unlock"), secondary.Render("  o open another vault"))
 		footerHeight := 1
 		for len(lines) < m.height-footerHeight {
 			lines = append(lines, "")
@@ -1394,22 +1394,23 @@ func (m *Model) helpLines() []string {
 
 func (m *Model) helpBody() ([]string, int, int) {
 	groups, actionCount := m.helpActionGroups()
-	width := min(86, m.width-4)
+	width := min(78, m.width-4)
 	if m.compactAppearance() {
-		width = min(86, m.width-2)
+		width = min(78, m.width-2)
 	}
 	var actions []string
+	contentWidth := max(1, m.dialogInnerWidth(width)-1)
 	sections := []string{"VAULTS", "VIEW", "ENTRIES", "SECRETS", "SETTINGS"}
 	if strings.TrimSpace(m.helpQuery.value()) != "" || m.width < 88 {
-		actions = m.helpActionColumn(groups, sections, m.dialogInnerWidth(width))
+		actions = m.helpActionColumn(groups, sections, contentWidth)
 	} else {
 		gap := 4
-		columnWidth := max(1, (width-4-gap)/2)
+		columnWidth := max(1, (contentWidth-gap)/2)
 		left := m.helpActionColumn(groups, sections[:2], columnWidth)
 		right := m.helpActionColumn(groups, sections[2:], columnWidth)
 		actions = make([]string, max(len(left), len(right)))
 		for i := range actions {
-			leftLine, rightLine := "", ""
+			leftLine, rightLine := strings.Repeat(" ", columnWidth), ""
 			if i < len(left) {
 				leftLine = fit(left[i], columnWidth)
 			}
@@ -1418,6 +1419,9 @@ func (m *Model) helpBody() ([]string, int, int) {
 			}
 			actions[i] = leftLine + strings.Repeat(" ", gap) + rightLine
 		}
+	}
+	for i := range actions {
+		actions[i] = " " + actions[i]
 	}
 	return append([]string{""}, actions...), width, actionCount
 }

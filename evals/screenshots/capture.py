@@ -109,7 +109,7 @@ def capture(args, fixture, cli, output):
                  '-s', 'visual', '-c', PROJECT, str(launcher))
             wait('VAULTS')
             if args.screen != 'welcome':
-                key('C-o')
+                key('o')
                 wait('OPEN VAULT')
                 if args.screen != 'file-picker':
                     key('C-u')

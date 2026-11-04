@@ -36,7 +36,7 @@ func TestWorkspaceNativeViewsDraftsAndSessionLocks(t *testing.T) {
 	createWorkspaceVault(e, backend, secondDB, secondVaultPassword, "Second Native Entry", "second-user", fixtureWrongPassword)
 
 	e.startWith(backend)
-	e.mustShow("bypass", "VAULTS", "ctrl+o")
+	e.mustShow("bypass", "VAULTS", "Open")
 	openWorkspaceVault(e, firstDB, fixturePassword)
 	e.mustShow("First Native Entry")
 	e.mustNotShow(secretSentinel)
@@ -186,7 +186,7 @@ func TestWorkspaceNativeViewsDraftsAndSessionLocks(t *testing.T) {
 	e.key("C-w")
 	e.key("C-w")
 	e.key("C-w")
-	e.mustShow("bypass", "VAULTS", "ctrl+o")
+	e.mustShow("bypass", "VAULTS", "Open")
 	e.key("q")
 	e.waitForCleanQuit()
 }
@@ -222,7 +222,7 @@ func TestWorkspaceTinyResizePreservesNativeDraftAndGuardsInput(t *testing.T) {
 	e.mustDimensions(20, 5)
 	e.mustShow("Terminal too small")
 	e.mustNotShow(fixtureEntryPassword)
-	for _, key := range []string{"n", "e", "1", "C-p", "C-o", "C-f", "q"} {
+	for _, key := range []string{"n", "e", "1", "C-p", "o", "C-f", "q"} {
 		e.key(key)
 	}
 	e.mustShow("Terminal too small")
@@ -277,7 +277,7 @@ func openWorkspaceVault(e *evalSession, path, password string) {
 	if strings.Contains(screen, "bypass") && strings.Contains(screen, "OPEN VAULT") {
 		e.key("o")
 	} else {
-		e.key("C-o")
+		e.key("o")
 	}
 	e.key("C-u")
 	e.typeText(path)

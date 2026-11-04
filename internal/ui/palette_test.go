@@ -361,7 +361,7 @@ func TestOpenVaultCommandUsesCtrlOPicker(t *testing.T) {
 	m.palette.selected = openIndex
 	cmd := m.executePalette()
 	if m.palette != nil || m.screen != chooseFile || cmd == nil {
-		t.Fatalf("Open Vault did not open the Ctrl+O picker: palette=%v screen=%v cmd=%v", m.palette, m.screen, cmd != nil)
+		t.Fatalf("Open Vault did not open the picker: palette=%v screen=%v cmd=%v", m.palette, m.screen, cmd != nil)
 	}
 }
 
@@ -373,7 +373,6 @@ func TestCommandPaletteRendersShortcutsInLowercase(t *testing.T) {
 	choices := m.paletteChoices()
 	rows, _ := m.paletteRows(choices)
 	want := map[string][2]string{
-		"open":  {"ctrl+o", "Ctrl+O"},
 		"theme": {"shift+t", "Shift+T"},
 	}
 	for _, row := range rows {
@@ -403,7 +402,7 @@ func TestPaletteDisabledReasonIsRightAlignedAndFirstGroupHasNoLeadingBlank(t *te
 	m.palette = &paletteState{scope: "actions", selected: 1}
 	choices := []command{
 		{group: "Vault", label: "Lock with PIN", reason: "PIN not set"},
-		{group: "Vault", label: "Open Vault", key: "ctrl+o"},
+		{group: "Vault", label: "Open Vault", key: "o"},
 	}
 	rows, _ := m.paletteRows(choices)
 	checkedHeader := false
@@ -696,6 +695,94 @@ func TestHelpOwnsInputWhileEditorExists(t *testing.T) {
 	}
 }
 
+func TestHelpShortcutKeyColumnWidth(t *testing.T) {
+	for _, key := range []string{"o", "q, ctrl+c", "1–9 / [ ]", "↑↓ / j k"} {
+		line := helpShortcutLine(key, "Action")
+		prefix, _, ok := strings.Cut(line, "Action")
+		if !ok || lipgloss.Width(prefix) != 13 {
+			t.Fatalf("key %q has prefix width %d, want 13", key, lipgloss.Width(prefix))
+		}
+	}
+}
+
+func TestPaletteSelectionWraps(t *testing.T) {
+	for _, scope := range []string{"actions", "themes", "appearance"} {
+		t.Run(scope, func(t *testing.T) {
+			m, _ := operationModel(t)
+			m.openPalette(scope, false)
+			count := len(m.paletteChoices())
+			if count < 2 {
+				t.Fatal("expected multiple choices")
+			}
+			m.palette.selected = 0
+			m.paletteKey(tea.KeyMsg{Type: tea.KeyUp})
+			if m.palette.selected != count-1 {
+				t.Fatalf("Up from first selected %d, want %d", m.palette.selected, count-1)
+			}
+			m.paletteKey(tea.KeyMsg{Type: tea.KeyDown})
+			if m.palette.selected != 0 {
+				t.Fatalf("Down from last selected %d, want first", m.palette.selected)
+			}
+			// Empty filters have no item to select and remain safe in both directions.
+			m.palette.query.set("no-such-command-xyz")
+			m.palette.selected = 0
+			m.paletteKey(tea.KeyMsg{Type: tea.KeyUp})
+			m.paletteKey(tea.KeyMsg{Type: tea.KeyDown})
+			if m.palette.selected != 0 {
+				t.Fatal("empty palette changed selection")
+			}
+		})
+	}
+}
+
+func TestHelpRightColumnStaysAlignedWhenLeftColumnEnds(t *testing.T) {
+	m, _ := operationModel(t)
+	m.width, m.height = 120, 35
+	rows, _, _ := m.helpBody()
+	column := -1
+	for _, row := range rows {
+		plain := ansi.Strip(row)
+		if i := strings.Index(plain, "SETTINGS"); i >= 0 {
+			column = i
+		}
+		if i := strings.Index(plain, "shift+t"); i >= 0 {
+			if column < 0 || i != column {
+				t.Fatalf("Settings action shifted from column %d to %d: %q", column, i, plain)
+			}
+			return
+		}
+	}
+	t.Fatal("Settings action not found")
+}
+
+func TestHelpDialogMaximumWidth(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		m, _ := operationModel(t)
+		m.width, m.height = 120, 35
+		m.settings.Appearance = appearance
+		_, width, _ := m.helpBody()
+		if width != 78 {
+			t.Fatalf("%s shortcut dialog width = %d, want 78", appearance, width)
+		}
+	}
+}
+
+func TestHelpContentHasLeftPaddingAndFits(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, size := range [][2]int{{48, 16}, {120, 35}} {
+			m, _ := operationModel(t)
+			m.width, m.height, m.settings.Appearance = size[0], size[1], appearance
+			rows, width, _ := m.helpBody()
+			for _, row := range rows[1:] {
+				plain := ansi.Strip(row)
+				if !strings.HasPrefix(plain, " ") || lipgloss.Width(row) > m.dialogInnerWidth(width) {
+					t.Fatalf("%s %v content lacks padding or exceeds width: %q", appearance, size, plain)
+				}
+			}
+		}
+	}
+}
+
 func TestHelpListsContextualShortcuts(t *testing.T) {
 	m, _ := operationModel(t)
 	groups, _ := m.helpActionGroups()
@@ -719,7 +806,7 @@ func TestHelpListsContextualShortcuts(t *testing.T) {
 		t.Fatal("Open vault label should not include the workspace qualifier")
 	}
 	vaults := strings.Join(groups["VAULTS"], "\n")
-	if !strings.Contains(vaults, "o              Open Vault") || strings.Contains(vaults, "ctrl+o") {
+	if !strings.Contains(vaults, "o            Open Vault") || strings.Contains(vaults, "ctrl+o") {
 		t.Fatalf("shortcut dialog should show only o for Open Vault: %q", vaults)
 	}
 	view := strings.Join(groups["VIEW"], "\n")
@@ -729,16 +816,16 @@ func TestHelpListsContextualShortcuts(t *testing.T) {
 	if strings.Contains(view, "Lock all vaults") {
 		t.Fatal("lock-all should not be duplicated in the View section")
 	}
-	if !strings.Contains(view, "1–9 / [ ]      Switch tab") || strings.Contains(view, "/              Filter") {
+	if !strings.Contains(view, "1–9 / [ ]    Switch tab") || strings.Contains(view, "/            Filter") {
 		t.Fatalf("tab row is missing or duplicate filter row remains: %q", view)
 	}
-	if !strings.Contains(view, "a              Context actions\n/              Search") {
+	if !strings.Contains(view, "a            Context actions\n/            Search") {
 		t.Fatalf("context actions should appear immediately above Search: %q", view)
 	}
 	if strings.Contains(help, "Redraw screen") {
 		t.Fatal("redraw should not appear in the shortcut dialog")
 	}
-	if !strings.Contains(help, "?              Shortcuts") {
+	if !strings.Contains(help, "?            Shortcuts") {
 		t.Fatal("Shortcuts key should align with the other actions")
 	}
 	for _, line := range lines {
@@ -746,7 +833,7 @@ func TestHelpListsContextualShortcuts(t *testing.T) {
 			t.Fatal("cancel should not appear in the shortcut dialog")
 		}
 	}
-	if settings := groups["SETTINGS"]; len(settings) == 0 || !strings.Contains(settings[len(settings)-1], "Quit bypass") {
+	if settings := groups["SETTINGS"]; len(settings) == 0 || !strings.Contains(settings[len(settings)-1], "q, ctrl+c    Quit bypass") {
 		t.Fatalf("Quit bypass should be last in Settings: %v", settings)
 	}
 	if strings.Contains(strings.Join(groups["VAULTS"], "\n"), "Quit bypass") {

@@ -64,7 +64,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	defer e.close()
 
 	e.start()
-	e.mustShow("bypass", "VAULTS", "ctrl+o")
+	e.mustShow("bypass", "VAULTS", "Open")
 
 	// Exercise an authentication failure followed by a retry. Passwords are
 	// sent as literal tmux input and are never included in diagnostics.
@@ -101,7 +101,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	e.mustShow("Eval Entry", "2 EVAL ENTRY")
 	e.key("1")
 	e.mustShow("1 EVAL ENTRY")
-	e.key("C-o")
+	e.key("o")
 	e.key("C-u")
 	e.typeText(e.db2)
 	e.key("Enter")
@@ -125,7 +125,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	e.key("C-w")
 	e.key("C-w")
 	e.key("C-w")
-	e.mustShow("bypass", "VAULTS", "ctrl+o")
+	e.mustShow("bypass", "VAULTS", "Open")
 
 	// Tiny terminals show a useful message and recover after resize.
 	e.resize(20, 5)
@@ -133,7 +133,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	e.mustShow("Terminal too small")
 	e.resize(120, 35)
 	e.mustDimensions(120, 35)
-	e.mustShow("bypass", "VAULTS", "ctrl+o")
+	e.mustShow("bypass", "VAULTS", "Open")
 
 	e.key("q")
 	e.waitForCleanQuit()
@@ -233,7 +233,7 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 	e.key("Down")
 	e.key("Enter")
 	e.mustShowWrite("Passwords / Archive", "saved · backup created")
-	e.key("C-d")
+	e.key("DC")
 	e.mustShow("DELETE")
 	e.key("Right")
 	e.key("Enter")
@@ -421,7 +421,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.mustNotShow("Eval Entry")
 	e.mustNotShow("first.kdbx")
 	e.key("1")
-	e.key("C-o")
+	e.key("o")
 	e.mustShow("Screen protected")
 	e.mustNotShow("Eval Entry")
 	e.mustNotShow("OPEN VAULT")
@@ -571,7 +571,7 @@ func newEval(t *testing.T) *evalSession {
 
 func (e *evalSession) start() {
 	e.startWith(filepath.Join(e.root, "fake-keepassxc-cli"), "--read-only")
-	e.mustShow("bypass", "VAULTS", "ctrl+o")
+	e.mustShow("bypass", "VAULTS", "Open")
 }
 
 func (e *evalSession) startWith(backend string, appArgs ...string) {

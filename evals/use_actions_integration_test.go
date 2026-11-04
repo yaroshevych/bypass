@@ -378,7 +378,7 @@ func TestReadOnlyBlocksHighImpactPaletteActionsTmux(t *testing.T) {
 		e.key("Down")
 		e.key("r")
 		e.mustShow("Select an attachment and enable writes first.")
-		e.key("C-d")
+		e.key("DC")
 		e.mustShow("Select an attachment and enable writes first.")
 		e.key("Escape")
 		e.mustShow("Seed Entry")

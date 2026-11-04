@@ -369,7 +369,7 @@ func TestWelcomeMouseAndVaultTabMouse(t *testing.T) {
 	m := New(Options{})
 	openRow := -1
 	for i, line := range m.welcomeLines() {
-		if strings.Contains(ansi.Strip(line), "ctrl+o") {
+		if strings.Contains(ansi.Strip(line), "Open") {
 			openRow = i
 			break
 		}
@@ -847,8 +847,8 @@ func TestNumberKeysRemainTextInInputs(t *testing.T) {
 	})
 }
 
-func TestWorkspaceDeleteAliasesRequireConfirmation(t *testing.T) {
-	for _, input := range []tea.KeyMsg{{Type: tea.KeyDelete}, {Type: tea.KeyCtrlD}} {
+func TestWorkspaceDeleteRequiresConfirmation(t *testing.T) {
+	for _, input := range []tea.KeyMsg{{Type: tea.KeyDelete}} {
 		t.Run(input.String(), func(t *testing.T) {
 			m, _ := operationModel(t)
 			m.ws.ActiveView().Focus = 1
@@ -863,8 +863,8 @@ func TestWorkspaceDeleteAliasesRequireConfirmation(t *testing.T) {
 	}
 }
 
-func TestWorkspaceOpenAliases(t *testing.T) {
-	for _, input := range []tea.KeyMsg{key("o"), key("O"), {Type: tea.KeyCtrlO}} {
+func TestWorkspaceOpenShortcut(t *testing.T) {
+	for _, input := range []tea.KeyMsg{key("o")} {
 		t.Run(input.String(), func(t *testing.T) {
 			m, _ := operationModel(t)
 			updateKey(m, input)

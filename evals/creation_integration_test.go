@@ -36,7 +36,7 @@ func TestKeyFileOnlyCreationUnlockAndPasswordAdditionTmux(t *testing.T) {
 	}
 	e.startWith(backend)
 	e.mustShow("New Vault")
-	e.key("N")
+	e.key("C-n")
 	e.mustShow("New .kdbx path")
 	e.typeText(e.realDB)
 	e.key("Tab")
