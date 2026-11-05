@@ -5,8 +5,10 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 )
 
 func TestDisplayVaultPathUsesTildeOnlyWithinHome(t *testing.T) {
@@ -166,6 +168,36 @@ func TestSearchFooterShowsQueryAndSearchActions(t *testing.T) {
 	styled := m.searchFooterLine(m.footerText(), m.footerContext(), false)
 	if lipgloss.Width(styled) != m.width || !strings.Contains(ansi.Strip(styled), "/ filter") {
 		t.Fatalf("empty search placeholder cursor is missing or misaligned: %q", styled)
+	}
+}
+
+func TestSearchFooterCaretFollowsArrowKeys(t *testing.T) {
+	previous := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(previous)
+	for _, appearance := range []string{"classic", "compact"} {
+		m := New(Options{})
+		m.width, m.height = 120, 35
+		m.settings.Appearance = appearance
+		m.ws.Open(fixture("/tmp/footer-caret.kdbx"))
+		m.normalize()
+		m.searching = true
+		m.query.set("abc")
+		m.searchKey(tea.KeyMsg{Type: tea.KeyLeft})
+		line := m.searchFooterLine(m.footerText(), m.footerContext(), false)
+		if m.query.cursor != 2 || !strings.Contains(line, m.colors().active.Render("c")) || !strings.Contains(ansi.Strip(line), "/ abc") {
+			t.Fatalf("%s: left did not highlight c: %q", appearance, line)
+		}
+		m.searchKey(tea.KeyMsg{Type: tea.KeyLeft})
+		line = m.searchFooterLine(m.footerText(), m.footerContext(), false)
+		if !strings.Contains(line, m.colors().active.Render("b")) {
+			t.Fatalf("%s: second left did not highlight b: %q", appearance, line)
+		}
+		m.searchKey(tea.KeyMsg{Type: tea.KeyRight})
+		line = m.searchFooterLine(m.footerText(), m.footerContext(), false)
+		if !strings.Contains(line, m.colors().active.Render("c")) {
+			t.Fatalf("%s: right did not highlight c: %q", appearance, line)
+		}
 	}
 }
 

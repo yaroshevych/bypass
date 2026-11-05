@@ -631,10 +631,10 @@ func (m *Model) searchFooterLine(text, contextual string, applied bool) string {
 		label := strings.TrimSpace(text)
 		var content string
 		switch {
-		case m.searching && strings.TrimSpace(m.query.value()) == "":
+		case m.searching && len(m.query.text) == 0:
 			content = c.inactive.Render("/ ") + c.active.Render("f") + c.inactive.Render("ilter ")
 		case m.searching:
-			content = c.inactive.Render(label) + c.active.Render(" ")
+			content = m.searchInputContent()
 		default:
 			content = style.Render(label + " ")
 		}
@@ -654,10 +654,10 @@ func (m *Model) searchFooterLine(text, contextual string, applied bool) string {
 		}
 		return fit(ansi.Truncate(left, m.width, "…"), m.width)
 	}
-	if m.searching && strings.TrimSpace(m.query.value()) == "" {
+	if m.searching && len(m.query.text) == 0 {
 		text = c.inactive.Render(" ") + c.inactive.Render("/ ") + c.active.Render("f") + c.inactive.Render("ilter") + c.inactive.Render(" ")
 	} else if m.searching {
-		text = style.Render(" "+strings.TrimSpace(text)) + c.active.Render(" ")
+		text = c.inactive.Render(" ") + m.searchInputContent()
 	} else {
 		text = style.Render(" " + strings.TrimSpace(text) + " ")
 	}
@@ -667,6 +667,23 @@ func (m *Model) searchFooterLine(text, contextual string, applied bool) string {
 		left += " " + c.secondary.Render(lowercaseShortcutLabels(contextual))
 	}
 	return fit(ansi.Truncate(left, m.width, "…"), m.width)
+}
+
+// searchInputContent renders the query with the cursor on its current character.
+func (m *Model) searchInputContent() string {
+	c := m.colors()
+	cursor := min(max(0, m.query.cursor), len(m.query.text))
+	before := safe(string(m.query.text[:cursor]))
+	caret, after := " ", ""
+	if cursor < len(m.query.text) {
+		caret = safe(string(m.query.text[cursor]))
+		after = safe(string(m.query.text[cursor+1:])) + " "
+	}
+	content := c.inactive.Render("/ "+before) + c.active.Render(caret) + c.inactive.Render(after)
+	if session := m.ws.ActiveSession(); session != nil && (session.ReadOnly || session.Stale) {
+		content += c.inactive.Render("· read only ")
+	}
+	return content
 }
 
 func (m *Model) footerLineWithLeftStyle(text string, leftStyle lipgloss.Style, contextual ...string) string {
