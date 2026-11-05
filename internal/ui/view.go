@@ -1210,6 +1210,13 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 	styles := m.colors()
 	primary, secondary, active := styles.primary, styles.secondary, styles.active
 	compact := m.compactAppearance()
+	if row := m.selectedRow(); row != nil && row.OpaqueGroup {
+		var lines []string
+		for _, line := range dialogrender.WrapMessage("Bypass does not yet support operations with groups in the bin, except permanent deletion.", max(1, width-2)) {
+			lines = append(lines, secondary.Render(" "+line))
+		}
+		return lines, nil
+	}
 	e := m.selected()
 	if e == nil {
 		return []string{secondary.Render(" Select an entry")}, nil

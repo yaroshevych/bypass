@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -599,7 +600,8 @@ func (s *interactiveSession) load(ctx context.Context, path string) (*Database, 
 				reject("entity_limit", row)
 				return ErrTooLarge
 			}
-			if item == "" || seen[item] || strings.IndexFunc(item, unicode.IsControl) >= 0 {
+			binGroup := db.RecycleBinEnabled && strings.EqualFold(groupPath, "/Recycle Bin/") && strings.HasSuffix(item, "/")
+			if item == "" || (seen[item] && !binGroup) || strings.IndexFunc(item, unicode.IsControl) >= 0 {
 				reason := "duplicate_listing_name"
 				if item == "" {
 					reason = "empty_listing_name"
@@ -618,7 +620,13 @@ func (s *interactiveSession) load(ctx context.Context, path string) (*Database, 
 				}
 				childPath := groupPath + name + "/"
 				id := groupID(childPath)
+				if binGroup {
+					id = groupID(fmt.Sprintf("%s#bin-row-%d", childPath, row))
+				}
 				db.Groups = append(db.Groups, Group{UUID: id, ParentUUID: parentID, Name: name, Path: "Passwords/" + strings.Trim(childPath, "/"), SearchEnabled: true})
+				if binGroup {
+					continue
+				}
 				if err := walk(childPath, id, depth+1); err != nil {
 					return err
 				}

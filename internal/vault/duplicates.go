@@ -78,6 +78,11 @@ func (s *interactiveSession) duplicateRenames(ctx context.Context) ([]EntryRenam
 				return ErrAmbiguous
 			}
 			if strings.HasSuffix(name, "/") {
+				// Recycled groups are displayed as opaque rows. Their paths may
+				// collide, and the CLI cannot address their contents uniquely.
+				if strings.EqualFold(path, "/Recycle Bin/") {
+					continue
+				}
 				if used[name] {
 					diagnostic(ctx, "duplicate_scan_rejected", "reason", "duplicate_group_name", "depth", depth, "row", row)
 					return ErrAmbiguous

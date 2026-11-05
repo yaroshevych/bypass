@@ -32,6 +32,39 @@ func interactiveFixture(t *testing.T) (string, Credentials, *Database) {
 	return path, creds, db
 }
 
+func TestOpenDuplicateGroupsInRecycleBin(t *testing.T) {
+	path, creds, _ := interactiveFixture(t)
+	ctx := context.Background()
+	backend := NewInteractiveCLI("")
+	db, err := backend.Open(ctx, path, creds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		for _, args := range [][]string{{"mkdir", "--", "/Duplicate"}, {"rmdir", "--", "/Duplicate"}} {
+			out, err := db.interactive.command(ctx, args...)
+			if err != nil || !strings.HasPrefix(string(out), "Successfully ") {
+				t.Fatalf("native command failed: %v", err)
+			}
+		}
+	}
+	db.Clear()
+	db, err = backend.Open(ctx, path, creds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Clear()
+	count := 0
+	for _, group := range db.Groups {
+		if group.Name == "Duplicate" && group.Recycled && group.ParentUUID == db.RecycleBinUUID {
+			count++
+		}
+	}
+	if count != 2 {
+		t.Fatalf("got %d recycled groups, want 2", count)
+	}
+}
+
 func TestInteractiveNativeBrowseResolveAndLifetime(t *testing.T) {
 	path, creds, seed := interactiveFixture(t)
 	cli := NewCLI("")

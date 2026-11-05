@@ -311,6 +311,14 @@ func (m *Model) entries() []vault.Entry {
 }
 
 func (m *Model) selected() *vault.Entry {
+	e := m.selectedRow()
+	if e != nil && e.OpaqueGroup {
+		return nil
+	}
+	return e
+}
+
+func (m *Model) selectedRow() *vault.Entry {
 	v := m.ws.ActiveView()
 	if v == nil {
 		return nil

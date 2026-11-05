@@ -52,9 +52,18 @@ func (c *InteractiveCLI) CreateWithOptions(ctx context.Context, path string, cre
 // saves the original vault itself. Bypass copies the encrypted file beforehand
 // for recovery, then refreshes its view after KeePassXC reports success.
 func (c *InteractiveCLI) Apply(ctx context.Context, db *Database, _ Credentials, change Change, backupDir string) (*Database, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	// Apply runs later with a UI worker context, separate from Open's context.
+	// Reattach the backend logger so mutation diagnostics reach --log-file.
+	if c.logger != nil && ctx.Value(diagnosticKey{}) == nil {
+		ctx = context.WithValue(ctx, diagnosticKey{}, c.logger.With("operation", openAttempt.Add(1)))
+	}
 	if db == nil || db.interactive == nil {
 		return nil, ErrWrite
 	}
+	diagnostic(ctx, "mutation_started", "kind", change.Kind, "vault_groups", len(db.Groups), "vault_entries", len(db.Entries))
 	if err := validateChange(change); err != nil {
 		return nil, err
 	}
@@ -88,6 +97,7 @@ func (c *InteractiveCLI) Apply(ctx context.Context, db *Database, _ Credentials,
 	output, err := s.commandInput(ctx, change.Password, prompt, args...)
 	defer zero(output)
 	if err != nil {
+		diagnostic(ctx, "mutation_command_failed", "kind", change.Kind, "error", diagnosticError(err))
 		s.failed = true
 		return nil, errors.Join(ErrInteractiveSessionLost, err)
 	}
@@ -99,6 +109,11 @@ func (c *InteractiveCLI) Apply(ctx context.Context, db *Database, _ Credentials,
 	if change.Kind == DeleteEntry || change.Kind == DeleteGroup {
 		succeeded = succeeded || bytes.Equal(acknowledgement, []byte(strings.Replace(expected, "recycled", "deleted", 1)+"\n"))
 	}
+	if change.Kind == DeleteGroup {
+		// Diagnostic only: report response shape and classification, never the
+		// group path or raw CLI output (which may contain user data).
+		diagnostic(ctx, "group_delete_acknowledgement", "matched", succeeded, "response_bytes", len(acknowledgement), "recycled", bytes.HasPrefix(acknowledgement, []byte("Successfully recycled ")), "deleted", bytes.HasPrefix(acknowledgement, []byte("Successfully deleted ")))
+	}
 	if !succeeded {
 		// Native commands can update their in-memory model before a failed save.
 		// Reauthenticate before using that model again; don't attempt a rollback.
@@ -108,9 +123,13 @@ func (c *InteractiveCLI) Apply(ctx context.Context, db *Database, _ Credentials,
 	}
 	updated, err := s.load(ctx, db.Path)
 	if err != nil {
+		diagnostic(ctx, "mutation_reload_failed", "kind", change.Kind, "error", diagnosticError(err))
 		s.failed = true
 		s.close()
 		return nil, errors.Join(ErrInteractiveSessionLost, err)
+	}
+	if change.Kind == DeleteGroup {
+		diagnostic(ctx, "group_delete_reloaded", "groups", len(updated.Groups), "entries", len(updated.Entries))
 	}
 	if (change.Kind == DeleteEntry || change.Kind == DeleteGroup) && bytes.HasPrefix(acknowledgement, []byte("Successfully recycled ")) {
 		s.rememberRecycleBin(db, updated, change, selected)

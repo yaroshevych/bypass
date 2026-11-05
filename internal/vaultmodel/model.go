@@ -12,6 +12,7 @@ type Group struct {
 }
 
 type Entry struct {
+	OpaqueGroup       bool
 	DetailsLoaded     bool
 	UUID              string
 	GroupUUID         string

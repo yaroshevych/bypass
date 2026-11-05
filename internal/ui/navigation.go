@@ -266,6 +266,13 @@ func (m *Model) filterEntries(nav navItem, query string) []vault.Entry {
 		}
 		entries = append(entries, e)
 	}
+	if nav.kind == "trash" {
+		for _, group := range s.DB.Groups {
+			if group.Recycled && group.UUID != s.DB.RecycleBinUUID && group.ParentUUID == s.DB.RecycleBinUUID {
+				entries = append(entries, vault.Entry{UUID: group.UUID, GroupUUID: group.ParentUUID, Recycled: true, OpaqueGroup: true, Fields: []vault.Field{{Name: "Title", Value: group.Name + "/"}}})
+			}
+		}
+	}
 	switch nav.kind {
 	case "recent":
 		last := func(e vault.Entry) time.Time {
