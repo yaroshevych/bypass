@@ -277,8 +277,11 @@ func (m *Model) openPalette(scope string, context bool) {
 	m.hideReveal()
 	m.help = false
 	m.palette = &paletteState{scope: scope, original: m.settings, originalStyles: m.styles, context: context, x: -1, y: -1}
-	if scope == "themes" {
+	if scope == "themes" || scope == "appearance" {
 		current := strings.ReplaceAll(strings.ToLower(m.settings.Theme), " ", "-")
+		if scope == "appearance" {
+			current = strings.ToLower(m.settings.Appearance)
+		}
 		for i, choice := range m.paletteChoices() {
 			if choice.value == current {
 				m.palette.selected = i

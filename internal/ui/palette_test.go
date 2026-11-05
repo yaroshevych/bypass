@@ -761,6 +761,24 @@ func TestPaletteSelectionWraps(t *testing.T) {
 	}
 }
 
+func TestLayoutPaletteInitiallySelectsCurrentAppearance(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		t.Run(appearance, func(t *testing.T) {
+			m, _ := operationModel(t)
+			m.settings.Appearance = appearance
+			m.openPalette("appearance", false)
+			choice := m.paletteChoices()[m.palette.selected]
+			if choice.value != appearance {
+				t.Fatalf("selected %q, want %q", choice.value, appearance)
+			}
+			m.executePalette()
+			if m.settings.Appearance != appearance {
+				t.Fatalf("confirming current layout changed appearance to %q", m.settings.Appearance)
+			}
+		})
+	}
+}
+
 func TestHelpRightColumnStaysAlignedWhenLeftColumnEnds(t *testing.T) {
 	m, _ := operationModel(t)
 	m.width, m.height = 120, 35
