@@ -155,6 +155,31 @@ func TestEntryEditorTabActionsAndNotesEnter(t *testing.T) {
 	}
 }
 
+func TestEntryEditorNotesArrowKeysLeaveAtFirstAndLastLine(t *testing.T) {
+	e := newEntryEditor(nil, "group")
+	e.inputs[editNotes].set("first\nsecond\nthird")
+	e.focus = editNotes
+	e.inputs[editNotes].cursor = len("first\nsec")
+	e.key(tea.KeyMsg{Type: tea.KeyUp})
+	if e.focus != editNotes || e.inputs[editNotes].cursor != 3 {
+		t.Fatalf("up within notes: focus=%d cursor=%d", e.focus, e.inputs[editNotes].cursor)
+	}
+	e.key(tea.KeyMsg{Type: tea.KeyUp})
+	if e.focus != editURL {
+		t.Fatalf("up from first line: focus=%d, want URL", e.focus)
+	}
+	e.focus = editNotes
+	e.inputs[editNotes].cursor = len("first\nsec")
+	e.key(tea.KeyMsg{Type: tea.KeyDown})
+	if e.focus != editNotes || e.inputs[editNotes].cursor != len("first\nsecond\nthi") {
+		t.Fatalf("down within notes: focus=%d cursor=%d", e.focus, e.inputs[editNotes].cursor)
+	}
+	e.key(tea.KeyMsg{Type: tea.KeyDown})
+	if e.focus != editGenerate {
+		t.Fatalf("down from last line: focus=%d, want Generate", e.focus)
+	}
+}
+
 func TestEntryEditorPasswordGeneratorAndSecretVisibility(t *testing.T) {
 	e := newEntryEditor(&vault.Entry{
 		UUID: "id",
@@ -325,6 +350,36 @@ func TestEntryEditorLongNotesKeepAdjacentLinesVisible(t *testing.T) {
 	}
 }
 
+func TestEntryEditorScrollbarShowsOverflowAndPosition(t *testing.T) {
+	for _, compact := range []bool{false, true} {
+		e := newEntryEditor(nil, "root")
+		e.inputs[editNotes].set(strings.Repeat("line\n", 60) + "last")
+		e.focus = editTitle
+		lines := e.renderAppearance(40, 10, compact, true)
+		if !strings.HasSuffix(ansi.Strip(lines[0]), "#") || !strings.HasSuffix(ansi.Strip(lines[9]), "|") {
+			t.Fatalf("compact=%t: scrollbar not at top: %q", compact, lines)
+		}
+		e.focus = editCancel
+		lines = e.renderAppearance(40, 10, compact, true)
+		if !strings.HasSuffix(ansi.Strip(lines[9]), "#") {
+			t.Fatalf("compact=%t: scrollbar not at bottom: %q", compact, lines)
+		}
+		e.focus = editNotes
+		e.inputs[editNotes].cursor = len(e.inputs[editNotes].text) / 2
+		lines = e.renderAppearance(40, 10, compact, true)
+		if strings.HasSuffix(ansi.Strip(lines[0]), "#") || strings.HasSuffix(ansi.Strip(lines[9]), "#") {
+			t.Fatalf("compact=%t: scrollbar not in middle: %q", compact, lines)
+		}
+		e.inputs[editNotes].set("")
+		lines = e.renderAppearance(40, 40, compact, true)
+		for _, line := range lines {
+			if strings.HasSuffix(ansi.Strip(line), "|") || strings.HasSuffix(ansi.Strip(line), "#") {
+				t.Fatalf("compact=%t: scrollbar without overflow: %q", compact, line)
+			}
+		}
+	}
+}
+
 func TestEntryEditorPointerSharesRenderedFocusMetadata(t *testing.T) {
 	e := newEntryEditor(nil, "root")
 	for _, actionCase := range []struct {
@@ -481,7 +536,7 @@ func TestEntryEditorUsesInjectedThemeStylesAndDefaultFallback(t *testing.T) {
 	if got := e.styleSet(); got != &theme {
 		t.Fatal("editor copied or replaced the injected theme style pointer")
 	}
-	lines := e.layoutLines(40, 20)
+	lines := e.layoutLines(40, 40)
 	if lines[1].text != theme.rule(40) {
 		t.Fatalf("editor divider ignored injected theme styles: %q", lines[1].text)
 	}

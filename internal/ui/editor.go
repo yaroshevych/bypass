@@ -279,7 +279,9 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 			delta = 1
 		}
 		if e.focus == editNotes && strings.Contains(e.inputs[editNotes].value(), "\n") {
-			e.moveNotesCursor(delta)
+			if !e.moveNotesCursor(delta) {
+				orderedFocus(key, e.focusOrder(), &e.focus, false)
+			}
 		} else {
 			orderedFocus(key, e.focusOrder(), &e.focus, false)
 		}
@@ -386,10 +388,14 @@ func (e *entryEditor) render(width, height int) []string {
 	if e == nil {
 		return padLines([]string{defaultStyles.secondary.Render("Editor unavailable")}, height)
 	}
-	lines := e.layoutLines(width, height)
+	lines, offset, total := e.layoutViewport(width, height)
 	out := make([]string, len(lines))
 	for i, line := range lines {
-		out[i] = fit(line.text, width)
+		if total > height {
+			out[i] = fit(line.text, width-1) + editorScrollbarMarker(i, height, offset, total, e.ascii, e.styleSet())
+		} else {
+			out[i] = fit(line.text, width)
+		}
 	}
 	return padLines(out, height)
 }
@@ -410,14 +416,51 @@ type editorLine struct {
 }
 
 func (e *entryEditor) layoutLines(width, height int) []editorLine {
+	lines, _, _ := e.layoutViewport(width, height)
+	return lines
+}
+
+func (e *entryEditor) layoutViewport(width, height int) ([]editorLine, int, int) {
+	title := ""
 	if e.isNew {
-		title := "New Entry"
+		title = "New Entry"
 		if e.dirty() {
 			title += " *"
 		}
-		return e.renderLines(title, width, height)
 	}
-	return e.renderLines("", width, height)
+	lines := e.renderLines(title, width, height)
+	if width > 2 && height > 0 && len(lines) > height {
+		lines = e.renderLines(title, width-1, height)
+		focusedLine := 0
+		for i, line := range lines {
+			if line.focus == e.focus && strings.Contains(line.text, "▏") {
+				focusedLine = i
+				break
+			}
+			if line.focus == e.focus {
+				focusedLine = i
+			}
+		}
+		visible, offset := renderEditorViewport(lines, focusedLine, e.focus, height)
+		return visible, offset, len(lines)
+	}
+	for len(lines) < height {
+		lines = append(lines, editorLine{focus: -1})
+	}
+	return lines, 0, 0
+}
+
+func editorScrollbarMarker(row, height, offset, total int, ascii bool, styles *styleSet) string {
+	thumbHeight := max(1, height*height/total)
+	thumbStart := (height - thumbHeight) * min(offset, total-height) / (total - height)
+	track, thumb := "│", "▐"
+	if ascii {
+		track, thumb = "|", "#"
+	}
+	if row >= thumbStart && row < thumbStart+thumbHeight {
+		return styles.secondary.Render(thumb)
+	}
+	return styles.divider.Render(track)
 }
 
 func (e *entryEditor) renderLines(title string, width, height int) []editorLine {
@@ -524,22 +567,6 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 			lines = append(lines, editorLine{text: text, focus: -1, error: true})
 		}
 	}
-	focusedLine := 0
-	for i, line := range lines {
-		if line.focus == e.focus && strings.Contains(line.text, "▏") {
-			focusedLine = i
-			break
-		}
-		if line.focus == e.focus {
-			focusedLine = i
-		}
-	}
-	if len(lines) > height {
-		return renderEditorViewport(lines, focusedLine, e.focus, height)
-	}
-	for len(lines) < height {
-		lines = append(lines, editorLine{focus: -1})
-	}
 	return lines
 }
 
@@ -571,9 +598,9 @@ func (e *entryEditor) styleSet() *styleSet {
 	return &defaultStyles
 }
 
-func renderEditorViewport(lines []editorLine, focusedLine, focus, height int) []editorLine {
+func renderEditorViewport(lines []editorLine, focusedLine, focus, height int) ([]editorLine, int) {
 	if height <= 0 {
-		return nil
+		return nil, 0
 	}
 	// Keep the heading and focused field label visible, then display a
 	// contiguous window around the cursor. Selecting individual nearby lines
@@ -628,7 +655,13 @@ func renderEditorViewport(lines []editorLine, focusedLine, focus, height int) []
 	for len(visible) < height {
 		visible = append(visible, editorLine{focus: -1})
 	}
-	return visible
+	// Pinned rows do not belong to the scrolling window. Map its extent to
+	// the scrollbar range so the thumb reaches both ends of the track.
+	offset := start
+	if end == len(lines) {
+		offset = max(0, len(lines)-height)
+	}
+	return visible, offset
 }
 
 func (e *entryEditor) renderValue(field, width int) ([]string, int) {
@@ -685,7 +718,7 @@ func (e *entryEditor) insertNotesNewline() {
 	wipebuf.Wipe(tail)
 }
 
-func (e *entryEditor) moveNotesCursor(delta int) {
+func (e *entryEditor) moveNotesCursor(delta int) bool {
 	value := &e.inputs[editNotes]
 	lineStart := 0
 	for i := value.cursor - 1; i >= 0; i-- {
@@ -697,7 +730,7 @@ func (e *entryEditor) moveNotesCursor(delta int) {
 	column := value.cursor - lineStart
 	if delta < 0 {
 		if lineStart == 0 {
-			return
+			return false
 		}
 		previousEnd := lineStart - 1
 		previousStart := 0
@@ -708,7 +741,7 @@ func (e *entryEditor) moveNotesCursor(delta int) {
 			}
 		}
 		value.cursor = previousStart + min(column, previousEnd-previousStart)
-		return
+		return true
 	}
 	lineEnd := len(value.text)
 	for i := value.cursor; i < len(value.text); i++ {
@@ -718,7 +751,7 @@ func (e *entryEditor) moveNotesCursor(delta int) {
 		}
 	}
 	if lineEnd == len(value.text) {
-		return
+		return false
 	}
 	nextStart := lineEnd + 1
 	nextEnd := len(value.text)
@@ -729,6 +762,7 @@ func (e *entryEditor) moveNotesCursor(delta int) {
 		}
 	}
 	value.cursor = nextStart + min(column, nextEnd-nextStart)
+	return true
 }
 
 func (e *entryEditor) clearValidation() {
