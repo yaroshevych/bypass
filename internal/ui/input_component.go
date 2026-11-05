@@ -103,34 +103,39 @@ func renderInputBox(field inputFieldView, width int, compact bool, innerPadding 
 	text := []rune(value)
 	cursor := min(max(0, field.value.cursor), len(text))
 	before, after := string(text[:cursor]), string(text[cursor:])
-	caret := "▏"
+	caret := " "
+	if cursor < len(text) {
+		caret = string(text[cursor])
+		after = string(text[cursor+1:])
+	}
+	caretWidth := ansi.StringWidth(caret)
 	if compact {
 		if width < 4 {
 			return styles.inactive.Render(fit(caret+after, width))
 		}
 		innerPadding = max(0, innerPadding)
 		contentWidth := max(0, width-2-2*innerPadding)
-		budget := max(0, contentWidth-1)
+		budget := max(0, contentWidth-caretWidth)
 		beforeWidth := min(ansi.StringWidth(before), budget)
 		if ansi.StringWidth(before) > beforeWidth && beforeWidth > 0 {
 			before = "…" + ansi.Cut(before, ansi.StringWidth(before)-beforeWidth+1, ansi.StringWidth(before))
 			beforeWidth = ansi.StringWidth(before)
 		}
 		after = ansi.Truncate(after, max(0, budget-beforeWidth), "")
-		padding := max(0, contentWidth-beforeWidth-ansi.StringWidth(after)-1)
+		padding := max(0, contentWidth-beforeWidth-ansi.StringWidth(after)-caretWidth)
 		pad := strings.Repeat(" ", innerPadding)
 		center := styles.inactive.Render(pad+before) + styles.active.Render(caret) + styles.inactive.Render(after+strings.Repeat(" ", padding)+pad)
 		edge := styles.primary.Foreground(styles.inactive.GetBackground())
 		return fit(edge.Render(glyphs.Left())+center+edge.Render(glyphs.Right()), width)
 	}
 	indent := max(0, field.indent)
-	budget := max(0, width-indent-2)
+	budget := max(0, width-indent-caretWidth-1)
 	beforeWidth := min(ansi.StringWidth(before), budget)
 	if ansi.StringWidth(before) > beforeWidth && beforeWidth > 0 {
 		before = "…" + ansi.Cut(before, ansi.StringWidth(before)-beforeWidth+1, ansi.StringWidth(before))
 		beforeWidth = ansi.StringWidth(before)
 	}
-	after = ansi.Truncate(after, max(0, width-indent-beforeWidth-2), "")
-	padding := max(0, width-indent-beforeWidth-ansi.StringWidth(after)-2)
+	after = ansi.Truncate(after, max(0, width-indent-beforeWidth-caretWidth-1), "")
+	padding := max(0, width-indent-beforeWidth-ansi.StringWidth(after)-caretWidth-1)
 	return styles.inactive.Render(strings.Repeat(" ", indent)+before) + styles.active.Render(caret) + styles.inactive.Render(after+strings.Repeat(" ", padding+1))
 }

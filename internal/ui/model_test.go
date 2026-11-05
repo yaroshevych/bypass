@@ -711,7 +711,7 @@ func TestFocusedClassicPickerCaretFollowsPathText(t *testing.T) {
 	for _, row := range m.pickerLines() {
 		plain := ansi.Strip(row)
 		if strings.Contains(plain, "/tmp/vaults/") {
-			if !strings.Contains(plain, "/tmp/vaults/▏ ") {
+			if !strings.Contains(plain, "/tmp/vaults/  ") {
 				t.Fatalf("classic path caret is not adjacent to the path with fill to its right: %q", plain)
 			}
 			return

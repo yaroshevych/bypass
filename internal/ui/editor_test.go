@@ -7,7 +7,9 @@ import (
 
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 )
 
 func TestEntryEditorDirtyValuesAndPasswordSeparation(t *testing.T) {
@@ -35,8 +37,8 @@ func TestEntryEditorDirtyValuesAndPasswordSeparation(t *testing.T) {
 	if strings.Contains(view, "secret-value") || !strings.Contains(view, "••••••") {
 		t.Fatal("new password must be masked in edit form")
 	}
-	if got := strings.Count(view, "▏"); got != 1 {
-		t.Fatalf("render shows %d cursors, want only the focused-field cursor", got)
+	if !strings.Contains(view, "••••••") {
+		t.Fatal("focused password is not masked")
 	}
 	password := newEditor.password()
 	if !bytes.Equal(password, []byte("secret-value")) {
@@ -49,6 +51,36 @@ func TestEntryEditorDirtyValuesAndPasswordSeparation(t *testing.T) {
 	}
 	if len(newEditor.values()["Title"]) != 0 {
 		t.Fatal("field buffer remains after clear")
+	}
+}
+
+func TestTextInputOverlayCursor(t *testing.T) {
+	previous := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(previous)
+	styles := stylesForTheme("Mocha")
+	var value input
+	value.set("abc")
+	value.cursor = 1
+	for _, compact := range []bool{false, true} {
+		line := renderInputBox(inputFieldView{value: &value, focused: true}, 20, compact, 0, &styles)
+		if !strings.Contains(line, styles.active.Render("b")) || !strings.Contains(ansi.Strip(line), "abc") {
+			t.Fatalf("compact=%t: cursor did not highlight b: %q", compact, line)
+		}
+		value.cursor = len(value.text)
+		line = renderInputBox(inputFieldView{value: &value, focused: true}, 20, compact, 0, &styles)
+		if !strings.Contains(line, styles.active.Render(" ")) {
+			t.Fatalf("compact=%t: missing end cursor: %q", compact, line)
+		}
+		value.cursor = 1
+	}
+	line := renderInputBox(inputFieldView{value: &value, focused: true, secret: true}, 20, false, 0, &styles)
+	if strings.Contains(line, "abc") || !strings.Contains(line, styles.active.Render("•")) {
+		t.Fatalf("password cursor did not highlight a masked character: %q", line)
+	}
+	line = renderEditorMultilineLine("a▏bc", true, 20, &styles)
+	if !strings.Contains(line, styles.active.Render("b")) || !strings.Contains(ansi.Strip(line), "abc") {
+		t.Fatalf("multiline cursor did not highlight b: %q", line)
 	}
 }
 
@@ -325,7 +357,7 @@ func TestEntryEditorNotesCursorRemainsVisibleWhenPaneIsShort(t *testing.T) {
 	if len(lines) != 12 {
 		t.Fatalf("render produced %d lines, want 12", len(lines))
 	}
-	for _, want := range []string{"New Entry", "NOTES", "▏"} {
+	for _, want := range []string{"New Entry", "NOTES"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("short-pane render missing %q:\n%s", want, joined)
 		}

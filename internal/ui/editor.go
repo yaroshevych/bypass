@@ -410,9 +410,10 @@ func (e *entryEditor) renderAppearance(width, height int, compact, ascii bool) [
 }
 
 type editorLine struct {
-	text  string
-	focus int
-	error bool
+	text   string
+	focus  int
+	error  bool
+	cursor bool
 }
 
 func (e *entryEditor) layoutLines(width, height int) []editorLine {
@@ -433,7 +434,7 @@ func (e *entryEditor) layoutViewport(width, height int) ([]editorLine, int, int)
 		lines = e.renderLines(title, width-1, height)
 		focusedLine := 0
 		for i, line := range lines {
-			if line.focus == e.focus && strings.Contains(line.text, "▏") {
+			if line.focus == e.focus && line.cursor {
 				focusedLine = i
 				break
 			}
@@ -493,7 +494,7 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 		if i != editNotes || !strings.Contains(e.inputs[i].value(), "\n") {
 			field := inputFieldView{value: &e.inputs[i], secret: i == editPassword, focused: i == e.focus, indent: 1}
 			value := renderInputBox(field, max(1, width-1), e.compact, 0, styles)
-			lines = append(lines, editorLine{text: value, focus: i})
+			lines = append(lines, editorLine{text: value, focus: i, cursor: i == e.focus})
 		} else {
 			valueLines, cursorLine := e.renderValue(i, max(1, width-2))
 			for j, value := range valueLines {
@@ -502,7 +503,7 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 				} else {
 					value = " " + value
 				}
-				lines = append(lines, editorLine{text: value, focus: i})
+				lines = append(lines, editorLine{text: value, focus: i, cursor: i == e.focus && j == cursorLine})
 			}
 		}
 		if e.validation != "" && e.validationFocus == i {
@@ -575,20 +576,17 @@ func renderEditorAction(label, shortcut string, width int, compact, ascii, selec
 }
 
 func renderEditorMultilineLine(value string, cursor bool, width int, styles *styleSet) string {
-	before, after := value, ""
-	if cursor {
-		before, after, _ = strings.Cut(value, "▏")
+	if !cursor {
+		return styles.inactive.Render(fit(" "+value, width))
 	}
-	content := " " + before
-	if cursor {
-		content += "▏"
+	before, after, _ := strings.Cut(value, "▏")
+	caret := " "
+	if after != "" {
+		r, size := utf8.DecodeRuneInString(after)
+		caret, after = string(r), after[size:]
 	}
-	content += after
-	padding := max(0, width-ansi.StringWidth(content))
-	if cursor {
-		return styles.inactive.Render(" "+before) + styles.active.Render("▏") + styles.inactive.Render(after+strings.Repeat(" ", padding))
-	}
-	return styles.inactive.Render(fit(content+strings.Repeat(" ", padding), width))
+	padding := max(0, width-ansi.StringWidth(" "+before+caret+after))
+	return styles.inactive.Render(" "+before) + styles.active.Render(caret) + styles.inactive.Render(after+strings.Repeat(" ", padding))
 }
 
 func (e *entryEditor) styleSet() *styleSet {
@@ -610,7 +608,7 @@ func renderEditorViewport(lines []editorLine, focusedLine, focus, height int) ([
 		if line.focus != focus {
 			continue
 		}
-		if strings.Contains(line.text, "▏") {
+		if line.cursor {
 			cursorLine = i
 		} else if focusLabel < 0 {
 			focusLabel = i
