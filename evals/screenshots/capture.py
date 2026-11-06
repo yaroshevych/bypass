@@ -150,7 +150,10 @@ def capture(args, fixture, cli, output):
                             key('Enter')
                             wait('Generator')
                         elif args.screen == 'delete':
-                            key('d')
+                            key('DC')
+                            wait('Inspect Recycle Bin')
+                            key('Down')
+                            key('Enter')
                             wait('Move to Recycle Bin')
                         elif args.screen.startswith('grand-'):
                             key('Right')

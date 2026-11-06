@@ -554,6 +554,24 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		if m.extras != nil && m.extras.sessionID == msg.sessionID {
 			m.clearExtras()
 		}
+		renamed := ""
+		if msg.change.Kind == vault.MoveEntry && msg.db != nil {
+			if session := m.ws.Sessions[msg.sessionID]; session != nil && session.DB != nil {
+				oldTitle := ""
+				for _, entry := range session.DB.Entries {
+					if entry.UUID == msg.change.EntryUUID {
+						oldTitle = entry.Get("Title")
+						break
+					}
+				}
+				for _, entry := range msg.db.Entries {
+					if entry.UUID == msg.change.EntryUUID && oldTitle != "" && entry.Get("Title") != oldTitle {
+						renamed = entry.Get("Title")
+						break
+					}
+				}
+			}
+		}
 		if !m.ws.ReplaceDatabase(msg.sessionID, msg.db) {
 			if msg.db != nil {
 				msg.db.Clear()
@@ -577,8 +595,60 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		m.changeDismissed[msg.sessionID] = false
 		m.restoreGroup()
 		m.normalize()
+		if msg.change.Kind == vault.PrepareRecycleBin {
+			change := vault.Change{Kind: vault.DeleteEntry, EntryUUID: msg.change.EntryUUID}
+			name, permanent, found := "", false, false
+			if msg.change.GroupUUID != "" {
+				change.Kind, change.GroupUUID = vault.DeleteGroup, msg.change.GroupUUID
+				for _, group := range msg.db.Groups {
+					if group.UUID == change.GroupUUID && group.Recycled && group.ParentUUID == msg.db.RecycleBinUUID {
+						name, permanent, found = group.Name+"/", true, true
+						break
+					}
+				}
+			} else {
+				for _, entry := range msg.db.Entries {
+					if entry.UUID == change.EntryUUID {
+						name, permanent, found = entry.Get("Title"), entry.Recycled, true
+						break
+					}
+				}
+			}
+			if !found {
+				m.setNotice("item unavailable after locating recycle bin", true)
+				return nil, true
+			}
+			action, message := "Move to Recycle Bin", "Entry history and attachments move with the item."
+			if permanent {
+				action, message = "Delete Permanently", "This permanently deletes the item. Recovery requires a backup."
+				if change.Kind == vault.DeleteGroup {
+					message = "Permanently deletes this group and all its contents. If names match, the first matching group is deleted. Recovery requires a backup."
+				}
+			}
+			m.dialog = &actionDialog{kind: "delete", title: action, options: []string{"Cancel", action}, selected: 0, sessionID: msg.sessionID, change: change, message: []string{safe(name), message}}
+			return nil, true
+		}
+		if msg.change.Kind == vault.PrepareDeleteGroup && msg.db.GroupDeletePlan != nil {
+			plan := msg.db.GroupDeletePlan
+			plural := func(n int, singular, plural string) string {
+				if n == 1 {
+					return singular
+				}
+				return plural
+			}
+			message := []string{
+				fmt.Sprintf("%s: %d %s in %d %s", safe(plan.GroupName), plan.TargetEntries, plural(plan.TargetEntries, "entry", "entries"), plan.TargetGroups, plural(plan.TargetGroups, "group", "groups")),
+				fmt.Sprintf("%d matching %s in the bin %s %d %s.", plan.MatchingGroups, plural(plan.MatchingGroups, "group", "groups"), plural(plan.MatchingGroups, "contains", "contain"), plan.MatchingEntries, plural(plan.MatchingEntries, "entry", "entries")),
+				"Entries move to the bin root and conflicting titles are renamed. All these groups and their hierarchy are permanently deleted. Recovery requires a backup.",
+			}
+			m.dialog = &actionDialog{kind: "delete", title: "Delete Group", options: []string{"Cancel", "Delete Group"}, selected: 0, sessionID: msg.sessionID, change: vault.Change{Kind: vault.DeleteGroup, GroupUUID: plan.GroupUUID}, message: message}
+			return nil, true
+		}
 		m.selectResult(msg.change)
 		m.setNotice("saved · backup created", false)
+		if renamed != "" {
+			m.setNotice("moved as "+safe(renamed)+" · backup created", false)
+		}
 		if after != nil {
 			return after(), true
 		}
@@ -726,8 +796,10 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 
 func writeError(err error) string {
 	switch {
+	case errors.Is(err, vault.ErrPartialWrite):
+		return "changes may be partial · backup retained · lock and unlock"
 	case errors.Is(err, vault.ErrInteractiveSessionLost):
-		return "session interrupted · lock and unlock to check saved state"
+		return "session interrupted · changes may be partial · lock and unlock to check"
 	case errors.Is(err, vault.ErrExternalChanged):
 		return "file changed externally · reload before saving"
 	case errors.Is(err, vault.ErrAmbiguous):

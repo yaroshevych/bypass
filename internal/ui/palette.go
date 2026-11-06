@@ -190,7 +190,7 @@ func (m *Model) commands() []command {
 	if reason := m.nativeReason("rm"); reason != "" {
 		deleteReason = reason
 	}
-	if deleteReason == "" && m.currentNav().kind != "group" {
+	if deleteReason == "" && m.currentNav().kind != "group" && (m.selectedRow() == nil || !m.selectedRow().OpaqueGroup) {
 		deleteReason = needEntry
 	}
 	if m.editor != nil {

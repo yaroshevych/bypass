@@ -80,10 +80,36 @@ func (c *InteractiveCLI) Apply(ctx context.Context, db *Database, _ Credentials,
 	if err != nil {
 		return nil, err
 	}
-	selected, err := selectors.selectChange(change)
+	selection := change
+	if change.Kind == PrepareRecycleBin {
+		selection.Kind = DeleteEntry
+		if change.GroupUUID != "" {
+			selection.Kind = DeleteGroup
+		}
+	}
+	selected, err := selectors.selectChangeWithMoveCollision(selection, change.Kind == MoveEntry)
 	if err != nil {
 		return nil, err
 	}
+	if change.Kind == PrepareRecycleBin {
+		if !db.RecycleBinEnabled {
+			return nil, ErrUnsupported
+		}
+		return s.prepareRecycleBin(ctx, db, backupDir)
+	}
+	if db.RecycleBinEnabled && !db.RecycleBinVerified && (change.Kind == DeleteEntry || change.Kind == DeleteGroup && selected.group.Recycled) {
+		return nil, ErrUnsupported
+	}
+	if change.Kind == PrepareDeleteGroup {
+		if !db.RecycleBinEnabled || selected.group.Recycled {
+			return nil, ErrUnsupported
+		}
+		return s.prepareGroupDeletion(ctx, db, selected, backupDir)
+	}
+	if change.Kind == DeleteGroup && db.RecycleBinEnabled && !selected.group.Recycled {
+		return s.deletePreparedGroup(ctx, db, selected, backupDir)
+	}
+	s.groupDeletePlan = nil
 	args, expected, prompt, err := interactiveChangeArgs(change, selected)
 	if err != nil {
 		return nil, err
@@ -94,12 +120,66 @@ func (c *InteractiveCLI) Apply(ctx context.Context, db *Database, _ Credentials,
 	if err := backupInteractiveVault(db.Path, backupDir); err != nil {
 		return nil, ErrBackup
 	}
+	finalMoveTitle := ""
+	if change.Kind == MoveEntry {
+		title := selected.entry.Get("Title")
+		destination := selectors.rawGroupPaths[selected.group.UUID]
+		source := selectors.rawGroupPaths[selected.entry.GroupUUID]
+		if len(selectors.rawEntryPathIDs[destination+title]) != 0 {
+			newTitle := ""
+			for i := 1; i <= 10000; i++ {
+				candidate := fmt.Sprintf("%s %d", title, i)
+				if len(selectors.rawEntryPathIDs[destination+candidate]) == 0 {
+					newTitle = candidate
+					break
+				}
+			}
+			if newTitle == "" {
+				return nil, ErrTooLarge
+			}
+			if len(selectors.rawEntryPathIDs[source+newTitle]) != 0 {
+				finalMoveTitle = newTitle
+				newTitle = ""
+				for i := 1; i <= 10000; i++ {
+					candidate := fmt.Sprintf("%s %d", title, i)
+					if len(selectors.rawEntryPathIDs[source+candidate]) == 0 && len(selectors.rawEntryPathIDs[destination+candidate]) == 0 {
+						newTitle = candidate
+						break
+					}
+				}
+				if newTitle == "" {
+					return nil, ErrTooLarge
+				}
+			}
+			out, renameErr := s.command(ctx, "edit", "--title", newTitle, "--", selected.entryPath)
+			ok := bytes.Equal(out, []byte("Successfully edited entry "+newTitle+".\n"))
+			zero(out)
+			if renameErr != nil || !ok {
+				s.failed = true
+				s.close()
+				return nil, errors.Join(ErrInteractiveSessionLost, ErrPartialWrite, ErrWrite, renameErr)
+			}
+			selected.entry = cloneEntry(selected.entry, true)
+			for i := range selected.entry.Fields {
+				if selected.entry.Fields[i].Name == "Title" {
+					selected.entry.Fields[i].Value = newTitle
+				}
+			}
+			selected.entryPath = source + newTitle
+			args, expected, prompt, err = interactiveChangeArgs(change, selected)
+			if err != nil {
+				s.failed = true
+				s.close()
+				return nil, errors.Join(ErrInteractiveSessionLost, ErrPartialWrite, err)
+			}
+		}
+	}
 	output, err := s.commandInput(ctx, change.Password, prompt, args...)
 	defer zero(output)
 	if err != nil {
 		diagnostic(ctx, "mutation_command_failed", "kind", change.Kind, "error", diagnosticError(err))
 		s.failed = true
-		return nil, errors.Join(ErrInteractiveSessionLost, err)
+		return nil, errors.Join(ErrInteractiveSessionLost, ErrPartialWrite, err)
 	}
 	acknowledgement := output
 	if prompt != "" {
@@ -108,6 +188,9 @@ func (c *InteractiveCLI) Apply(ctx context.Context, db *Database, _ Credentials,
 	succeeded := bytes.Equal(acknowledgement, []byte(expected+"\n"))
 	if change.Kind == DeleteEntry || change.Kind == DeleteGroup {
 		succeeded = succeeded || bytes.Equal(acknowledgement, []byte(strings.Replace(expected, "recycled", "deleted", 1)+"\n"))
+	}
+	if change.Kind == DeleteGroup && selected.group.Recycled {
+		succeeded = bytes.Equal(acknowledgement, []byte(strings.Replace(expected, "recycled", "deleted", 1)+"\n"))
 	}
 	if change.Kind == DeleteGroup {
 		// Diagnostic only: report response shape and classification, never the
@@ -119,14 +202,25 @@ func (c *InteractiveCLI) Apply(ctx context.Context, db *Database, _ Credentials,
 		// Reauthenticate before using that model again; don't attempt a rollback.
 		s.failed = true
 		s.close()
-		return nil, errors.Join(ErrInteractiveSessionLost, ErrWrite)
+		return nil, errors.Join(ErrInteractiveSessionLost, ErrPartialWrite, ErrWrite)
+	}
+	if finalMoveTitle != "" {
+		path := selectors.rawGroupPaths[selected.group.UUID] + selected.entry.Get("Title")
+		out, renameErr := s.command(ctx, "edit", "--title", finalMoveTitle, "--", path)
+		ok := bytes.Equal(out, []byte("Successfully edited entry "+finalMoveTitle+".\n"))
+		zero(out)
+		if renameErr != nil || !ok {
+			s.failed = true
+			s.close()
+			return nil, errors.Join(ErrInteractiveSessionLost, ErrPartialWrite, ErrWrite, renameErr)
+		}
 	}
 	updated, err := s.load(ctx, db.Path)
 	if err != nil {
 		diagnostic(ctx, "mutation_reload_failed", "kind", change.Kind, "error", diagnosticError(err))
 		s.failed = true
 		s.close()
-		return nil, errors.Join(ErrInteractiveSessionLost, err)
+		return nil, errors.Join(ErrInteractiveSessionLost, ErrPartialWrite, err)
 	}
 	if change.Kind == DeleteGroup {
 		diagnostic(ctx, "group_delete_reloaded", "groups", len(updated.Groups), "entries", len(updated.Entries))

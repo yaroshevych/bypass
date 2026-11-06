@@ -92,11 +92,16 @@ func (m *Model) confirmDelete() {
 		}
 		name = fmt.Sprintf("%s (%d entries, including descendants)", safe(name), count)
 	} else {
-		e := m.selected()
+		e := m.selectedRow()
 		if e == nil {
 			return
 		}
-		change.EntryUUID = e.UUID
+		if e.OpaqueGroup {
+			change.Kind = vault.DeleteGroup
+			change.GroupUUID = e.UUID
+		} else {
+			change.EntryUUID = e.UUID
+		}
 		name = visibleField(*e, "Title")
 		permanent = permanent || e.Recycled
 	}
@@ -106,9 +111,23 @@ func (m *Model) confirmDelete() {
 		action = "Delete Permanently"
 		message = "This permanently deletes the item. Recovery requires a backup."
 	}
-	if s.DB.Interactive() {
+	if s.DB.Interactive() && !permanent {
 		action = "Delete"
 		message = "KeePassXC moves the item to its recycle bin when enabled. Items already in the bin are deleted permanently."
+	}
+	if change.Kind == vault.DeleteGroup && permanent {
+		action = "Delete Permanently"
+		message = "Permanently deletes this group and all its contents. If names match, the first matching group is deleted. Recovery requires a backup."
+	}
+	if change.Kind == vault.DeleteGroup && s.DB.Interactive() && !permanent {
+		change.Kind = vault.PrepareDeleteGroup
+		action = "Inspect Recycle Bin"
+		message = "Creates an encrypted backup and a temporary entry to find the recycle bin. Review the deletion details before continuing."
+	}
+	if s.DB.Interactive() && s.DB.RecycleBinEnabled && !s.DB.RecycleBinVerified && (change.Kind == vault.DeleteEntry || change.Kind == vault.DeleteGroup && permanent) {
+		change.Kind = vault.PrepareRecycleBin
+		action = "Inspect Recycle Bin"
+		message = "Creates an encrypted backup and a temporary entry to find the recycle bin. Review the deletion details before continuing."
 	}
 	m.hideReveal()
 	m.dialog = &actionDialog{kind: "delete", title: action, options: []string{"Cancel", action}, selected: 0, sessionID: s.ID, change: change, message: []string{safe(name), message}}

@@ -59,7 +59,7 @@ func contextError(ctx context.Context) error {
 
 func validateChange(change Change) error {
 	switch change.Kind {
-	case AddEntry, EditEntry, MoveEntry, DeleteEntry, CreateGroup, DeleteGroup, AddAttachment, ReplaceAttachment, RemoveAttachment:
+	case AddEntry, EditEntry, MoveEntry, DeleteEntry, CreateGroup, DeleteGroup, PrepareDeleteGroup, PrepareRecycleBin, AddAttachment, ReplaceAttachment, RemoveAttachment:
 	default:
 		return ErrUnsupported
 	}
@@ -254,6 +254,10 @@ func (s *selectorSet) uniqueEntry(uuid string) (string, Entry, error) {
 }
 
 func (s *selectorSet) selectChange(change Change) (selectedChange, error) {
+	return s.selectChangeWithMoveCollision(change, false)
+}
+
+func (s *selectorSet) selectChangeWithMoveCollision(change Change, allowCollision bool) (selectedChange, error) {
 	var selected selectedChange
 	switch change.Kind {
 	case AddEntry:
@@ -315,7 +319,7 @@ func (s *selectorSet) selectChange(change Change) (selectedChange, error) {
 			if rawGroupPath, ok := s.rawGroupPaths[group.UUID]; ok {
 				candidatePath := rawGroupPath + entry.Get("Title")
 				for _, uuid := range s.rawEntryPathIDs[candidatePath] {
-					if uuid != entry.UUID {
+					if uuid != entry.UUID && !allowCollision {
 						return selected, ErrAmbiguous
 					}
 				}
@@ -324,12 +328,20 @@ func (s *selectorSet) selectChange(change Change) (selectedChange, error) {
 			}
 			selected.group, selected.groupPath = group, groupPath
 		}
-	case DeleteGroup:
+	case DeleteGroup, PrepareDeleteGroup:
 		group, ok := s.groupsByUUID[change.GroupUUID]
 		if !ok || group.ParentUUID == "" {
 			return selected, ErrUnsupported
 		}
 		path, err := s.uniqueGroup(group.UUID)
+		// Opaque bin rows can have identical names. KeePassXC resolves the
+		// path to the first matching group, as disclosed by the confirmation.
+		if errors.Is(err, ErrAmbiguous) && group.Recycled && group.ParentUUID == s.db.RecycleBinUUID {
+			path, ok = s.groupPaths[group.UUID]
+			if ok {
+				err = nil
+			}
+		}
 		if err != nil {
 			return selected, err
 		}

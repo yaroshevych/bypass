@@ -129,7 +129,7 @@ func (m *Model) allNavigation() []navItem {
 		if visited[g.UUID] {
 			return
 		}
-		if g.Recycled || g.UUID == s.DB.RecycleBinUUID || strings.EqualFold(g.Name, "Recycle Bin") {
+		if g.Recycled || g.UUID == s.DB.RecycleBinUUID || s.DB.RecycleBinEnabled && !s.DB.RecycleBinVerified && strings.EqualFold(g.Name, "Recycle Bin") {
 			skipBranch(g)
 			return
 		}

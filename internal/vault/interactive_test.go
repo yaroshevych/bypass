@@ -55,13 +55,38 @@ func TestOpenDuplicateGroupsInRecycleBin(t *testing.T) {
 	}
 	defer db.Clear()
 	count := 0
+	groupID := ""
 	for _, group := range db.Groups {
 		if group.Name == "Duplicate" && group.Recycled && group.ParentUUID == db.RecycleBinUUID {
 			count++
+			groupID = group.UUID
 		}
 	}
 	if count != 2 {
 		t.Fatalf("got %d recycled groups, want 2", count)
+	}
+	backup := filepath.Join(t.TempDir(), "backups")
+	verified, err := backend.Apply(ctx, db, Credentials{}, Change{Kind: PrepareRecycleBin, GroupUUID: groupID}, backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.TransferInteractive(verified)
+	db.Clear()
+	db = verified
+	updated, err := backend.Apply(ctx, db, Credentials{}, Change{Kind: DeleteGroup, GroupUUID: groupID}, backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.TransferInteractive(updated)
+	defer updated.Clear()
+	count = 0
+	for _, group := range updated.Groups {
+		if group.Name == "Duplicate" && group.Recycled {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("got %d recycled groups after deletion, want 1", count)
 	}
 }
 

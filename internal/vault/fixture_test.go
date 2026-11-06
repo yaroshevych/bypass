@@ -126,7 +126,7 @@ func (c *CLI) Apply(ctx context.Context, snapshot *Database, creds Credentials, 
 	if err != nil {
 		return nil, err
 	}
-	defer db.Clear()
+	defer func() { db.Clear() }()
 	// CLI group IDs belong to the current session; XML uses the stored UUIDs.
 	groupID := func(id string) string {
 		for _, old := range snapshot.Groups {
@@ -144,6 +144,15 @@ func (c *CLI) Apply(ctx context.Context, snapshot *Database, creds Credentials, 
 		return id
 	}
 	change.GroupUUID = groupID(change.GroupUUID)
+	if change.Kind == DeleteEntry && db.RecycleBinEnabled {
+		verified, err := backend.Apply(ctx, db, creds, Change{Kind: PrepareRecycleBin, EntryUUID: change.EntryUUID}, backup)
+		if err != nil {
+			return nil, err
+		}
+		db.TransferInteractive(verified)
+		db.Clear()
+		db = verified
+	}
 	updated, err := backend.Apply(ctx, db, creds, change, backup)
 	if err != nil {
 		return nil, err

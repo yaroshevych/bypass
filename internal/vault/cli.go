@@ -14,6 +14,7 @@ import (
 
 var (
 	ErrInteractiveSessionLost = errors.New("interactive session lost; lock and unlock to retry")
+	ErrPartialWrite           = errors.New("write may be partially complete")
 	ErrUnavailable            = errors.New("vault CLI unavailable")
 	ErrInvalidPath            = errors.New("invalid vault path")
 	ErrUnlock                 = errors.New("unable to unlock vault")

@@ -175,20 +175,22 @@ func (c *InteractiveCLI) ResolveField(ctx context.Context, db *Database, _ Crede
 // stdout and stderr share one OS pipe so the random completion marker follows
 // command output in order. All native output stays private and bounded.
 type interactiveSession struct {
-	transactionMu sync.Mutex
-	failed        bool
-	recycleBinID  string
-	commandMu     sync.Mutex
-	closeOnce     sync.Once
-	cmd           *exec.Cmd
-	input         io.WriteCloser
-	output        *os.File
-	reader        *bufio.Reader
-	readerMu      sync.Mutex
-	done          chan struct{}
-	prompt        []byte
-	echo          bool
-	unlockFailure string
+	transactionMu   sync.Mutex
+	failed          bool
+	recycleBinID    string
+	recycleBinPath  string
+	groupDeletePlan *GroupDeletePlan
+	commandMu       sync.Mutex
+	closeOnce       sync.Once
+	cmd             *exec.Cmd
+	input           io.WriteCloser
+	output          *os.File
+	reader          *bufio.Reader
+	readerMu        sync.Mutex
+	done            chan struct{}
+	prompt          []byte
+	echo            bool
+	unlockFailure   string
 }
 
 func startInteractive(ctx context.Context, binary, path string, creds Credentials) (_ *interactiveSession, err error) {
@@ -600,7 +602,8 @@ func (s *interactiveSession) load(ctx context.Context, path string) (*Database, 
 				reject("entity_limit", row)
 				return ErrTooLarge
 			}
-			binGroup := db.RecycleBinEnabled && strings.EqualFold(groupPath, "/Recycle Bin/") && strings.HasSuffix(item, "/")
+			binGroup := db.RecycleBinEnabled && strings.HasSuffix(item, "/") &&
+				(s.recycleBinPath != "" && groupPath == s.recycleBinPath || s.recycleBinPath == "" && strings.EqualFold(groupPath, "/Recycle Bin/"))
 			if item == "" || (seen[item] && !binGroup) || strings.IndexFunc(item, unicode.IsControl) >= 0 {
 				reason := "duplicate_listing_name"
 				if item == "" {
@@ -686,6 +689,7 @@ func (s *interactiveSession) load(ctx context.Context, path string) (*Database, 
 		return nil, err
 	}
 	s.markRecycled(db)
+	db.RecycleBinVerified = s.recycleBinPath != ""
 	diagnostic(ctx, "metadata_loaded", "groups", len(db.Groups), "entries", len(db.Entries))
 	return db, nil
 }

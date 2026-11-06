@@ -238,10 +238,16 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 	e.key("Enter")
 	e.mustShowWrite("Passwords / Archive", "saved · backup created")
 	e.key("DC")
-	e.mustShow("DELETE")
+	e.mustShow("INSPECT RECYCLE BIN")
 	e.key("Right")
 	e.key("Enter")
-	e.mustShowWrite("saved · backup created")
+	e.mustShow("MOVE TO RECYCLE BIN")
+	e.key("Right")
+	e.key("Enter")
+	e.waitForWithin(20*time.Second, "recycle operation completed", func() bool {
+		screen := e.capture()
+		return strings.Contains(screen, "saved · backup created") && !strings.Contains(screen, "MOVE TO RECYCLE BIN") && !strings.Contains(screen, "Working…")
+	})
 	e.key("Left")
 	e.key("Left")
 	for i := 0; i < 4; i++ {

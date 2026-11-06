@@ -237,7 +237,10 @@ func TestInteractiveBackendTmuxInfoDeletePasswordAndSearchShortcut(t *testing.T)
 			e.key("J")
 			e.key("p")
 			e.key("DC")
-			e.mustShow("DELETE", "KeePassXC moves")
+			e.mustShow("INSPECT RECYCLE BIN")
+			e.key("Tab")
+			e.key("Enter")
+			e.mustShow("MOVE TO RECYCLE BIN")
 			e.key("Tab")
 			e.key("Enter")
 			e.waitFor("native deletion finished", func() bool {
@@ -289,8 +292,8 @@ func TestInteractiveBackendTmuxInfoDeletePasswordAndSearchShortcut(t *testing.T)
 			e.key("q")
 			e.waitForCleanQuit()
 			backups, err := filepath.Glob(filepath.Join(e.root, "xdg-state", "bypass", "backups", "*.kdbx"))
-			if err != nil || len(backups) != 2 {
-				t.Fatal("delete/password-change backups missing")
+			if err != nil || len(backups) != 3 {
+				t.Fatalf("expected three delete/password-change backups, got %d: %v", len(backups), err)
 			}
 			for _, path := range backups {
 				db, err := vaulttest.NewCLI(backend).Open(context.Background(), path, old)

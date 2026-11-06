@@ -41,15 +41,17 @@ type Backend interface {
 type ChangeKind string
 
 const (
-	AddEntry          ChangeKind = "add_entry"
-	EditEntry         ChangeKind = "edit_entry"
-	MoveEntry         ChangeKind = "move_entry"
-	DeleteEntry       ChangeKind = "delete_entry"
-	CreateGroup       ChangeKind = "create_group"
-	DeleteGroup       ChangeKind = "delete_group"
-	AddAttachment     ChangeKind = "add_attachment"
-	ReplaceAttachment ChangeKind = "replace_attachment"
-	RemoveAttachment  ChangeKind = "remove_attachment"
+	AddEntry           ChangeKind = "add_entry"
+	EditEntry          ChangeKind = "edit_entry"
+	MoveEntry          ChangeKind = "move_entry"
+	DeleteEntry        ChangeKind = "delete_entry"
+	CreateGroup        ChangeKind = "create_group"
+	DeleteGroup        ChangeKind = "delete_group"
+	PrepareDeleteGroup ChangeKind = "prepare_delete_group"
+	PrepareRecycleBin  ChangeKind = "prepare_recycle_bin"
+	AddAttachment      ChangeKind = "add_attachment"
+	ReplaceAttachment  ChangeKind = "replace_attachment"
+	RemoveAttachment   ChangeKind = "remove_attachment"
 )
 
 type Change struct {
@@ -69,16 +71,30 @@ type Writer interface {
 }
 
 type Database struct {
-	interactive       *interactiveSession
-	interactiveOwner  bool
-	Path              string
-	Name              string
-	RootUUID          string
-	RecycleBinUUID    string
-	RecycleBinEnabled bool
-	Groups            []Group
-	Entries           []Entry
-	Revision          [32]byte
+	interactive        *interactiveSession
+	interactiveOwner   bool
+	Path               string
+	Name               string
+	RootUUID           string
+	RecycleBinUUID     string
+	RecycleBinEnabled  bool
+	RecycleBinVerified bool
+	GroupDeletePlan    *GroupDeletePlan
+	Groups             []Group
+	Entries            []Entry
+	Revision           [32]byte
+}
+
+// GroupDeletePlan describes the effects confirmed after the native bin probe.
+type GroupDeletePlan struct {
+	GroupUUID       string
+	GroupName       string
+	TargetEntries   int
+	TargetGroups    int
+	MatchingGroups  int
+	MatchingEntries int
+	BinPath         string
+	Revision        [32]byte
 }
 
 func (d *Database) Clone() *Database {
@@ -87,6 +103,10 @@ func (d *Database) Clone() *Database {
 	}
 	out := *d
 	out.interactiveOwner = false
+	if d.GroupDeletePlan != nil {
+		plan := *d.GroupDeletePlan
+		out.GroupDeletePlan = &plan
+	}
 	out.Groups = append([]Group(nil), d.Groups...)
 	out.Entries = make([]Entry, len(d.Entries))
 	for i, e := range d.Entries {
@@ -182,6 +202,7 @@ func (d *Database) Clear() {
 	}
 	d.interactive = nil
 	d.interactiveOwner = false
+	d.GroupDeletePlan = nil
 	for i := range d.Entries {
 		clearEntry(&d.Entries[i])
 	}

@@ -133,6 +133,50 @@ func TestInteractiveNativeGroupMoveAndPasswordPreservation(t *testing.T) {
 	}
 }
 
+func TestInteractiveMoveRenamesDuplicateTitle(t *testing.T) {
+	path, creds, _ := interactiveFixture(t)
+	backend := NewInteractiveCLI("")
+	db, err := backend.Open(context.Background(), path, creds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { db.Clear() }()
+	backup := filepath.Join(t.TempDir(), "backups")
+	apply := func(change Change) {
+		t.Helper()
+		next, err := backend.Apply(context.Background(), db, Credentials{}, change, backup)
+		if err != nil {
+			t.Fatal(err)
+		}
+		db.TransferInteractive(next)
+		db.Clear()
+		db = next
+	}
+	apply(Change{Kind: CreateGroup, GroupUUID: db.RootUUID, NewName: "Destination"})
+	destination := ""
+	for _, group := range db.Groups {
+		if group.Name == "Destination" {
+			destination = group.UUID
+		}
+	}
+	apply(Change{Kind: AddEntry, GroupUUID: destination, Values: map[string]string{"Title": "Example"}})
+	apply(Change{Kind: AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Example"}})
+	apply(Change{Kind: AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Example 1"}})
+	entry := ""
+	for _, item := range db.Entries {
+		if item.GroupUUID == db.RootUUID && item.Get("Title") == "Example" {
+			entry = item.UUID
+		}
+	}
+	apply(Change{Kind: MoveEntry, EntryUUID: entry, GroupUUID: destination})
+	for _, item := range db.Entries {
+		if item.UUID == entry && item.GroupUUID == destination && item.Get("Title") == "Example 1" {
+			return
+		}
+	}
+	t.Fatal("moved entry was not renamed in destination")
+}
+
 func TestInteractiveNativeBackupFailureAndKeePassXCExternalChange(t *testing.T) {
 	path, creds, _ := interactiveFixture(t)
 	backend := NewInteractiveCLI("")

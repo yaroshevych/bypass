@@ -9,6 +9,31 @@ import (
 	"time"
 )
 
+func TestDiscoverRecycleBinWithNativeProbe(t *testing.T) {
+	path, creds, _ := interactiveFixture(t)
+	backend := NewInteractiveCLI("")
+	db, err := backend.Open(context.Background(), path, creds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Clear()
+	if err := backupInteractiveVault(path, filepath.Join(t.TempDir(), "backups")); err != nil {
+		t.Fatal(err)
+	}
+	bin, err := db.interactive.discoverRecycleBin(context.Background())
+	if err != nil || bin != "/Recycle Bin/" {
+		t.Fatalf("probe returned %q: %v", bin, err)
+	}
+	updated, err := db.interactive.load(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer updated.Clear()
+	if len(updated.Entries) != 0 || updated.RecycleBinUUID == "" {
+		t.Fatal("probe entry remained or recycle bin was not identified")
+	}
+}
+
 func TestInteractiveNativeDatabaseInfoRecycleAndRemove(t *testing.T) {
 	path, creds, _ := interactiveFixture(t)
 	backend := NewInteractiveCLI("")
@@ -34,6 +59,7 @@ func TestInteractiveNativeDatabaseInfoRecycleAndRemove(t *testing.T) {
 	}
 	apply(Change{Kind: AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Delete me"}})
 	id := db.Entries[0].UUID
+	apply(Change{Kind: PrepareRecycleBin, EntryUUID: id})
 	info, err = backend.InfoDatabase(context.Background(), db)
 	if err != nil || info.EntryCount != 1 {
 		t.Fatal("database info count did not refresh", err)
@@ -66,6 +92,7 @@ func TestInteractiveNativeDatabaseInfoRecycleAndRemove(t *testing.T) {
 			groupID = group.UUID
 		}
 	}
+	apply(Change{Kind: PrepareDeleteGroup, GroupUUID: groupID})
 	apply(Change{Kind: DeleteGroup, GroupUUID: groupID})
 	opened, err = NewCLI("").Open(context.Background(), path, creds)
 	if err != nil {
@@ -74,12 +101,12 @@ func TestInteractiveNativeDatabaseInfoRecycleAndRemove(t *testing.T) {
 	defer opened.Clear()
 	found := false
 	for _, group := range opened.Groups {
-		if group.Name == "Delete group" && group.Recycled {
+		if group.Name == "Delete group" {
 			found = true
 		}
 	}
-	if !found {
-		t.Fatal("native rmdir did not recycle group")
+	if found {
+		t.Fatal("group hierarchy was not permanently removed")
 	}
 }
 

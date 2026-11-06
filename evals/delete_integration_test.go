@@ -35,15 +35,18 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	e.key("Right")
 	initial := vaultFileHash(t, e.realDB)
 	e.key("DC")
-	e.mustShow("DELETE", "Cancel")
+	e.mustShow("INSPECT RECYCLE BIN", "Cancel")
 	e.key("Enter")
-	e.waitFor("entry-delete cancel closes dialog", func() bool { return !strings.Contains(e.capture(), "DELETE") })
+	e.waitFor("entry-delete cancel closes dialog", func() bool { return !strings.Contains(e.capture(), "INSPECT RECYCLE BIN") })
 	e.mustShow("Seed Entry", "Survivor")
 	if vaultFileHash(t, e.realDB) != initial {
 		t.Fatal("default delete confirmation mutated the vault")
 	}
 	e.key("DC")
-	e.mustShow("DELETE")
+	e.mustShow("INSPECT RECYCLE BIN")
+	e.key("Right")
+	e.key("Enter")
+	e.mustShow("MOVE TO RECYCLE BIN")
 	e.key("Right")
 	e.key("Enter")
 	e.mustShowWrite("saved · backup created")
@@ -55,7 +58,7 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	e.mustShow("Bin", "Seed Entry")
 	recycledHash := vaultFileHash(t, e.realDB)
 	e.key("DC")
-	e.mustShow("DELETE", "Cancel", "Items already in", "permanently.")
+	e.mustShow("DELETE PERMANENTLY", "Cancel", "permanently deletes")
 	e.key("Enter")
 	e.waitFor("permanent-delete cancel closes dialog", func() bool { return !strings.Contains(e.capture(), "DELETE") })
 	e.mustShow("Bin", "Seed Entry")
@@ -82,14 +85,17 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	e.key("Left")
 	groupHash := vaultFileHash(t, e.realDB)
 	e.key("DC")
-	e.mustShow("DELETE", "Temporary Group", "Cancel")
+	e.mustShow("INSPECT RECYCLE BIN", "Temporary Group", "Cancel")
 	e.key("Enter")
-	e.waitFor("group-delete cancel closes dialog", func() bool { return !strings.Contains(e.capture(), "DELETE") })
+	e.waitFor("group-delete cancel closes dialog", func() bool { return !strings.Contains(e.capture(), "INSPECT RECYCLE BIN") })
 	if vaultFileHash(t, e.realDB) != groupHash {
 		t.Fatal("default group-delete confirmation mutated the vault")
 	}
 	e.key("DC")
-	e.mustShow("DELETE", "Temporary Group")
+	e.mustShow("INSPECT RECYCLE BIN", "Temporary Group")
+	e.key("Right")
+	e.key("Enter")
+	e.mustShow("DELETE GROUP", "0 entries in 1 group")
 	e.key("Right")
 	e.key("Enter")
 	e.waitForWithin(20*time.Second, "group deletion saved", func() bool {
@@ -105,7 +111,7 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 		t.Fatal("reopen after deletions:", err)
 	}
 	defer db.Clear()
-	survived, recycledGroup := false, false
+	survived, groupRemains := false, false
 	for _, entry := range db.Entries {
 		if entry.Get("Title") == "Seed Entry" {
 			t.Fatal("permanently deleted entry remains in native database")
@@ -116,11 +122,11 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	}
 	for _, group := range db.Groups {
 		if group.Name == "Temporary Group" {
-			recycledGroup = group.Recycled
+			groupRemains = true
 		}
 	}
-	if !survived || !recycledGroup {
-		t.Fatal("deletion altered an unrelated entry or failed to recycle the selected group")
+	if !survived || groupRemains {
+		t.Fatal("deletion altered an unrelated entry or left the selected group")
 	}
 	e.key("q")
 	e.waitForCleanQuit()
