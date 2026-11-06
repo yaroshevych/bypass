@@ -13,6 +13,18 @@ import (
 	"time"
 )
 
+func TestSecondSessionWarnsApprovalsUnavailable(t *testing.T) {
+	t.Parallel()
+	e := newEval(t)
+	defer e.close()
+	e.start()
+	e.tmux("new-window", "-t", "eval", "-n", "second", "-c", e.pickerRoot, filepath.Join(e.root, "launch.sh"))
+	e.mustShow("APPROVALS UNAVAILABLE", "Another Bypass session", "close that session and restart", "this one", "Close")
+	e.key("Enter")
+	e.waitFor("warning closes", func() bool { return !strings.Contains(e.capture(), "APPROVALS UNAVAILABLE") })
+	e.mustShow("VAULTS")
+}
+
 func TestRunApprovalAndDenialTmux(t *testing.T) {
 	t.Parallel()
 	backend, err := exec.LookPath("keepassxc-cli")

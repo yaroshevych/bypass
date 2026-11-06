@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -134,9 +135,12 @@ func run(args []string, stdout, stderr io.Writer) error {
 		})
 		if err != nil {
 			fmt.Fprintln(stderr, err)
+			m.ShowApprovalsUnavailable(errors.Is(err, runpkg.ErrServerInUse))
 		} else {
 			defer server.Close()
 		}
+	} else {
+		m.ShowApprovalsUnavailable(false)
 	}
 	if _, err := p.Run(); err != nil {
 		if ctx.Err() != nil {

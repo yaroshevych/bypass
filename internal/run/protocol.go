@@ -79,6 +79,8 @@ type Server struct {
 	once     sync.Once
 }
 
+var ErrServerInUse = errors.New("another Bypass TUI owns the IPC server")
+
 func SocketPath() (string, error) {
 	base, err := os.UserCacheDir()
 	if err != nil {
@@ -117,7 +119,10 @@ func Listen(path string, submit func(*Pending)) (*Server, error) {
 	lock := os.NewFile(uintptr(fd), "IPC lock")
 	if err := unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		lock.Close()
-		return nil, errors.New("another Bypass TUI owns the IPC server")
+		if errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN) {
+			return nil, ErrServerInUse
+		}
+		return nil, err
 	}
 	success := false
 	defer func() {

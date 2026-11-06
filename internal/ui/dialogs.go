@@ -28,6 +28,16 @@ type actionDialog struct {
 	secret                          []byte
 }
 
+// ShowApprovalsUnavailable warns before input starts when this session cannot
+// receive secret requests. Closing the other session does not attach this one.
+func (m *Model) ShowApprovalsUnavailable(inUse bool) {
+	message := "Secret requests cannot be received in this session. Restart Bypass to try again."
+	if inUse {
+		message = "Another Bypass session receives secret requests. To approve requests here, close that session and restart this one."
+	}
+	m.dialog = &actionDialog{kind: "startup-warning", title: "Approvals unavailable", message: []string{message}, options: []string{"Close"}}
+}
+
 func (m *Model) clearDialog() {
 	if m.dialog != nil {
 		m.dialog.duplicates.Close()
@@ -361,6 +371,8 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 	case "enter":
 		choice := d.selected
 		switch d.kind {
+		case "startup-warning":
+			m.clearDialog()
 		case "run-permissions":
 			if choice == 0 {
 				return m.clearRunPermissionsDialog()
@@ -436,7 +448,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 			}
 		}
 	}
-	if d.kind == "delete" {
+	if d.kind == "delete" || d.kind == "startup-warning" {
 		wrapped := make([]string, 0, len(body))
 		textWidth := max(1, min(m.width-6, 60)-5)
 		for i, line := range body {
@@ -512,7 +524,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		footer = ""
 	default:
 		body = append(body, "")
-		if d.kind == "duplicates" || d.kind == "delete" || d.kind == "unsaved" || d.kind == "external" || d.kind == "discardReload" {
+		if d.kind == "duplicates" || d.kind == "delete" || d.kind == "startup-warning" || d.kind == "unsaved" || d.kind == "external" || d.kind == "discardReload" {
 			for i, option := range d.options {
 				shortcut := ""
 				if d.kind == "duplicates" && i == 1 {
@@ -520,6 +532,9 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 				}
 				if d.kind != "external" && strings.EqualFold(option, "Cancel") {
 					shortcut = "esc"
+				}
+				if d.kind == "startup-warning" {
+					shortcut = "enter"
 				}
 				actions = append(actions, dialogAction{option, shortcut})
 			}
@@ -538,7 +553,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		width = min(m.width-6, 52)
 	case "external", "generator":
 		width = min(m.width-6, 72)
-	case "delete", "duplicates", "destination":
+	case "delete", "duplicates", "destination", "startup-warning":
 		width = min(m.width-6, 60)
 	}
 	targets = make([]int, len(body))
