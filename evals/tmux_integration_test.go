@@ -589,9 +589,13 @@ func (e *evalSession) startWith(backend string, appArgs ...string) {
 }
 
 func (e *evalSession) startApp(backend string, appArgs ...string) {
+	e.startAppWithBinary(appBinary, backend, appArgs...)
+}
+
+func (e *evalSession) startAppWithBinary(binary, backend string, appArgs ...string) {
 	e.t.Helper()
 	launcher := filepath.Join(e.root, "launch.sh")
-	command := shellQuote(appBinary) + " --backend " + shellQuote(backend)
+	command := shellQuote(binary) + " --backend " + shellQuote(backend)
 	for _, arg := range appArgs {
 		command += " " + shellQuote(arg)
 	}

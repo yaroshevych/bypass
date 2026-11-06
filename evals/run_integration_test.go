@@ -105,7 +105,10 @@ func TestRunIdentityGrantAndTimeoutTmux(t *testing.T) {
 	e := newEval(t)
 	defer e.close()
 	createRealVault(e, backend)
-	e.startWith(backend, e.realDB)
+	if err := os.Symlink(appBinary, filepath.Join(e.pickerRoot, "bypass")); err != nil {
+		t.Fatal(err)
+	}
+	e.startAppWithBinary("./bypass", backend, e.realDB)
 	e.mustShow("UNLOCK VAULT")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -118,13 +121,22 @@ func TestRunIdentityGrantAndTimeoutTmux(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	directory := e.pickerRoot
+	directory := filepath.Join(e.root, "run-client")
+	if err := os.Mkdir(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(appBinary, filepath.Join(directory, "bypass")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(appBinary, filepath.Join(e.root, "bypass")); err != nil {
+		t.Fatal(err)
+	}
 	identity := "repeat-" + strings.Repeat("d4", 16)
 	e.secrets = append(e.secrets, identity)
 	launch := func(timeout string) (*exec.Cmd, *bytes.Buffer) {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		t.Cleanup(cancel)
-		cmd := exec.CommandContext(ctx, appBinary, "run", "--timeout", timeout, "--", executable, "RUN_SECRET")
+		cmd := exec.CommandContext(ctx, "/bin/sh", "-c", `exec ./bypass run --timeout "$1" -- "$2" RUN_SECRET`, "bypass-test", timeout, executable)
 		cmd.Dir = directory
 		cmd.Env = append(os.Environ(), "HOME="+filepath.Join(e.root, "home"), "XDG_CACHE_HOME="+filepath.Join(e.root, "xdg-cache"), "XDG_CONFIG_HOME="+filepath.Join(e.root, "xdg-config"), "RUN_SECRET=bypass://Seed Entry", "BYPASS_IDENTITY="+identity)
 		out := new(bytes.Buffer)
