@@ -1,9 +1,15 @@
 # Bypass Secrets Manager
 
-A terminal secrets manager for local KeePass vaults and agentic workflows.
-Browse and edit secrets in the TUI, then let agents run approved commands that
-need credentials. The agent uses secret references; Bypass supplies the values
-to the command. KeePassXC CLI handles KDBX vault encryption and saving.
+**Private, modern secrets manager.**
+
+Use your KeePass vaults from the terminal. Enjoy a modern, beautiful interface
+where each detail is crafted: navigation, controls, keyboard shortcuts, and themes.
+
+Bypass is using KeePassXC to manage your secrets - a hardened, independently
+reviewed open source software for KDBX vaults.
+
+Use `bypass run` to pass approved secrets to an agent commands or script. You stay in control
+with interactive permission TUI, while protecting secrets from exposure to agents.
 
 **Beta for Linux and macOS.**
 
