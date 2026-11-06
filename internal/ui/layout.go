@@ -5,8 +5,9 @@ import (
 )
 
 const (
-	minimumTerminalWidth  = 48
-	minimumTerminalHeight = 16
+	minimumTerminalWidth         = 38
+	minimumTerminalHeight        = 16
+	passwordListFullColumnsWidth = 48
 )
 
 type paneRect struct {

@@ -1077,6 +1077,10 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 	tw := min(available, max(7, available*40/100))
 	uw := min(available-tw, max(5, available*27/100))
 	urlw := max(0, available-tw-uw)
+	firstColumnOnly := m.width < passwordListFullColumnsWidth
+	if firstColumnOnly {
+		tw, uw, urlw = available, 0, 0
+	}
 	cell := func(text string, width int) string {
 		return fit(ansi.Truncate(text, width, "…"), width)
 	}

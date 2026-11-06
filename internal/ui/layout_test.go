@@ -24,7 +24,8 @@ func TestLayoutResponsiveModesAndZoom(t *testing.T) {
 		{"medium details", 100, 24, 2, false, "medium", 2, 2, false},
 		{"narrow", 70, 20, 0, false, "narrow", 1, 0, true},
 		{"wide zoom", 140, 40, 2, true, "wide", 1, 2, true},
-		{"tiny width", 47, 20, 1, false, "tiny", 0, 0, false},
+		{"below minimum width", 37, 20, 1, false, "tiny", 0, 0, false},
+		{"minimum width", 38, 20, 1, false, "narrow", 1, 1, true},
 		{"tiny height", 90, 13, 1, false, "tiny", 0, 0, false},
 	}
 	for _, tt := range tests {

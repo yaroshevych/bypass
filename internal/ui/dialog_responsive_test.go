@@ -541,7 +541,7 @@ func TestTooSmallScreenShowsCenteredSize(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 48, 14
 	lines := strings.Split(ansi.Strip(m.View()), "\n")
-	for i, text := range []string{"Terminal too small", "Need 48x16; current 48x14", "Resize to continue"} {
+	for i, text := range []string{"Terminal too small", "Need 38x16; current 48x14", "Resize to continue"} {
 		row := (m.height-3)/2 + i
 		if strings.TrimSpace(lines[row]) != text {
 			t.Fatalf("row %d: got %q", row, lines[row])
