@@ -28,6 +28,7 @@ func lowercaseShortcutLabels(text string) string {
 type styleSet struct {
 	primary, secondary, accent, error lipgloss.Style
 	divider, active, inactive         lipgloss.Style
+	squareEdges                       bool
 }
 
 type themeColors struct {
@@ -85,7 +86,24 @@ func trueColorsForTheme(name string) themeColors {
 	}
 }
 
-func (m *Model) colors() *styleSet { return &m.styles }
+func (m *Model) colors() *styleSet {
+	m.styles.squareEdges = m.smallDialogScreenOrClassic()
+	return &m.styles
+}
+
+func (s *styleSet) leftEdge() string {
+	if s.squareEdges {
+		return "█"
+	}
+	return glyphs.Left()
+}
+
+func (s *styleSet) rightEdge() string {
+	if s.squareEdges {
+		return "█"
+	}
+	return glyphs.Right()
+}
 
 func (m *Model) pill(text string, width int, focused bool) string {
 	return m.pillOn(text, width, focused, m.colors().primary)
@@ -97,15 +115,19 @@ func (m *Model) listPill(text string, width int, focused bool) string {
 	if focused {
 		style = c.active
 	}
-	return renderPillTight(text, width, style, c.primary)
+	return renderPillTight(text, width, style, c.primary, c.squareEdges)
 }
 
-func renderPillTight(text string, width int, style, surface lipgloss.Style) string {
+func renderPillTight(text string, width int, style, surface lipgloss.Style, square bool) string {
 	if width < 2 {
 		return style.Render(fit(text, width))
 	}
 	edge := surface.Foreground(style.GetBackground())
-	return fit(edge.Render(glyphs.Left())+style.Render(fit(text, width-2))+edge.Render(glyphs.Right()), width)
+	left, right := glyphs.Left(), glyphs.Right()
+	if square {
+		left, right = "█", "█"
+	}
+	return fit(edge.Render(left)+style.Render(fit(text, width-2))+edge.Render(right), width)
 }
 
 func (m *Model) pillOn(text string, width int, focused bool, surface lipgloss.Style) string {
@@ -114,24 +136,28 @@ func (m *Model) pillOn(text string, width int, focused bool, surface lipgloss.St
 	if focused {
 		style = c.active
 	}
-	return renderPill(text, width, style, surface)
+	return renderPill(text, width, style, surface, c.squareEdges)
 }
 
-func renderPill(text string, width int, style, surface lipgloss.Style) string {
-	return renderPillWithRightSurface(text, width, style, surface, surface)
+func renderPill(text string, width int, style, surface lipgloss.Style, square bool) string {
+	return renderPillWithRightSurface(text, width, style, surface, surface, square)
 }
 
-func renderPillWithRightSurface(text string, width int, style, leftSurface, rightSurface lipgloss.Style) string {
+func renderPillWithRightSurface(text string, width int, style, leftSurface, rightSurface lipgloss.Style, square bool) string {
 	if width < 4 {
 		return style.Render(fit(text, width))
 	}
 	center := style.Render(" ") + style.Render(fit(text, max(0, width-4))) + style.Render(" ")
 	leftEdge := leftSurface.Foreground(style.GetBackground())
 	rightEdge := rightSurface.Foreground(style.GetBackground())
-	return fit(leftEdge.Render(glyphs.Left())+center+rightEdge.Render(glyphs.Right()), width)
+	left, right := glyphs.Left(), glyphs.Right()
+	if square {
+		left, right = "█", "█"
+	}
+	return fit(leftEdge.Render(left)+center+rightEdge.Render(right), width)
 }
 
-func renderPillWithCaret(text, caret string, width int, style, caretStyle, surface lipgloss.Style) string {
+func renderPillWithCaret(text, caret string, width int, style, caretStyle, surface lipgloss.Style, square bool) string {
 	if width < 4 {
 		return style.Render(fit(text+caret, width))
 	}
@@ -140,7 +166,11 @@ func renderPillWithCaret(text, caret string, width int, style, caretStyle, surfa
 	padding := max(0, contentWidth-lipgloss.Width(text)-lipgloss.Width(caret))
 	center := style.Render(" ") + style.Render(text) + caretStyle.Render(caret) + style.Render(strings.Repeat(" ", padding)) + style.Render(" ")
 	edge := surface.Foreground(style.GetBackground())
-	return fit(edge.Render(glyphs.Left())+center+edge.Render(glyphs.Right()), width)
+	left, right := glyphs.Left(), glyphs.Right()
+	if square {
+		left, right = "█", "█"
+	}
+	return fit(edge.Render(left)+center+edge.Render(right), width)
 }
 
 func (m *Model) themedRule(width int) string {

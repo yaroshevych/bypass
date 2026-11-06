@@ -48,6 +48,7 @@ type Options struct {
 	Width, ScreenWidth         int
 	Height, X, Y               int
 	Compact, ASCII             bool
+	SquareEdges                bool
 	Fullscreen                 bool
 	HideHeaderRule             bool
 	Surface, Accent, Secondary lipgloss.Style
@@ -357,7 +358,7 @@ func Render(o Options) []string {
 	title = strings.ToUpper(title)
 	if o.Compact && o.ASCII {
 		tl, tr, bl, br = "+", "+", "+", "+"
-	} else if o.Compact {
+	} else if o.Compact && !o.SquareEdges {
 		tl, tr, bl, br = "╭", "╮", "╰", "╯"
 	}
 	background := make([]string, o.Height)
@@ -425,7 +426,7 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 	}
 	var box []string
 	if o.Compact {
-		box = []string{compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Divider, o.Pill, o.Surface, o.Header.Accessory, o.Header.AccessoryStyle, o.Header.Count)}
+		box = []string{compactTopBorder(width, title, o.ASCII, o.SquareEdges, horizontal, tl, tr, o.Divider, o.Pill, o.Surface, o.Header.Accessory, o.Header.AccessoryStyle, o.Header.Count)}
 	} else {
 		header := o.Accent.Render(" " + title + " ")
 		if o.Header.Content != "" {
@@ -528,7 +529,7 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 	}
 	topBorder := o.Divider.Render(tl + strings.Repeat(horizontal, width-2) + tr)
 	if o.Compact {
-		topBorder = compactTopBorder(width, title, o.ASCII, horizontal, tl, tr, o.Divider, o.Pill, o.Surface, "", lipgloss.NewStyle(), "")
+		topBorder = compactTopBorder(width, title, o.ASCII, o.SquareEdges, horizontal, tl, tr, o.Divider, o.Pill, o.Surface, "", lipgloss.NewStyle(), "")
 	} else if o.Header.Content != "" {
 		join := "┬"
 		if o.ASCII {
@@ -584,10 +585,10 @@ func scrollbarThumb(o Options) string {
 	return o.Secondary.Render("▐")
 }
 
-func compactTopBorder(width int, title string, ascii bool, horizontal, leftCorner, rightCorner string, line, pillStyle, surface lipgloss.Style, accessory string, accessoryStyle lipgloss.Style, count string) string {
+func compactTopBorder(width int, title string, ascii, squareEdges bool, horizontal, leftCorner, rightCorner string, line, pillStyle, surface lipgloss.Style, accessory string, accessoryStyle lipgloss.Style, count string) string {
 	inner := max(0, width-2)
 	if accessory != "" || count != "" {
-		pill := renderTitlePillWithRightSurface(title, inner, ascii, pillStyle, surface, accessoryStyle)
+		pill := renderTitlePillWithRightSurface(title, inner, ascii, squareEdges, pillStyle, surface, accessoryStyle)
 		prefix := line.Render(leftCorner+horizontal) + pill
 		suffix := surface.Render(" ") + count + line.Render(horizontal+rightCorner)
 		budget := max(0, width-lipgloss.Width(prefix)-lipgloss.Width(suffix))
@@ -597,12 +598,16 @@ func compactTopBorder(width int, title string, ascii bool, horizontal, leftCorne
 			accessory += accessoryStyle.Render("]")
 		} else {
 			edge := surface.Foreground(accessoryStyle.GetBackground())
-			accessory += edge.Render(glyphs.Right())
+			right := glyphs.Right()
+			if squareEdges {
+				right = "█"
+			}
+			accessory += edge.Render(right)
 		}
 		remaining := max(0, budget-lipgloss.Width(accessory))
 		return prefix + accessory + line.Render(strings.Repeat(horizontal, remaining)) + suffix
 	}
-	pill := renderTitlePill(title, inner, ascii, pillStyle, surface)
+	pill := renderTitlePill(title, inner, ascii, squareEdges, pillStyle, surface)
 	pillWidth := min(inner, lipgloss.Width(pill))
 	remaining := max(0, inner-pillWidth)
 	left := min(1, remaining)
@@ -610,7 +615,7 @@ func compactTopBorder(width int, title string, ascii bool, horizontal, leftCorne
 	return line.Render(leftCorner+strings.Repeat(horizontal, left)) + pill + line.Render(strings.Repeat(horizontal, right)+rightCorner)
 }
 
-func renderTitlePillWithRightSurface(title string, width int, ascii bool, style, leftSurface, rightSurface lipgloss.Style) string {
+func renderTitlePillWithRightSurface(title string, width int, ascii, squareEdges bool, style, leftSurface, rightSurface lipgloss.Style) string {
 	if width <= 0 {
 		return ""
 	}
@@ -619,12 +624,17 @@ func renderTitlePillWithRightSurface(title string, width int, ascii bool, style,
 		return style.Render("[" + fit(title, max(0, pillWidth-2)) + "]")
 	}
 	center := style.Render(fit(title, max(0, pillWidth-2)))
+	if squareEdges {
+		left := leftSurface.Foreground(style.GetBackground()).Render("█")
+		right := rightSurface.Foreground(style.GetBackground()).Render("█")
+		return fit(left+center+right, pillWidth)
+	}
 	left := leftSurface.Foreground(style.GetBackground()).Render(glyphs.Left())
 	right := rightSurface.Foreground(style.GetBackground()).Render(glyphs.Right())
 	return fit(left+center+right, pillWidth)
 }
 
-func renderTitlePill(title string, width int, ascii bool, style, surface lipgloss.Style) string {
+func renderTitlePill(title string, width int, ascii, squareEdges bool, style, surface lipgloss.Style) string {
 	if width <= 0 {
 		return ""
 	}
@@ -635,6 +645,10 @@ func renderTitlePill(title string, width int, ascii bool, style, surface lipglos
 	}
 	if pillWidth < 2 {
 		return style.Render(fit(title, pillWidth))
+	}
+	if squareEdges {
+		edge := surface.Foreground(style.GetBackground())
+		return fit(edge.Render("█")+style.Render(fit(title, pillWidth-2))+edge.Render("█"), pillWidth)
 	}
 	edge := surface.Foreground(style.GetBackground())
 	return fit(edge.Render(glyphs.Left())+style.Render(fit(title, pillWidth-2))+edge.Render(glyphs.Right()), pillWidth)

@@ -109,12 +109,17 @@ func (m *Model) compactAppearance() bool {
 	return m.smallDialogScreen() || strings.EqualFold(m.settings.Appearance, "compact")
 }
 
+func (m *Model) smallDialogScreenOrClassic() bool {
+	return m.smallDialogScreen() && !strings.EqualFold(m.settings.Appearance, "compact")
+}
+
 func (m *Model) dialogOptions() dialogrender.Options {
 	c := m.colors()
 	theme := colorsForTheme(m.settings.Theme)
 	return dialogrender.Options{
 		ScreenWidth: m.width, Height: m.height, Compact: m.compactAppearance(), ASCII: m.settings.ASCII, Fullscreen: m.smallDialogScreen(),
-		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, ErrorStyle: c.error, Pill: c.active, Divider: c.divider,
+		SquareEdges: m.smallDialogScreen() && !strings.EqualFold(m.settings.Appearance, "compact"),
+		Surface:     c.primary, Accent: c.accent, Secondary: c.secondary, ErrorStyle: c.error, Pill: c.active, Divider: c.divider,
 		RestoreResets: func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) },
 	}
 }

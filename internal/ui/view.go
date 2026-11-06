@@ -10,7 +10,6 @@ import (
 
 	runpkg "bypass/internal/run"
 	dialogrender "bypass/internal/ui/dialog"
-	"bypass/internal/ui/glyphs"
 	"bypass/internal/workspace"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -392,6 +391,8 @@ func (m *Model) workspaceLines() []string {
 			if span.Index == activeTabIndex {
 				if m.settings.ASCII {
 					label = "[ " + label + " ]"
+				} else if m.smallDialogScreenOrClassic() {
+					label = "█ " + label + " █"
 				} else {
 					label = " " + label + " "
 				}
@@ -409,7 +410,7 @@ func (m *Model) workspaceLines() []string {
 					style = style.Foreground(styles.accent.GetForeground())
 				}
 				if !m.settings.ASCII {
-					label = renderPill(labels[span.Index], span.End-span.Start, style, styles.inactive)
+					label = renderPill(labels[span.Index], span.End-span.Start, style, styles.inactive, styles.squareEdges)
 				} else {
 					label = style.Render(label)
 				}
@@ -443,7 +444,7 @@ func (m *Model) workspaceLines() []string {
 	}
 	if compact && !m.settings.ASCII {
 		edge := styles.primary.Foreground(styles.inactive.GetBackground())
-		tabLine = edge.Render(glyphs.Left()) + tabLine + edge.Render(glyphs.Right())
+		tabLine = edge.Render(styles.leftEdge()) + tabLine + edge.Render(styles.rightEdge())
 	}
 	lines = append(lines, fit(tabLine, w))
 	if !compact {
@@ -602,7 +603,7 @@ func (m *Model) footerBadge() string {
 		if m.settings.ASCII {
 			badge = style.Render("[ bypass ]")
 		} else {
-			badge = renderPill("bypass", 10, style, c.primary)
+			badge = renderPill("bypass", 10, style, c.primary, c.squareEdges)
 		}
 	}
 	return badge
@@ -614,7 +615,7 @@ func (m *Model) footerBadgeJoinedTo(surface lipgloss.Style) string {
 	if m.settings.ASCII {
 		return m.footerBadge()
 	}
-	return renderPillWithRightSurface("bypass", 10, style, c.primary, surface)
+	return renderPillWithRightSurface("bypass", 10, style, c.primary, surface, c.squareEdges)
 }
 
 func (m *Model) footerLine(text string, contextual ...string) string {
@@ -640,13 +641,13 @@ func (m *Model) searchFooterLine(text, contextual string, applied bool) string {
 		}
 		width := lipgloss.Width(content) + 2 // one cell of inner padding per side plus caps
 		edge := c.primary.Foreground(style.GetBackground())
-		control := fit(edge.Render(glyphs.Left())+content+edge.Render(glyphs.Right()), width)
+		control := fit(edge.Render(c.leftEdge())+content+edge.Render(c.rightEdge()), width)
 		badge := m.footerBadge() + " "
 		if m.settings.ASCII {
 			control = fit(style.Render("[")+content+style.Render("]"), width)
 		} else {
 			badge = m.footerBadgeJoinedTo(c.inactive) + c.inactive.Render(" ")
-			control = fit(c.inactive.Render(" ")+content+edge.Render(glyphs.Right()), width)
+			control = fit(c.inactive.Render(" ")+content+edge.Render(c.rightEdge()), width)
 		}
 		left := badge + control
 		if contextual != "" {
@@ -955,6 +956,9 @@ func (m *Model) tabSpans() []tabSpan {
 		if compact && i == activeIndex {
 			if m.settings.ASCII {
 				return "[ " + label + " ]"
+			}
+			if m.smallDialogScreenOrClassic() {
+				return "█ " + label + " █"
 			}
 			return " " + label + " "
 		}
@@ -1285,7 +1289,7 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 			}
 			if focused {
 				if compact && !m.settings.ASCII {
-					lines = append(lines, renderPillTight(valueLine, width, active.Bold(true), primary))
+					lines = append(lines, renderPillTight(valueLine, width, active.Bold(true), primary, m.smallDialogScreenOrClassic()))
 				} else if compact {
 					lines = append(lines, active.Bold(true).Render(fit("["+ansi.Truncate(valueLine, max(0, width-2), "…")+"]", width-1)))
 				} else {
