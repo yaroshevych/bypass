@@ -48,6 +48,10 @@ func TestRunDialogsBackDefaultAndResponsiveTmux(t *testing.T) {
 				t.Fatal("could not start request")
 			}
 			e.mustShow("secret request pending")
+			e.mustShow("REVIEW REQUEST", "Close")
+			e.key("Enter") // The standalone review defaults to Close.
+			e.waitFor("review closes", func() bool { return !strings.Contains(e.capture(), "REVIEW REQUEST") })
+			e.key("S")
 			e.mustShow("Deny all")
 			snapshot := func(page string, width, height int) {
 				if dir := os.Getenv("BYPASS_REQUEST_SCREENSHOTS"); dir != "" {

@@ -60,12 +60,11 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 	}
 	cmd, out := launch()
 	e.mustShow("secret request pending")
-	e.mustShow("Deny all")
+	e.mustShow("REVIEW REQUEST", "Close")
+	// Enter must close the dialog without granting access.
 	e.key("Enter")
-	e.mustShow("REVIEW REQUEST")
-	// Enter must activate the default Back button, never grant access.
-	e.key("Enter")
-	e.waitFor("review returns to request list", func() bool { return !strings.Contains(e.capture(), "REVIEW REQUEST") })
+	e.waitFor("review closes", func() bool { return !strings.Contains(e.capture(), "REVIEW REQUEST") })
+	e.key("S")
 	e.mustShow("Deny all")
 	e.key("Enter")
 	e.mustShow("REVIEW REQUEST")
@@ -80,7 +79,7 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "Deny all") })
 	cmd, out = launch()
 	e.mustShow("secret request pending")
-	e.mustShow("(enter)")
+	e.mustShow("REVIEW REQUEST")
 	e.key("d")
 	if err := cmd.Wait(); err == nil {
 		t.Fatal("denied child ran")
@@ -89,8 +88,10 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 		t.Fatalf("unexpected denial: %s", e.redact(out.String()))
 	}
 	first, firstOut := launch()
-	e.mustShow("(enter)")
+	e.mustShow("REVIEW REQUEST")
 	second, secondOut := launch()
+	e.mustShow("Back")
+	e.key("Escape")
 	e.waitFor("two requests", func() bool { return strings.Count(e.capture(), "Seed Entry Password") >= 2 })
 	e.key("Down")
 	e.key("Enter")
@@ -161,8 +162,7 @@ func TestRunIdentityGrantAndTimeoutTmux(t *testing.T) {
 	}
 	cmd, out := launch("15s")
 	e.mustShow("secret request pending")
-	e.mustShow("Deny all")
-	e.key("Enter")
+	e.mustShow("REVIEW REQUEST")
 	e.mustShow("Approve for this session")
 	e.key("s")
 	if err := cmd.Wait(); err != nil {
@@ -194,6 +194,7 @@ func TestRunIdentityGrantAndTimeoutTmux(t *testing.T) {
 	}
 	directory = e.pickerRoot
 	identity = "repeat-" + strings.Repeat("d4", 16)
+	e.key("S")
 	e.mustShow("No pending requests")
 	e.key("r")
 	e.mustShow("SESSION SECRET PERMISSIONS", "Clear all", "Close")
@@ -271,8 +272,6 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 	}
 	cmd, out := launch([]string{"ONE=bypass://Seed Entry", "TWO=bypass://real-cli.kdbx/Seed Entry"})
 	e.mustShow("secret request pending")
-	e.mustShow("Deny all")
-	e.key("Enter")
 	e.mustShow("Select entry with up/down")
 	e.key("Tab")
 	e.key("Enter")
@@ -288,8 +287,6 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "Deny all") })
 	cmd, out = launch([]string{"ONE=bypass://second.kdbx/Seed Entry", "TWO=bypass://real-cli.kdbx/Seed Entry"})
 	e.mustShow("secret request pending")
-	e.mustShow("(enter)")
-	e.key("Enter")
 	e.mustShow("REVIEW REQUEST")
 	e.key("a")
 	if err := cmd.Wait(); err != nil {
@@ -332,8 +329,6 @@ func TestRunChildSurvivesVaultLockAndTUIClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mustShow("secret request pending")
-	e.mustShow("Deny all")
-	e.key("Enter")
 	e.mustShow("REVIEW REQUEST")
 	e.key("a")
 	e.waitFor("approved child starts", func() bool { _, err := os.Stat(marker); return err == nil })

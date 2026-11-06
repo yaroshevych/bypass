@@ -129,7 +129,6 @@ func TestRunAmbiguityRequiresExplicitSelection(t *testing.T) {
 	if !m.runs.visible {
 		t.Fatal("ambiguous request did not open the requests dialog")
 	}
-	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if len(m.runs.choices) != 2 || len(m.runs.targets) != 0 {
 		t.Fatalf("ambiguity skipped: choices=%d targets=%d", len(m.runs.choices), len(m.runs.targets))
 	}
@@ -152,7 +151,6 @@ func TestRunAmbiguityShowsEntryContext(t *testing.T) {
 	}})
 	p := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{References: []string{"bypass://Shared#password"}}}
 	m.Update(RunRequestMsg{p})
-	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m.Update(tea.KeyMsg{Type: tea.KeyDown})
 	want := m.runs.choices[m.runs.choiceIndex]
 	for _, size := range [][2]int{{48, 16}, {120, 35}} {
@@ -177,8 +175,61 @@ func TestRunPermissionRequestOpensRequestsDialog(t *testing.T) {
 	m.runs = &runState{pending: []*runpkg.Pending{p}}
 	secrets := newSecretValues(p.Context)
 	_, handled := m.updateRun(runResult{pending: p, secrets: secrets, needsApproval: true, mode: "check"})
-	if !handled || !m.runs.visible {
-		t.Fatal("request needing approval did not open the requests dialog")
+	if !handled || !m.runs.visible || !m.runs.review || m.runs.reviewed != p {
+		t.Fatal("single request needing approval did not open its review")
+	}
+	if action := m.runReviewActions()[m.runs.reviewFocus]; action.label != "Close" || action.key != "esc" {
+		t.Fatal("single request review did not default to Close")
+	}
+	if strings.Contains(ansi.Strip(m.View()), "Deny all") {
+		t.Fatal("standalone review rendered the request list behind it")
+	}
+	m.updateRun(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.runs.visible || m.runs.review || len(m.runs.pending) != 1 {
+		t.Fatal("Close did not dismiss the review and keep the request pending")
+	}
+}
+
+func TestNewRequestDoesNotInterruptCurrentReview(t *testing.T) {
+	m := New(Options{})
+	first := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{References: []string{"bypass://First"}}}
+	second := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{References: []string{"bypass://Second"}}}
+	m.updateRun(RunRequestMsg{Pending: first})
+	m.updateRun(RunRequestMsg{Pending: second})
+	if !m.runs.review || m.runs.reviewed != first || len(m.runs.pending) != 2 {
+		t.Fatal("another request interrupted the current review")
+	}
+	m.updateRun(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.runs.review || len(m.runs.pending) != 2 {
+		t.Fatal("Back did not show the queued requests")
+	}
+}
+
+func TestCompletingStandaloneReviewClosesUnlessRequestsRemain(t *testing.T) {
+	for _, extra := range []bool{false, true} {
+		m := New(Options{})
+		first := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{References: []string{"bypass://First"}}}
+		m.updateRun(RunRequestMsg{Pending: first})
+		if extra {
+			second := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{References: []string{"bypass://Second"}}}
+			m.updateRun(RunRequestMsg{Pending: second})
+		}
+		m.removeRun(first)
+		if m.runs.review || m.runs.visible != extra || len(m.runs.pending) != map[bool]int{false: 0, true: 1}[extra] {
+			t.Fatalf("completion with extra=%t left incorrect review or queue state", extra)
+		}
+	}
+}
+
+func TestCanceledStandaloneReviewCloses(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	m := New(Options{})
+	p := &runpkg.Pending{Context: ctx, Request: runpkg.Request{References: []string{"bypass://First"}}}
+	m.updateRun(RunRequestMsg{Pending: p})
+	cancel()
+	m.updateRun(RunDisconnectedMsg{})
+	if m.runs.visible || m.runs.review || len(m.runs.pending) != 0 {
+		t.Fatal("canceled standalone request left a dialog open")
 	}
 }
 
@@ -587,9 +638,8 @@ func TestUnavailableRunReferenceExplainsFailureAndCanRetry(t *testing.T) {
 			if !m.runs.visible {
 				t.Fatalf("%s %v unavailable request did not open requests dialog", appearance, size)
 			}
-			m.updateRun(tea.KeyMsg{Type: tea.KeyEnter})
 			view := m.View()
-			for _, text := range []string{"REVIEW REQUEST", "URI: bypass://Missing%20Entry#password", "Unlock vault or check entry name", "Deny", "Back"} {
+			for _, text := range []string{"REVIEW REQUEST", "URI: bypass://Missing%20Entry#password", "Unlock vault or check entry name", "Deny", "Close"} {
 				if !strings.Contains(view, text) {
 					t.Errorf("%s %v missing reference feedback %q", appearance, size, text)
 				}
@@ -599,6 +649,8 @@ func TestUnavailableRunReferenceExplainsFailureAndCanRetry(t *testing.T) {
 			}
 			m.updateRun(tea.KeyMsg{Type: tea.KeyEsc})
 			m.ws.Open(&vault.Database{Path: "/vault", RootUUID: "root", Entries: []vault.Entry{{UUID: "entry", Fields: []vault.Field{{Name: "Title", Value: "Missing Entry"}, {Name: "Password", Protected: true}}}}})
+			m.screen = browse
+			m.updateRun(key("S"))
 			m.updateRun(tea.KeyMsg{Type: tea.KeyEnter})
 			if m.runs.unavailable != "" || m.runs.err != "" || len(m.runs.targets) != 1 || !strings.Contains(m.View(), "Approve") {
 				t.Errorf("%s %v retry did not enable approval after vault became available", appearance, size)

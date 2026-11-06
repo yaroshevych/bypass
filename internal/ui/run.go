@@ -48,6 +48,7 @@ type runState struct {
 	pending         []*runpkg.Pending
 	visible         bool
 	review          bool
+	directReview    bool
 	reviewed        *runpkg.Pending
 	choosing        bool
 	actionFocus     int
@@ -240,7 +241,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 				return m.runGrantJob(msg.Pending, targets, "check"), true
 			}
 			// Requests that need user intervention should surface immediately.
-			r.visible = true
+			m.surfaceRunRequest(msg.Pending)
 		}
 		return nil, true
 	case runResult:
@@ -276,7 +277,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			if msg.mode == "check" && msg.pending != nil && msg.pending.Context.Err() == nil && runTargetsHaveSessionGrants(r.grants, runSessionPrincipal(msg.pending.Identity, msg.targets), msg.targets) {
 				return m.runGrantJob(msg.pending, append([]runTarget(nil), msg.targets...), "check"), true
 			}
-			r.visible = true
+			m.surfaceRunRequest(msg.pending)
 			return nil, true
 		}
 		values := msg.secrets.Take()
@@ -369,10 +370,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			}
 			switch msg.String() {
 			case "esc":
-				r.review = false
-				r.choosing = false
-				r.reviewed = nil
-				r.reviewFocus = 0
+				m.leaveRunReview()
 			case "tab", "shift+tab", "up", "down":
 				dialogActionFocus(msg.String(), len(m.runReviewActions()), &r.reviewFocus)
 			case "enter":
@@ -421,6 +419,16 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 	}
 	return nil, false
 }
+
+func (m *Model) surfaceRunRequest(p *runpkg.Pending) {
+	r := m.runs
+	if !r.review && len(r.pending) == 1 && r.pending[0] == p {
+		r.index = 0
+		m.enterRunReview()
+		r.directReview = true
+	}
+	r.visible = true
+}
 func (m *Model) pruneRuns() {
 	if m.runs == nil {
 		return
@@ -430,7 +438,11 @@ func (m *Model) pruneRuns() {
 		if r.pending[i].Context.Err() != nil {
 			removed := r.pending[i]
 			if r.reviewed == removed {
+				if r.directReview && len(r.pending) == 1 {
+					r.visible = false
+				}
 				r.review = false
+				r.directReview = false
 				r.choosing = false
 				r.reviewed = nil
 				r.targets = nil
@@ -473,7 +485,11 @@ func (m *Model) removeRun(p *runpkg.Pending) {
 		}
 	}
 	if removedReview {
+		if r.directReview && len(r.pending) == 0 {
+			r.visible = false
+		}
 		r.review, r.reviewed, r.choosing = false, nil, false
+		r.directReview = false
 		r.targets, r.choices = nil, nil
 		r.actionFocus = 0
 		r.buttonsFocused = false

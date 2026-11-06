@@ -103,18 +103,22 @@ func runRequestSummary(p *runpkg.Pending) string {
 
 func (m *Model) runReviewActions() []runAction {
 	r := m.runs
+	back := "Back"
+	if r != nil && r.directReview && len(r.pending) == 1 {
+		back = "Close"
+	}
 	if r == nil || m.runReviewed() == nil {
-		return []runAction{{"Back", "esc"}}
+		return []runAction{{back, "esc"}}
 	}
 	if r.choosing {
-		return []runAction{{"Select entry", "enter"}, {"Back", "esc"}}
+		return []runAction{{"Select entry", "enter"}, {back, "esc"}}
 	}
 	if r.unavailable != "" {
-		return []runAction{{"Deny", "d"}, {"Back", "esc"}}
+		return []runAction{{"Deny", "d"}, {back, "esc"}}
 	}
 	actions := []runAction{{"Deny", "d"}, {"Approve once", "a"}}
 	actions = append(actions, runAction{"Approve for this session", "s"})
-	return append(actions, runAction{"Back", "esc"})
+	return append(actions, runAction{back, "esc"})
 }
 
 func (m *Model) runRequestActions() []runAction {
@@ -441,7 +445,7 @@ func (m *Model) activateRunKey(key string) tea.Cmd {
 	if r.review {
 		if r.choosing {
 			if key == "esc" {
-				r.review, r.choosing, r.reviewed = false, false, nil
+				m.leaveRunReview()
 				return nil
 			}
 			if key == "enter" && len(r.choices) > 0 {
@@ -476,9 +480,7 @@ func (m *Model) activateRunKey(key string) tea.Cmd {
 		}
 		switch key {
 		case "esc":
-			r.review = false
-			r.reviewed = nil
-			r.reviewFocus = 0
+			m.leaveRunReview()
 		case "d":
 			if p := m.runReviewed(); p != nil {
 				p.Reply(runpkg.Response{Error: "secret request denied"})
@@ -567,6 +569,7 @@ func (m *Model) enterRunReview() {
 		return
 	}
 	p := r.pending[r.index]
+	r.directReview = false
 	r.choices, r.choiceIndex = nil, 0
 	r.targets, r.err, r.unavailable = nil, "", ""
 	r.reviewed = p
@@ -585,6 +588,15 @@ func (m *Model) enterRunReview() {
 	r.review = true
 	r.reviewFocus = m.runActionForKey("esc") // Back is the safe default in the child dialog.
 	r.fieldOffset = 0
+}
+
+func (m *Model) leaveRunReview() {
+	r := m.runs
+	if r.directReview && len(r.pending) == 1 {
+		r.visible = false
+	}
+	r.review, r.directReview, r.choosing, r.reviewed = false, false, false, nil
+	r.reviewFocus = 0
 }
 
 func (m *Model) focusRunAction(key string) {
@@ -643,6 +655,9 @@ func renderRunLayer(m *Model, backdrop []string, layout runDialogLayout) []strin
 
 func (m *Model) runDialogView() []string {
 	r := m.runs
+	if r != nil && r.review && r.directReview && len(r.pending) == 1 {
+		return renderRunLayer(m, m.modalBackdrop(), m.runLayout(true))
+	}
 	parentLayout := m.runRequestsLayout()
 	parent := renderRunLayer(m, m.modalBackdrop(), parentLayout)
 	if r == nil || (!r.review && !r.bulkConfirm) {

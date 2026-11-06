@@ -105,13 +105,13 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 	e.mustShow("secret request pending")
 	e.mustShow("dev-rw")
 	assertHidden(dev)
-	e.key("Enter")
 	e.mustShow("Approve for this session")
 	assertHidden(dev)
 	e.key("s")
 	if err := cmd.Wait(); err != nil || out.String() != "approved" {
 		t.Fatal("identity approval failed or bearer reached the recipient")
 	}
+	e.key("S")
 	e.mustShow("No pending requests")
 	cmd, out = launch(dev, false)
 	if err := cmd.Wait(); err != nil || out.String() != "approved" {
@@ -142,13 +142,11 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 			e.mustShow("No pending requests")
 			continue
 		}
-		e.mustShow("(enter)")
+		e.mustShow("REVIEW REQUEST")
 		if tc.name != "" {
 			e.mustShow(tc.name)
 			assertHidden(tc.identity)
 		}
-		e.key("Enter")
-		e.mustShow("REVIEW REQUEST")
 		e.key("d")
 		if err := cmd.Wait(); err == nil {
 			t.Fatal("another identity or anonymous request inherited an identity grant")
@@ -156,6 +154,7 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 		if !strings.Contains(out.String(), "denied") {
 			e.failWithScreen("request did not receive the denial: "+out.String(), e.capture())
 		}
+		e.key("S")
 		e.mustShow("No pending requests")
 	}
 	e.key("Escape")
@@ -169,7 +168,6 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 	cmd, out = launch(dev, false)
 	e.mustShow("secret request pending")
 	e.mustShow("dev-rw")
-	e.key("Enter")
 	e.mustShow("REVIEW REQUEST")
 	e.key("d")
 	if err := cmd.Wait(); err == nil || !strings.Contains(out.String(), "denied") {
