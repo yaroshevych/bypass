@@ -93,4 +93,4 @@ jobs:
           if [[ "$TAG" == *-* ]]; then
             args+=(--prerelease)
           fi
-          gh release create "$TAG" dist/* "${args[@]}"
+          gh release create --repo "$GITHUB_REPOSITORY" "$TAG" dist/* "${args[@]}"
