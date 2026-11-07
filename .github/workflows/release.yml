@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build release archives
+    runs-on: macos-15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6.1.0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Set release metadata
+        id: metadata
+        shell: bash
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="0.0.0-dev"
+          fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build, smoke-test, and package all targets
+        env:
+          VERSION: ${{ steps.metadata.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/stage
+          for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
+            GOOS="${target%/*}"
+            GOARCH="${target#*/}"
+            export GOOS GOARCH CGO_ENABLED=0
+            make build VERSION="$VERSION"
+
+            if [[ "$target" == darwin/arm64 ]]; then
+              version_output="$(./bin/bypass --version)"
+              test "$version_output" = "bypass $VERSION"
+              ./bin/bypass --help >/dev/null
+            fi
+
+            cp bin/bypass dist/stage/bypass
+            tar -C dist/stage -czf "dist/bypass_${VERSION}_${GOOS}_${GOARCH}.tar.gz" bypass
+          done
+
+      - name: Upload release archives
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: bypass-release-archives
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all release archives
+        uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: bypass-*
+          path: dist
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        run: sha256sum *.tar.gz > SHA256SUMS
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          args=(--title "$TAG" --generate-notes)
+          if [[ "$TAG" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$TAG" dist/* "${args[@]}"

@@ -11,14 +11,19 @@ to the command. KeePassXC CLI handles KDBX vault encryption and saving.
 
 ## Install
 
-Requires Go 1.24+, Make, and `keepassxc-cli` on your `PATH`.
-From the source directory:
+Requires `keepassxc-cli` on your `PATH`.
+
+Download the archive for your operating system and CPU architecture from
+[GitHub Releases](https://github.com/yaroshevych/bypass/releases), extract `bypass`,
+and place it in a directory on your `PATH`.
+
+To build from source, install Go 1.24+ and Make, then run:
 
 ```sh
 make install
 ```
 
-Installs to `/usr/local/bin`. For a user installation, run
+This installs to `/usr/local/bin`. For a user installation, run
 `make install PREFIX="$HOME/.local"` and add `~/.local/bin` to your `PATH`.
 
 ## Open a vault

@@ -56,7 +56,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	if *showVersion {
-		_, err := fmt.Fprintln(stdout, "Bypass Secrets Manager", version)
+		_, err := fmt.Fprintln(stdout, "bypass", version)
 		return err
 	}
 	if flags.NArg() > 1 {
