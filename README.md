@@ -17,11 +17,17 @@ with interactive permission TUI, while protecting secrets from exposure to agent
 
 ## Install
 
-Requires `keepassxc-cli` on your `PATH`.
+Install the latest release for your operating system and CPU architecture:
 
-Download the archive for your operating system and CPU architecture from
-[GitHub Releases](https://github.com/yaroshevych/bypass/releases), extract `bypass`,
-and place it in a directory on your `PATH`.
+```sh
+curl -fsSL https://raw.githubusercontent.com/yaroshevych/bypass/main/install.sh | bash
+```
+
+The installer downloads `bypass` and, if needed, KeePassXC 2.8.0 or newer. Set `BINDIR`
+to change the install directory. You can also download Bypass archives from
+[GitHub Releases](https://github.com/yaroshevych/bypass/releases).
+
+For example, use `curl -fsSL https://raw.githubusercontent.com/yaroshevych/bypass/main/install.sh | BINDIR="$HOME/bin" bash` to install into `~/bin`.
 
 To build from source, install Go 1.24+ and Make, then run:
 
