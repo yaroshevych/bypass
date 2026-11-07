@@ -593,7 +593,7 @@ func (m *Model) executePalette() tea.Cmd {
 	if p.scope == "themes" || p.scope == "appearance" {
 		m.previewChoice()
 		m.closePalette(true)
-		return m.persistPreferences()
+		return tea.Batch(m.persistPreferences(), m.syncOmarchyThemeWatch())
 	}
 	m.closePalette(false)
 	var cmd tea.Cmd

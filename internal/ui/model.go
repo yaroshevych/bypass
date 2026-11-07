@@ -106,6 +106,9 @@ type Model struct {
 	extras                                  *extraState
 	styles                                  styleSet
 	omarchyColors                           themeColors
+	omarchyWatchCtx                         context.Context
+	omarchyWatchCancel                      context.CancelFunc
+	omarchyWatchPending                     bool
 	palette                                 *paletteState
 	jump                                    bool
 	grand                                   bool
@@ -277,8 +280,8 @@ func New(opts Options) *Model {
 func (m *Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
 	cmds = append(cmds, nextTick())
-	if m.settings.WatchOmarchyTheme {
-		cmds = append(cmds, waitOmarchyThemeChange(m.ctx))
+	if cmd := m.syncOmarchyThemeWatch(); cmd != nil {
+		cmds = append(cmds, cmd)
 	}
 	if m.store != nil {
 		store := m.store
@@ -302,6 +305,26 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+func (m *Model) syncOmarchyThemeWatch() tea.Cmd {
+	if !m.settings.WatchOmarchyTheme || !strings.EqualFold(m.settings.Theme, "omarchy") {
+		if m.omarchyWatchCancel != nil {
+			m.omarchyWatchCancel()
+			m.omarchyWatchCancel = nil
+			m.omarchyWatchCtx = nil
+			m.omarchyWatchPending = false
+		}
+		return nil
+	}
+	if m.omarchyWatchCancel == nil {
+		m.omarchyWatchCtx, m.omarchyWatchCancel = context.WithCancel(m.ctx)
+	}
+	if m.omarchyWatchPending {
+		return nil
+	}
+	m.omarchyWatchPending = true
+	return waitOmarchyThemeChange(m.omarchyWatchCtx)
+}
+
 func waitOmarchyThemeChange(ctx context.Context) tea.Cmd {
 	return func() tea.Msg {
 		if !platform.WaitForOmarchyThemeChange(ctx) {
@@ -320,6 +343,11 @@ func (m *Model) Close() {
 		return
 	}
 	m.closed = true
+	if m.omarchyWatchCancel != nil {
+		m.omarchyWatchCancel()
+		m.omarchyWatchCancel = nil
+		m.omarchyWatchPending = false
+	}
 	m.cancelFocusedDetails()
 	m.clearTransientUI()
 	m.gate.Clear()
@@ -415,17 +443,13 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.backendCapabilities = msg.commands
 		}
 	case omarchyThemeChangedMsg:
+		m.omarchyWatchPending = false
 		updated := themeColorsFromPlatform(msg.palette)
 		if updated.background != "" {
 			m.omarchyColors = updated
-			if strings.EqualFold(m.settings.Theme, "omarchy") {
-				m.styles = stylesForPalette(m.colorsForTheme(m.settings.Theme))
-			}
+			m.styles = stylesForPalette(m.colorsForTheme(m.settings.Theme))
 		}
-		if m.settings.WatchOmarchyTheme {
-			return m, waitOmarchyThemeChange(m.ctx)
-		}
-		return m, nil
+		return m, m.syncOmarchyThemeWatch()
 	case probedMsg:
 		m.backendVersion = safe(msg.version)
 		m.backendMissing = msg.err != nil
