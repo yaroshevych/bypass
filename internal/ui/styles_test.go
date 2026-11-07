@@ -211,7 +211,7 @@ func TestCompactSelectionKeepsEntryAndViewTextAligned(t *testing.T) {
 	before = m.navLines(27, 20, true)
 	m.selectNav(1)
 	after = m.navLines(27, 20, true)
-	for _, title := range []string{"All Entries", "Favourites"} {
+	for _, title := range []string{"All Entries", "Recent"} {
 		for _, rows := range [][]string{before, after} {
 			x, _ := renderedTextPosition(t, rows, title)
 			if x != 1 {

@@ -83,7 +83,7 @@ func (m *Model) sidebarViewport(height int) ([]sidebarRow, int) {
 }
 
 func (m *Model) allNavigation() []navItem {
-	items := []navItem{{label: "All Entries", kind: "all", key: "all"}, {label: "Favourites", kind: "favorites", key: "favorites"}, {label: "Recent", kind: "recent", key: "recent"}, {label: "Bin", kind: "trash", key: "trash"}}
+	items := []navItem{{label: "All Entries", kind: "all", key: "all"}, {label: "Recent", kind: "recent", key: "recent"}, {label: "Bin", kind: "trash", key: "trash"}}
 	s := m.ws.ActiveSession()
 	if s == nil || s.DB == nil {
 		return items
@@ -234,10 +234,6 @@ func (m *Model) filterEntries(nav navItem, query string) []vault.Entry {
 		switch nav.kind {
 		case "group":
 			if e.GroupUUID != nav.group {
-				continue
-			}
-		case "favorites":
-			if !m.isFavorite(&e) {
 				continue
 			}
 		case "tag":

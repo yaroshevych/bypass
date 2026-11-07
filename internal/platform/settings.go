@@ -32,7 +32,6 @@ type Settings struct {
 	WatchOmarchyTheme  bool
 	FullLockTimeout    time.Duration
 	GrandViewGroupSize int
-	FavoriteOverrides  string
 }
 
 // ThemePalette contains the semantic colors read from Omarchy's active theme.
@@ -53,7 +52,6 @@ type settingsFile struct {
 	Appearance              *string `json:"appearance"`
 	ASCII                   *bool   `json:"ascii"`
 	WatchOmarchyTheme       *bool   `json:"watch_omarchy_theme"`
-	FavoriteOverrides       *string `json:"favorite_overrides"`
 }
 
 func DefaultSettings(paths Paths) Settings {
@@ -161,9 +159,6 @@ func LoadSettings(paths Paths) (Settings, error) {
 	if file.WatchOmarchyTheme != nil {
 		settings.WatchOmarchyTheme = *file.WatchOmarchyTheme
 	}
-	if file.FavoriteOverrides != nil {
-		settings.FavoriteOverrides = *file.FavoriteOverrides
-	}
 	if err := validateSettings(settings); err != nil {
 		return defaults, err
 	}
@@ -256,8 +251,8 @@ func SaveSettings(paths Paths, settings Settings) error {
 		"appearance":                settings.Appearance,
 		"ascii":                     settings.ASCII,
 		"watch_omarchy_theme":       settings.WatchOmarchyTheme,
-		"favorite_overrides":        settings.FavoriteOverrides,
 	}
+	delete(fields, "favorite_overrides")
 	for key, value := range values {
 		encoded, err := json.Marshal(value)
 		if err != nil {

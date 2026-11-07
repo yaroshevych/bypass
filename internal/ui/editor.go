@@ -20,7 +20,6 @@ const (
 	editNotes
 	editGenerate
 	editMove
-	editFavorite
 	editSave
 	editCancel
 	editFocusCount
@@ -34,7 +33,6 @@ const (
 	editorCancel
 	editorGenerate
 	editorMove
-	editorFavorite
 )
 
 var editorFields = [...]string{"Title", "UserName", "Password", "URL", "Notes"}
@@ -58,7 +56,6 @@ type entryEditor struct {
 	isNew            bool
 	EntryUUID        string
 	GroupUUID        string
-	favorite         bool
 	header           itemHeader
 	headerNow        time.Time
 	err              string
@@ -263,8 +260,6 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 				return editorGenerate
 			case editMove:
 				return editorMove
-			case editFavorite:
-				return editorFavorite
 			case editSave:
 				return editorSave
 			case editCancel:
@@ -339,8 +334,6 @@ func (e *entryEditor) pointer(row, width, height int, compact, ascii bool) edito
 		return editorGenerate
 	case editMove:
 		return editorMove
-	case editFavorite:
-		return editorFavorite
 	case editSave:
 		return editorSave
 	case editCancel:
@@ -354,7 +347,6 @@ func (e *entryEditor) actionFocuses() []int {
 	actions := []int{editGenerate}
 	if !e.isNew {
 		actions = append(actions, editMove)
-		actions = append(actions, editFavorite)
 	}
 	return append(actions, editSave, editCancel)
 }
@@ -541,11 +533,6 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 			index    int
 			shortcut string
 		}{"Move…", editMove, ""})
-		actions = append(actions, struct {
-			label    string
-			index    int
-			shortcut string
-		}{map[bool]string{true: "Remove from favorites", false: "Add to favorites"}[e.favorite], editFavorite, ""})
 	}
 	actions = append(actions,
 		struct {
