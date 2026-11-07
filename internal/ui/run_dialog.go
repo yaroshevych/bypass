@@ -180,7 +180,7 @@ func (m *Model) runReviewBody() []string {
 				index := min(r.fieldOffset, len(lines)-1)
 				body = append(body, lines[index])
 			}
-			body = append(body, "", "")
+			body = append(body, "")
 			body = append(body, m.runReviewNoteLines(runSessionNote)...)
 			body = append(body, m.runReviewNoteLines(runIdentityNote)...)
 		} else {
