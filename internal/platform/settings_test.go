@@ -38,6 +38,7 @@ func TestDefaultSettingsAndMissingFileDoNotWrite(t *testing.T) {
 		BackupDir:          filepath.Join(paths.State, "backups"),
 		Theme:              "macchiato",
 		Appearance:         "classic",
+		WatchOmarchyTheme:  true,
 		GrandViewGroupSize: 2,
 	}
 	if got := DefaultSettings(paths); got != want {
@@ -67,7 +68,7 @@ func TestLoadSettingsValidConfigAndUnknownFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Settings{IdleTimeout: 15 * time.Minute, PINIdleTimeout: 5 * time.Minute, ClipboardTimeout: 20 * time.Second, BackupDir: backup, Theme: "nord", Appearance: "compact", ASCII: true, FullLockTimeout: time.Hour, GrandViewGroupSize: 3}
+	want := Settings{IdleTimeout: 15 * time.Minute, PINIdleTimeout: 5 * time.Minute, ClipboardTimeout: 20 * time.Second, BackupDir: backup, Theme: "nord", Appearance: "compact", ASCII: true, WatchOmarchyTheme: true, FullLockTimeout: time.Hour, GrandViewGroupSize: 3}
 	if got != want {
 		t.Fatalf("LoadSettings() = %#v, want %#v", got, want)
 	}
