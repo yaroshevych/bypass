@@ -760,8 +760,8 @@ func TestRunReviewNoteInSmallPane(t *testing.T) {
 	m.width, m.height = 48, 16
 	p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "dev", Digest: "digest"}, Request: runpkg.Request{Command: []string{"/app"}}}
 	m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, targets: []runTarget{{field: "Password", database: &vault.Database{}}}}
-	text := ansi.Strip(m.View())
-	for _, expected := range []string{"Session approval retained until vault", "is locked.", "Agent identity is self-claimed and", "not verified.", "Approve for this session"} {
+	text := strings.Join(strings.Fields(ansi.Strip(m.View())), " ")
+	for _, expected := range []string{runSessionNote, runIdentityNote, "Approve for this session"} {
 		if !strings.Contains(text, expected) {
 			t.Errorf("small review missing %q: %s", expected, text)
 		}

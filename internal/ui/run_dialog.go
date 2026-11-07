@@ -3,7 +3,6 @@ package ui
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	runpkg "bypass/internal/run"
@@ -170,7 +169,10 @@ func (m *Model) runReviewBody() []string {
 			if len(m.runReviewFieldLines()) > 1 {
 				heading += " · pgup/pgdn"
 			}
-			body = append(body, m.runDetailLine("Agent", agent), m.colors().secondary.Render(heading))
+			body = append(body, m.runDetailLine("Agent", agent))
+			body = append(body, m.runReviewDetailLines("Command", strings.Join(p.Request.Command, " "), m.runReviewDetailWidth())...)
+			body = append(body, m.runReviewDetailLines("Directory", p.Request.Directory, m.runReviewDetailWidth())...)
+			body = append(body, m.colors().secondary.Render(heading))
 			if len(r.targets) == 0 {
 				body = append(body, "No requested fields")
 			} else {
@@ -178,7 +180,9 @@ func (m *Model) runReviewBody() []string {
 				index := min(r.fieldOffset, len(lines)-1)
 				body = append(body, lines[index])
 			}
-			body = append(body, "", "", m.colors().secondary.Render("Session approval retained until vault"), m.colors().secondary.Render("is locked."), m.colors().secondary.Render("Agent identity is self-claimed and"), m.colors().secondary.Render("not verified."))
+			body = append(body, "", "")
+			body = append(body, m.runReviewNoteLines(runSessionNote)...)
+			body = append(body, m.runReviewNoteLines(runIdentityNote)...)
 		} else {
 			prefix, suffix, visible, _ := m.runReviewFieldLayout(p)
 			body = append(body, prefix...)
@@ -200,23 +204,23 @@ func (m *Model) runReviewFieldLayout(p *runpkg.Pending) (prefix, suffix []string
 	if p.Identity.Name != "" {
 		agent = p.Identity.Name
 	}
-	prefix = []string{m.runDetailLine("Agent", agent), m.runDetailLine("Command", strings.Join(p.Request.Command, " ")), m.runDetailLine("Directory", p.Request.Directory), "", m.colors().secondary.Render("REQUESTED SECRETS")}
-	suffix = []string{"", "", m.colors().secondary.Render(runSessionNote), m.colors().secondary.Render(runIdentityNote)}
+	details := append(m.runReviewDetailLines("Command", strings.Join(p.Request.Command, " "), m.runReviewDetailWidth()), m.runReviewDetailLines("Directory", p.Request.Directory, m.runReviewDetailWidth())...)
+	prefix = append([]string{m.runDetailLine("Agent", agent)}, details...)
+	prefix = append(prefix, "", m.colors().secondary.Render("REQUESTED SECRETS"))
+	suffix = []string{"", ""}
+	suffix = append(suffix, m.runReviewNoteLines(runSessionNote)...)
+	suffix = append(suffix, m.runReviewNoteLines(runIdentityNote)...)
 	if p.Identity.Digest == "" && m.runs.err == "" {
-		suffix = append(suffix, m.colors().secondary.Render("Identity required for session approval"))
+		suffix = append(suffix, m.runReviewNoteLines("Identity required for session approval")...)
 	}
 	capacity := max(0, m.runBodyCapacity(false)-len(m.runReviewActions())-1)
 	available := capacity - len(prefix) - len(suffix)
 	if available <= 0 {
-		name := "unknown command"
-		if len(p.Request.Command) > 0 {
-			name = filepath.Base(p.Request.Command[0])
-		}
-		prefix = []string{"Request: " + safe(name), m.colors().secondary.Render("REQUESTED SECRETS")}
+		prefix = append(details, "", m.colors().secondary.Render("REQUESTED SECRETS"))
 		available = capacity - len(prefix) - len(suffix)
 	}
 	if available <= 0 {
-		prefix = []string{m.colors().secondary.Render("REQUESTED SECRETS")}
+		prefix = append(details, m.colors().secondary.Render("REQUESTED SECRETS"))
 		available = capacity - len(prefix) - len(suffix)
 	}
 	if available <= 0 {
@@ -248,6 +252,43 @@ func (m *Model) runFieldPageSize() int {
 func (m *Model) runDetailLine(label, value string) string {
 	c := m.colors()
 	return c.secondary.Render(label+":") + strings.Repeat(" ", max(1, 11-len(label))) + c.primary.Render(safe(value))
+}
+
+func (m *Model) runReviewDialogWidth() int {
+	return min(max(20, m.width-8), max(lipgloss.Width(runSessionNote), lipgloss.Width(runIdentityNote))+6)
+}
+
+func (m *Model) runReviewDetailWidth() int {
+	if m.smallDialogScreen() {
+		return max(1, m.width-2)
+	}
+	return max(1, m.dialogInnerWidth(m.runReviewDialogWidth())-2)
+}
+
+func (m *Model) runReviewNoteLines(note string) []string {
+	width := m.runReviewDetailWidth()
+	wrapped := ansi.Hardwrap(ansi.Wrap(note, width, ""), width, false)
+	lines := strings.Split(wrapped, "\n")
+	for i := range lines {
+		lines[i] = m.colors().secondary.Render(lines[i])
+	}
+	return lines
+}
+
+func (m *Model) runReviewDetailLines(label, value string, width int) []string {
+	indent := lipgloss.Width(label) + 1 + max(1, 11-len(label))
+	valueWidth := max(1, width-indent)
+	wrapped := ansi.Hardwrap(ansi.Wrap(safe(value), valueWidth, ""), valueWidth, false)
+	parts := strings.Split(wrapped, "\n")
+	lines := make([]string, len(parts))
+	for i, part := range parts {
+		if i == 0 {
+			lines[i] = m.runDetailLine(label, part)
+		} else {
+			lines[i] = strings.Repeat(" ", indent) + m.colors().primary.Render(part)
+		}
+	}
+	return lines
 }
 
 func (m *Model) runReviewFieldLines() []string {
@@ -363,7 +404,7 @@ func (m *Model) runLayout(review bool) runDialogLayout {
 	if !review {
 		return m.runRequestsLayout()
 	}
-	width := min(max(20, m.width-8), max(lipgloss.Width(runSessionNote), lipgloss.Width(runIdentityNote))+6)
+	width := m.runReviewDialogWidth()
 	layout := runDialogLayout{
 		title: "Review request", width: width,
 		actions: m.runReviewActions(), body: m.runReviewBody(), errorMessage: m.runs.err, focus: m.runs.reviewFocus, capacity: m.runBodyCapacity(false),
