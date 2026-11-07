@@ -105,6 +105,7 @@ type Model struct {
 	lifecycle                               *lifecycleState
 	extras                                  *extraState
 	styles                                  styleSet
+	omarchyColors                           themeColors
 	palette                                 *paletteState
 	jump                                    bool
 	grand                                   bool
@@ -214,6 +215,7 @@ type capabilitiesMsg struct {
 	commands map[string]bool
 	err      error
 }
+type omarchyThemeChangedMsg struct{ palette platform.ThemePalette }
 type listingMsg struct {
 	directory string
 	files     []fileItem
@@ -247,7 +249,8 @@ func New(opts Options) *Model {
 	if m.settings.Appearance == "" {
 		m.settings.Appearance = "classic"
 	}
-	m.styles = stylesForTheme(m.settings.Theme)
+	m.omarchyColors = themeColorsFromPlatform(m.settings.OmarchyPalette)
+	m.styles = stylesForPalette(m.colorsForTheme(m.settings.Theme))
 	m.gate = privacy.New()
 	m.saveSettings = opts.SaveSettings
 	if m.settings.IdleTimeout <= 0 {
@@ -274,6 +277,7 @@ func New(opts Options) *Model {
 func (m *Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
 	cmds = append(cmds, nextTick())
+	cmds = append(cmds, waitOmarchyThemeChange(m.ctx))
 	if m.store != nil {
 		store := m.store
 		cmds = append(cmds, func() tea.Msg { paths, err := store.LoadRecent(); return recentMsg{paths, err} })
@@ -294,6 +298,16 @@ func (m *Model) Init() tea.Cmd {
 		})
 	}
 	return tea.Batch(cmds...)
+}
+
+func waitOmarchyThemeChange(ctx context.Context) tea.Cmd {
+	return func() tea.Msg {
+		if !platform.WaitForOmarchyThemeChange(ctx) {
+			return nil
+		}
+		palette, _ := platform.LoadOmarchyPalette()
+		return omarchyThemeChangedMsg{palette: palette}
+	}
 }
 
 func (m *Model) Close() {
@@ -398,6 +412,15 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			m.backendCapabilities = msg.commands
 		}
+	case omarchyThemeChangedMsg:
+		updated := themeColorsFromPlatform(msg.palette)
+		if updated.background != "" {
+			m.omarchyColors = updated
+			if strings.EqualFold(m.settings.Theme, "omarchy") {
+				m.styles = stylesForPalette(m.colorsForTheme(m.settings.Theme))
+			}
+		}
+		return m, waitOmarchyThemeChange(m.ctx)
 	case probedMsg:
 		m.backendVersion = safe(msg.version)
 		m.backendMissing = msg.err != nil

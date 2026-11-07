@@ -115,7 +115,7 @@ func (m *Model) smallDialogScreenOrClassic() bool {
 
 func (m *Model) dialogOptions() dialogrender.Options {
 	c := m.colors()
-	theme := colorsForTheme(m.settings.Theme)
+	theme := m.colorsForTheme(m.settings.Theme)
 	return dialogrender.Options{
 		ScreenWidth: m.width, Height: m.height, Compact: m.compactAppearance(), ASCII: m.settings.ASCII, Fullscreen: m.smallDialogScreen(),
 		SquareEdges: m.smallDialogScreen() && !strings.EqualFold(m.settings.Appearance, "compact"),

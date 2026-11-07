@@ -10,7 +10,7 @@ import (
 )
 
 func TestThemeCatalogAndFallback(t *testing.T) {
-	want := []string{"Macchiato", "Mocha", "Frappe", "Latte", "Tokyo Night", "Gruvbox", "Dracula", "Nord", "Vesper"}
+	want := []string{"Macchiato", "Mocha", "Frappe", "Latte", "Tokyo Night", "Gruvbox", "Dracula", "Nord", "Vesper", "Omarchy"}
 	got := themeNames()
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Fatalf("theme catalog = %v", got)

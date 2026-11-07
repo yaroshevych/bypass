@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 
+	"bypass/internal/platform"
 	"bypass/internal/ui/glyphs"
 
 	"github.com/charmbracelet/lipgloss"
@@ -38,11 +39,14 @@ type themeColors struct {
 var defaultStyles = stylesForTheme("macchiato")
 
 func themeNames() []string {
-	return []string{"Macchiato", "Mocha", "Frappe", "Latte", "Tokyo Night", "Gruvbox", "Dracula", "Nord", "Vesper"}
+	return []string{"Macchiato", "Mocha", "Frappe", "Latte", "Tokyo Night", "Gruvbox", "Dracula", "Nord", "Vesper", "Omarchy"}
 }
 
 func stylesForTheme(name string) styleSet {
-	c := colorsForTheme(name)
+	return stylesForPalette(colorsForTheme(name))
+}
+
+func stylesForPalette(c themeColors) styleSet {
 	background := paletteColor(c.background)
 	return styleSet{
 		primary:   lipgloss.NewStyle().Foreground(paletteColor(c.primary)).Background(background),
@@ -61,6 +65,49 @@ func colorsForTheme(name string) themeColors {
 		return colors256(c)
 	}
 	return c
+}
+
+func themeColorsFromPlatform(p platform.ThemePalette) themeColors {
+	if p.Background == "" || p.Foreground == "" {
+		return themeColors{}
+	}
+	secondary := p.DarkForeground
+	if strings.EqualFold(p.Mode, "light") {
+		secondary = p.LightForeground
+	}
+	if secondary == "" {
+		secondary = p.Muted
+	}
+	if secondary == "" {
+		secondary = p.Foreground
+	}
+	divider := p.Muted
+	if divider == "" {
+		divider = p.Foreground
+	}
+	selection := p.Selection
+	if selection == "" {
+		selection = p.Accent
+	}
+	inactive := p.LighterBackground
+	if inactive == "" {
+		inactive = selection
+	}
+	errColor := p.Red
+	if errColor == "" {
+		errColor = p.Accent
+	}
+	return themeColors{p.Background, p.Foreground, p.Accent, secondary, divider, p.Foreground, selection, inactive, errColor}
+}
+
+func (m *Model) colorsForTheme(name string) themeColors {
+	if strings.EqualFold(name, "omarchy") && m.omarchyColors.background != "" {
+		if lipgloss.ColorProfile() == termenv.ANSI256 {
+			return colors256(m.omarchyColors)
+		}
+		return m.omarchyColors
+	}
+	return colorsForTheme(name)
 }
 
 func trueColorsForTheme(name string) themeColors {

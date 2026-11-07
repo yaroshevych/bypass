@@ -105,7 +105,7 @@ func (m *Model) View() string {
 	}
 	view := primary.Render(strings.Join(lines, "\n"))
 	if !modal {
-		colors := colorsForTheme(m.settings.Theme)
+		colors := m.colorsForTheme(m.settings.Theme)
 		view = restoreThemeResets(view, colors.primary, colors.background)
 	}
 	return view
@@ -245,7 +245,7 @@ func (m *Model) welcomeLines() []string {
 	opts, _ := m.welcomeOptions()
 	opts.Backdrop = make([]string, m.height)
 	lines := dialogrender.Render(opts)
-	theme := colorsForTheme(m.settings.Theme)
+	theme := m.colorsForTheme(m.settings.Theme)
 	if len(lines) > 0 {
 		lines[len(lines)-1] = m.footerLine("", "q quit")
 	}

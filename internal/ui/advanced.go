@@ -317,7 +317,7 @@ func (m *Model) pinLines() []string {
 	opts, _ := m.pinContent()
 	opts.Backdrop = make([]string, m.height)
 	lines := dialogrender.Render(opts)
-	theme := colorsForTheme(m.settings.Theme)
+	theme := m.colorsForTheme(m.settings.Theme)
 	for i := range lines {
 		lines[i] = restoreThemeResets(lines[i], theme.primary, theme.background)
 	}
@@ -443,26 +443,42 @@ func (m *Model) modalBackdrop() []string {
 }
 
 func (m *Model) dimBackdrop(background []string) []string {
-	c := colorsForTheme(m.settings.Theme)
-	// Blend both text and surface toward black. Explicit cell backgrounds keep
-	// the scrim consistent in light themes and terminal multiplexers.
+	c := m.colorsForTheme(m.settings.Theme)
+	foregroundFactor, backgroundFactor := .60, .78
+	if isLightThemeSurface(c.background) {
+		// A dark scrim turns light palettes into a muddy gray. Keep the backdrop
+		// recognizable while still reducing its visual weight behind the dialog.
+		foregroundFactor, backgroundFactor = .88, .93
+	}
 	shade := func(value string, factor float64) lipgloss.Color {
 		var r, g, b int
 		fmt.Sscanf(value, "#%02x%02x%02x", &r, &g, &b)
 		return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", int(float64(r)*factor), int(float64(g)*factor), int(float64(b)*factor)))
 	}
-	scrimForeground := shade(c.secondary, .60)
-	scrimBackground := shade(c.background, .78)
+	scrimForeground := shade(c.secondary, foregroundFactor)
+	scrimBackground := shade(c.background, backgroundFactor)
 	scrim := lipgloss.NewStyle().Foreground(scrimForeground).Background(scrimBackground)
 	background = padLines(background, m.height)
 	for i := range background {
-		line := scrim.Render(dimANSIColors(fit(background[i], m.width), .60, .58, c.background))
+		line := scrim.Render(dimANSIColors(fit(background[i], m.width), foregroundFactor, backgroundFactor, c.background, backgroundFactor))
 		background[i] = restoreThemeResets(line, string(scrimForeground), string(scrimBackground))
 	}
 	return background
 }
 
-func dimANSIColors(text string, foreground, background float64, surfaceColor string) string {
+func isLightThemeSurface(color string) bool {
+	var r, g, b int
+	if _, err := fmt.Sscanf(color, "#%02x%02x%02x", &r, &g, &b); err != nil {
+		return false
+	}
+	return 0.2126*float64(r)+0.7152*float64(g)+0.0722*float64(b) >= 150
+}
+
+func dimANSIColors(text string, foreground, background float64, surfaceColor string, surfaceFactorOverride ...float64) string {
+	surfaceFactor := .78
+	if len(surfaceFactorOverride) > 0 {
+		surfaceFactor = surfaceFactorOverride[0]
+	}
 	var out strings.Builder
 	for i := 0; i < len(text); {
 		if text[i] != '\x1b' || i+1 >= len(text) || text[i+1] != '[' {
@@ -492,7 +508,7 @@ func dimANSIColors(text string, foreground, background float64, surfaceColor str
 					green, greenErr := strconv.Atoi(params[j+3])
 					blue, blueErr := strconv.Atoi(params[j+4])
 					if redErr == nil && greenErr == nil && blueErr == nil && red == r && green == g && blue == b {
-						factor = .78 // Match the scrim's surface shade; dim colored pills more.
+						factor = surfaceFactor // Match the scrim's surface shade.
 					}
 				}
 			}

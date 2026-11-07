@@ -151,10 +151,11 @@ startup options in [CLI.md](CLI.md#bypass-start-the-tui).
 | Change PIN… | — | Set or change the session PIN. Requires at least one unlocked vault. |
 | Shortcuts | `?` | Open the searchable shortcut reference. |
 
-Themes: Macchiato, Mocha, Frappe, Latte, Tokyo Night, Gruvbox, Dracula, Nord, and
-Vesper. Theme and layout choices preview while selected; Enter saves the choice
-and Esc cancels the preview. Classic and Compact use the same actions and
-interaction model.
+Themes: Macchiato, Mocha, Frappe, Latte, Tokyo Night, Gruvbox, Dracula, Nord,
+Vesper, and Omarchy. Omarchy follows the active system palette and updates live
+when the system theme changes. Theme and layout choices
+preview while selected; Enter saves the choice and Esc cancels the preview.
+Classic and Compact use the same actions and interaction model.
 
 ## Approve commands requested by agents
 

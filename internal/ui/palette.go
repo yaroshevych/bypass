@@ -567,7 +567,7 @@ func (m *Model) previewChoice() {
 	choice := choices[p.selected]
 	if p.scope == "themes" {
 		m.settings.Theme = choice.value
-		m.styles = stylesForTheme(choice.value)
+		m.styles = stylesForPalette(m.colorsForTheme(choice.value))
 		p.preview = true
 	}
 	if p.scope == "appearance" {

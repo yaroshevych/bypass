@@ -26,11 +26,18 @@ type Settings struct {
 	ClipboardTimeout   time.Duration
 	BackupDir          string
 	Theme              string
+	OmarchyPalette     ThemePalette `json:"-"`
 	Appearance         string
 	ASCII              bool
 	FullLockTimeout    time.Duration
 	GrandViewGroupSize int
 	FavoriteOverrides  string
+}
+
+// ThemePalette contains the semantic colors read from Omarchy's active theme.
+type ThemePalette struct {
+	Mode, Background, Foreground, LightForeground, DarkForeground string
+	Accent, Muted, Selection, Red, LighterBackground              string
 }
 
 type settingsFile struct {
@@ -153,6 +160,7 @@ func LoadSettings(paths Paths) (Settings, error) {
 	if err := validateSettings(settings); err != nil {
 		return defaults, err
 	}
+	settings.OmarchyPalette, _ = LoadOmarchyPalette()
 	return settings, nil
 }
 
@@ -193,7 +201,7 @@ func validateSettings(settings Settings) error {
 
 func ValidateTheme(theme string) error {
 	switch theme {
-	case "macchiato", "mocha", "frappe", "latte", "tokyo-night", "gruvbox", "dracula", "nord", "vesper":
+	case "macchiato", "mocha", "frappe", "latte", "tokyo-night", "gruvbox", "dracula", "nord", "vesper", "omarchy":
 		return nil
 	default:
 		return errors.New("unsupported theme")

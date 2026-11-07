@@ -73,6 +73,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if err != nil {
 			warning = "Invalid settings; using defaults."
 		}
+		if settings.Theme == "omarchy" && settings.OmarchyPalette.Background == "" {
+			warning = "Omarchy theme unavailable; using the default palette."
+		}
 		persisted := settings
 		saveSettings = func(value platform.Settings) error {
 			preferences := persisted
