@@ -277,7 +277,9 @@ func New(opts Options) *Model {
 func (m *Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
 	cmds = append(cmds, nextTick())
-	cmds = append(cmds, waitOmarchyThemeChange(m.ctx))
+	if m.settings.WatchOmarchyTheme {
+		cmds = append(cmds, waitOmarchyThemeChange(m.ctx))
+	}
 	if m.store != nil {
 		store := m.store
 		cmds = append(cmds, func() tea.Msg { paths, err := store.LoadRecent(); return recentMsg{paths, err} })
@@ -420,7 +422,10 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.styles = stylesForPalette(m.colorsForTheme(m.settings.Theme))
 			}
 		}
-		return m, waitOmarchyThemeChange(m.ctx)
+		if m.settings.WatchOmarchyTheme {
+			return m, waitOmarchyThemeChange(m.ctx)
+		}
+		return m, nil
 	case probedMsg:
 		m.backendVersion = safe(msg.version)
 		m.backendMissing = msg.err != nil

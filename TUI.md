@@ -157,6 +157,9 @@ when the system theme changes. Theme and layout choices
 preview while selected; Enter saves the choice and Esc cancels the preview.
 Classic and Compact use the same actions and interaction model.
 
+Set `"watch_omarchy_theme": false` in `~/.config/bypass/config.json` to
+disable live theme watching.
+
 ## Approve commands requested by agents
 
 An agent invokes a specific command through `bypass run`. **Pending Secret

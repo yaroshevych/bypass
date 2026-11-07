@@ -29,6 +29,7 @@ type Settings struct {
 	OmarchyPalette     ThemePalette `json:"-"`
 	Appearance         string
 	ASCII              bool
+	WatchOmarchyTheme  bool
 	FullLockTimeout    time.Duration
 	GrandViewGroupSize int
 	FavoriteOverrides  string
@@ -51,6 +52,7 @@ type settingsFile struct {
 	Theme                   *string `json:"theme"`
 	Appearance              *string `json:"appearance"`
 	ASCII                   *bool   `json:"ascii"`
+	WatchOmarchyTheme       *bool   `json:"watch_omarchy_theme"`
 	FavoriteOverrides       *string `json:"favorite_overrides"`
 }
 
@@ -68,6 +70,7 @@ func DefaultSettings(paths Paths) Settings {
 		BackupDir:          filepath.Clean(backupDir),
 		Theme:              "macchiato",
 		Appearance:         "classic",
+		WatchOmarchyTheme:  true,
 		GrandViewGroupSize: 2,
 	}
 }
@@ -76,6 +79,7 @@ func DefaultSettings(paths Paths) Settings {
 // malformed or invalid settings return safe defaults together with an error.
 func LoadSettings(paths Paths) (Settings, error) {
 	defaults := DefaultSettings(paths)
+	defaults.OmarchyPalette, _ = LoadOmarchyPalette()
 	configPath := filepath.Join(paths.Config, "config.json")
 	if info, err := os.Lstat(paths.Config); err == nil && info.Mode()&os.ModeSymlink != 0 {
 		return defaults, errors.New("config path must not be a symlink")
@@ -154,13 +158,15 @@ func LoadSettings(paths Paths) (Settings, error) {
 	if file.ASCII != nil {
 		settings.ASCII = *file.ASCII
 	}
+	if file.WatchOmarchyTheme != nil {
+		settings.WatchOmarchyTheme = *file.WatchOmarchyTheme
+	}
 	if file.FavoriteOverrides != nil {
 		settings.FavoriteOverrides = *file.FavoriteOverrides
 	}
 	if err := validateSettings(settings); err != nil {
 		return defaults, err
 	}
-	settings.OmarchyPalette, _ = LoadOmarchyPalette()
 	return settings, nil
 }
 
@@ -249,6 +255,7 @@ func SaveSettings(paths Paths, settings Settings) error {
 		"theme":                     settings.Theme,
 		"appearance":                settings.Appearance,
 		"ascii":                     settings.ASCII,
+		"watch_omarchy_theme":       settings.WatchOmarchyTheme,
 		"favorite_overrides":        settings.FavoriteOverrides,
 	}
 	for key, value := range values {
