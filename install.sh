@@ -4,6 +4,7 @@ set -euo pipefail
 # Release configuration
 repo="yaroshevych/bypass"
 kpxc_version="2.8.0"
+kpxc_min_version="2.7.2"
 kpxc_repo="keepassxreboot/keepassxc"
 
 # KeePassXC 2.8.0 assets and published SHA-256 digests.
@@ -167,11 +168,11 @@ install_keepassxc_cli() {
   local existing_version
   if command -v keepassxc-cli >/dev/null 2>&1; then
     if ! existing_version="$(keepassxc-cli --version 2>&1)"; then
-      echo "keepassxc-cli was found on PATH but could not run; expected KeePassXC $kpxc_version." >&2
+      echo "keepassxc-cli was found on PATH but could not run; requires KeePassXC $kpxc_min_version or newer." >&2
       exit 1
     fi
-    if ! version_at_least "$existing_version" "$kpxc_version"; then
-      echo "Incompatible keepassxc-cli on PATH: $existing_version (requires KeePassXC $kpxc_version or newer)." >&2
+    if ! version_at_least "$existing_version" "$kpxc_min_version"; then
+      echo "Incompatible keepassxc-cli on PATH: $existing_version (requires KeePassXC $kpxc_min_version or newer)." >&2
       exit 1
     fi
     printf 'Found compatible keepassxc-cli on PATH (%s).\n' "$existing_version"
@@ -231,11 +232,11 @@ install_keepassxc_cli() {
         exit 1
       fi
       if ! existing_version="$("$cli_path" --version 2>&1)"; then
-        echo "KeePassXC CLI in $app_bundle could not run; expected KeePassXC $kpxc_version or newer." >&2
+        echo "KeePassXC CLI in $app_bundle could not run; requires KeePassXC $kpxc_min_version or newer." >&2
         exit 1
       fi
-      if ! version_at_least "$existing_version" "$kpxc_version"; then
-        echo "Incompatible KeePassXC CLI in $app_bundle: $existing_version (requires KeePassXC $kpxc_version or newer)." >&2
+      if ! version_at_least "$existing_version" "$kpxc_min_version"; then
+        echo "Incompatible KeePassXC CLI in $app_bundle: $existing_version (requires KeePassXC $kpxc_min_version or newer)." >&2
         exit 1
       fi
       rm -f "$bindir/keepassxc-cli"
@@ -247,8 +248,8 @@ install_keepassxc_cli() {
     echo "KeePassXC CLI was installed but could not be started." >&2
     exit 1
   fi
-  if ! version_at_least "$existing_version" "$kpxc_version"; then
-    echo "Incompatible keepassxc-cli: $existing_version (requires KeePassXC $kpxc_version or newer)." >&2
+  if ! version_at_least "$existing_version" "$kpxc_min_version"; then
+    echo "Incompatible keepassxc-cli: $existing_version (requires KeePassXC $kpxc_min_version or newer)." >&2
     exit 1
   fi
   printf 'Configured keepassxc-cli for %s/%s (%s).\n' "$goos" "$goarch" "$existing_version"
