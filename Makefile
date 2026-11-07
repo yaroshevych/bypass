@@ -4,6 +4,10 @@ PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 DESTDIR ?=
 BINARY := bin/bypass
+VERSION ?= dev
+LDFLAGS ?= -X main.version=$(VERSION)
+
+export GOOS GOARCH
 
 .PHONY: all build install
 
@@ -11,7 +15,7 @@ all: build
 
 build:
 	mkdir -p bin
-	$(GO) build -trimpath -o $(BINARY) ./cmd/bypass
+	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/bypass
 
 install: build
 	$(INSTALL) -d "$(DESTDIR)$(BINDIR)"
