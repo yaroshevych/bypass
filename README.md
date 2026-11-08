@@ -1,10 +1,11 @@
 # Bypass Secrets Manager
 
-Manage KeePass vaults from the terminal and approve secrets for commands run by
-agents or scripts with `bypass run`.
+**Private, modern secrets manager.**
 
-Bypass opens KDBX 3.x and 4.x vaults without KeePassXC. It uses `gokeepasslib`
-v3.6.0 and requires Go 1.24+ to build. YubiKey authentication is unsupported.
+Use your KeePass vaults from the terminal. Enjoy a modern, beautiful interface
+where each detail is crafted: navigation, controls, keyboard shortcuts, and themes.
+
+Bypass supports KDBX 3.x and 4.x vaults. YubiKey authentication is unsupported.
 See the [CLI reference](CLI.md) for compatibility and write behavior.
 
 Beta for Linux and macOS.
@@ -94,17 +95,14 @@ rules, permissions, and timeout configuration.
 
 ## Security
 
-Bypass reads and writes vaults in process. Vaults and backups stay encrypted on
-disk. Each write requires a backup; Bypass keeps the five newest across all vaults.
+**Bypass relies on mature gokeepasslib for vault encryption and saving rather than
+reimplementing them.**
 
-If a save would discard unsupported XML metadata, Bypass asks for confirmation.
-Approval covers only that operation and vault revision. The backup must succeed
-before saving.
+Each vault write produces a backup; Bypass keeps the five newest across all vaults.
 
-Only the launched command receives the resolved environment. Output is unmasked,
-so a command that prints a secret can expose it to the agent. Locking cannot
-retract delivered secrets. Local IPC checks offer limited protection against
-malicious processes running as the same user.
+If saving would discard unsupported vault information, Bypass explains what will
+be lost and asks for confirmation. Approval applies only to that save, and the
+backup must succeed first.
 
 ## License
 

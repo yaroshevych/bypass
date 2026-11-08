@@ -19,12 +19,11 @@ malicious processes running as the same user.
 
 ## Vault compatibility
 
-Bypass reads and writes KDBX 3.x and 4.x using `gokeepasslib` v3.6.0. Building
-requires Go 1.24+. YubiKey authentication is unsupported.
+Bypass supports KDBX 3.x and 4.x vaults. YubiKey authentication is unsupported.
 
-Saves that would discard unsupported XML metadata require explicit confirmation
-for that operation and vault revision. An encrypted backup must succeed first.
-This also applies to credential changes.
+If saving would discard unsupported vault information, Bypass lists what will be
+lost and asks for confirmation. Approval applies only to that save, and an
+encrypted backup must succeed first. This also applies to password changes.
 
 ## Agent workflow
 
@@ -74,7 +73,7 @@ bypass run [--identity NAME-SECRET] [--env-file FILE]... [--timeout DURATION] --
 | --- | --- | --- |
 | `--identity NAME-SECRET` | Select an agent identity for session permissions. Overrides `BYPASS_IDENTITY`; an explicit empty value selects anonymous mode. | `BYPASS_IDENTITY`, otherwise anonymous. |
 | `--env-file FILE` | Read variables from an environment file. Repeatable; files are processed in order. | No files; inherited environment only. |
-| `--timeout DURATION` | Positive duration for IPC connection, approval, unlocking, and receipt of secrets. Examples: `30s`, `2m`, `1m30s`. | `60s`, or the configured value. |
+| `--timeout DURATION` | Time allowed to connect to Bypass, approve, unlock, and receive secrets. Examples: `30s`, `2m`, `1m30s`. | `60s`, or the configured value. |
 | `--` | Separate Bypass options from the command. Required. | None |
 | `COMMAND` | Executable name on `PATH`, or a relative or absolute executable path. | Required. |
 | `ARGS...` | Arguments passed to the executable, including its own flags. | None. |
@@ -96,8 +95,7 @@ The full identity is a private bearer credential; no registration is needed.
 `--identity` overrides the environment value, and `--identity=` selects anonymous
 access. Environment files cannot set `BYPASS_IDENTITY`; Bypass removes it from the
 launched command's environment even when no references are used. The approval
-screen shows the readable name, and session permissions store only a one-way
-digest.
+screen shows only the readable name.
 
 Prefer the environment variable to avoid exposing the bearer in command
 arguments. Other processes running as the same user may still inspect it.
@@ -297,22 +295,12 @@ The command receives plaintext secrets, which its descendants can inherit.
 Output is unmasked: printed credentials can reach the agent or logs. Approval
 controls delivery; it cannot stop the command from storing or sending secrets.
 
-IPC uses a private Unix socket, peer UID and executable-content checks, and
-bounded, versioned frames. Identity bytes go only to the local TUI, which hashes
-them with SHA-256 for permission scope and clears them before showing the request.
+The CLI communicates with Bypass locally. Both must use the same version;
+restart the TUI after upgrading.
 
-Vault values use byte buffers during resolution, transfer, and substitution.
-Bypass clears these after use or failed delivery. Launch requires Go strings
-that cannot be cleared in place; a successful launch replaces the runner's
-memory. Literal environment values still use the string-based parser. Clearing
-buffers cannot guarantee erasure of Go runtime, OS, or crash-dump copies.
-
-The IPC protocol requires the TUI and runner to use the same version.
-Restart the TUI after upgrading Bypass.
-
-Session permissions trust the authenticated client to report its identity.
-Local checks offer limited protection against malicious processes running as
-the same user.
+Bypass cannot guarantee that all copies of secrets are erased from memory or
+crash dumps. Agent identities are self-reported, and local checks offer limited
+protection against malicious programs running as the same user.
 
 ## `bypass`: start the TUI
 

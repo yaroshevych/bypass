@@ -63,8 +63,8 @@ session access; pending requests stay queued.
 ### Locking and PIN protection
 
 Change PIN… sets the session PIN. PIN protection covers the interface while
-vaults stay unlocked. Full locking clears the affected decrypted data and closes
-the backend session; vault credentials are needed to unlock again.
+vaults stay unlocked. Full locking clears the vault's decrypted data;
+vault credentials are needed to unlock again.
 
 Locking a vault or closing Bypass never interrupts a command already launched
 through `bypass run`. That command retains the secrets it received.
@@ -76,8 +76,8 @@ the current view. The external-change dialog requires a decision; Esc cannot
 close it.
 
 Each edit requires an encrypted backup. Bypass keeps the five newest across all
-vaults. If saving would discard unsupported XML metadata, you must confirm that
-operation for the current vault revision. The backup must succeed first. Read-only
+vaults. If saving would discard unsupported vault information, Bypass lists what
+will be lost and asks you to confirm that save. The backup must succeed first. Read-only
 mode, external changes, or an unusable backup location can prevent writes.
 
 ## View
