@@ -1,12 +1,11 @@
 # Bypass CLI reference
 
-Bypass lets an agent invoke commands that need credentials without retrieving
-those credentials into its prompt. The agent supplies secret references; Bypass
-resolves them after approval and passes the values to the launched command.
+Agents supply secret references; Bypass resolves them after approval and passes
+the values to the launched command without putting them in the agent's prompt.
 
-The launched command receives plaintext secrets. Its output returns to the agent
-and is **not masked**, so scripts must avoid printing credentials. This workflow
-does not isolate secrets from malicious processes running as the same user.
+The command receives plaintext secrets, and its output returns to the agent
+unmasked. Avoid printing credentials. This workflow cannot isolate secrets from
+malicious processes running as the same user.
 
 ## Commands
 
@@ -20,15 +19,12 @@ does not isolate secrets from malicious processes running as the same user.
 
 ## Vault compatibility
 
-The in-process backend reads and writes KDBX 3.x and 4.x vaults. It uses the
-pinned `gokeepasslib` v3.6.0 dependency; building Bypass requires Go 1.24 or
-newer. YubiKey hardware authentication is unsupported by this backend.
+Bypass reads and writes KDBX 3.x and 4.x using `gokeepasslib` v3.6.0. Building
+requires Go 1.24+. YubiKey authentication is unsupported.
 
-Some KeePass XML metadata is not supported. If Bypass finds metadata it cannot
-preserve, it blocks writes. A user must explicitly confirm the specific
-operation against the open vault revision before that operation can remove the
-metadata. Bypass creates an encrypted backup before committing the write. The
-same rule applies to credential rotation.
+Saves that would discard unsupported XML metadata require explicit confirmation
+for that operation and vault revision. An encrypted backup must succeed first.
+This also applies to credential changes.
 
 ## Agent workflow
 
@@ -38,8 +34,8 @@ Start Bypass and unlock the vault in one terminal:
 bypass work.kdbx
 ```
 
-Suppose a project's `scripts/deploy.sh` reads `DEPLOY_TOKEN` from its environment.
-Create `.env.deploy` with a reference instead of a credential:
+If `scripts/deploy.sh` reads `DEPLOY_TOKEN` from its environment, put a reference
+in `.env.deploy`:
 
 ```dotenv
 DEPLOY_TOKEN=bypass://Deployment#password
@@ -51,9 +47,8 @@ The agent can invoke the script:
 bypass run --env-file .env.deploy -- ./scripts/deploy.sh --target staging
 ```
 
-Approve the request in Bypass. Only the launched command receives the resolved
-environment; the invoking agent's environment and `.env.deploy` are unchanged.
-The script can use the credential and return a deployment result to the agent.
+Approve in Bypass. The script receives the credential and returns its result;
+the agent's environment and `.env.deploy` stay unchanged.
 
 Project instructions can tell an agent which command to use:
 
@@ -62,8 +57,8 @@ Project instructions can tell an agent which command to use:
 > Credentials are supplied by Bypass after user approval. Do not retrieve or
 > print their values.
 
-Launch the specific command that needs credentials through Bypass. Launching the
-agent itself through `bypass run` would give that agent the resolved environment.
+Use `bypass run` for the command that needs credentials. Running the agent itself
+this way gives it the resolved environment.
 
 ## `bypass run`
 
@@ -80,32 +75,32 @@ bypass run [--identity NAME-SECRET] [--env-file FILE]... [--timeout DURATION] --
 | `--identity NAME-SECRET` | Select an agent identity for session permissions. Overrides `BYPASS_IDENTITY`; an explicit empty value selects anonymous mode. | `BYPASS_IDENTITY`, otherwise anonymous. |
 | `--env-file FILE` | Read variables from an environment file. Repeatable; files are processed in order. | No files; inherited environment only. |
 | `--timeout DURATION` | Positive duration for IPC connection, approval, unlocking, and receipt of secrets. Examples: `30s`, `2m`, `1m30s`. | `60s`, or the configured value. |
-| `--` | Separate Bypass options from the command. Required. | — |
+| `--` | Separate Bypass options from the command. Required. | None |
 | `COMMAND` | Executable name on `PATH`, or a relative or absolute executable path. | Required. |
 | `ARGS...` | Arguments passed to the executable, including its own flags. | None. |
-| `--help`, `-h` | Show run help and exit. | — |
+| `--help`, `-h` | Show run help and exit. | None |
 
-The `--read-only` option belongs to the TUI command, not to `bypass run`. Put
-run options before `--` and command arguments after it.
+Use `--read-only` with the TUI command. For `bypass run`, put options before `--`
+and command arguments after it.
 
-An identity is a readable name of 1–64 ASCII letters, digits, spaces, `_`,
-`.` or `-`, followed by `-` and 32–64 hexadecimal characters. Use a unique
-random secret and the same full identity for repeated runs by one agent:
+An identity has a readable name of 1 to 64 ASCII letters, digits, spaces, `_`,
+`.` or `-`, followed by `-` and 32 to 64 hexadecimal characters. Generate a unique
+random secret once per agent and reuse the full identity:
 
 ```sh
 export BYPASS_IDENTITY="deploy-$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
 bypass run --env-file .env.deploy -- ./scripts/deploy.sh
 ```
 
-The full identity is a bearer credential. Keep it private and generate it once
-for the agent that will reuse it. `--identity` overrides the environment value;
-`--identity=` explicitly uses anonymous access. `BYPASS_IDENTITY` is reserved:
-environment files cannot set it, and Bypass removes it from the launched
-command's environment even when no references are used. The approval screen
-shows only the readable name. Bypass keeps only a one-way digest in session
-permissions. No registration is required.
-Prefer the environment variable to keep the bearer out of command arguments.
-Other processes under the same local user may still inspect the environment.
+The full identity is a private bearer credential; no registration is needed.
+`--identity` overrides the environment value, and `--identity=` selects anonymous
+access. Environment files cannot set `BYPASS_IDENTITY`; Bypass removes it from the
+launched command's environment even when no references are used. The approval
+screen shows the readable name, and session permissions store only a one-way
+digest.
+
+Prefer the environment variable to avoid exposing the bearer in command
+arguments. Other processes running as the same user may still inspect it.
 
 ```sh
 bypass run --timeout 2m --env-file .env.deploy -- ./scripts/deploy.sh --verbose
@@ -118,11 +113,10 @@ bypass run --timeout 2m --env-file .env.deploy -- ./scripts/deploy.sh --verbose
 3. Ask the running Bypass TUI to resolve and authorize the batch.
 4. Launch the command with the resolved values in its environment.
 
-Every requested reference must resolve and be authorized before launch. A batch
-can use multiple vaults. Bypass does not write resolved values to the environment
-files or parent shell. It does not resolve references in command arguments or
-script contents. If the environment contains no references, it launches the
-command without contacting the TUI.
+All references must resolve and be approved before launch; a batch can span
+vaults. Resolved values never go into environment files or the parent shell.
+References in command arguments and scripts are not resolved. With no environment
+references, Bypass launches the command without contacting the TUI.
 
 ### Environment precedence
 
@@ -140,10 +134,9 @@ bypass run \
   -- ./scripts/deploy.sh
 ```
 
-Here `.env.local` overrides `.env.staging`, which overrides `.env.base`. A
-reference in an overridden value is not requested. All references remaining in
-the merged environment are requested, including inherited variables unrelated
-to the supplied files.
+Here `.env.local` overrides `.env.staging`, which overrides `.env.base`.
+Bypass requests every reference left in the merged environment, including those
+in inherited variables unrelated to the files. Overridden references are ignored.
 
 There is no automatic `.env` discovery. Specify each file with `--env-file`.
 
@@ -161,9 +154,9 @@ Files support `KEY=value`, blank lines, whole-line comments beginning with `#`,
 and optional matching single or double quotes around values. Variable names use
 letters, digits, and underscores and must not begin with a digit.
 
-Values are literal. Bypass does not perform shell expansion, expand `$VARIABLE`
-inside a reference, or interpret quoted escape sequences. Use whole-line
-comments; trailing comments are not stripped from values.
+Values are literal: no shell expansion, `$VARIABLE` substitution inside
+references, or quoted escape sequences. Trailing comments remain part of the
+value; put comments on their own lines.
 
 ### Inherited references
 
@@ -173,9 +166,8 @@ An environment file is optional. An agent can supply a reference directly:
 GITHUB_TOKEN='bypass://GitHub' bypass run -- ./scripts/publish.sh
 ```
 
-Quote references containing spaces or shell metacharacters. In particular, use
-single quotes around `${bypass://...}` values in shell commands to prevent the
-shell from interpreting them before Bypass runs.
+Quote references with spaces or shell metacharacters. Use single quotes around
+`${bypass://...}` in shell commands to prevent shell interpretation.
 
 ## Secret references
 
@@ -204,14 +196,12 @@ bypass://work.kdbx/Services/Deployment#username
 bypass:///Users/me/vaults/work/Services/Deployment#password
 ```
 
-A vault file does not need a `.kdbx` extension. For an absolute reference, Bypass
-walks from the filesystem root until it finds a file; the remaining components
-identify the group and entry. A missing file or a file that is not an open vault
-fails resolution.
+Vault files need no `.kdbx` extension. In an absolute reference, the first file
+found from the filesystem root is the vault; the rest is the group and entry.
+The file must exist and be open in Bypass.
 
-Unqualified references search unlocked vaults. When several entries or vaults
-match, choose the intended match in Bypass. A named locked vault can be unlocked
-while the request waits for approval.
+Unqualified references search unlocked vaults. Choose in Bypass if several
+entries or vaults match. You can unlock a named vault while approval is pending.
 
 ### Fields and encoding
 
@@ -227,8 +217,8 @@ bypass://work.kdbx/Services/Deployment%20Token#password
 
 ### Embedded references
 
-A standalone value can use `bypass://...` directly. A reference inside other text
-must use `${bypass://...}`. A value can contain multiple braced references:
+Use `bypass://...` for a whole value, or `${bypass://...}` within text. Multiple
+braced references can share a value:
 
 ```dotenv
 DATABASE_URL=postgres://${bypass://Database#username}:${bypass://Database#password}@localhost/app
@@ -238,11 +228,10 @@ Only the reference portions are replaced. Ordinary text is preserved.
 
 ## Approval and session permissions
 
-The TUI must be running to resolve secrets. Open requests with `shift+s`.
-Select a request and press `enter` to review it.
-Approve all once (`a`) approves the current resolvable requests once after
-confirmation. Review session permissions (`r`) opens the permissions dialog.
-Clear all (`c`) removes session access; pending requests stay queued.
+Keep the TUI running. Open requests with `shift+s`, then select one and press
+`enter` to review. Approve all once (`a`) asks for confirmation and approves the
+currently resolvable requests. Review session permissions (`r`) opens permissions;
+Clear all (`c`) removes session access without removing pending requests.
 
 The review dialog shows the requested fields without their values. Use Page Up
 and Page Down to scroll. Back is selected by default.
@@ -254,18 +243,17 @@ and Page Down to scroll. Back is selected by default.
 | Approve for this session (`s`) | Allow this identity to access these fields until the vault locks or Bypass exits. |
 | Back (`esc`) | Return to Requests without a decision. |
 
-Agent identity is self-claimed and not verified. Session permissions are held in
-memory, work with read-only vaults, and apply to
-the specified identity, vault, entry, and field across commands and directories.
-Anonymous requests support one-time approval. Existing permission entries in a
-vault are left untouched and do not authorize requests. Use **Review session
-permissions** in Secret Requests to view active permissions.
+Identities are self-claimed. Session permissions stay in memory and apply to the
+chosen identity, vault, entry, and field across commands and directories,
+including read-only vaults. Anonymous requests allow one-time approval only.
+Existing vault permission entries stay untouched and do not authorize requests.
+View active grants through Review session permissions in Secret Requests.
 
 ## Timeouts and configuration
 
-The timeout applies to connection, approval, unlocking, and secret delivery. It
-does not limit the launched command's runtime. The CLI owns the deadline;
-disconnecting or timing out removes its pending request from the TUI.
+The CLI deadline covers connection, approval, unlocking, and secret delivery.
+Disconnecting or timing out removes the request from the TUI. The launched
+command has no Bypass runtime limit.
 
 Configuration precedence:
 
@@ -283,16 +271,14 @@ to `$XDG_CONFIG_HOME/bypass/config.json`.
 }
 ```
 
-The configuration value is a positive whole number of seconds. The CLI option
-accepts positive durations, including fractional seconds. Zero does not disable
-the deadline.
+Configuration requires positive whole seconds. The CLI accepts positive
+durations, including fractional seconds. Zero does not disable the deadline.
 
 ## Process behavior and exit status
 
-Bypass preserves terminal I/O, signals, and the command's exit status. Once the
-complete secret batch reaches the client, launch no longer depends on the TUI.
-**Bypass never interrupts a running command**, including when a vault locks or
-the TUI closes. Locking cannot retract credentials already delivered.
+Bypass preserves terminal I/O, signals, and exit status. Once the client receives
+the full secret batch, it can launch without the TUI. Locking a vault or closing
+Bypass neither interrupts a running command nor retracts delivered credentials.
 
 | Result | Exit behavior |
 | --- | --- |
@@ -307,28 +293,26 @@ environment-file, working-directory, and referenced vault paths. Use physical
 paths. The OS may report a physical working directory without revealing that
 the user entered it through a symlink.
 
-Secrets are plaintext in the launched command's environment. Its descendants can
-inherit them. Output is not masked: a script that prints a credential can expose
-it to the invoking agent or logs. Approval governs secret delivery; it does not
-sandbox the recipient or prevent it from writing or transmitting credentials.
+The command receives plaintext secrets, which its descendants can inherit.
+Output is unmasked: printed credentials can reach the agent or logs. Approval
+controls delivery; it cannot stop the command from storing or sending secrets.
 
-IPC uses a private Unix socket, peer UID checks, executable-content checks, and
-bounded versioned request and response frames. Identity bytes are sent only to
-the local TUI, reduced there to a one-way SHA-256 grant scope, and cleared before
-the request is shown. Vault-resolved values use byte buffers during resolution,
-transfer, and substitution. Bypass clears these buffers after use and on failed delivery.
-The final process launch requires Go strings. These strings cannot be cleared
-in place. A successful launch replaces the runner process memory. Literal
-values from inherited environment variables and environment files still use
-the string-based environment parser. Buffer clearing does not guarantee that
-Go runtime, operating system, or crash-dump copies are erased.
+IPC uses a private Unix socket, peer UID and executable-content checks, and
+bounded, versioned frames. Identity bytes go only to the local TUI, which hashes
+them with SHA-256 for permission scope and clears them before showing the request.
+
+Vault values use byte buffers during resolution, transfer, and substitution.
+Bypass clears these after use or failed delivery. Launch requires Go strings
+that cannot be cleared in place; a successful launch replaces the runner's
+memory. Literal environment values still use the string-based parser. Clearing
+buffers cannot guarantee erasure of Go runtime, OS, or crash-dump copies.
 
 The IPC protocol requires the TUI and runner to use the same version.
 Restart the TUI after upgrading Bypass.
 
-Session permissions trust the authenticated Bypass client to report its identity.
-These checks are best-effort local authentication, not a
-strong security boundary against malicious same-user processes.
+Session permissions trust the authenticated client to report its identity.
+Local checks offer limited protection against malicious processes running as
+the same user.
 
 ## `bypass`: start the TUI
 
@@ -338,8 +322,8 @@ strong security boundary against malicious same-user processes.
 bypass [OPTIONS] [VAULT]
 ```
 
-Put options before the optional vault path. Without a path, Bypass opens its
-welcome screen. With a path, it opens the vault's unlock screen.
+Put options before the vault path. Omit the path for the welcome screen, or
+supply one to open its unlock screen.
 
 ### Arguments and options
 
@@ -349,11 +333,11 @@ welcome screen. With a path, it opens the vault's unlock screen.
 | `--read-only` | Open vaults read only. Session and one-time approvals remain available. | Disabled. |
 | `--idle-timeout DURATION` | Vault lock timeout without a PIN. Explicit nonzero values must be between `1s` and `24h`. | Configuration, otherwise `15m`. |
 | `--clipboard-timeout DURATION` | Clipboard timeout. Explicit nonzero values must be between `1s` and `10m`. | Configuration, otherwise `10s`. |
-| `--version` | Print the application version and exit. | — |
-| `--help`, `-h` | Show startup help and exit. | — |
+| `--version` | Print the application version and exit. | None |
+| `--help`, `-h` | Show startup help and exit. | None |
 
-For the two startup timeout flags, `0` selects the configured/default value; it
-does not disable the timeout. These flags do not change the run approval timeout.
+For startup timeout flags, `0` uses the configuration or default. It does not
+disable timeouts or change the run approval deadline.
 
 ```sh
 bypass --read-only work.kdbx
