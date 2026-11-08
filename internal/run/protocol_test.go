@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 type retainedWriter struct {
@@ -73,6 +75,13 @@ func TestIPCExchangeAndExclusiveServer(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer server.Close()
+	flags, err := unix.FcntlInt(server.lock.Fd(), unix.F_GETFD, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if flags&unix.FD_CLOEXEC == 0 {
+		t.Fatal("IPC lock descriptor is inherited by executed child processes")
+	}
 	if second, err := Listen(path, func(*Pending) {}); err == nil {
 		second.Close()
 		t.Fatal("second server displaced active server")

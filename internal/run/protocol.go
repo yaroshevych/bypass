@@ -112,7 +112,7 @@ func Listen(path string, submit func(*Pending)) (*Server, error) {
 		return nil, err
 	}
 	// Hold an advisory lock before removing a socket left by a crashed TUI.
-	fd, err := unix.Open(filepath.Join(dir, "server.lock"), unix.O_CREAT|unix.O_RDWR|unix.O_NOFOLLOW, 0600)
+	fd, err := unix.Open(filepath.Join(dir, "server.lock"), unix.O_CREAT|unix.O_RDWR|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)
 	if err != nil {
 		return nil, err
 	}
