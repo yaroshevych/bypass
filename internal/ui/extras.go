@@ -32,14 +32,15 @@ type extraState struct {
 	valueOffset    int
 	confirmProceed bool
 
-	input      input
-	action     string
-	targetName string
-	path       string
-	err        string
-	loading    bool
-	cancel     context.CancelFunc
-	requestID  uint64
+	input       input
+	action      string
+	targetName  string
+	targetIndex int
+	path        string
+	err         string
+	loading     bool
+	cancel      context.CancelFunc
+	requestID   uint64
 
 	totpCode    []byte
 	totpExpires time.Time

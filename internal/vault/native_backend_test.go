@@ -144,6 +144,48 @@ func TestUnsupportedMetadataConsentBacksUpBeforeLossyWrite(t *testing.T) {
 	}
 }
 
+func TestUnsupportedXMLFieldsAreContextAware(t *testing.T) {
+	tests := []struct {
+		name string
+		xml  string
+		want string
+	}{
+		{
+			name: "group tags",
+			xml:  `<KeePassFile><Root><Group><Tags>plugin-tag</Tags></Group></Root></KeePassFile>`,
+			want: "unsupported XML path: KeePassFile/Root/Group/Tags",
+		},
+		{
+			name: "group custom data",
+			xml:  `<KeePassFile><Root><Group><CustomData><Item><Key>plugin</Key><Value>value</Value></Item></CustomData></Group></Root></KeePassFile>`,
+			want: "unsupported XML path: KeePassFile/Root/Group/CustomData",
+		},
+		{
+			name: "custom icon name",
+			xml:  `<KeePassFile><Meta><CustomIcons><Icon><UUID>icon-id</UUID><Name>icon-name</Name><Data>AA==</Data></Icon></CustomIcons></Meta><Root/></KeePassFile>`,
+			want: "unsupported XML path: KeePassFile/Meta/CustomIcons/Icon/Name",
+		},
+		{
+			name: "custom icon modification time",
+			xml:  `<KeePassFile><Meta><CustomIcons><Icon><UUID>icon-id</UUID><LastModificationTime>2020-01-01T00:00:00Z</LastModificationTime><Data>AA==</Data></Icon></CustomIcons></Meta><Root/></KeePassFile>`,
+			want: "unsupported XML path: KeePassFile/Meta/CustomIcons/Icon/LastModificationTime",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fields := unsupportedXMLFields([]byte(test.xml), false)
+			if !containsString(fields, test.want) {
+				t.Fatalf("unsupported fields = %v, want %q", fields, test.want)
+			}
+		})
+	}
+
+	valid := []byte(`<KeePassFile><Meta><CustomData><Item><Key>plugin</Key><Value>value</Value></Item></CustomData></Meta><Root><Group><Entry><Tags>entry-tag</Tags></Entry></Group></Root></KeePassFile>`)
+	if fields := unsupportedXMLFields(valid, false); len(fields) != 0 {
+		t.Fatalf("supported fields reported as unsupported: %v", fields)
+	}
+}
+
 func TestNativeApplyCancellationKeepsLiveAndPersistedDatabaseUnchanged(t *testing.T) {
 	path, creds, db, backend := nativeFixture(t)
 	defer db.Clear()
@@ -239,6 +281,75 @@ func TestNativeBackendAttachmentRoundTrip(t *testing.T) {
 	defer zero(exported)
 	if !bytes.Equal(exported, data) {
 		t.Fatal("attachment bytes changed during save and export")
+	}
+}
+
+func TestNativeAttachmentMutationRejectsAmbiguousNameAndSelectsOneReference(t *testing.T) {
+	path, creds, db, backend := nativeFixture(t)
+	defer db.Clear()
+	backup := filepath.Join(t.TempDir(), "backups")
+	applyFixtureChange(t, backend, &db, creds, Change{Kind: AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Duplicate attachments"}}, backup)
+	_, entry := findNativeEntry(db.native.db, db.Entries[0].UUID)
+	first := db.native.db.AddBinary([]byte("first payload"))
+	second := db.native.db.AddBinary([]byte("second payload"))
+	entry.Binaries = append(entry.Binaries, first.CreateReference("same.bin"), second.CreateReference("same.bin"))
+	db.Entries[0].AttachmentNames = []string{"same.bin", "same.bin"}
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = backend.Apply(context.Background(), db, creds, Change{Kind: RemoveAttachment, EntryUUID: db.Entries[0].UUID, AttachmentName: "same.bin"}, backup)
+	if !errors.Is(err, ErrAmbiguousAttachment) {
+		t.Fatalf("ambiguous remove error = %v", err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatal("ambiguous attachment rejection changed vault bytes")
+	}
+	if len(entry.Binaries) != 2 {
+		t.Fatalf("ambiguous remove changed references: %d", len(entry.Binaries))
+	}
+	index := 1
+	updated, err := backend.Apply(context.Background(), db, creds, Change{Kind: RemoveAttachment, EntryUUID: db.Entries[0].UUID, AttachmentName: "same.bin", AttachmentIndex: &index}, backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Clear()
+	defer updated.Clear()
+	_, entry = findNativeEntry(updated.native.db, updated.Entries[0].UUID)
+	if len(entry.Binaries) != 1 || entry.Binaries[0].Value.ID != first.ID {
+		t.Fatalf("selected removal left references = %#v", entry.Binaries)
+	}
+}
+
+func TestNativeApplyPreservesExistingVaultPermissionsAndBackupBytes(t *testing.T) {
+	path, creds, db, backend := nativeFixture(t)
+	defer db.Clear()
+	if err := os.Chmod(path, 0754); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backupDir := filepath.Join(t.TempDir(), "backups")
+	updated, err := backend.Apply(context.Background(), db, creds, Change{Kind: AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Permission check"}}, backupDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Clear()
+	defer updated.Clear()
+	info, err := os.Stat(path)
+	if err != nil || info.Mode().Perm() != 0754 {
+		t.Fatalf("replacement mode = %v, err %v", info.Mode().Perm(), err)
+	}
+	backups, err := filepath.Glob(filepath.Join(backupDir, "*.kdbx"))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("backups = %v, err %v", backups, err)
+	}
+	backupBytes, err := os.ReadFile(backups[0])
+	if err != nil || !bytes.Equal(before, backupBytes) {
+		t.Fatal("backup did not preserve original encrypted bytes")
 	}
 }
 

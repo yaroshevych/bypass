@@ -64,6 +64,7 @@ type Change struct {
 	NewName         string
 	AttachmentName  string
 	AttachmentData  []byte
+	AttachmentIndex *int
 	AllowDataLoss   bool
 	DataLossConsent [32]byte
 }

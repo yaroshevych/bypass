@@ -725,6 +725,8 @@ func writeError(err error) string {
 		return "file changed externally · reload before saving"
 	case errors.Is(err, vault.ErrAmbiguous):
 		return "can't select item · duplicate path"
+	case errors.Is(err, vault.ErrAmbiguousAttachment):
+		return "can't change attachment · duplicate name"
 	case errors.Is(err, vault.ErrUnsupportedData):
 		return "vault has fields this version can't preserve · writes disabled"
 	case errors.Is(err, vault.ErrUnsupported):

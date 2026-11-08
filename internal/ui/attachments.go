@@ -171,7 +171,7 @@ func (m *Model) attachmentListKey(k tea.KeyMsg) tea.Cmd {
 			state.err = "Select an attachment and enable writes first."
 			return nil
 		}
-		state.action, state.targetName, state.phase = "replace", entry.AttachmentNames[state.selected-1], "path"
+		state.action, state.targetName, state.targetIndex, state.phase = "replace", entry.AttachmentNames[state.selected-1], state.selected-1, "path"
 		state.confirmProceed = false
 		state.input.clear()
 		state.err = ""
@@ -180,7 +180,7 @@ func (m *Model) attachmentListKey(k tea.KeyMsg) tea.Cmd {
 			state.err = "Select an attachment and enable writes first."
 			return nil
 		}
-		state.action, state.targetName, state.phase = "remove", entry.AttachmentNames[state.selected-1], "confirm-remove"
+		state.action, state.targetName, state.targetIndex, state.phase = "remove", entry.AttachmentNames[state.selected-1], state.selected-1, "confirm-remove"
 		state.confirmProceed = false
 		state.err = ""
 	case "e":
@@ -188,7 +188,7 @@ func (m *Model) attachmentListKey(k tea.KeyMsg) tea.Cmd {
 			state.err = "Select an attachment to export."
 			return nil
 		}
-		state.action, state.targetName, state.phase = "export", entry.AttachmentNames[state.selected-1], "path"
+		state.action, state.targetName, state.targetIndex, state.phase = "export", entry.AttachmentNames[state.selected-1], state.selected-1, "path"
 		state.confirmProceed = false
 		state.input.clear()
 		state.err = ""
@@ -323,6 +323,10 @@ func (m *Model) commitAttachmentImport(state *extraState) tea.Cmd {
 	changeData := append([]byte(nil), data...)
 	wipebuf.Wipe(data)
 	change := vault.Change{Kind: kind, EntryUUID: state.entryUUID, GroupUUID: state.groupUUID, AttachmentName: state.targetName, AttachmentData: changeData}
+	if kind == vault.ReplaceAttachment {
+		index := state.targetIndex
+		change.AttachmentIndex = &index
+	}
 	state.phase = "working"
 	state.loading = true
 	state.err = ""
@@ -357,7 +361,8 @@ func (m *Model) attachmentConfirmKey(k tea.KeyMsg) tea.Cmd {
 			}
 			state.phase = "working"
 			state.loading = true
-			return m.apply(vault.Change{Kind: vault.RemoveAttachment, EntryUUID: state.entryUUID, GroupUUID: state.groupUUID, AttachmentName: state.targetName})
+			index := state.targetIndex
+			return m.apply(vault.Change{Kind: vault.RemoveAttachment, EntryUUID: state.entryUUID, GroupUUID: state.groupUUID, AttachmentName: state.targetName, AttachmentIndex: &index})
 		case "confirm-export":
 			return m.startAttachmentExport(state)
 		}

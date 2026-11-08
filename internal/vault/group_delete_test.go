@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	gok "github.com/tobischo/gokeepasslib/v3"
 )
 
 func TestNativeGroupDeletePreservesSubtreeInRecycleBin(t *testing.T) {
@@ -98,5 +100,49 @@ func TestNativeGroupDeleteWithoutRecycleBinIsPermanent(t *testing.T) {
 		if group.UUID == groupID {
 			t.Fatal("permanently deleted group remains")
 		}
+	}
+}
+
+func TestNativeGroupDeleteHandlesXMLRootSiblingsAndProtectsModelRoot(t *testing.T) {
+	_, creds, db, backend := nativeFixture(t)
+	defer db.Clear()
+	backup := filepath.Join(t.TempDir(), "backups")
+	rootGroup := db.native.db.Content.Root.Groups[0]
+	sibling := gok.NewGroup()
+	sibling.Name = "Extra top-level group"
+	later := gok.NewGroup()
+	later.Name = "Later top-level group"
+	db.native.db.Content.Root.Groups = append(db.native.db.Content.Root.Groups, sibling, later)
+	refreshed, err := nativeModel(db.native)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Groups = refreshed.Groups
+	db.RootUUID = refreshed.RootUUID
+	var siblingID string
+	for _, group := range db.Groups {
+		if group.Name == sibling.Name {
+			siblingID = group.UUID
+		}
+	}
+	if siblingID == "" {
+		t.Fatal("top-level sibling was not modeled")
+	}
+	if _, err := backend.Apply(context.Background(), db, creds, Change{Kind: DeleteGroup, GroupUUID: db.RootUUID}, backup); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("deleting actual database root error = %v", err)
+	}
+	applyFixtureChange(t, backend, &db, creds, Change{Kind: PrepareDeleteGroup, GroupUUID: siblingID}, backup)
+	updated, err := backend.Apply(context.Background(), db, creds, Change{Kind: DeleteGroup, GroupUUID: siblingID}, backup)
+	if err != nil {
+		t.Fatalf("delete XML-root sibling: %v", err)
+	}
+	db.Clear()
+	defer updated.Clear()
+	if len(updated.native.db.Content.Root.Groups) != 2 || uuidString(updated.native.db.Content.Root.Groups[0].UUID) != uuidString(rootGroup.UUID) || updated.native.db.Content.Root.Groups[1].Name != later.Name {
+		t.Fatal("deleting top-level sibling removed or replaced another root group")
+	}
+	bin := findNativeGroup(updated.native.db, updated.RecycleBinUUID)
+	if bin == nil || len(bin.Groups) != 1 || bin.Groups[0].Name != sibling.Name {
+		t.Fatal("deleting a top-level sibling moved the wrong group")
 	}
 }

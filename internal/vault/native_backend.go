@@ -276,9 +276,30 @@ func unsupportedXMLFields(raw []byte, kdbx4 bool) []string {
 	if !bytes.Contains(raw, []byte("<KeePassFile")) {
 		return []string{"unrecognized or malformed XML metadata"}
 	}
-	known := map[string]bool{}
-	for _, name := range strings.Fields(`KeePassFile Meta Generator SettingsChanged HeaderHash DatabaseName DatabaseNameChanged DatabaseDescription DatabaseDescriptionChanged DefaultUserName DefaultUserNameChanged MaintenanceHistoryDays Color MasterKeyChanged MasterKeyChangeRec MasterKeyChangeForce MemoryProtection ProtectTitle ProtectUserName ProtectPassword ProtectURL ProtectNotes ProtectAutoType CustomIcons Icon Data RecycleBinEnabled RecycleBinUUID RecycleBinChanged EntryTemplatesGroup EntryTemplatesGroupChanged HistoryMaxItems HistoryMaxSize LastSelectedGroup LastTopVisibleGroup Binaries Binary ID Compressed Root Group UUID Name Notes IconID CustomIconUUID Times CreationTime LastModificationTime LastAccessTime ExpiryTime Expires UsageCount LocationChanged IsExpanded DefaultAutoTypeSequence EnableAutoType EnableSearching LastTopVisibleEntry Tags CustomData Item Key Value String AutoType Enabled DataTransferObfuscation DefaultSequence Association Window KeystrokeSequence History Entry OverrideURL ForegroundColor BackgroundColor DeletedObjects DeletedObject DeletionTime IconID Ref`) {
-		known[name] = true
+	// Keep this allowlist tied to the XML model's parent/child structure. A
+	// global tag-name allowlist incorrectly treats unsupported fields as safe
+	// whenever the same tag is valid somewhere else in KeePass XML.
+	knownChildren := map[string]map[string]bool{
+		"":                 {"KeePassFile": true},
+		"KeePassFile":      {"Meta": true, "Root": true},
+		"Meta":             {"Generator": true, "SettingsChanged": true, "HeaderHash": true, "DatabaseName": true, "DatabaseNameChanged": true, "DatabaseDescription": true, "DatabaseDescriptionChanged": true, "DefaultUserName": true, "DefaultUserNameChanged": true, "MaintenanceHistoryDays": true, "Color": true, "MasterKeyChanged": true, "MasterKeyChangeRec": true, "MasterKeyChangeForce": true, "MemoryProtection": true, "CustomIcons": true, "RecycleBinEnabled": true, "RecycleBinUUID": true, "RecycleBinChanged": true, "EntryTemplatesGroup": true, "EntryTemplatesGroupChanged": true, "HistoryMaxItems": true, "HistoryMaxSize": true, "LastSelectedGroup": true, "LastTopVisibleGroup": true, "Binaries": true, "CustomData": true},
+		"MemoryProtection": {"ProtectTitle": true, "ProtectUserName": true, "ProtectPassword": true, "ProtectURL": true, "ProtectNotes": true},
+		"CustomIcons":      {"Icon": true},
+		"Icon":             {"UUID": true, "Data": true},
+		"Binaries":         {"Binary": true},
+		"Binary":           {"ID": true, "Compressed": true},
+		"CustomData":       {"Item": true},
+		"Item":             {"Key": true, "Value": true},
+		"Root":             {"Group": true, "DeletedObjects": true},
+		"Group":            {"UUID": true, "Name": true, "Notes": true, "IconID": true, "CustomIconUUID": true, "Times": true, "IsExpanded": true, "DefaultAutoTypeSequence": true, "EnableAutoType": true, "EnableSearching": true, "LastTopVisibleEntry": true, "Entry": true, "Group": true},
+		"Entry":            {"UUID": true, "IconID": true, "CustomIconUUID": true, "ForegroundColor": true, "BackgroundColor": true, "OverrideURL": true, "Tags": true, "Times": true, "String": true, "AutoType": true, "History": true, "Binaries": true, "CustomData": true},
+		"Times":            {"CreationTime": true, "LastModificationTime": true, "LastAccessTime": true, "ExpiryTime": true, "Expires": true, "UsageCount": true, "LocationChanged": true},
+		"String":           {"Key": true, "Value": true},
+		"AutoType":         {"Enabled": true, "DataTransferObfuscation": true, "DefaultSequence": true, "Association": true},
+		"Association":      {"Window": true, "KeystrokeSequence": true},
+		"History":          {"Entry": true},
+		"DeletedObjects":   {"DeletedObject": true},
+		"DeletedObject":    {"UUID": true, "DeletionTime": true},
 	}
 	knownAttrs := map[string]bool{"Protected": true, "Compressed": true, "ID": true, "Ref": true}
 	decoder := xml.NewDecoder(bytes.NewReader(raw))
@@ -290,6 +311,7 @@ func unsupportedXMLFields(raw []byte, kdbx4 bool) []string {
 			seen[name] = true
 		}
 	}
+	var parents []string
 	for {
 		tok, err := decoder.Token()
 		if err == io.EOF {
@@ -300,18 +322,28 @@ func unsupportedXMLFields(raw []byte, kdbx4 bool) []string {
 		}
 		switch item := tok.(type) {
 		case xml.StartElement:
-			if !known[item.Name.Local] || item.Name.Space != "" {
+			parent := ""
+			if len(parents) > 0 {
+				parent = parents[len(parents)-1]
+			}
+			if !knownChildren[parent][item.Name.Local] || item.Name.Space != "" {
 				name := item.Name.Local
 				if name == "PreviousParentGroup" {
 					add("PreviousParentGroup (previous parent group metadata)")
 				} else {
-					add(name)
+					path := append(append([]string(nil), parents...), name)
+					add("unsupported XML path: " + strings.Join(path, "/"))
 				}
 			}
 			for _, attr := range item.Attr {
 				if !knownAttrs[attr.Name.Local] || attr.Name.Space != "" {
 					add("attribute " + attr.Name.Local)
 				}
+			}
+			parents = append(parents, item.Name.Local)
+		case xml.EndElement:
+			if len(parents) > 0 {
+				parents = parents[:len(parents)-1]
 			}
 		}
 	}
@@ -343,6 +375,13 @@ func changeLossOperation(path string, revision [32]byte, change Change) [32]byte
 	}
 	writeConsentBytes(h, change.Password)
 	writeConsentBytes(h, change.AttachmentData)
+	if change.AttachmentIndex == nil {
+		writeConsentBytes(h, []byte{0})
+	} else {
+		writeConsentBytes(h, []byte{1})
+		binary.LittleEndian.PutUint64(count[:], uint64(*change.AttachmentIndex))
+		writeConsentBytes(h, count[:])
+	}
 	var result [32]byte
 	copy(result[:], h.Sum(nil))
 	return result
@@ -749,7 +788,7 @@ func (b *NativeBackend) CreateWithOptions(ctx context.Context, path string, cred
 	return b.Open(ctx, abs, creds)
 }
 
-func writeNativeFile(path string, db *gok.Database) error {
+func writeNativeFile(path string, db *gok.Database, mode os.FileMode) error {
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, ".bypass-vault-*.kdbx")
 	if err != nil {
@@ -763,7 +802,7 @@ func writeNativeFile(path string, db *gok.Database) error {
 			_ = os.Remove(name)
 		}
 	}()
-	if err := tmp.Chmod(0600); err != nil {
+	if err := tmp.Chmod(mode.Perm()); err != nil {
 		return ErrWrite
 	}
 	if err := gok.NewEncoder(tmp).Encode(db); err != nil {
@@ -872,7 +911,7 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 			return nil, ErrUnsupported
 		}
 	case DeleteGroup, PrepareDeleteGroup:
-		if selection.group == nil {
+		if selection.group == nil || selection.group.UUID == db.RootUUID {
 			return nil, ErrUnsupported
 		}
 	case PrepareRecycleBin:
@@ -998,8 +1037,12 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		g.Groups = append(g.Groups, child)
 	case DeleteGroup:
 		g := findNativeGroup(s.db, change.GroupUUID)
+		if g == nil || selection.group.UUID == db.RootUUID {
+			return nil, ErrUnsupported
+		}
 		parent := findNativeGroup(s.db, selection.group.ParentUUID)
-		if g == nil || parent == nil {
+		rootLevel := selection.group.ParentUUID == ""
+		if !rootLevel && parent == nil {
 			return nil, ErrUnsupported
 		}
 		if db.RecycleBinEnabled && !selection.group.Recycled {
@@ -1010,10 +1053,19 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 			if bin == nil {
 				return nil, ErrUnsupported
 			}
-			removeNativeGroup(parent, g)
-			bin.Groups = append(bin.Groups, *g)
+			moved := *g
+			if rootLevel {
+				removeNativeRootGroup(s.db, g)
+			} else {
+				removeNativeGroup(parent, g)
+			}
+			bin.Groups = append(bin.Groups, moved)
 		} else {
-			removeNativeGroup(parent, g)
+			if rootLevel {
+				removeNativeRootGroup(s.db, g)
+			} else {
+				removeNativeGroup(parent, g)
+			}
 		}
 	case AddAttachment, ReplaceAttachment, RemoveAttachment:
 		_, e := findNativeEntry(s.db, change.EntryUUID)
@@ -1021,24 +1073,21 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 			return nil, ErrUnsupported
 		}
 		if change.Kind == AddAttachment || change.Kind == ReplaceAttachment {
-			for i := len(e.Binaries) - 1; i >= 0; i-- {
-				if e.Binaries[i].Name == change.AttachmentName {
-					e.Binaries = append(e.Binaries[:i], e.Binaries[i+1:]...)
+			if change.Kind == ReplaceAttachment {
+				i, err := selectedAttachmentIndex(e, change)
+				if err != nil {
+					return nil, err
 				}
+				e.Binaries = append(e.Binaries[:i], e.Binaries[i+1:]...)
 			}
 			bin := s.db.AddBinary(change.AttachmentData)
 			e.Binaries = append(e.Binaries, bin.CreateReference(change.AttachmentName))
 		} else {
-			found := false
-			for i := len(e.Binaries) - 1; i >= 0; i-- {
-				if e.Binaries[i].Name == change.AttachmentName {
-					e.Binaries = append(e.Binaries[:i], e.Binaries[i+1:]...)
-					found = true
-				}
+			i, err := selectedAttachmentIndex(e, change)
+			if err != nil {
+				return nil, err
 			}
-			if !found {
-				return nil, ErrUnsupported
-			}
+			e.Binaries = append(e.Binaries[:i], e.Binaries[i+1:]...)
 		}
 	}
 	if err := s.db.LockProtectedEntries(); err != nil {
@@ -1053,7 +1102,11 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 	if err != nil || subtle.ConstantTimeCompare(current[:], db.Revision[:]) != 1 {
 		return nil, ErrExternalChanged
 	}
-	if err := writeNativeFile(s.path, s.db); err != nil {
+	info, err := os.Stat(s.path)
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, ErrInvalidPath
+	}
+	if err := writeNativeFile(s.path, s.db, info.Mode()); err != nil {
 		return nil, err
 	}
 	committed = true
@@ -1115,6 +1168,39 @@ func removeNativeGroup(p, g *gok.Group) {
 			return
 		}
 	}
+}
+func removeNativeRootGroup(db *gok.Database, g *gok.Group) bool {
+	for i := range db.Content.Root.Groups {
+		if &db.Content.Root.Groups[i] == g {
+			db.Content.Root.Groups = append(db.Content.Root.Groups[:i], db.Content.Root.Groups[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+func selectedAttachmentIndex(e *gok.Entry, change Change) (int, error) {
+	if change.AttachmentIndex != nil {
+		i := *change.AttachmentIndex
+		if i < 0 || i >= len(e.Binaries) || e.Binaries[i].Name != change.AttachmentName {
+			return 0, ErrUnsupported
+		}
+		return i, nil
+	}
+	found := -1
+	for i := range e.Binaries {
+		if e.Binaries[i].Name != change.AttachmentName {
+			continue
+		}
+		if found >= 0 {
+			return 0, ErrAmbiguousAttachment
+		}
+		found = i
+	}
+	if found < 0 {
+		return 0, ErrUnsupported
+	}
+	return found, nil
 }
 func countNativeGroup(id string, db *Database, entries, groups *int) {
 	for _, g := range db.Groups {
@@ -1247,7 +1333,12 @@ func (b *NativeBackend) ChangeCredentialsAllowingMetadataLoss(ctx context.Contex
 		scrubNativeDatabase(candidate)
 		return nil, err
 	}
-	if err := writeNativeFile(s.path, candidate); err != nil {
+	info, err := os.Stat(s.path)
+	if err != nil || !info.Mode().IsRegular() {
+		scrubNativeDatabase(candidate)
+		return nil, ErrInvalidPath
+	}
+	if err := writeNativeFile(s.path, candidate, info.Mode()); err != nil {
 		scrubNativeDatabase(candidate)
 		return nil, ErrWrite
 	}
