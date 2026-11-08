@@ -18,6 +18,18 @@ does not isolate secrets from malicious processes running as the same user.
 | `bypass --help` | Show startup options. |
 | `bypass run --help` | Show run options. |
 
+## Vault compatibility
+
+The in-process backend reads and writes KDBX 3.x and 4.x vaults. It uses the
+pinned `gokeepasslib` v3.6.0 dependency; building Bypass requires Go 1.24 or
+newer. YubiKey hardware authentication is unsupported by this backend.
+
+Some KeePass XML metadata is not supported. If Bypass finds metadata it cannot
+preserve, it blocks writes. A user must explicitly confirm the specific
+operation against the open vault revision before that operation can remove the
+metadata. Bypass creates an encrypted backup before committing the write. The
+same rule applies to credential rotation.
+
 ## Agent workflow
 
 Start Bypass and unlock the vault in one terminal:

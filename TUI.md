@@ -75,8 +75,11 @@ Choosing to keep the current view does not remove the reload requirement.
 
 Bypass writes vault changes directly. Before an edit, it copies the encrypted
 vault to its backup directory and keeps the five newest backups across all vaults.
-Write actions can be unavailable when the vault is read only, has external
-changes, or has no usable backup location.
+If the vault has XML metadata Bypass cannot preserve, writes stay blocked until
+you confirm a specific operation for the open vault revision. That operation
+can remove the unsupported metadata. Bypass must create the encrypted backup
+before it writes. Write actions can be unavailable when the vault is read only,
+has external changes, or has no usable backup location.
 
 ## View
 

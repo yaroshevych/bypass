@@ -7,6 +7,11 @@ where each detail is crafted: navigation, controls, keyboard shortcuts, and them
 
 Bypass opens KeePass KDBX vaults directly. It does not need KeePassXC installed.
 
+The native backend supports KDBX 3.x and 4.x vaults. It uses
+`gokeepasslib` v3.6.0 and requires Go 1.24 or newer to build. YubiKey hardware
+authentication is not supported by this backend. See the [CLI reference](CLI.md)
+for vault compatibility and write behavior.
+
 Use `bypass run` to pass approved secrets to an agent commands or script. You stay in control
 with interactive permission TUI, while protecting secrets from exposure to agents.
 
@@ -103,6 +108,11 @@ rules, permissions, and timeout configuration.
 
 Vaults and backups remain encrypted on disk. Before a write, Bypass creates an
 encrypted backup. It keeps the five newest backups across all vaults.
+
+If a vault contains XML metadata that Bypass cannot preserve, it blocks writes.
+An explicit confirmation for a specific operation and open vault revision is
+required before that operation can remove the unsupported metadata. Bypass must
+create the encrypted backup first.
 
 Only the launched command receives the resolved environment; the invoking
 agent does not inherit it. **Output is not masked:** a command that prints a

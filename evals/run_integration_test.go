@@ -71,8 +71,9 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 	if out.String() != "approved" {
 		t.Fatal("child did not confirm injected secret")
 	}
-	e.key("Escape")
-	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "Deny all") })
+	e.waitFor("return to vault", func() bool {
+		return !strings.Contains(e.capture(), "REVIEW REQUEST")
+	})
 	cmd, out = launch()
 	e.mustShow("secret request pending")
 	e.mustShow("REVIEW REQUEST")
