@@ -14,6 +14,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"bypass/internal/vault"
+	"bypass/internal/vaulttest"
 )
 
 const (
@@ -62,6 +65,7 @@ func TestMilestone1TmuxLifecycle(t *testing.T) {
 	}
 	e := newEval(t)
 	defer e.close()
+	createEvalVaults(e, e.db1, e.db2)
 
 	e.start()
 	e.mustShow("bypass", "VAULTS", "Open")
@@ -144,15 +148,11 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals use Unix process and shell behavior")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
+	createRealVault(e)
 
-	e.startWith(backend, e.realDB)
+	e.startWith(e.realDB)
 	e.mustShow("UNLOCK VAULT")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -236,7 +236,27 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 	e.typeText("Archive")
 	e.key("Down")
 	e.key("Enter")
-	e.mustShowWrite("Passwords / Archive", "saved · backup created")
+	e.waitForWithin(20*time.Second, "move dialog closes", func() bool {
+		screen := e.capture()
+		return strings.Contains(screen, "Archive") && strings.Contains(screen, "Eval Created Edited") &&
+			!strings.Contains(screen, "MOVE EVAL CREATED EDITED") && !strings.Contains(screen, "Working…")
+	})
+	moveCreds := vault.Credentials{Password: []byte(fixturePassword)}
+	movedDB, err := vaulttest.NewBackend().Open(context.Background(), e.realDB, moveCreds)
+	moveCreds.Clear()
+	if err != nil {
+		t.Fatal("reopen vault after move:", err)
+	}
+	moved := false
+	for _, entry := range movedDB.Entries {
+		if entry.Get("Title") == "Eval Created Edited" && strings.Contains(entry.GroupPath, "/Archive/") {
+			moved = true
+		}
+	}
+	movedDB.Clear()
+	if !moved {
+		t.Fatal("saved entry was not moved into Archive")
+	}
 	e.key("DC")
 	e.mustShow("INSPECT RECYCLE BIN")
 	e.key("Right")
@@ -253,7 +273,7 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		e.key("Up")
 	}
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 2; i++ {
 		e.key("Down")
 	}
 	e.mustShow("Bin", "Eval Created Edited")
@@ -271,7 +291,7 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 	t.Run("legacy automatic reload", func(t *testing.T) {
 		t.Skip("native sessions reload with lock/unlock, not cached credentials")
 		// An external CLI write is detected, can be kept temporarily, then reloaded.
-		addExternalEntry(e, backend)
+		addExternalEntry(e)
 		e.waitFor("external change indicator", func() bool {
 			screen := e.capture()
 			return strings.Contains(screen, "Changed externally") || strings.Contains(screen, "Vault changed externally")
@@ -304,6 +324,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	}
 	e := newEval(t)
 	defer e.close()
+	createEvalVaults(e, e.db1)
 	configDir := filepath.Join(e.root, "xdg-config", "bypass")
 	if err := os.MkdirAll(configDir, 0o700); err != nil {
 		t.Fatal(err)
@@ -475,7 +496,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	restarted := *e
 	restarted.label = evalSocketLabel()
 	restarted.closed = false
-	restarted.startWith(filepath.Join(e.root, "fake-keepassxc-cli"), "--read-only", e.db1)
+	restarted.startWith("--read-only", e.db1)
 	restarted.mustShow("UNLOCK VAULT")
 	restarted.typeText(fixturePassword)
 	restarted.key("Enter")
@@ -492,7 +513,8 @@ func TestMilestone2IdleLockTimeout(t *testing.T) {
 	}
 	e := newEval(t)
 	defer e.close()
-	e.startWith(filepath.Join(e.root, "fake-keepassxc-cli"), "--idle-timeout=2s", e.db1)
+	createEvalVaults(e, e.db1)
+	e.startWith("--idle-timeout=2s", e.db1)
 	e.mustShow("UNLOCK VAULT")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -502,18 +524,61 @@ func TestMilestone2IdleLockTimeout(t *testing.T) {
 	})
 }
 
-func createRealVault(e *evalSession, backend string) {
+func createRealVault(e *evalSession) {
 	e.t.Helper()
-	runCLI(e, backend, fixturePassword+"\n"+fixturePassword+"\n", "db-create", "--set-password", "--decryption-time", "100", e.realDB)
-	runCLI(e, backend, fixturePassword+"\n"+fixtureEntryPassword+"\n", "add", "--quiet", "--username", "seed-user", "--url", "https://seed.test", "--notes", "synthetic seed note", "--password-prompt", e.realDB, "Seed Entry")
+	creds := vault.Credentials{Password: []byte(fixturePassword)}
+	defer creds.Clear()
+	fixture := vaulttest.NewBackend()
+	db, err := fixture.Create(context.Background(), e.realDB, creds)
+	if err != nil {
+		e.t.Fatal("create fixture vault:", err)
+	}
+	updated, err := fixture.Apply(context.Background(), db, creds, vault.Change{Kind: vault.AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Seed Entry", "UserName": "seed-user", "URL": "https://seed.test", "Notes": "synthetic seed note"}, PasswordChanged: true, Password: []byte(fixtureEntryPassword)}, filepath.Join(e.root, "fixture-backups"))
+	db.Clear()
+	if err != nil {
+		e.t.Fatal("seed fixture vault:", err)
+	}
+	updated.Clear()
 }
 
-func addExternalEntry(e *evalSession, backend string) {
+func createEvalVaults(e *evalSession, paths ...string) {
 	e.t.Helper()
-	runCLI(e, backend, fixturePassword+"\n", "add", "--quiet", "--username", "external-user", "--url", "https://external.test", "--generate", e.realDB, "External Entry")
+	creds := vault.Credentials{Password: []byte(fixturePassword)}
+	defer creds.Clear()
+	fixture := vaulttest.NewBackend()
+	for _, path := range paths {
+		db, err := fixture.Create(context.Background(), path, creds)
+		if err != nil {
+			e.t.Fatal("create eval vault:", err)
+		}
+		updated, err := fixture.Apply(context.Background(), db, creds, vault.Change{Kind: vault.AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Eval Entry", "UserName": "eval-user", "Notes": "synthetic eval entry"}, PasswordChanged: true, Password: []byte(secretSentinel)}, filepath.Join(e.root, "fixture-backups"))
+		db.Clear()
+		if err != nil {
+			e.t.Fatal("seed eval vault:", err)
+		}
+		updated.Clear()
+	}
 }
 
-func runCLI(e *evalSession, backend, stdin string, args ...string) {
+func addExternalEntry(e *evalSession) {
+	e.t.Helper()
+	creds := vault.Credentials{Password: []byte(fixturePassword)}
+	defer creds.Clear()
+	fixture := vaulttest.NewBackend()
+	db, err := fixture.Open(context.Background(), e.realDB, creds)
+	if err != nil {
+		e.t.Fatal("open fixture vault:", err)
+	}
+	updated, err := fixture.Apply(context.Background(), db, creds, vault.Change{Kind: vault.AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "External Entry", "UserName": "external-user", "URL": "https://external.test"}}, filepath.Join(e.root, "fixture-backups"))
+	db.Clear()
+	if err != nil {
+		e.t.Fatal("add external fixture entry:", err)
+	}
+	updated.Clear()
+}
+
+// runOracleCLI is reserved for explicit optional KeePassXC fixture-interoperability checks.
+func runOracleCLI(e *evalSession, backend, stdin string, args ...string) {
 	e.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -554,12 +619,7 @@ func newEval(t *testing.T) *evalSession {
 	}
 	e.db1 = filepath.Join(vaultDir, "first.kdbx")
 	e.db2 = filepath.Join(vaultDir, "second.kdbx")
-	e.realDB = filepath.Join(vaultDir, "real-cli.kdbx")
-	for _, path := range []string{e.db1, e.db2} {
-		if err := os.WriteFile(path, nil, 0600); err != nil {
-			t.Fatal("create synthetic vault path:", err)
-		}
-	}
+	e.realDB = filepath.Join(vaultDir, "seed-vault.kdbx")
 	if err := os.MkdirAll(filepath.Join(root, "home"), 0700); err != nil {
 		t.Fatal("create private HOME:", err)
 	}
@@ -571,33 +631,34 @@ func newEval(t *testing.T) *evalSession {
 			t.Fatalf("create private %s: %v", dir, err)
 		}
 	}
-	backend := filepath.Join(root, "fake-keepassxc-cli")
-	if err := os.WriteFile(backend, []byte(fakeBackend), 0700); err != nil {
-		t.Fatal("create fake backend:", err)
-	}
 	e.initClipboard()
 	return e
 }
 
 func (e *evalSession) start() {
-	e.startWith(filepath.Join(e.root, "fake-keepassxc-cli"), "--read-only")
+	e.startWith("--read-only")
 	e.mustShow("bypass", "VAULTS", "Open")
 }
 
-func (e *evalSession) startWith(backend string, appArgs ...string) {
-	e.startApp(backend, appArgs...)
+func (e *evalSession) startWith(appArgs ...string) {
+	e.startApp(appArgs...)
 }
 
-func (e *evalSession) startApp(backend string, appArgs ...string) {
-	e.startAppWithBinary(appBinary, backend, appArgs...)
+func (e *evalSession) startApp(appArgs ...string) {
+	e.startAppWithBinary(appBinary, appArgs...)
 }
 
-func (e *evalSession) startAppWithBinary(binary, backend string, appArgs ...string) {
+func (e *evalSession) startAppWithBinary(binary string, appArgs ...string) {
 	e.t.Helper()
 	launcher := filepath.Join(e.root, "launch.sh")
-	command := shellQuote(binary) + " --backend " + shellQuote(backend)
+	command := shellQuote(binary)
 	for _, arg := range appArgs {
 		command += " " + shellQuote(arg)
+	}
+	stderrPath := filepath.Join(e.root, "app.stderr")
+	stderrRedirect := ""
+	if os.Getenv("BYPASS_EVAL_ARTIFACTS") != "" {
+		stderrRedirect = " 2>" + shellQuote(stderrPath)
 	}
 	// Start with XON/XOFF enabled so Ctrl+S journeys verify the application's raw mode.
 	script := "#!/bin/sh\nstty ixon\nexec env HOME=" + shellQuote(filepath.Join(e.root, "home")) +
@@ -608,7 +669,7 @@ func (e *evalSession) startAppWithBinary(binary, backend string, appArgs ...stri
 		" XDG_RUNTIME_DIR=" + shellQuote(filepath.Join(e.root, "xdg-runtime")) +
 		" PATH=" + shellQuote(e.clipboardBin+string(os.PathListSeparator)+os.Getenv("PATH")) +
 		" BYPASS_EVAL_CLIPBOARD=" + shellQuote(e.clipboardPath) +
-		" NO_COLOR= CLICOLOR_FORCE=1 TERM=xterm-256color LC_ALL=C.UTF-8 " + command + "\n"
+		" NO_COLOR= CLICOLOR_FORCE=1 TERM=xterm-256color LC_ALL=C.UTF-8 " + command + stderrRedirect + "\n"
 	if err := os.WriteFile(launcher, []byte(script), 0700); err != nil {
 		e.t.Fatal("write application launcher:", err)
 	}
@@ -913,6 +974,9 @@ func (e *evalSession) redact(s string) string {
 func (e *evalSession) failWithScreen(description, screen string) {
 	e.t.Helper()
 	redacted := e.redact(screen)
+	if stderr, err := os.ReadFile(filepath.Join(e.root, "app.stderr")); err == nil && len(stderr) > 0 {
+		redacted += "\n--- redacted app stderr ---\n" + e.redact(string(stderr))
+	}
 	artifact := ""
 	if dir := os.Getenv("BYPASS_EVAL_ARTIFACTS"); dir != "" {
 		if err := os.MkdirAll(dir, 0700); err == nil {
@@ -930,38 +994,3 @@ func tmuxEnv(_ string) []string {
 }
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'" }
-
-const fakeBackend = `#!/usr/bin/env python3
-import shlex
-import sys
-
-if sys.argv[1:] == ["--version"]:
-    print("keepassxc-cli 2.8.0")
-    sys.exit(0)
-if sys.argv[1:] == ["--help"]:
-    print("open  Open a vault\nls  List entries\nshow  Show an entry\ndb-info  Database information\nadd  Add an entry\nedit  Edit an entry\nmkdir  Create a group\nmv  Move an entry\nrm  Delete an entry\nrmdir  Delete a group\ngenerate  Generate a password\ndb-create  Create a vault\ndb-edit  Edit a vault")
-    sys.exit(0)
-if "--no-password" not in sys.argv and sys.stdin.readline().rstrip("\n") != "fixture-passphrase":
-    sys.exit(1)
-while True:
-    sys.stdout.write("fixture.kdbx> ")
-    sys.stdout.flush()
-    line = sys.stdin.readline()
-    if not line:
-        break
-    args = shlex.split(line)
-    if not args:
-        continue
-    if args[0] == "db-info":
-        print("UUID: {00000000-0000-0000-0000-000000000001}\nName: Eval Vault\nNumber of groups: 1\nNumber of entries: 1\nRecycle bin is disabled.")
-    elif args[0] == "ls":
-        print("Eval Entry")
-    elif args[0] == "show":
-        if "--totp" in args:
-            print("Entry has no TOTP set up.")
-            continue
-        field = args[args.index("-a") + 1]
-        print({"Uuid": "{00000000-0000-0000-0000-000000000002}", "UserName": "eval-user", "Password": "` + secretSentinel + `"}.get(field, ""))
-    else:
-        print("Unknown command " + args[0])
-`

@@ -39,14 +39,10 @@ func TestRunIdentityNotForwardedWithoutReferences(t *testing.T) {
 
 func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 	t.Parallel()
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Fatal(err)
-	}
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
-	e.startWith(backend, e.realDB)
+	createRealVault(e)
+	e.startWith(e.realDB)
 	e.mustShow("UNLOCK VAULT")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -59,7 +55,7 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 	if err := os.WriteFile(recipient, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
-	recipient, err = filepath.EvalSymlinks(recipient)
+	recipient, err := filepath.EvalSymlinks(recipient)
 	if err != nil {
 		t.Fatal(err)
 	}

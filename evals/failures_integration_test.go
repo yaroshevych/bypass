@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -22,10 +21,7 @@ func TestFailedWritesKeepVaultAndDraftAndAllowRetryTmux(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
+	backend := ""
 	for _, failure := range []string{"native-command", "backup", "file-permissions"} {
 		t.Run(failure, func(t *testing.T) {
 			if failure != "backup" {
@@ -33,7 +29,7 @@ func TestFailedWritesKeepVaultAndDraftAndAllowRetryTmux(t *testing.T) {
 			}
 			e := newEval(t)
 			defer e.close()
-			createRealVault(e, backend)
+			createRealVault(e)
 			initial := vaultFileHash(t, e.realDB)
 			appBackend := backend
 			var repair func()
@@ -78,7 +74,7 @@ func TestFailedWritesKeepVaultAndDraftAndAllowRetryTmux(t *testing.T) {
 					}
 				}
 			}
-			e.startWith(appBackend, e.realDB)
+			e.startWith(e.realDB)
 			e.mustShow("UNLOCK VAULT")
 			e.typeText(fixturePassword)
 			e.key("Enter")
@@ -107,14 +103,14 @@ func TestFailedWritesKeepVaultAndDraftAndAllowRetryTmux(t *testing.T) {
 			if vaultFileHash(t, e.realDB) != initial {
 				t.Fatal("failed write changed the original ciphertext")
 			}
-			assertNativeEntry(t, backend, e.realDB, "Seed Entry", fixtureEntryPassword)
+			assertNativeEntry(t, e.realDB, "Seed Entry", fixtureEntryPassword)
 			repair()
 			e.key("C-s")
 			e.waitForWithin(20*time.Second, "repaired save completed", func() bool {
 				screen := e.capture()
 				return strings.Contains(screen, "saved · backup created") && !strings.Contains(screen, "Generate Password")
 			})
-			assertNativeEntry(t, backend, e.realDB, "Seed Entry Draft", fixtureEntryPassword)
+			assertNativeEntry(t, e.realDB, "Seed Entry Draft", fixtureEntryPassword)
 			if vaultFileHash(t, e.realDB) == initial {
 				t.Fatal("repaired save did not change ciphertext")
 			}
@@ -130,14 +126,10 @@ func TestExternalChangeDraftCancelAndDiscardReloadTmux(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
-	e.startWith(backend, e.realDB)
+	createRealVault(e)
+	e.startWith(e.realDB)
 	e.mustShow("Unlock Vault")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -146,7 +138,7 @@ func TestExternalChangeDraftCancelAndDiscardReloadTmux(t *testing.T) {
 	e.mustShow("Edit Entry")
 	e.typeText(" Unsaved")
 	e.mustShow("Edit Entry *", "Seed Entry Unsaved")
-	addExternalEntry(e, backend)
+	addExternalEntry(e)
 	externalHash := vaultFileHash(t, e.realDB)
 	e.waitForWithin(8*time.Second, "external change prompt", func() bool { return strings.Contains(e.capture(), "Vault changed externally") })
 	e.key("Enter") // Keep the current draft.
@@ -169,7 +161,7 @@ func TestExternalChangeDraftCancelAndDiscardReloadTmux(t *testing.T) {
 	if vaultFileHash(t, e.realDB) != externalHash {
 		t.Fatal("reload changed ciphertext")
 	}
-	assertNativeEntry(t, backend, e.realDB, "Seed Entry", fixtureEntryPassword)
+	assertNativeEntry(t, e.realDB, "Seed Entry", fixtureEntryPassword)
 	e.key("q")
 	e.waitForCleanQuit()
 }
@@ -183,13 +175,13 @@ func vaultFileHash(t *testing.T, path string) [32]byte {
 	return sha256.Sum256(data)
 }
 
-func assertNativeEntry(t *testing.T, backend, path, title, password string) {
+func assertNativeEntry(t *testing.T, path, title, password string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	creds := vault.Credentials{Password: []byte(fixturePassword)}
 	defer creds.Clear()
-	db, err := vaulttest.NewCLI(backend).Open(ctx, path, creds)
+	db, err := vaulttest.NewBackend().Open(ctx, path, creds)
 	if err != nil {
 		t.Fatal("independent native reopen failed:", err)
 	}

@@ -111,7 +111,7 @@ func TestFailedDialogWritesShowInlineErrors(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"group", vault.ErrInteractiveSessionLost},
+		{"group", vault.ErrWrite},
 		{"destination", vault.ErrAmbiguous},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

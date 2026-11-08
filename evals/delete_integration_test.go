@@ -5,7 +5,8 @@ package evals
 import (
 	"bypass/internal/vaulttest"
 	"context"
-	"os/exec"
+	"fmt"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -19,15 +20,22 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
-	runCLI(e, backend, fixturePassword+"\n"+fixtureEntryPassword+"\n", "add", "-q", "--password-prompt", "--username", "survivor-user", e.realDB, "Survivor")
-	e.startWith(backend, e.realDB)
+	createRealVault(e)
+	creds := vault.Credentials{Password: []byte(fixturePassword)}
+	db, err := vaulttest.NewBackend().Open(context.Background(), e.realDB, creds)
+	if err != nil {
+		t.Fatal("open fixture vault:", err)
+	}
+	updated, err := vaulttest.NewBackend().Apply(context.Background(), db, creds, vault.Change{Kind: vault.AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Survivor", "UserName": "survivor-user"}, PasswordChanged: true, Password: []byte(fixtureEntryPassword)}, filepath.Join(e.root, "fixture-backups"))
+	db.Clear()
+	creds.Clear()
+	if err != nil {
+		t.Fatal("seed survivor entry:", err)
+	}
+	updated.Clear()
+	e.startWith(e.realDB)
 	e.mustShow("UNLOCK VAULT")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -51,13 +59,16 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	e.key("Enter")
 	e.mustShowWrite("saved · backup created")
 	e.key("Left")
-	for range 3 {
+	for range 2 {
 		e.key("Down")
 	}
 	e.key("Right")
 	e.mustShow("Bin", "Seed Entry")
 	recycledHash := vaultFileHash(t, e.realDB)
 	e.key("DC")
+	e.mustShow("INSPECT RECYCLE BIN")
+	e.key("Right")
+	e.key("Enter")
 	e.mustShow("DELETE PERMANENTLY", "Cancel", "permanently deletes")
 	e.key("Enter")
 	e.waitFor("permanent-delete cancel closes dialog", func() bool { return !strings.Contains(e.capture(), "DELETE") })
@@ -66,7 +77,7 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 		t.Fatal("default permanent-delete confirmation mutated the vault")
 	}
 	e.key("DC")
-	e.mustShow("DELETE")
+	e.mustShow("DELETE PERMANENTLY")
 	e.key("Right")
 	e.key("Enter")
 	e.waitForWithin(20*time.Second, "permanent entry deletion saved", func() bool {
@@ -104,14 +115,14 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	creds := vault.Credentials{Password: []byte(fixturePassword)}
-	defer creds.Clear()
-	db, err := vaulttest.NewCLI(backend).Open(ctx, e.realDB, creds)
+	readCreds := vault.Credentials{Password: []byte(fixturePassword)}
+	defer readCreds.Clear()
+	db, err = vaulttest.NewBackend().Open(ctx, e.realDB, readCreds)
 	if err != nil {
 		t.Fatal("reopen after deletions:", err)
 	}
 	defer db.Clear()
-	survived, groupRemains := false, false
+	survived, groupInBin := false, false
 	for _, entry := range db.Entries {
 		if entry.Get("Title") == "Seed Entry" {
 			t.Fatal("permanently deleted entry remains in native database")
@@ -121,12 +132,12 @@ func TestNativeDeleteCancelRecyclePermanentAndGroupTmux(t *testing.T) {
 		}
 	}
 	for _, group := range db.Groups {
-		if group.Name == "Temporary Group" {
-			groupRemains = true
+		if group.Name == "Temporary Group" && group.Recycled && group.ParentUUID == db.RecycleBinUUID {
+			groupInBin = true
 		}
 	}
-	if !survived || groupRemains {
-		t.Fatal("deletion altered an unrelated entry or left the selected group")
+	if !survived || !groupInBin {
+		e.failWithScreen(fmt.Sprintf("deletion outcome: survivor intact=%v, group recycled=%v", survived, groupInBin), e.capture())
 	}
 	e.key("q")
 	e.waitForCleanQuit()

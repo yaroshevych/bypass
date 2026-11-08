@@ -3,33 +3,38 @@
 package evals
 
 import (
-	"os"
-	"os/exec"
+	"context"
 	"path/filepath"
 	"regexp"
 	"testing"
+
+	"bypass/internal/vault"
+	"bypass/internal/vaulttest"
 )
 
 func TestNativeTOTPFieldRevealAndLockTmux(t *testing.T) {
 	t.Parallel()
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli required")
-	}
 	for _, appearance := range []string{"classic", "compact"} {
 		t.Run(appearance, func(t *testing.T) {
 			e := newEval(t)
 			defer e.close()
 			const seed = "JBSWY3DPEHPK3PXP"
 			e.registerSecret(seed)
-			xml := `<?xml version="1.0"?><KeePassFile><Meta><DatabaseName>Fixture</DatabaseName></Meta><Root><Group><UUID>AQEBAQEBAQEBAQEBAQEBAQ==</UUID><Name>Passwords</Name><Entry><UUID>AgICAgICAgICAgICAgICAg==</UUID><String><Key>Title</Key><Value>Authenticator</Value></String><String><Key>otp</Key><Value>otpauth://totp/Fixture?secret=` + seed + `</Value></String></Entry></Group></Root></KeePassFile>`
-			xmlPath := filepath.Join(e.root, "totp-fixture.xml")
-			if err := os.WriteFile(xmlPath, []byte(xml), 0600); err != nil {
-				t.Fatal(err)
+			creds := vault.Credentials{Password: []byte(fixturePassword)}
+			direct := vaulttest.NewBackend()
+			db, err := direct.Create(context.Background(), e.realDB, creds)
+			if err != nil {
+				t.Fatal("create TOTP fixture:", err)
 			}
-			runCLI(e, backend, fixturePassword+"\n"+fixturePassword+"\n", "import", "-q", "--set-password", "--decryption-time", "100", xmlPath, e.realDB)
+			updated, err := direct.Apply(context.Background(), db, creds, vault.Change{Kind: vault.AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Authenticator", "otp": "otpauth://totp/Fixture?secret=" + seed}}, filepath.Join(e.root, "fixture-backups"))
+			db.Clear()
+			creds.Clear()
+			if err != nil {
+				t.Fatal("seed TOTP fixture:", err)
+			}
+			updated.Clear()
 			e.writeConfig(map[string]any{"appearance": appearance})
-			e.startWith(backend, "--read-only", e.realDB)
+			e.startWith("--read-only", e.realDB)
 			e.mustShow("UNLOCK VAULT")
 			e.typeText(fixturePassword)
 			e.key("Enter")

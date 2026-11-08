@@ -98,9 +98,6 @@ func (m *Model) commands() []command {
 	if m.readOnly {
 		createReason = "Restart without --read-only to create a vault"
 	}
-	if reason := m.nativeReason("db-create"); reason != "" {
-		createReason = reason
-	}
 	add("new-vault", "File", "New Vault…", "", createReason, "", func() tea.Cmd { return m.leaveEditor(m.openCreateVault) })
 	add("open", "File", "Open Vault…", "", "", "", func() tea.Cmd { return m.leaveEditor(m.openPicker) })
 	add("quit", "App", "Quit bypass", "", "", "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit }) })
@@ -154,9 +151,6 @@ func (m *Model) commands() []command {
 	if !sessionInfo {
 		infoReason = "Database information unavailable from this backend"
 	}
-	if reason := m.nativeReason("db-info"); reason != "" {
-		infoReason = reason
-	}
 	add("database-info", "Vault", "Database Info…", "", infoReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.openDatabaseInfo() }) })
 	credentialsReason := writeReason
 	if _, ok := m.backend.(credentialChanger); !ok {
@@ -164,9 +158,6 @@ func (m *Model) commands() []command {
 	}
 	if s != nil && s.Credentials.YubiKey != "" {
 		credentialsReason = "Hardware-factor credential changes unsupported"
-	}
-	if reason := m.nativeReason("db-edit"); reason != "" {
-		credentialsReason = reason
 	}
 	add("credentials", "Vault", "Change Password…", "", credentialsReason, "", func() tea.Cmd { return m.leaveEditor(m.openCredentials) })
 	add("read-only", "Vault", readLabel, "", readOnlyReason, "", invoke(keyReadOnly))
@@ -187,9 +178,6 @@ func (m *Model) commands() []command {
 		return nil
 	})
 	deleteReason := writeReason
-	if reason := m.nativeReason("rm"); reason != "" {
-		deleteReason = reason
-	}
 	if deleteReason == "" && m.currentNav().kind != "group" && (m.selectedRow() == nil || !m.selectedRow().OpaqueGroup) {
 		deleteReason = needEntry
 	}
@@ -212,9 +200,6 @@ func (m *Model) commands() []command {
 	}
 	if entry != nil && len(entry.History) == 0 {
 		historyReason = "No history snapshots for this entry"
-	}
-	if reason := m.nativeReason("show"); reason != "" {
-		totpReason = reason
 	}
 	if showNonPasswordVaultSecurity {
 		add("totp", "Field", "TOTP…", "", totpReason, "", func() tea.Cmd { return m.leaveEditor(m.openTOTP) })

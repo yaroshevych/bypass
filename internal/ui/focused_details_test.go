@@ -1,9 +1,7 @@
 package ui
 
 import (
-	"bypass/internal/vaulttest"
 	"context"
-	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -14,7 +12,7 @@ import (
 )
 
 type delayedDetailsBackend struct {
-	*vault.InteractiveCLI
+	*vault.NativeBackend
 	slowEntry        string
 	started, release chan struct{}
 }
@@ -26,17 +24,14 @@ func (b *delayedDetailsBackend) EntryDetails(ctx context.Context, db *vault.Data
 		// Model a response already produced before cancellation was observed.
 		return []vault.Field{{Name: "Notes", Value: "late first notes"}}, nil
 	}
-	return b.InteractiveCLI.EntryDetails(ctx, db, id)
+	return b.NativeBackend.EntryDetails(ctx, db, id)
 }
 
-func TestInteractiveFocusedDetailsRejectLateSelectionAndLockResults(t *testing.T) {
-	if _, err := exec.LookPath("keepassxc-cli"); err != nil {
-		t.Skip("keepassxc-cli required")
-	}
+func TestVaultRuntimeFocusedDetailsRejectLateSelectionAndLockResults(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "focus.kdbx")
 	credentials := vault.Credentials{Password: []byte("synthetic focused details master")}
 	defer credentials.Clear()
-	native := vaulttest.NewCLI("")
+	native := vault.NewBackend()
 	seed, err := native.CreateWithOptions(context.Background(), path, credentials, vault.CreateOptions{DecryptionTimeMS: 100})
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +45,7 @@ func TestInteractiveFocusedDetailsRejectLateSelectionAndLockResults(t *testing.T
 		seed.Clear()
 		seed = updated
 	}
-	backend := &delayedDetailsBackend{InteractiveCLI: vault.NewInteractiveCLI(""), started: make(chan struct{}), release: make(chan struct{})}
+	backend := &delayedDetailsBackend{NativeBackend: vault.NewBackend(), started: make(chan struct{}), release: make(chan struct{})}
 	for _, entry := range seed.Entries {
 		if entry.Get("Title") == "First" {
 			backend.slowEntry = entry.UUID

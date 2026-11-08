@@ -22,14 +22,10 @@ func TestNativePasswordCopyAndExternalReplacementTmux(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
-	e.startWith(backend, "--clipboard-timeout=1s", e.realDB)
+	createRealVault(e)
+	e.startWith("--clipboard-timeout=1s", e.realDB)
 	e.mustShow("UNLOCK VAULT", "Password")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -43,44 +39,44 @@ func TestNativePasswordCopyAndExternalReplacementTmux(t *testing.T) {
 	e.key("Enter")
 	e.mustClipboardEqual([]byte(fixtureEntryPassword))
 	e.registerSecret(fixtureEntryPassword)
-	e.mustShow("password copied")
+	e.mustShow("password copied", "Clipboard clears in")
+	e.mustClipboardEqual(nil)
 	e.mustNotShow("Clipboard clears in")
 
 	const replacement = "EXTERNAL-CLIPBOARD-REPLACEMENT"
 	e.replaceClipboard([]byte(replacement))
 	e.mustClipboardEqual([]byte(replacement))
-	// Another copy must work immediately, without a native timeout or app timer.
+	// A later copy replaces that value and starts a fresh managed timeout.
 	e.key("J")
 	e.key("p")
 	e.key("C-p")
 	e.typeText("Copy")
 	e.key("Enter")
 	e.mustClipboardEqual([]byte(fixtureEntryPassword))
-	e.mustShow("password copied")
-	e.mustNotShow("Clipboard clears in")
+	e.mustShow("password copied", "Clipboard clears in")
 	e.replaceClipboard([]byte(replacement))
+	e.waitForWithin(3*time.Second, "clipboard timeout expires", func() bool {
+		return !strings.Contains(e.capture(), "Clipboard clears in")
+	})
+	e.mustClipboardEqual([]byte(replacement))
 	e.key("q")
 	e.waitForCleanQuit()
-	e.mustClipboardEqual([]byte(replacement))
 }
 
 func TestHistoryCopyRevealAndRemaskTmux(t *testing.T) {
 	t.Parallel()
 	t.Skip("History UI is hidden in beta; retain this test for re-enablement")
+	backend := ""
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
-	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
 	}
 	e := newEval(t)
 	defer e.close()
 	const historySecret = "HISTORY-SECRET-EVAL-ONLY"
 	e.registerSecret(historySecret)
-	runCLI(e, backend, fixturePassword+"\n"+fixturePassword+"\n", "db-create", "-q", "--set-password", "--decryption-time", "100", e.realDB)
-	runCLI(e, backend, fixturePassword+"\n"+historySecret+"\n", "add", "-q", "--password-prompt", "--username", "history-user", "--notes", "earlier synthetic note", e.realDB, "Earlier Entry")
-	runCLI(e, backend, fixturePassword+"\n"+secretSentinel+"\n", "edit", "-q", "--password-prompt", "--title", "History Entry", "--username", "current-user", e.realDB, "Earlier Entry")
+	runOracleCLI(e, backend, fixturePassword+"\n"+fixturePassword+"\n", "db-create", "-q", "--set-password", "--decryption-time", "100", e.realDB)
+	runOracleCLI(e, backend, fixturePassword+"\n"+historySecret+"\n", "add", "-q", "--password-prompt", "--username", "history-user", "--notes", "earlier synthetic note", e.realDB, "Earlier Entry")
+	runOracleCLI(e, backend, fixturePassword+"\n"+secretSentinel+"\n", "edit", "-q", "--password-prompt", "--title", "History Entry", "--username", "current-user", e.realDB, "Earlier Entry")
 	exportCmd := exec.Command(backend, "export", "-q", "-f", "xml", e.realDB)
 	exportCmd.Stdin = strings.NewReader(fixturePassword + "\n")
 	exportedXML, err := exportCmd.Output()
@@ -97,8 +93,8 @@ func TestHistoryCopyRevealAndRemaskTmux(t *testing.T) {
 	if err := os.WriteFile(xmlPath, []byte(xml), 0600); err != nil {
 		t.Fatal("write synthetic history fixture:", err)
 	}
-	runCLI(e, backend, fixturePassword+"\n"+fixturePassword+"\n", "import", "-q", "--set-password", "--decryption-time", "100", xmlPath, importedDB)
-	e.startWith(backend, importedDB)
+	runOracleCLI(e, backend, fixturePassword+"\n"+fixturePassword+"\n", "import", "-q", "--set-password", "--decryption-time", "100", xmlPath, importedDB)
+	e.startWith(importedDB)
 	e.mustShow("Unlock Vault")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -152,7 +148,6 @@ func TestTOTPClipboardAndRefreshUseControlledBackendTmux(t *testing.T) {
 		t.Fatal("write synthetic TOTP vault path:", err)
 	}
 	script := "#!/bin/sh\n" +
-		"if [ \"$1\" = \"--version\" ]; then printf '%s\\n' 'keepassxc-cli 2.8.0'; exit 0; fi\n" +
 		"if [ \"$1\" = \"show\" ]; then IFS= read -r password || true; [ \"$password\" = " + shellQuote(fixturePassword) + " ] || exit 1; if [ -f " + shellQuote(marker) + " ]; then printf '%s\\n' '222222'; else printf '%s\\n' '111111'; fi; exit 0; fi\n" +
 		"if [ \"$1\" = \"export\" ]; then IFS= read -r password || true; [ \"$password\" = " + shellQuote(fixturePassword) + " ] || exit 1; cat " + shellQuote(xmlPath) + "; exit 0; fi\n" +
 		"exit 1\n"
@@ -194,20 +189,16 @@ func TestKeyFileUnlockAndPasswordKeyFileRotationTmux(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
+	createRealVault(e)
 	keyFile := filepath.Join(e.root, "synthetic.key")
 	const keyMaterial = "synthetic key-file material for a temporary KeePass fixture"
 	e.registerSecret(keyMaterial)
 	if err := os.WriteFile(keyFile, []byte(keyMaterial), 0600); err != nil {
 		t.Fatal("write synthetic key file:", err)
 	}
-	e.startWith(backend, e.realDB)
+	e.startWith(e.realDB)
 	e.mustShow("Unlock Vault")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -238,7 +229,7 @@ func TestKeyFileUnlockAndPasswordKeyFileRotationTmux(t *testing.T) {
 	e.typeText(keyFile)
 	e.key("Enter")
 	e.mustShow("Seed Entry")
-	cli := vaulttest.NewCLI(backend)
+	cli := vaulttest.NewBackend()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	withoutKey, err := cli.Open(ctx, e.realDB, vault.Credentials{Password: []byte(fixtureWrongPassword)})
@@ -328,17 +319,13 @@ func TestReadOnlyBlocksHighImpactPaletteActionsTmux(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
+	createRealVault(e)
 	const attachment = "synthetic read-only attachment"
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	cli := vaulttest.NewCLI(backend)
+	cli := vaulttest.NewBackend()
 	db, err := cli.Open(ctx, e.realDB, vault.Credentials{Password: []byte(fixturePassword)})
 	if err != nil {
 		t.Fatalf("open synthetic readonly fixture for setup: %v", err)
@@ -354,7 +341,7 @@ func TestReadOnlyBlocksHighImpactPaletteActionsTmux(t *testing.T) {
 	if err != nil {
 		t.Fatal("record readonly fixture revision:", err)
 	}
-	e.startWith(backend, "--read-only", e.realDB)
+	e.startWith("--read-only", e.realDB)
 	e.mustShow("UNLOCK VAULT")
 	e.typeText(fixturePassword)
 	e.key("Enter")

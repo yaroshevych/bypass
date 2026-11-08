@@ -24,14 +24,23 @@ const (
 
 type CLI struct{ binary string }
 
-func NewCLI(binary string) *CLI {
+func NewOracleCLI(binary string) *CLI {
 	if strings.TrimSpace(binary) == "" {
 		binary = "keepassxc-cli"
 	}
 	return &CLI{binary: binary}
 }
 
+// Open uses the in-process backend. The configured CLI is reserved for the
+// explicit OracleOpen interoperability helper below.
 func (c *CLI) Open(ctx context.Context, path string, creds vault.Credentials) (*vault.Database, error) {
+	return vault.NewBackend().Open(ctx, path, creds)
+}
+
+// OracleOpen independently reads a KDBX file through KeePassXC's XML export.
+// It is intended only for interoperability checks that explicitly require an
+// independent implementation.
+func (c *CLI) OracleOpen(ctx context.Context, path string, creds vault.Credentials) (*vault.Database, error) {
 	if path == "" {
 		return nil, vault.ErrInvalidPath
 	}

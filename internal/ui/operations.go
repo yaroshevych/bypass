@@ -48,10 +48,6 @@ type copiedMsg struct {
 	expires time.Time
 	err     error
 }
-type nativeCopiedMsg struct {
-	id  uint64
-	err error
-}
 type resolvedCopyMsg struct {
 	id     uint64
 	label  string
@@ -161,7 +157,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		if e := m.selected(); e != nil {
-			if s.DB.Interactive() {
+			if s.DB.Unlocked() {
 				return m.prepareEditor(*e), true
 			}
 			m.startEditor(e, e.GroupUUID)
@@ -179,10 +175,6 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		m.dialog = &actionDialog{kind: "group", title: "New Group", sessionID: s.ID, groupUUID: group}
 		return nil, true
 	case keyDelete:
-		if reason := m.nativeReason("rm"); reason != "" {
-			m.setNotice(reason, true)
-			return nil, true
-		}
 		if !m.writable() {
 			return nil, true
 		}
@@ -462,11 +454,6 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			if msg.db != nil {
 				msg.db.Clear()
 			}
-			if errors.Is(msg.err, vault.ErrInteractiveSessionLost) {
-				if session := m.ws.Sessions[msg.sessionID]; session != nil {
-					session.ReadOnly = true
-				}
-			}
 			text := writeError(msg.err)
 			if m.editor != nil {
 				m.editor.err = text
@@ -631,16 +618,6 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		m.dialog.secret = append([]byte(nil), msg.value...)
 		m.dialog.err = ""
 		return nil, true
-	case nativeCopiedMsg:
-		if msg.id != m.clipGeneration {
-			return nil, true
-		}
-		if msg.err != nil {
-			m.setNotice("native password copy failed", true)
-			return nil, true
-		}
-		m.setNotice("password copied · clipboard will not clear automatically", true)
-		return nil, true
 	case copiedMsg:
 		if msg.id != m.clipGeneration {
 			return nil, true
@@ -730,14 +707,12 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 
 func writeError(err error) string {
 	switch {
-	case errors.Is(err, vault.ErrPartialWrite):
-		return "changes may be partial · backup retained · lock and unlock"
-	case errors.Is(err, vault.ErrInteractiveSessionLost):
-		return "session interrupted · changes may be partial · lock and unlock to check"
 	case errors.Is(err, vault.ErrExternalChanged):
 		return "file changed externally · reload before saving"
 	case errors.Is(err, vault.ErrAmbiguous):
 		return "can't select item · duplicate path"
+	case errors.Is(err, vault.ErrUnsupportedData):
+		return "vault has fields this version can't preserve · writes disabled"
 	case errors.Is(err, vault.ErrUnsupported):
 		return "unsupported change · check fields and item names"
 	case errors.Is(err, vault.ErrReadOnly):
@@ -827,15 +802,12 @@ func (m *Model) copyField(name string) tea.Cmd {
 	if name == "" {
 		name = m.focusedField()
 	}
-	if name == "Password" {
-		return m.copyNativePassword(e.UUID)
-	}
 	m.recordItemUse()
 	label := name
 	if label == "UserName" {
 		label = "Username"
 	}
-	if name == "TOTP" || strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Interactive() && name == "Notes" && !e.DetailsLoaded) {
+	if name == "Password" || name == "TOTP" || strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Unlocked() && name == "Notes" && !e.DetailsLoaded) {
 		resolver, ok := m.backend.(interface {
 			ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
 		})
@@ -865,37 +837,6 @@ func (m *Model) copyField(name string) tea.Cmd {
 		}
 	}
 	return m.copyValue([]byte(e.Get(name)), label)
-}
-
-func (m *Model) copyNativePassword(entryID string) tea.Cmd {
-	copier, ok := m.backend.(interface {
-		CopyPassword(context.Context, *vault.Database, string) error
-	})
-	if !ok {
-		m.setNotice("native password copy unavailable", true)
-		return nil
-	}
-	if m.clipCancel != nil {
-		m.clipCancel()
-	}
-	ctx, cancel := context.WithCancel(m.ctx)
-	m.clipCancel = cancel
-	m.clipGeneration++
-	id := m.clipGeneration
-	// The manager must not read back a native-copied password to check ownership.
-	m.clipboard.Forget()
-	m.recordItemUse()
-	db := m.ws.ActiveSession().DB.Clone()
-	m.clipboardExpires = time.Time{}
-	m.setNotice("copying password", false)
-	resources := newJobResources(ctx, db.Clear)
-	return func() tea.Msg {
-		if !resources.start() {
-			return nativeCopiedMsg{id: id, err: ctx.Err()}
-		}
-		defer resources.done()
-		return nativeCopiedMsg{id, copier.CopyPassword(ctx, db, entryID)}
-	}
 }
 
 func (m *Model) copyValue(value []byte, label string) tea.Cmd {
@@ -965,7 +906,7 @@ func (m *Model) toggleReveal() tea.Cmd {
 	m.revealEntry = e.UUID
 	m.revealField = name
 	m.revealSession = s.ID
-	if name == "TOTP" || strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Interactive() && (name == "Password" || (name == "Notes" && !e.DetailsLoaded))) {
+	if name == "TOTP" || strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Unlocked() && (name == "Password" || (name == "Notes" && !e.DetailsLoaded))) {
 		return m.requestRevealField()
 	}
 	wipebuf.Wipe(m.revealValue)
@@ -1034,7 +975,7 @@ func (m *Model) revealed(uuid, name string) bool {
 }
 
 func (m *Model) requestReload(id string) tea.Cmd {
-	if session := m.ws.Sessions[id]; session != nil && session.DB.Interactive() {
+	if session := m.ws.Sessions[id]; session != nil && session.DB.Unlocked() {
 		m.setNotice("lock and unlock to reload", true)
 		return nil
 	}
@@ -1168,7 +1109,7 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 			locked = true
 			continue
 		}
-		if !s.DB.Interactive() && m.ticks%2 == 0 && !m.checking[id] && !m.writing {
+		if !s.DB.Unlocked() && m.ticks%2 == 0 && !m.checking[id] && !m.writing {
 			m.checking[id] = true
 			path := s.Path
 			expected := s.DB.Revision

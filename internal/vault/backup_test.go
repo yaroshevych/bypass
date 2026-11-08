@@ -24,7 +24,7 @@ func TestBackupsKeepNewestFiveAcrossVaults(t *testing.T) {
 		if err := os.WriteFile(path, []byte(fmt.Sprint(index)), 0600); err != nil {
 			t.Fatal(err)
 		}
-		if err := backupInteractiveVault(path, directory); err != nil {
+		if err := backupVault(path, directory); err != nil {
 			t.Fatal(err)
 		}
 		entries, err := os.ReadDir(directory)
@@ -74,7 +74,7 @@ func TestBackupsKeepNewestFiveAcrossVaults(t *testing.T) {
 	if data, err := os.ReadFile(unrelated); err != nil || string(data) != "leave alone" {
 		t.Fatal("unrelated vault changed")
 	}
-	if err := backupInteractiveVault(filepath.Join(root, "missing"), directory); err == nil {
+	if err := backupVault(filepath.Join(root, "missing"), directory); err == nil {
 		t.Fatal("missing source accepted")
 	}
 	entries, err = os.ReadDir(directory)
@@ -93,7 +93,7 @@ func TestConcurrentBackupsRespectTotalLimit(t *testing.T) {
 	errors := make(chan error, 12)
 	for index := 0; index < cap(errors); index++ {
 		workers.Add(1)
-		go func() { defer workers.Done(); errors <- backupInteractiveVault(path, directory) }()
+		go func() { defer workers.Done(); errors <- backupVault(path, directory) }()
 	}
 	workers.Wait()
 	close(errors)

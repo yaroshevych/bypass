@@ -2,7 +2,7 @@
 
 ## Dependencies and checks
 
-- Go 1.24+, Make, and `keepassxc-cli` on `PATH`. The UI uses Bubble Tea and
+- Go 1.24+ and Make. The UI uses Bubble Tea and
   Lip Gloss; use the versions in `go.mod`.
 - `make build` builds `bin/bypass`; `make install` installs it.
 - Development recipes require `just`. End-to-end tests also require `tmux`.
@@ -11,7 +11,7 @@
 - Run `just eval` for changes to navigation, dialogs, input, or user journeys.
   Add focused regression tests for changed behavior.
 - Run `just verify` for vault writes, locking, credentials, clipboard, or async
-  operation changes. It includes native CLI and terminal integration tests.
+  operation changes. It includes runtime and terminal integration tests.
 - Before release, also run `just eval-repeat` and `just mutations`.
   See [test coverage](evals/COVERAGE.md) for scope and platform limits.
 - `just clean` stops project eval processes and removes generated binaries, artifacts,
@@ -24,16 +24,14 @@
   their existing packages. Keep I/O in commands; `View()` must not change state.
 - Preserve operation IDs and cancellation guards. Late results must not restore
   data after a lock. PIN protection covers the UI; full lock clears authentication.
-- The default backend opens the original vault in KeePassXC and sends native
-  commands over stdin. KeePassXC owns encryption, saving, and conflict handling.
-  Backups are plain copies of the encrypted file before an edit. Keep at most five
-  backups in total across vaults. Do not add custom
-  staging, publication, cryptographic validation, or XML export/import rewrites.
+- The default backend reads and writes KeePass vaults in process. Preserve the
+  original vault format and credentials. Backups are encrypted copies made before
+  edits. Keep at most five backups in total across vaults.
 - Never put passwords in process arguments, logs, notices, or test diagnostics.
   Use disposable vaults and the isolated clipboard for tests. Do not commit `.env`,
   vaults, credentials, or generated test artifacts.
-- Copy stored passwords with native `clip` and timeout `0`. Do not fetch plaintext
-  for copying or register native copies for clipboard cleanup.
+- Copy stored passwords through the managed system clipboard and configured
+  timeout. Keep copy feedback free of secret values.
 - Synchronize terminal tests on observable state with deadlines, not fixed sleeps.
   Check saved data and privacy boundaries, not only visible text.
 

@@ -3,21 +3,16 @@
 package evals
 
 import (
-	"os/exec"
 	"strings"
 	"testing"
 )
 
 func TestUnlockErrorWrapsInSmallTerminal(t *testing.T) {
 	t.Parallel()
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli unavailable")
-	}
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
-	e.startWith(backend, e.realDB)
+	createRealVault(e)
+	e.startWith(e.realDB)
 	e.mustShow("UNLOCK VAULT")
 	e.resize(48, 16)
 	e.typeText(fixtureWrongPassword)

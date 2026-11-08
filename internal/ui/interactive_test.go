@@ -1,9 +1,7 @@
 package ui
 
 import (
-	"bypass/internal/vaulttest"
 	"context"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,14 +11,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func TestInteractiveUnlockDropsCredentialsAndResolvesOnDemand(t *testing.T) {
-	if _, err := exec.LookPath("keepassxc-cli"); err != nil {
-		t.Skip("keepassxc-cli required")
-	}
+func TestVaultRuntimeUnlockDropsCredentialsAndResolvesOnDemand(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "session.kdbx")
 	master := []byte("synthetic UI master password")
 	defer clear(master)
-	native := vaulttest.NewCLI("")
+	native := vault.NewBackend()
 	seed, err := native.CreateWithOptions(context.Background(), path, vault.Credentials{Password: master}, vault.CreateOptions{DecryptionTimeMS: 100})
 	if err != nil {
 		t.Fatal(err)
@@ -31,7 +26,7 @@ func TestInteractiveUnlockDropsCredentialsAndResolvesOnDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer populated.Clear()
-	m := New(Options{Backend: vault.NewInteractiveCLI(""), InitialPath: path, ReadOnly: true, Settings: platform.Settings{BackupDir: t.TempDir()}})
+	m := New(Options{Backend: native, InitialPath: path, ReadOnly: true, Settings: platform.Settings{BackupDir: t.TempDir()}})
 	defer m.Close()
 	m.width, m.height = 120, 35
 	m.inputs[0].set(string(master))
@@ -48,8 +43,8 @@ func TestInteractiveUnlockDropsCredentialsAndResolvesOnDemand(t *testing.T) {
 	}
 	_, detailCmd := m.Update(msg)
 	session := m.ws.ActiveSession()
-	if session == nil || !session.DB.Interactive() || len(session.Credentials.Password) != 0 {
-		t.Fatal("workspace retained credentials or lost interactive session")
+	if session == nil || !session.DB.Unlocked() || len(session.Credentials.Password) != 0 {
+		t.Fatal("workspace retained credentials or lost unlocked vault state")
 	}
 	if detailCmd == nil {
 		t.Fatal("focused item did not request details")
@@ -82,11 +77,14 @@ func TestInteractiveUnlockDropsCredentialsAndResolvesOnDemand(t *testing.T) {
 	}
 	cmd = m.toggleReveal()
 	if cmd == nil {
-		t.Fatal("reveal did not resolve through CLI")
+		t.Fatal("reveal did not resolve through the vault runtime")
 	}
 	resolved := cmd().(resolvedRevealMsg)
 	defer clear(resolved.value)
-	if resolved.err != nil || string(resolved.value) != "synthetic UI entry password" {
+	if resolved.err != nil {
+		t.Fatalf("on-demand password resolution returned an error: %v", resolved.err)
+	}
+	if string(resolved.value) != "synthetic UI entry password" {
 		t.Fatal("on-demand password resolution failed")
 	}
 	m.operationKey(key("r"))

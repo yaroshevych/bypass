@@ -73,8 +73,8 @@ bypass run [--identity NAME-SECRET] [--env-file FILE]... [--timeout DURATION] --
 | `ARGS...` | Arguments passed to the executable, including its own flags. | None. |
 | `--help`, `-h` | Show run help and exit. | — |
 
-Startup options such as `--backend` and `--read-only` belong to the TUI command,
-not to `bypass run`. Put run options before `--` and command arguments after it.
+The `--read-only` option belongs to the TUI command, not to `bypass run`. Put
+run options before `--` and command arguments after it.
 
 An identity is a readable name of 1–64 ASCII letters, digits, spaces, `_`,
 `.` or `-`, followed by `-` and 32–64 hexadecimal characters. Use a unique
@@ -334,11 +334,9 @@ welcome screen. With a path, it opens the vault's unlock screen.
 | Argument | Description | Default |
 | --- | --- | --- |
 | `VAULT` | Vault file to open. | None. |
-| `--backend EXECUTABLE` | KeePassXC CLI executable to use. | `keepassxc-cli`. |
 | `--read-only` | Open vaults read only. Session and one-time approvals remain available. | Disabled. |
 | `--idle-timeout DURATION` | Vault lock timeout without a PIN. Explicit nonzero values must be between `1s` and `24h`. | Configuration, otherwise `15m`. |
 | `--clipboard-timeout DURATION` | Clipboard timeout. Explicit nonzero values must be between `1s` and `10m`. | Configuration, otherwise `10s`. |
-| `--log-file FILE` | Write private vault-open diagnostics to a file with mode `0600`. | No diagnostic file. |
 | `--version` | Print the application version and exit. | — |
 | `--help`, `-h` | Show startup help and exit. | — |
 
@@ -348,7 +346,6 @@ does not disable the timeout. These flags do not change the run approval timeout
 ```sh
 bypass --read-only work.kdbx
 bypass --idle-timeout 30m --clipboard-timeout 20s work.kdbx
-bypass --backend /opt/keepassxc/bin/keepassxc-cli work.kdbx
 ```
 
 ## Troubleshooting

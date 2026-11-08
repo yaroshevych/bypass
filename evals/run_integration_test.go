@@ -27,14 +27,10 @@ func TestSecondSessionWarnsApprovalsUnavailable(t *testing.T) {
 
 func TestRunApprovalAndDenialTmux(t *testing.T) {
 	t.Parallel()
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Fatal(err)
-	}
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
-	e.startWith(backend, e.realDB)
+	createRealVault(e)
+	e.startWith(e.realDB)
 	e.mustShow("UNLOCK VAULT")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -81,6 +77,10 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 	e.mustShow("secret request pending")
 	e.mustShow("REVIEW REQUEST")
 	e.key("d")
+	e.waitFor("denial closes review request", func() bool {
+		screen := e.capture()
+		return !strings.Contains(screen, "REVIEW REQUEST") && !strings.Contains(screen, "Deny all")
+	})
 	if err := cmd.Wait(); err == nil {
 		t.Fatal("denied child ran")
 	}
@@ -111,17 +111,13 @@ func TestRunApprovalAndDenialTmux(t *testing.T) {
 
 func TestRunIdentityGrantAndTimeoutTmux(t *testing.T) {
 	t.Parallel()
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Fatal(err)
-	}
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
+	createRealVault(e)
 	if err := os.Symlink(appBinary, filepath.Join(e.pickerRoot, "bypass")); err != nil {
 		t.Fatal(err)
 	}
-	e.startAppWithBinary("./bypass", backend, e.realDB)
+	e.startAppWithBinary("./bypass", e.realDB)
 	e.mustShow("UNLOCK VAULT")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -223,13 +219,9 @@ func TestRunIdentityGrantAndTimeoutTmux(t *testing.T) {
 
 func TestRunMultiVaultSelectionTmux(t *testing.T) {
 	t.Parallel()
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Fatal(err)
-	}
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
+	createRealVault(e)
 	encrypted, err := os.ReadFile(e.realDB)
 	if err != nil {
 		t.Fatal(err)
@@ -237,7 +229,7 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 	if err := os.WriteFile(e.db2, encrypted, 0600); err != nil {
 		t.Fatal(err)
 	}
-	e.startWith(backend, e.realDB)
+	e.startWith(e.realDB)
 	e.mustShow("UNLOCK VAULT")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -248,7 +240,7 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 	e.mustShow("Seed Entry")
 	e.mustActiveVault("second.kdbx")
 	e.key("[")
-	e.mustActiveVault("real-cli.kdbx")
+	e.mustActiveVault("seed-vault.kdbx")
 	e.key("]")
 	e.mustActiveVault("second.kdbx")
 	shell, err := filepath.EvalSymlinks("/bin/sh")
@@ -270,7 +262,7 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 		}
 		return cmd, out
 	}
-	cmd, out := launch([]string{"ONE=bypass://Seed Entry", "TWO=bypass://real-cli.kdbx/Seed Entry"})
+	cmd, out := launch([]string{"ONE=bypass://Seed Entry", "TWO=bypass://seed-vault.kdbx/Seed Entry"})
 	e.mustShow("secret request pending")
 	e.mustShow("Select entry with up/down")
 	e.key("Tab")
@@ -285,7 +277,7 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 	}
 	e.key("Escape")
 	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "Deny all") })
-	cmd, out = launch([]string{"ONE=bypass://second.kdbx/Seed Entry", "TWO=bypass://real-cli.kdbx/Seed Entry"})
+	cmd, out = launch([]string{"ONE=bypass://second.kdbx/Seed Entry", "TWO=bypass://seed-vault.kdbx/Seed Entry"})
 	e.mustShow("secret request pending")
 	e.mustShow("REVIEW REQUEST")
 	e.key("a")
@@ -299,14 +291,10 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 
 func TestRunChildSurvivesVaultLockAndTUIClose(t *testing.T) {
 	t.Parallel()
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Fatal(err)
-	}
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
-	e.startWith(backend, e.realDB)
+	createRealVault(e)
+	e.startWith(e.realDB)
 	e.mustShow("UNLOCK VAULT")
 	e.typeText(fixturePassword)
 	e.key("Enter")

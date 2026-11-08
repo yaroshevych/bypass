@@ -5,7 +5,6 @@ package evals
 import (
 	"bypass/internal/vaulttest"
 	"context"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -22,20 +21,16 @@ func TestWorkspaceNativeViewsDraftsAndSessionLocks(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
 	e := newEval(t)
 	defer e.close()
 	e.registerSecret(secondVaultPassword)
 
 	firstDB := filepath.Join(e.root, "workspace-first.kdbx")
 	secondDB := filepath.Join(e.root, "workspace-second.kdbx")
-	createWorkspaceVault(e, backend, firstDB, fixturePassword, "First Native Entry", "first-user", fixtureEntryPassword)
-	createWorkspaceVault(e, backend, secondDB, secondVaultPassword, "Second Native Entry", "second-user", fixtureWrongPassword)
+	createWorkspaceVault(e, firstDB, fixturePassword, "First Native Entry", "first-user", fixtureEntryPassword)
+	createWorkspaceVault(e, secondDB, secondVaultPassword, "Second Native Entry", "second-user", fixtureWrongPassword)
 
-	e.startWith(backend)
+	e.startWith()
 	e.mustShow("bypass", "VAULTS", "Open")
 	openWorkspaceVault(e, firstDB, fixturePassword)
 	e.mustShow("First Native Entry")
@@ -196,15 +191,11 @@ func TestWorkspaceTinyResizePreservesNativeDraftAndGuardsInput(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
 	e := newEval(t)
 	defer e.close()
 	e.registerSecret(fixtureEntryPassword)
-	createWorkspaceVault(e, backend, e.realDB, fixturePassword, "Tiny Seed Entry", "tiny-user", fixtureEntryPassword)
-	e.startWith(backend, e.realDB)
+	createWorkspaceVault(e, e.realDB, fixturePassword, "Tiny Seed Entry", "tiny-user", fixtureEntryPassword)
+	e.startWith(e.realDB)
 	e.mustShow("UNLOCK VAULT")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -240,7 +231,7 @@ func TestWorkspaceTinyResizePreservesNativeDraftAndGuardsInput(t *testing.T) {
 	defer cancel()
 	creds := vault.Credentials{Password: []byte(fixturePassword)}
 	defer creds.Clear()
-	db, err := vaulttest.NewCLI(backend).Open(ctx, e.realDB, creds)
+	db, err := vaulttest.NewBackend().Open(ctx, e.realDB, creds)
 	if err != nil {
 		t.Fatal("open temporary native vault for draft verification:", err)
 	}
@@ -263,12 +254,23 @@ func TestWorkspaceTinyResizePreservesNativeDraftAndGuardsInput(t *testing.T) {
 	}
 }
 
-func createWorkspaceVault(e *evalSession, backend, path, masterPassword, title, username, entryPassword string) {
+func createWorkspaceVault(e *evalSession, path, masterPassword, title, username, entryPassword string) {
 	e.t.Helper()
 	e.registerSecret(masterPassword)
 	e.registerSecret(entryPassword)
-	runCLI(e, backend, masterPassword+"\n"+masterPassword+"\n", "db-create", "-q", "--set-password", "--decryption-time", "100", path)
-	runCLI(e, backend, masterPassword+"\n"+entryPassword+"\n", "add", "-q", "--username", username, "--notes", "synthetic workspace note", "--password-prompt", path, title)
+	creds := vault.Credentials{Password: []byte(masterPassword)}
+	defer creds.Clear()
+	fixture := vaulttest.NewBackend()
+	db, err := fixture.Create(context.Background(), path, creds)
+	if err != nil {
+		e.t.Fatal("create workspace fixture:", err)
+	}
+	updated, err := fixture.Apply(context.Background(), db, creds, vault.Change{Kind: vault.AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": title, "UserName": username, "Notes": "synthetic workspace note"}, PasswordChanged: true, Password: []byte(entryPassword)}, filepath.Join(e.root, "fixture-backups"))
+	db.Clear()
+	if err != nil {
+		e.t.Fatal("seed workspace fixture:", err)
+	}
+	updated.Clear()
 }
 
 func openWorkspaceVault(e *evalSession, path, password string) {

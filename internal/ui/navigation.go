@@ -296,7 +296,7 @@ func (m *Model) filterEntries(nav navItem, query string) []vault.Entry {
 	byID := map[string]vault.Entry{}
 	for _, e := range entries {
 		get := func(name string) string {
-			if e.IsProtected(name) || name == "Password" || (s.DB.Interactive() && name == "Notes") {
+			if e.IsProtected(name) || name == "Password" || (s.DB.Unlocked() && name == "Notes") {
 				return ""
 			}
 			return e.Get(name)

@@ -13,7 +13,7 @@ import time
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURE = re.compile(r"/bypass-tmux-eval-")
 BUILD = re.compile(r"/bypass-evals-build-[^/]+/bypass(?: |$)")
-TEMP_PREFIXES = ("bypass-readback-", "bypass-tmux-eval-", "bypass-evals-build-")
+TEMP_PREFIXES = ("bypass-tmux-eval-", "bypass-evals-build-")
 
 
 def processes():
@@ -33,7 +33,7 @@ def fixture_process(command):
         return True
     if BUILD.search(executable):
         return True
-    return name == "keepassxc-cli" and bool(FIXTURE.search(command))
+    return False
 
 
 def project_cwd(pid):

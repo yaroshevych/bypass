@@ -32,9 +32,6 @@ func run() error {
 	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
 		return fmt.Errorf("run from the Bypass Go module root")
 	}
-	if _, err := exec.LookPath("keepassxc-cli"); err != nil {
-		return fmt.Errorf("mutation checks require keepassxc-cli, including the native backup-failure check")
-	}
 	checks := []mutation{
 		{name: "clipboard ownership", file: "internal/clipboard/manager.go", before: "if !bytes.Equal(current, m.owned) {", after: "if false && !bytes.Equal(current, m.owned) {", pkg: "./internal/clipboard", test: "^TestClearPreservesClipboardWhenAnotherAppReplacesValue$", failure: "TestClearPreservesClipboardWhenAnotherAppReplacesValue"},
 		{name: "read-only writes", file: "internal/ui/operations.go", before: "if s.ReadOnly {", after: "if false && s.ReadOnly {", pkg: "./internal/ui", test: "^TestReadOnlyAndStaleWritesBlocked$", failure: "TestReadOnlyAndStaleWritesBlocked"},

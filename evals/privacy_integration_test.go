@@ -6,7 +6,6 @@ import (
 	"bypass/internal/vaulttest"
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -21,13 +20,10 @@ func TestPINMasksNativeSaveAndFullLockCancelsNextSaveTmux(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
+	backend := ""
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
+	createRealVault(e)
 	started, release := filepath.Join(e.root, "edit-started"), filepath.Join(e.root, "edit-release")
 	wrapper := filepath.Join(e.root, "controlled-edit-cli")
 	script := "#!/bin/sh\nset -eu\numask 077\nif [ \"$1\" = edit ]; then\n  : > " + shellQuote(started) + "\n  while [ ! -f " + shellQuote(release) + " ]; do sleep 0.02; done\nfi\nexec " + shellQuote(backend) + " \"$@\"\n"
@@ -60,7 +56,7 @@ func TestPINMasksNativeSaveAndFullLockCancelsNextSaveTmux(t *testing.T) {
 	e.key("P")
 	e.mustShow("Screen protected")
 	e.mustNotShow("Seed Entry")
-	e.mustNotShow("real-cli.kdbx")
+	e.mustNotShow("seed-vault.kdbx")
 	e.mustClipboardEqual(nil)
 	if vaultFileHash(t, e.realDB) != initial {
 		t.Fatal("controlled save committed before release")
@@ -73,7 +69,7 @@ func TestPINMasksNativeSaveAndFullLockCancelsNextSaveTmux(t *testing.T) {
 		defer cancel()
 		creds := vault.Credentials{Password: []byte(fixturePassword)}
 		defer creds.Clear()
-		db, err := vaulttest.NewCLI(backend).Open(ctx, e.realDB, creds)
+		db, err := vaulttest.NewBackend().Open(ctx, e.realDB, creds)
 		if err != nil {
 			return false
 		}
@@ -110,7 +106,7 @@ func TestPINMasksNativeSaveAndFullLockCancelsNextSaveTmux(t *testing.T) {
 	if vaultFileHash(t, e.realDB) != committed {
 		t.Fatal("full lock allowed the stalled save to change ciphertext")
 	}
-	assertNativeEntry(t, backend, e.realDB, "Seed Entry Protected", fixtureEntryPassword)
+	assertNativeEntry(t, e.realDB, "Seed Entry Protected", fixtureEntryPassword)
 	e.mustClipboardEqual(nil)
 	e.key("q")
 	e.waitForCleanQuit()

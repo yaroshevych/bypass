@@ -6,7 +6,6 @@ import (
 	"bypass/internal/vault"
 	"bypass/internal/vaulttest"
 	"context"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -16,18 +15,14 @@ import (
 
 func TestInteractiveBackendTmuxBrowseRevealAndLock(t *testing.T) {
 	t.Parallel()
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli required")
-	}
 	for _, appearance := range []string{"classic", "compact"} {
 		t.Run(appearance, func(t *testing.T) {
 			e := newEval(t)
 			defer e.close()
 			e.secrets = append(e.secrets, fixtureEntryPassword)
-			createRealVault(e, backend)
+			createRealVault(e)
 			e.writeConfig(map[string]any{"appearance": appearance})
-			e.startWith(backend, "--read-only", e.realDB)
+			e.startWith("--read-only", e.realDB)
 			e.mustShow("UNLOCK VAULT")
 			e.typeText(fixturePassword)
 			e.key("Enter")
@@ -71,10 +66,6 @@ func TestInteractiveBackendTmuxBrowseRevealAndLock(t *testing.T) {
 
 func TestInteractiveBackendTmuxEditCreateAndReopen(t *testing.T) {
 	t.Parallel()
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli required")
-	}
 	for _, appearance := range []string{"classic", "compact"} {
 		t.Run(appearance, func(t *testing.T) {
 			e := newEval(t)
@@ -84,10 +75,10 @@ func TestInteractiveBackendTmuxEditCreateAndReopen(t *testing.T) {
 			e.registerSecret(changedPassword)
 			e.registerSecret(createdPassword)
 			e.registerSecret(fixtureEntryPassword)
-			createRealVault(e, backend)
+			createRealVault(e)
 			e.writeConfig(map[string]any{"appearance": appearance})
 			originalHash := vaultFileHash(t, e.realDB)
-			e.startWith(backend, e.realDB)
+			e.startWith(e.realDB)
 			e.mustShow("UNLOCK VAULT")
 			e.typeText(fixturePassword)
 			e.key("Enter")
@@ -157,6 +148,8 @@ func TestInteractiveBackendTmuxEditCreateAndReopen(t *testing.T) {
 			e.waitForCleanQuit()
 			assertInteractiveFields(t, e.realDB, "Edited Seed", map[string]string{"Password": changedPassword})
 			backups, err := filepath.Glob(filepath.Join(e.root, "xdg-state", "bypass", "backups", "*.kdbx"))
+			// Fixture setup writes to a separate directory; the app creates one
+			// backup for deletion and one for credential rotation.
 			if err != nil || len(backups) != 2 {
 				t.Fatal("encrypted backups missing")
 			}
@@ -177,7 +170,7 @@ func assertInteractiveFields(t *testing.T, path, title string, want map[string]s
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	db, err := vaulttest.NewCLI("").Open(ctx, path, vault.Credentials{Password: []byte(fixturePassword)})
+	db, err := vaulttest.NewBackend().Open(ctx, path, vault.Credentials{Password: []byte(fixturePassword)})
 	if err != nil {
 		t.Fatal("independent saved-vault reopen failed", err)
 	}
@@ -198,19 +191,15 @@ func assertInteractiveFields(t *testing.T, path, title string, want map[string]s
 
 func TestInteractiveBackendTmuxInfoDeletePasswordAndSearchShortcut(t *testing.T) {
 	t.Parallel()
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli required")
-	}
 	for _, appearance := range []string{"classic", "compact"} {
 		t.Run(appearance, func(t *testing.T) {
 			e := newEval(t)
 			defer e.close()
 			const newPassword = "interactive-new-master-password"
 			e.registerSecret(newPassword)
-			createRealVault(e, backend)
+			createRealVault(e)
 			e.writeConfig(map[string]any{"appearance": appearance})
-			e.startWith(backend, e.realDB)
+			e.startWith(e.realDB)
 			e.mustShow("UNLOCK VAULT")
 			e.typeText(fixturePassword)
 			e.key("Enter")
@@ -248,7 +237,7 @@ func TestInteractiveBackendTmuxInfoDeletePasswordAndSearchShortcut(t *testing.T)
 				return strings.Contains(s, "saved · backup created") && !strings.Contains(s, "KeePassXC moves")
 			})
 			old := vault.Credentials{Password: []byte(fixturePassword)}
-			db, err := vaulttest.NewCLI(backend).Open(context.Background(), e.realDB, old)
+			db, err := vaulttest.NewBackend().Open(context.Background(), e.realDB, old)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -271,12 +260,12 @@ func TestInteractiveBackendTmuxInfoDeletePasswordAndSearchShortcut(t *testing.T)
 			e.key("Enter")
 			e.mustShow("credentials changed · backup created")
 			newCreds := vault.Credentials{Password: []byte(newPassword)}
-			db, err = vaulttest.NewCLI(backend).Open(context.Background(), e.realDB, newCreds)
+			db, err = vaulttest.NewBackend().Open(context.Background(), e.realDB, newCreds)
 			if err != nil {
 				t.Fatal("new password cannot reopen UI-saved vault", err)
 			}
 			db.Clear()
-			if opened, err := vaulttest.NewCLI(backend).Open(context.Background(), e.realDB, old); err == nil {
+			if opened, err := vaulttest.NewBackend().Open(context.Background(), e.realDB, old); err == nil {
 				opened.Clear()
 				t.Fatal("old password still opens vault")
 			}
@@ -287,16 +276,16 @@ func TestInteractiveBackendTmuxInfoDeletePasswordAndSearchShortcut(t *testing.T)
 			e.typeText(newPassword)
 			e.key("Enter")
 			e.waitFor("vault unlocked with changed password", func() bool {
-				return !strings.Contains(e.capture(), "UNLOCK VAULT") && strings.Contains(e.capture(), "real-cli.kdbx")
+				return !strings.Contains(e.capture(), "UNLOCK VAULT") && strings.Contains(e.capture(), "seed-vault.kdbx")
 			})
 			e.key("q")
 			e.waitForCleanQuit()
 			backups, err := filepath.Glob(filepath.Join(e.root, "xdg-state", "bypass", "backups", "*.kdbx"))
-			if err != nil || len(backups) != 3 {
-				t.Fatalf("expected three delete/password-change backups, got %d: %v", len(backups), err)
+			if err != nil || len(backups) != 2 {
+				t.Fatalf("expected delete and password-change backups, got %d (%v): %v", len(backups), backups, err)
 			}
 			for _, path := range backups {
-				db, err := vaulttest.NewCLI(backend).Open(context.Background(), path, old)
+				db, err := vaulttest.NewBackend().Open(context.Background(), path, old)
 				if err != nil {
 					t.Fatal("old password cannot open backup", err)
 				}

@@ -101,7 +101,7 @@ func (m *Model) secretRunes(k tea.KeyMsg) bool {
 			defer wipebuf.Wipe(runes)
 			for _, r := range runes {
 				if r == '\n' || r == '\r' || r == 0 {
-					m.err = "Password cannot contain line breaks; CLI transport does not support them."
+					m.err = "Password cannot contain line breaks."
 					return true
 				}
 			}

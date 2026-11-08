@@ -3,14 +3,14 @@
 Run from the Go module root:
 
 ```sh
-just verify       # format, vet, race tests, native CLI and tmux journeys
+just verify       # format, vet, race tests, direct-backend and tmux journeys
 just eval-repeat  # run active terminal journeys twice
 just mutations    # deliberately broken guards must fail their tests
 just coverage     # statement report for application packages
 ```
 
-`verify` requires tmux and `keepassxc-cli`. Native runtime checked locally:
-KeePassXC CLI 2.8.0 on macOS. Other versions and platforms need their own runs.
+`verify` requires tmux. Integration fixtures and application journeys use the
+in-process backend. KeePassXC interoperability checks are optional oracle checks.
 
 ## Active checks
 

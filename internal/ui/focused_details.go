@@ -30,7 +30,7 @@ func (m *Model) cancelFocusedDetails() {
 
 func (m *Model) loadFocusedDetails() tea.Cmd {
 	session := m.ws.ActiveSession()
-	if session == nil || session.DB == nil || !session.DB.Interactive() || m.screen != browse || m.gate.Protected() || m.editor != nil || m.writing {
+	if session == nil || session.DB == nil || !session.DB.Unlocked() || m.screen != browse || m.gate.Protected() || m.editor != nil || m.writing {
 		m.cancelFocusedDetails()
 		return nil
 	}

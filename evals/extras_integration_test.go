@@ -23,10 +23,7 @@ func TestMilestone4EntryExtrasNativeTmux(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
+	backend := ""
 	e := newEval(t)
 	defer e.close()
 	const seed = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
@@ -34,9 +31,9 @@ func TestMilestone4EntryExtrasNativeTmux(t *testing.T) {
 	e.registerSecret(seed)
 	e.registerSecret(historySecret)
 	sourceVault := filepath.Join(e.root, "extras-source.kdbx")
-	runCLI(e, backend, fixturePassword+"\n"+fixturePassword+"\n", "db-create", "-q", "--set-password", "--decryption-time", "100", sourceVault)
-	runCLI(e, backend, fixturePassword+"\n"+historySecret+"\n", "add", "-q", "--password-prompt", "--username", "old-user", "--notes", "Earlier notes\nSecond note line", sourceVault, "Earlier Entry")
-	runCLI(e, backend, fixturePassword+"\n"+secretSentinel+"\n", "edit", "-q", "--password-prompt", "--title", "Extras Entry", "--username", "extras-user", sourceVault, "Earlier Entry")
+	runOracleCLI(e, backend, fixturePassword+"\n"+fixturePassword+"\n", "db-create", "-q", "--set-password", "--decryption-time", "100", sourceVault)
+	runOracleCLI(e, backend, fixturePassword+"\n"+historySecret+"\n", "add", "-q", "--password-prompt", "--username", "old-user", "--notes", "Earlier notes\nSecond note line", sourceVault, "Earlier Entry")
+	runOracleCLI(e, backend, fixturePassword+"\n"+secretSentinel+"\n", "edit", "-q", "--password-prompt", "--title", "Extras Entry", "--username", "extras-user", sourceVault, "Earlier Entry")
 	exportCmd := exec.Command(backend, "export", "-q", "-f", "xml", sourceVault)
 	exportCmd.Stdin = strings.NewReader(fixturePassword + "\n")
 	exportedXML, err := exportCmd.Output()
@@ -52,8 +49,8 @@ func TestMilestone4EntryExtrasNativeTmux(t *testing.T) {
 	if err := os.WriteFile(xmlPath, []byte(xml), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	runCLI(e, backend, fixturePassword+"\n"+fixturePassword+"\n", "import", "-q", "--set-password", "--decryption-time", "100", xmlPath, e.realDB)
-	e.startWith(backend, e.realDB)
+	runOracleCLI(e, backend, fixturePassword+"\n"+fixturePassword+"\n", "import", "-q", "--set-password", "--decryption-time", "100", xmlPath, e.realDB)
+	e.startWith(e.realDB)
 	e.mustShow("Unlock Vault")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -152,7 +149,7 @@ func TestMilestone4EntryExtrasNativeTmux(t *testing.T) {
 	e.key("Enter")
 	savedToWorkspace()
 
-	cli := vaulttest.NewCLI(backend)
+	cli := vaulttest.NewBackend()
 	creds := vault.Credentials{Password: []byte(fixturePassword)}
 	defer creds.Clear()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

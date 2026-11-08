@@ -13,6 +13,7 @@ func TestTabPlusAndHoverThroughTerminalMouse(t *testing.T) {
 	t.Parallel()
 	e := newEval(t)
 	defer e.close()
+	createEvalVaults(e, e.db1)
 	e.writeConfig(map[string]any{"appearance": "compact"})
 	e.start()
 	e.openPathBySelection()

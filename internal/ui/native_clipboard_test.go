@@ -1,60 +1,74 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"testing"
-	"time"
 
 	"bypass/internal/clipboard"
 	"bypass/internal/vault"
 )
 
-type nativeCopyBackend struct {
-	*operationBackend
-	entries []string
+type observedClipboard struct {
+	value  []byte
+	writes int
+	reads  int
 }
 
-func (b *nativeCopyBackend) CopyPassword(_ context.Context, _ *vault.Database, entry string) error {
-	b.entries = append(b.entries, entry)
+func (c *observedClipboard) Read(context.Context) ([]byte, error) {
+	c.reads++
+	return bytes.Clone(c.value), nil
+}
+func (c *observedClipboard) Write(_ context.Context, value []byte) error {
+	c.writes++
+	c.value = bytes.Clone(value)
 	return nil
 }
 
-type observedClipboard struct{ reads, writes int }
-
-func (c *observedClipboard) Read(context.Context) ([]byte, error) { c.reads++; return nil, nil }
-func (c *observedClipboard) Write(context.Context, []byte) error  { c.writes++; return nil }
-
-func TestNativePasswordCopiesFollowSelectionWithoutReadingOrClearingClipboard(t *testing.T) {
-	m, backend := operationModel(t)
-	native := &nativeCopyBackend{operationBackend: backend}
-	m.backend = native
+func TestPasswordCopyResolvesThroughManagedClipboard(t *testing.T) {
+	m, _ := operationModel(t)
 	driver := &observedClipboard{}
 	m.clipboard = clipboard.New(driver)
-	for _, entry := range []string{"a", "b", "a"} {
-		m.ws.ActiveView().SelectedUUID = entry
-		execute(t, m, m.copyField("Password"))
-		if m.notice != "password copied · clipboard will not clear automatically" || !m.noticeExpires.IsZero() {
-			t.Fatal("native password copy must disclose its clipboard policy persistently")
-		}
-		if !m.clipboardExpires.IsZero() {
-			t.Fatal("native password copy scheduled clearing")
-		}
+
+	cmd := m.copyField("Password")
+	if cmd == nil {
+		t.Fatal("password field was not resolved")
 	}
-	if len(native.entries) != 3 || native.entries[0] != "a" || native.entries[1] != "b" || native.entries[2] != "a" {
-		t.Fatal("native copy did not follow rapid selection changes")
+	resolved := cmd().(resolvedCopyMsg)
+	_, copyCmd := m.Update(resolved)
+	if copyCmd == nil {
+		t.Fatal("resolved password was not copied")
 	}
-	m.onTick(m.now().Add(time.Hour))
-	m.clearClipboard()()
-	m.Close()
-	if driver.reads != 0 || driver.writes != 0 {
-		t.Fatal("Bypass accessed the native clipboard")
+	_, expiryCmd := m.Update(copyCmd())
+	if expiryCmd == nil || m.clipboardExpires.IsZero() {
+		t.Fatal("password copy did not schedule clipboard expiry")
+	}
+	if m.notice != "password copied" || driver.writes != 1 || string(driver.value) != "RESOLVED-SECRET" {
+		t.Fatal("password was not copied through the managed clipboard")
+	}
+
+	_, clearCmd := m.Update(clipboardExpiryMsg{id: m.clipGeneration, now: m.clipboardExpires})
+	if clearCmd == nil {
+		t.Fatal("clipboard expiry did not clear the owned value")
+	}
+	m.Update(clearCmd())
+	if driver.writes != 2 || len(driver.value) != 0 {
+		t.Fatal("owned clipboard value was not cleared at expiry")
 	}
 }
 
-func TestPasswordCopyDoesNotFallBackToPlaintextResolution(t *testing.T) {
+func TestPasswordCopyDoesNotFallBackWhenResolutionFails(t *testing.T) {
 	m, backend := operationModel(t)
 	backend.failure = vault.ErrWrite
-	if cmd := m.copyField("Password"); cmd != nil || m.notice != "native password copy unavailable" {
-		t.Fatal("password copy should require the native copier")
+	driver := &observedClipboard{}
+	m.clipboard = clipboard.New(driver)
+
+	cmd := m.copyField("Password")
+	if cmd == nil {
+		t.Fatal("password resolution was not attempted")
+	}
+	m.Update(cmd())
+	if m.notice != "field unavailable · reload if vault changed" || driver.writes != 0 {
+		t.Fatal("failed password resolution wrote to the clipboard")
 	}
 }

@@ -5,8 +5,7 @@
 Use your KeePass vaults from the terminal. Enjoy a modern, beautiful interface
 where each detail is crafted: navigation, controls, keyboard shortcuts, and themes.
 
-Bypass is using KeePassXC to manage your secrets - a hardened, independently
-reviewed open source software for KDBX vaults.
+Bypass opens KeePass KDBX vaults directly. It does not need KeePassXC installed.
 
 Use `bypass run` to pass approved secrets to an agent commands or script. You stay in control
 with interactive permission TUI, while protecting secrets from exposure to agents.
@@ -23,8 +22,8 @@ Install the latest release for your operating system and CPU architecture:
 curl -fsSL https://raw.githubusercontent.com/yaroshevych/bypass/main/install.sh | bash
 ```
 
-The installer downloads `bypass` and, if needed, KeePassXC 2.8.0 or newer. Set `BINDIR`
-to change the install directory. You can also download Bypass archives from
+The installer downloads `bypass`. Set `BINDIR` to change the install directory.
+You can also download Bypass archives from
 [GitHub Releases](https://github.com/yaroshevych/bypass/releases).
 
 For example, use `curl -fsSL https://raw.githubusercontent.com/yaroshevych/bypass/main/install.sh | BINDIR="$HOME/bin" bash` to install into `~/bin`.
@@ -100,11 +99,10 @@ rules, permissions, and timeout configuration.
 
 ## Security
 
-**Bypass relies on KeePassXC for vault encryption and saving rather than
-reimplementing them.**
+**Bypass reads and writes KeePass KDBX vaults in process.**
 
-Vaults and backups remain encrypted on disk. KeePassXC saves vaults directly;
-Bypass keeps the five newest encrypted backups across all vaults.
+Vaults and backups remain encrypted on disk. Before a write, Bypass creates an
+encrypted backup. It keeps the five newest backups across all vaults.
 
 Only the launched command receives the resolved environment; the invoking
 agent does not inherit it. **Output is not masked:** a command that prints a
@@ -115,4 +113,4 @@ malicious processes running as the same user.
 
 ## License
 
-[MIT](LICENSE). KeePassXC is a separate program with its own license.
+[MIT](LICENSE).

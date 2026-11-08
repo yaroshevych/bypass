@@ -67,10 +67,6 @@ func (m *Model) openCreateVault() tea.Cmd {
 		m.setNotice("max 9 tabs · close one to create a vault", false)
 		return nil
 	}
-	if reason := m.nativeReason("db-create"); reason != "" {
-		m.setNotice(reason, true)
-		return nil
-	}
 	if m.readOnly {
 		m.setNotice("restart without --read-only to create a vault", true)
 		return nil
@@ -87,10 +83,6 @@ func (m *Model) openCreateVault() tea.Cmd {
 }
 
 func (m *Model) openCredentials() tea.Cmd {
-	if reason := m.nativeReason("db-edit"); reason != "" {
-		m.setNotice(reason, true)
-		return nil
-	}
 	if !m.writable() {
 		return nil
 	}
@@ -112,10 +104,6 @@ func (m *Model) openCredentials() tea.Cmd {
 }
 
 func (m *Model) openDatabaseInfo() tea.Cmd {
-	if reason := m.nativeReason("db-info"); reason != "" {
-		m.setNotice(reason, true)
-		return nil
-	}
 	s := m.ws.ActiveSession()
 	backend, ok := m.backend.(sessionDatabaseInspector)
 	if s == nil || s.DB == nil {
@@ -277,7 +265,7 @@ func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
 		case errors.Is(result.err, vault.ErrBackup):
 			l.err = "Backup failed. Check the backup directory before retrying."
 		case errors.Is(result.err, vault.ErrUnsupported):
-			l.err = "This operation is not supported by the installed CLI."
+			l.err = "This operation is not supported for this vault."
 		case errors.Is(result.err, vault.ErrInvalidPath):
 			l.err = "Check the parent folder and existing key-file path."
 		}
@@ -290,12 +278,6 @@ func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
 			"KDF: " + safe(i.KDF), fmt.Sprintf("Recycle bin: %t", i.RecycleBinEnabled),
 			fmt.Sprintf("Groups: %d", i.GroupCount), fmt.Sprintf("Entries: %d", i.EntryCount),
 			fmt.Sprintf("Expired: %d", i.ExpiredEntryCount),
-		}
-		if m.backendVersion != "" {
-			version := strings.TrimSpace(m.backendVersion)
-			version = strings.TrimPrefix(version, "KeePassXC ")
-			version = strings.TrimPrefix(version, "keepassxc-cli ")
-			l.lines = append(l.lines, "Backend: keepassxc-cli "+version)
 		}
 		return nil, true
 	}
@@ -601,17 +583,5 @@ func (m *Model) lifecyclePointer(msg tea.MouseMsg) tea.Cmd {
 
 func (m *Model) canCreateVault() bool {
 	_, ok := m.backend.(vaultCreator)
-	return ok && !m.readOnly && m.nativeReason("db-create") == ""
-}
-
-func (m *Model) nativeReason(commands ...string) string {
-	if m.backendCapabilities == nil {
-		return ""
-	}
-	for _, command := range commands {
-		if !m.backendCapabilities[command] {
-			return "Backend does not support " + command
-		}
-	}
-	return ""
+	return ok && !m.readOnly
 }

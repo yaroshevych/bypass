@@ -280,18 +280,16 @@ func TestDatabaseInfoHasKeyboardExit(t *testing.T) {
 	}
 }
 
-func TestNativeCapabilitiesGateDirectActionsAndPalette(t *testing.T) {
+func TestUnavailableLifecycleActionsStayDisabled(t *testing.T) {
 	m, _ := operationModel(t)
 	m.backend = &lifecycleBackend{}
-	m.backendCapabilities = map[string]bool{"db-create": false, "db-edit": false, "db-info": false}
+	if !m.canCreateVault() {
+		t.Fatal("vault creation API should be available")
+	}
+	m.backend = &operationBackend{}
 	m.openCreateVault()
 	if m.lifecycle != nil || m.canCreateVault() {
-		t.Fatal("New Vault shortcut bypassed native capability checks")
-	}
-	m.openCredentials()
-	m.openDatabaseInfo()
-	if m.lifecycle != nil {
-		t.Fatal("unsupported native action opened a form")
+		t.Fatal("vault creation form opened without a create API")
 	}
 	for _, command := range m.commands() {
 		if command.id == "new-vault" || command.id == "credentials" || command.id == "database-info" {

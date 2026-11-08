@@ -34,11 +34,11 @@ the in-app reference.
 | Lock All Vaults | `shift+l` | Lock every unlocked vault and clear their authenticated sessions. Unsaved entry drafts require a decision first. |
 | Open Vault… | `o` | Select a vault file and unlock it. |
 | Close Vault | — | Close the current vault and its views. |
-| New Vault… | `n` on welcome screen | Create a vault. Elsewhere, use the command palette. Requires backend support and permission to write. |
+| New Vault… | `n` on welcome screen | Create a vault. Elsewhere, use the command palette. Requires permission to write. |
 | Lock Vault | — | Lock the current vault. Other unlocked vaults remain available. |
 | Reload Vault | `ctrl+r` | Reload the current vault, including changes made outside Bypass. |
-| Database Info… | — | Show information about the current database when supported by the backend. |
-| Change Password… | — | Change the current vault's master password. Requires a writable vault and backend support. |
+| Database Info… | — | Show information about the current database. |
+| Change Password… | — | Change the current vault's master password. Requires a writable vault. |
 | Read Only / Enable Writes | `r` | Change the current vault's write mode, subject to startup and external-change restrictions. |
 | Quit bypass | `q`, `ctrl+c` | Close Bypass. Unsaved entry drafts may require a decision first. |
 | Pending Secret Requests… | `shift+s` | Review requests from `bypass run`, including the readable name for an identified agent and requests waiting for entry selection or approval. |
@@ -73,8 +73,8 @@ If another application changes a vault, reload it before writing again. The
 external-change dialog requires a decision and cannot be dismissed with Esc.
 Choosing to keep the current view does not remove the reload requirement.
 
-KeePassXC handles vault saving. Before an edit, Bypass copies the encrypted vault
-to its backup directory and keeps the five newest backups across all vaults.
+Bypass writes vault changes directly. Before an edit, it copies the encrypted
+vault to its backup directory and keeps the five newest backups across all vaults.
 Write actions can be unavailable when the vault is read only, has external
 changes, or has no usable backup location.
 
@@ -138,9 +138,9 @@ additional deletion restrictions.
 | Password Generator… | — | Open the password generator from the editor or command palette. |
 | Large View… | `shift+g` | Display the selected field in large, individually readable characters. Requires a selected entry and no active entry editor. |
 
-Copy feedback does not include the value. Password copying uses KeePassXC's
-native clipboard command. Clipboard behavior and timeouts are described by the
-startup options in [CLI.md](CLI.md#bypass-start-the-tui).
+Copy feedback does not include the value. Bypass clears copied values from the
+clipboard after the configured timeout. See the startup options in
+[CLI.md](CLI.md#bypass-start-the-tui).
 
 ## Settings
 

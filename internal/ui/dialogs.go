@@ -12,7 +12,6 @@ import (
 )
 
 type actionDialog struct {
-	duplicates                      *vault.DuplicateEntries
 	kind, title                     string
 	message                         []string
 	options                         []string
@@ -40,7 +39,6 @@ func (m *Model) ShowApprovalsUnavailable(inUse bool) {
 
 func (m *Model) clearDialog() {
 	if m.dialog != nil {
-		m.dialog.duplicates.Close()
 		m.dialog.input.clear()
 		wipebuf.Wipe(m.dialog.secret)
 		m.dialog.secret = nil
@@ -121,20 +119,20 @@ func (m *Model) confirmDelete() {
 		action = "Delete Permanently"
 		message = "This permanently deletes the item. Recovery requires a backup."
 	}
-	if s.DB.Interactive() && !permanent {
+	if s.DB.Unlocked() && !permanent {
 		action = "Delete"
-		message = "KeePassXC moves the item to its recycle bin when enabled. Items already in the bin are deleted permanently."
+		message = "The vault moves the item to its recycle bin when enabled. Items already in the bin are deleted permanently."
 	}
 	if change.Kind == vault.DeleteGroup && permanent {
 		action = "Delete Permanently"
 		message = "Permanently deletes this group and all its contents. If names match, the first matching group is deleted. Recovery requires a backup."
 	}
-	if change.Kind == vault.DeleteGroup && s.DB.Interactive() && !permanent {
+	if change.Kind == vault.DeleteGroup && s.DB.Unlocked() && !permanent {
 		change.Kind = vault.PrepareDeleteGroup
 		action = "Inspect Recycle Bin"
 		message = "Creates an encrypted backup and a temporary entry to find the recycle bin. Review the deletion details before continuing."
 	}
-	if s.DB.Interactive() && s.DB.RecycleBinEnabled && !s.DB.RecycleBinVerified && (change.Kind == vault.DeleteEntry || change.Kind == vault.DeleteGroup && permanent) {
+	if s.DB.Unlocked() && s.DB.RecycleBinEnabled && !s.DB.RecycleBinVerified && (change.Kind == vault.DeleteEntry || change.Kind == vault.DeleteGroup && permanent) {
 		change.Kind = vault.PrepareRecycleBin
 		action = "Inspect Recycle Bin"
 		message = "Creates an encrypted backup and a temporary entry to find the recycle bin. Review the deletion details before continuing."
@@ -208,18 +206,6 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 			d.offset = min(max(0, len(d.message)-page), d.offset+page)
 			return nil
 		case "pgup":
-			d.offset = max(0, d.offset-page)
-			return nil
-		}
-	}
-	if d.kind == "duplicates" {
-		page := m.duplicatePageSize()
-		d.offset = min(d.offset, max(0, len(d.duplicates.Renames)-page))
-		if key == "pgdown" {
-			d.offset = min(max(0, len(d.duplicates.Renames)-page), d.offset+page)
-			return nil
-		}
-		if key == "pgup" {
 			d.offset = max(0, d.offset-page)
 			return nil
 		}
@@ -378,11 +364,6 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 				return m.clearRunPermissionsDialog()
 			}
 			m.clearDialog()
-		case "duplicates":
-			if choice == 1 {
-				return m.renameDuplicates()
-			}
-			m.clearDialog()
 		case "delete":
 			if choice == 1 {
 				return m.apply(d.change)
@@ -431,14 +412,6 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 	var actions []dialogAction
 	var contentTargets []int
 	footer := ""
-	if d.kind == "duplicates" {
-		start := min(d.offset, max(0, len(d.duplicates.Renames)-m.duplicatePageSize()))
-		end := min(len(d.duplicates.Renames), start+m.duplicatePageSize())
-		body = []string{fmt.Sprintf("Rename %d entries (%d–%d shown)", len(d.duplicates.Renames), start+1, end), "Encrypted backup first. pgup/pgdn to view names."}
-		for _, rename := range d.duplicates.Renames[start:end] {
-			body = append(body, safe(rename.Path)+" -> "+safe(rename.Title))
-		}
-	}
 	if d.kind == "external" {
 		for i, line := range body {
 			if i == 0 {
@@ -524,12 +497,9 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		footer = ""
 	default:
 		body = append(body, "")
-		if d.kind == "duplicates" || d.kind == "delete" || d.kind == "startup-warning" || d.kind == "unsaved" || d.kind == "external" || d.kind == "discardReload" {
-			for i, option := range d.options {
+		if d.kind == "delete" || d.kind == "startup-warning" || d.kind == "unsaved" || d.kind == "external" || d.kind == "discardReload" {
+			for _, option := range d.options {
 				shortcut := ""
-				if d.kind == "duplicates" && i == 1 {
-					shortcut = "enter"
-				}
 				if d.kind != "external" && strings.EqualFold(option, "Cancel") {
 					shortcut = "esc"
 				}
@@ -553,7 +523,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		width = min(m.width-6, 52)
 	case "external", "generator":
 		width = min(m.width-6, 72)
-	case "delete", "duplicates", "destination", "startup-warning":
+	case "delete", "destination", "startup-warning":
 		width = min(m.width-6, 60)
 	}
 	targets = make([]int, len(body))
@@ -592,17 +562,6 @@ func (m *Model) runPermissionsPageSize() int {
 	opts.Width = min(m.width-6, 82)
 	opts.Actions = make([]dialogrender.Action, len(m.dialog.options))
 	return max(1, dialogrender.ContentCapacity(opts)-1)
-}
-
-func (m *Model) duplicatePageSize() int {
-	opts := m.dialogOptions()
-	opts.Width, opts.Error = min(m.width-6, 60), safe(m.dialog.err)
-	opts.Actions = make([]dialogrender.Action, len(m.dialog.options))
-	reserved := 3 // Two explanatory rows and the spacer before actions.
-	if m.writing {
-		reserved++
-	}
-	return max(1, dialogrender.ContentCapacity(opts)-reserved)
 }
 
 func (m *Model) dialogLines() []string {

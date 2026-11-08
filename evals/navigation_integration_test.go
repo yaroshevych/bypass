@@ -4,7 +4,6 @@ package evals
 
 import (
 	"fmt"
-	"os/exec"
 	"regexp"
 	"runtime"
 	"strings"
@@ -16,15 +15,11 @@ func TestGrandViewGroupingCenteringNotesAndQCloseTmux(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
 	e := newEval(t)
 	defer e.close()
-	createRealVault(e, backend)
+	createRealVault(e)
 	e.writeConfig(map[string]any{"grand_view_group_size": 3})
-	e.startWith(backend, e.realDB)
+	e.startWith(e.realDB)
 	e.mustShow("UNLOCK VAULT")
 	e.typeText(fixturePassword)
 	e.key("Enter")
@@ -77,6 +72,7 @@ func TestNavigationActionsAndSessionCleanupTmux(t *testing.T) {
 	}
 	e := newEval(t)
 	defer e.close()
+	createEvalVaults(e, e.db1)
 	e.start()
 	e.openPath(e.db1)
 	e.typeText(fixturePassword)

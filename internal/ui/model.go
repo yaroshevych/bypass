@@ -152,9 +152,6 @@ type Model struct {
 	previousQuery                           string
 	help                                    bool
 	helpOffset                              int
-	backendVersion                          string
-	backendCapabilities                     map[string]bool
-	backendMissing                          bool
 	settings                                platform.Settings
 	clipboard                               *clipboard.Manager
 	readOnly                                bool
@@ -189,7 +186,6 @@ type fileItem struct {
 	dir        bool
 }
 type openedMsg struct {
-	repaired    bool
 	request     uint64
 	db          *vault.Database
 	err         error
@@ -210,14 +206,6 @@ type recentRemovedMsg struct {
 	updated bool
 }
 type rememberedMsg struct{ err error }
-type probedMsg struct {
-	version string
-	err     error
-}
-type capabilitiesMsg struct {
-	commands map[string]bool
-	err      error
-}
 type omarchyThemeChangedMsg struct{ palette platform.ThemePalette }
 type listingMsg struct {
 	directory string
@@ -286,21 +274,6 @@ func (m *Model) Init() tea.Cmd {
 	if m.store != nil {
 		store := m.store
 		cmds = append(cmds, func() tea.Msg { paths, err := store.LoadRecent(); return recentMsg{paths, err} })
-	}
-	if backend, ok := m.backend.(interface {
-		Probe(context.Context) (string, error)
-	}); ok {
-		ctx := m.ctx
-		cmds = append(cmds, func() tea.Msg { version, err := backend.Probe(ctx); return probedMsg{version, err} })
-	}
-	if backend, ok := m.backend.(interface {
-		CommandCapabilities(context.Context) (map[string]bool, error)
-	}); ok {
-		ctx := m.ctx
-		cmds = append(cmds, func() tea.Msg {
-			commands, err := backend.CommandCapabilities(ctx)
-			return capabilitiesMsg{commands, err}
-		})
 	}
 	return tea.Batch(cmds...)
 }
@@ -438,10 +411,6 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.hideReveal()
 		m.width, m.height = msg.Width, msg.Height
-	case capabilitiesMsg:
-		if msg.err == nil {
-			m.backendCapabilities = msg.commands
-		}
 	case omarchyThemeChangedMsg:
 		m.omarchyWatchPending = false
 		updated := themeColorsFromPlatform(msg.palette)
@@ -450,9 +419,6 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.styles = stylesForPalette(m.colorsForTheme(m.settings.Theme))
 		}
 		return m, m.syncOmarchyThemeWatch()
-	case probedMsg:
-		m.backendVersion = safe(msg.version)
-		m.backendMissing = msg.err != nil
 	case recentMsg:
 		m.recent = msg.paths
 		m.recentIndex = min(m.recentIndex, max(0, len(m.recent)-1))
@@ -490,10 +456,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = "Cannot list this directory. Enter a vault path directly."
 		}
 	case openedMsg:
-		var duplicates *vault.DuplicateEntries
-		errors.As(msg.err, &duplicates)
 		if msg.request != m.request {
-			duplicates.Close()
 			msg.credentials.Clear()
 			if msg.db != nil {
 				msg.db.Clear()
@@ -501,35 +464,15 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			break
 		}
 		m.busy = false
-		if msg.repaired {
-			m.writing = false
-			m.clearDialog()
-		}
 		if m.cancel != nil {
 			m.cancel()
 			m.cancel = nil
 		}
-		if duplicates != nil {
-			msg.credentials.Clear()
-			if m.readOnly {
-				duplicates.Close()
-				m.err = "Duplicate names cannot be repaired in read-only mode."
-				break
-			}
-			m.dialog = &actionDialog{kind: "duplicates", title: "Duplicate entry names", options: []string{"Cancel", "Rename and Open"}, duplicates: duplicates}
-			break
-		}
 		if msg.err != nil {
 			m.err = "Could not unlock. Check credentials, file access and backend support."
 			msg.credentials.Clear()
-			if msg.repaired {
-				m.err = "Rename stopped. Earlier renames may be saved. Reopen the vault."
-				if errors.Is(msg.err, vault.ErrBackup) {
-					m.err = "Could not create backup. No entries were renamed."
-				}
-			}
 			if errors.Is(msg.err, vault.ErrUnavailable) {
-				m.err = "Could not unlock. Install KeePassXC or set --backend executable."
+				m.err = "Could not unlock. Vault support is unavailable."
 			}
 			if errors.Is(msg.err, vault.ErrInvalidPath) {
 				m.err = "Could not unlock. Vault file is missing or unreadable; choose another path."
@@ -938,7 +881,7 @@ func (m *Model) unlockKey(k tea.KeyMsg) tea.Cmd {
 	if m.inputFocus == 0 && k.Type == tea.KeyRunes {
 		for _, r := range k.Runes {
 			if r == '\n' || r == '\r' || r == 0 {
-				m.err = "Password cannot contain line breaks; CLI transport does not support them."
+				m.err = "Password cannot contain line breaks."
 				return nil
 			}
 		}
@@ -975,7 +918,7 @@ func (m *Model) startOpen() tea.Cmd {
 		return nil
 	}
 	if m.backend == nil {
-		m.err = "Could not unlock. keepassxc-cli unavailable."
+		m.err = "Could not unlock. Vault support is unavailable."
 		return nil
 	}
 	if m.noPassword && m.inputs[1].value() == "" && m.inputs[2].value() == "" {
@@ -1004,15 +947,8 @@ func (m *Model) startOpen() tea.Cmd {
 		}
 		defer resources.done()
 		db, err := backend.Open(ctx, path, creds)
-		if ctx.Err() != nil {
-			var pending *vault.DuplicateEntries
-			if errors.As(err, &pending) {
-				pending.Close()
-				return openedMsg{request: id, err: vault.ErrCanceled}
-			}
-		}
 		result := openedMsg{request: id, db: db, err: err}
-		if err == nil && !db.Interactive() {
+		if err == nil && !db.Unlocked() {
 			result.credentials = creds.Clone()
 		}
 		return result

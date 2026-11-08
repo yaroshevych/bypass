@@ -32,7 +32,7 @@ THEME_COLORS = {
 }
 
 
-def capture(args, fixture, cli, output):
+def capture(args, fixture, output):
     name = f'{args.screen}-{args.appearance}-{args.theme}-{args.width}x{args.height}'
     if args.color_mode == '256':
         name += '-256'
@@ -62,7 +62,7 @@ def capture(args, fixture, cli, output):
         keys = ('HOME', 'XDG_CONFIG_HOME', 'XDG_STATE_HOME', 'XDG_CACHE_HOME', 'XDG_DATA_HOME',
                 'TERM', 'COLORTERM', 'CLICOLOR_FORCE', 'NO_COLOR', 'TZ', 'LC_ALL', 'PATH')
         launcher.write_text('#!/bin/sh\nexec env ' + ' '.join(k + '=' + shlex.quote(env[k]) for k in keys)
-                            + ' ' + shlex.join([str(PROJECT / 'bin/bypass'), '--backend', str(cli)]) + '\n')
+                            + ' ' + shlex.join([str(PROJECT / 'bin/bypass')]) + '\n')
         launcher.chmod(0o700)
         tmux_config = root / 'tmux.conf'
         tmux_config.write_text('set -g status off\nset -g history-limit 0\n')
@@ -215,7 +215,7 @@ def main():
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='bypass-visual-fixture-') as directory:
-        fixture, cli = build(Path(directory))
+        fixture = build(Path(directory))
         if args.all:
             matrix = [(s, 'classic', 'macchiato', 120, 35) for s in SCREENS]
             matrix += [(s, 'compact', 'macchiato', 120, 35) for s in ('workspace', 'tabs', 'palette', 'theme')]
@@ -226,9 +226,9 @@ def main():
                        ('unlock', 'compact', 'macchiato', 48, 14)]
             for s, appearance, theme, width, height in matrix:
                 capture(argparse.Namespace(**(vars(args) | dict(screen=s, appearance=appearance,
-                        theme=theme, width=width, height=height))), fixture, cli, output)
+                        theme=theme, width=width, height=height))), fixture, output)
         else:
-            capture(args, fixture, cli, output)
+            capture(args, fixture, output)
     images = sorted(output.glob('*.png'))
     gallery = '<!doctype html><meta charset="utf-8"><title>Bypass visual review</title><style>body{background:#181926;color:#cad3f5;font:16px monospace}img{max-width:100%;display:block}figure{margin:24px 0}</style><h1>Visual review — synthetic data</h1><p>tmux captures rasterized with a fixed font. Captures show the application output in the selected terminal color environment. No approved pixel baselines yet.</p>'
     for path in images:

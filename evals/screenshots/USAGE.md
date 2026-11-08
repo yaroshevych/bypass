@@ -10,7 +10,7 @@ just screenshot-check
 python3 evals/screenshots/capture.py workspace --theme latte --color-mode 256 --output evals/artifacts/screenshots-256-preview
 ```
 
-Requires Python/Pillow, tmux, keepassxc-cli, Go, just, and Menlo on macOS.
+Requires Python/Pillow, tmux, Go, just, and Menlo on macOS.
 Set `BYPASS_SCREENSHOT_FONT` to another monospace font on other systems.
 Artifacts: `evals/artifacts/screenshots/index.html`, PNGs, ANSI captures, plain text, metadata.
 

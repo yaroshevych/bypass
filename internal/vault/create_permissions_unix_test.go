@@ -15,7 +15,7 @@ import (
 func TestCreatePrivateWithPermissiveUmask(t *testing.T) {
 	if path := os.Getenv("BYPASS_TEST_UMASK_VAULT"); path != "" {
 		unix.Umask(0)
-		db, err := NewInteractiveCLI("").CreateWithOptions(context.Background(), path, Credentials{Password: []byte("fixture-password")}, CreateOptions{DecryptionTimeMS: 100})
+		db, err := NewBackend().CreateWithOptions(context.Background(), path, Credentials{Password: []byte("fixture-password")}, CreateOptions{DecryptionTimeMS: 100})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -25,9 +25,6 @@ func TestCreatePrivateWithPermissiveUmask(t *testing.T) {
 			t.Fatalf("vault mode: %v, %v", info, err)
 		}
 		return
-	}
-	if _, err := exec.LookPath("keepassxc-cli"); err != nil {
-		t.Skip("keepassxc-cli unavailable")
 	}
 	cmd := exec.Command(os.Args[0], "-test.run=^TestCreatePrivateWithPermissiveUmask$")
 	cmd.Env = append(os.Environ(), "BYPASS_TEST_UMASK_VAULT="+filepath.Join(t.TempDir(), "vault.kdbx"))

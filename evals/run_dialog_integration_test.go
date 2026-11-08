@@ -16,10 +16,6 @@ import (
 
 func TestRunDialogsBackDefaultAndResponsiveTmux(t *testing.T) {
 	t.Parallel()
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Fatal(err)
-	}
 	shell, err := filepath.EvalSymlinks("/bin/sh")
 	if err != nil {
 		t.Fatal(err)
@@ -28,9 +24,9 @@ func TestRunDialogsBackDefaultAndResponsiveTmux(t *testing.T) {
 		t.Run(appearance, func(t *testing.T) {
 			e := newEval(t)
 			defer e.close()
-			createRealVault(e, backend)
+			createRealVault(e)
 			e.writeConfig(map[string]any{"appearance": appearance})
-			e.startWith(backend, e.realDB)
+			e.startWith(e.realDB)
 			e.mustShow("UNLOCK VAULT")
 			e.typeText(fixturePassword)
 			e.key("Enter")

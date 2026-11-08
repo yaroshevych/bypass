@@ -6,7 +6,6 @@ import (
 	"bypass/internal/vaulttest"
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -21,13 +20,9 @@ func TestMilestone4VaultLifecycleTmux(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals use Unix process and shell behavior")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
 	e := newEval(t)
 	defer e.close()
-	e.startWith(backend)
+	e.startWith()
 	e.mustShow("bypass", "VAULTS", "Open")
 
 	// Create a synthetic vault from the welcome screen, with a modest KDF target.
@@ -107,7 +102,7 @@ func TestMilestone4VaultLifecycleTmux(t *testing.T) {
 
 	// Verify the saved entry using a fresh native CLI session and check that the
 	// old-credential encrypted backup remains available.
-	cli := vaulttest.NewCLI(backend)
+	cli := vaulttest.NewBackend()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	db, err := cli.Open(ctx, e.realDB, vault.Credentials{Password: []byte(fixtureEntryPassword)})

@@ -71,8 +71,8 @@ type Writer interface {
 }
 
 type Database struct {
-	interactive        *interactiveSession
-	interactiveOwner   bool
+	native             *nativeState
+	nativeOwner        bool
 	Path               string
 	Name               string
 	RootUUID           string
@@ -102,7 +102,7 @@ func (d *Database) Clone() *Database {
 		return nil
 	}
 	out := *d
-	out.interactiveOwner = false
+	out.nativeOwner = false
 	if d.GroupDeletePlan != nil {
 		plan := *d.GroupDeletePlan
 		out.GroupDeletePlan = &plan
@@ -166,42 +166,50 @@ type Group = vaultmodel.Group
 type Entry = vaultmodel.Entry
 type Field = vaultmodel.Field
 
-// SharesInteractive reports whether two models use the same authenticated child.
-func (d *Database) SharesInteractive(other *Database) bool {
-	return d != nil && other != nil && d.interactive != nil && d.interactive == other.interactive
+// SharesBackend reports whether two models refer to the same unlocked database.
+func (d *Database) SharesBackend(other *Database) bool {
+	return d != nil && other != nil && d.native != nil && d.native == other.native
 }
 
-// TransferInteractive transfers process ownership to a successful replacement.
-func (d *Database) TransferInteractive(other *Database) {
-	if d.SharesInteractive(other) {
-		d.interactiveOwner = false
-		other.interactiveOwner = true
+// TransferBackend transfers lock ownership to a successful replacement.
+func (d *Database) TransferBackend(other *Database) {
+	if d == nil || other == nil || d.native == nil || d.native != other.native {
+		return
+	}
+	state := d.native
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if d.native == state && other.native == state && state.db != nil {
+		d.nativeOwner = false
+		other.nativeOwner = true
 	}
 }
 
-// BorrowInteractiveOwnership marks an update as a borrowed model while its
-// original workspace session retains ownership of the native process. Callers
+// BorrowBackendOwnership marks an update as borrowed while the workspace session
+// retains ownership of the unlocked data. Callers
 // must use this only on private results, never on a live workspace database.
-func (d *Database) BorrowInteractiveOwnership() {
-	if d != nil {
-		d.interactiveOwner = false
+func (d *Database) BorrowBackendOwnership() {
+	if d == nil || d.native == nil {
+		return
 	}
+	state := d.native
+	state.mu.Lock()
+	d.nativeOwner = false
+	state.mu.Unlock()
 }
 
-// Interactive reports whether this database uses a live, credential-free CLI session.
-func (d *Database) Interactive() bool { return d != nil && d.interactive != nil }
+// Unlocked reports whether this model has an unlocked backing database.
+func (d *Database) Unlocked() bool { return d != nil && d.native != nil }
 
-// Clear drops field references and closes an owned interactive process.
-// Go strings are immutable, so this cannot reliably overwrite their backing bytes.
+// Clear drops this model's references and wipes the unlocked backend when it
+// owns that backend. Go strings are immutable, so their bytes cannot be wiped.
 func (d *Database) Clear() {
 	if d == nil {
 		return
 	}
-	if d.interactiveOwner {
-		d.interactive.close()
+	if d.native != nil {
+		d.native.clearIfOwner(d)
 	}
-	d.interactive = nil
-	d.interactiveOwner = false
 	d.GroupDeletePlan = nil
 	for i := range d.Entries {
 		clearEntry(&d.Entries[i])

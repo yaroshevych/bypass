@@ -46,7 +46,6 @@ eval:
 # Strict local release check: native tests must not silently skip prerequisites.
 verify:
     @command -v tmux >/dev/null
-    @command -v keepassxc-cli >/dev/null
     @test -z "$(gofmt -l cmd internal evals)"
     go vet ./...
     go test -race -tags=integration -parallel=4 -count=1 -timeout=300s ./...
@@ -54,7 +53,6 @@ verify:
 # Repeat terminal journeys to expose synchronization failures.
 eval-repeat:
     @command -v tmux >/dev/null
-    @command -v keepassxc-cli >/dev/null
     go test -race -tags=integration -parallel=4 -count=2 -timeout=300s ./evals
 
 mutations:

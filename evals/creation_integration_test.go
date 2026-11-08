@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -22,10 +21,6 @@ func TestKeyFileOnlyCreationUnlockAndPasswordAdditionTmux(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("tmux evals require Unix")
 	}
-	backend, err := exec.LookPath("keepassxc-cli")
-	if err != nil {
-		t.Skip("keepassxc-cli is not installed")
-	}
 	e := newEval(t)
 	defer e.close()
 	keyFile := filepath.Join(e.root, "only.key")
@@ -34,7 +29,7 @@ func TestKeyFileOnlyCreationUnlockAndPasswordAdditionTmux(t *testing.T) {
 	if err := os.WriteFile(keyFile, []byte(key), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	e.startWith(backend)
+	e.startWith()
 	e.mustShow("New Vault")
 	e.key("n")
 	e.mustShow("New .kdbx path")
@@ -59,7 +54,7 @@ func TestKeyFileOnlyCreationUnlockAndPasswordAdditionTmux(t *testing.T) {
 	e.mustShow("disabled")
 	e.key("Enter")
 	e.mustShow("No entries")
-	cli := vaulttest.NewCLI(backend)
+	cli := vaulttest.NewBackend()
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	db, err := cli.Open(ctx, e.realDB, vault.Credentials{NoPassword: true, KeyFile: keyFile})
