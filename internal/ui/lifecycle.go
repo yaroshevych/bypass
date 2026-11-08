@@ -44,6 +44,9 @@ type vaultCreator interface {
 type credentialChanger interface {
 	ChangeCredentials(context.Context, *vault.Database, vault.Credentials, vault.Credentials, string) (*vault.Database, error)
 }
+type credentialLossChanger interface {
+	ChangeCredentialsAllowingMetadataLoss(context.Context, *vault.Database, vault.Credentials, string, [32]byte) (*vault.Database, error)
+}
 type sessionDatabaseInspector interface {
 	InfoDatabase(context.Context, *vault.Database) (vault.DatabaseInfo, error)
 }
@@ -253,6 +256,13 @@ func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
 			result.db.Clear()
 		}
 		l.confirm = false
+		var loss *vault.DataLossError
+		if result.kind == "credentials" && errors.As(result.err, &loss) {
+			if session := m.ws.Sessions[result.sessionID]; session != nil && session.DB != nil && session.DB.Path == loss.Path && session.DB.Revision == loss.Revision && !session.ReadOnly && !session.Stale {
+				m.dialog = &actionDialog{kind: "data-loss", title: "Confirm metadata loss", options: []string{"Cancel", "Change credentials and lose metadata"}, selected: 0, sessionID: result.sessionID, loss: loss, credentials: ptrCredentials(result.credentials), message: metadataLossMessage(loss, "Credential rotation", "An encrypted backup with the old credentials will be created before saving.")}
+				return nil, true
+			}
+		}
 		l.err = "Operation failed. Check file access, credentials and backend support."
 		switch {
 		case errors.Is(result.err, vault.ErrAlreadyExists):
@@ -326,6 +336,46 @@ func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
 		}, true
 	}
 	return nil, true
+}
+
+func ptrCredentials(c vault.Credentials) *vault.Credentials { copy := c.Clone(); return &copy }
+
+func metadataLossMessage(loss *vault.DataLossError, operation, backup string) []string {
+	lines := []string{operation + " will remove unsupported XML metadata from this vault."}
+	for _, field := range loss.Fields {
+		lines = append(lines, "Unsupported metadata: "+field+".")
+		if strings.HasPrefix(field, "PreviousParentGroup") {
+			lines = append(lines, "PreviousParentGroup is previous parent group metadata. It does not describe the current group hierarchy.")
+		}
+	}
+	return append(lines, backup)
+}
+
+func (m *Model) rotateCredentialsWithLossConsent(sessionID string, creds vault.Credentials, loss *vault.DataLossError) tea.Cmd {
+	s := m.ws.Sessions[sessionID]
+	changer, ok := m.backend.(credentialLossChanger)
+	if !ok || s == nil || s.DB == nil || s.ReadOnly || s.Stale || loss == nil || s.DB.Path != loss.Path || s.DB.Revision != loss.Revision {
+		creds.Clear()
+		m.setNotice("vault changed · reload before saving", true)
+		return nil
+	}
+	db, old := s.DB.Clone(), s.Credentials.Clone()
+	id := m.beginOperation(sessionID)
+	ctx := m.operationContext()
+	backupDir := m.settings.BackupDir
+	resources := newJobResources(ctx, func() { db.Clear(); old.Clear(); creds.Clear() })
+	if m.lifecycle == nil {
+		m.lifecycle = &lifecycleState{kind: "credentials", sessionID: sessionID}
+	}
+	m.lifecycle.busy, m.lifecycle.request, m.lifecycle.err = true, id, ""
+	return func() tea.Msg {
+		if !resources.start() {
+			return lifecycleMsg{id: id, kind: "credentials", sessionID: sessionID, err: ctx.Err()}
+		}
+		defer resources.done()
+		updated, err := changer.ChangeCredentialsAllowingMetadataLoss(ctx, db, creds, backupDir, loss.Operation)
+		return lifecycleMsg{id: id, kind: "credentials", sessionID: sessionID, db: updated, credentials: creds.Clone(), err: err}
+	}
 }
 
 func (m *Model) lifecycleKey(k tea.KeyMsg) tea.Cmd {

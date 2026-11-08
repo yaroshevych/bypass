@@ -97,6 +97,52 @@ func TestNativeCredentialChangeBacksUpAndReopens(t *testing.T) {
 	oldBackup.Clear()
 }
 
+func TestCredentialRotationRequiresMetadataLossConsentAndBacksUp(t *testing.T) {
+	path, creds, db, backend := nativeFixture(t)
+	defer db.Clear()
+	db.native.lossFields = []string{"PreviousParentGroup (previous parent group metadata)"}
+	db.native.writeBlocked = true
+	next := Credentials{Password: []byte("new synthetic master")}
+	defer next.Clear()
+	var consent [32]byte
+	if _, err := backend.ChangeCredentials(context.Background(), db, creds, next, filepath.Join(t.TempDir(), "backups")); err == nil {
+		t.Fatal("credential rotation proceeded without metadata-loss consent")
+	} else {
+		var loss *DataLossError
+		if !errors.As(err, &loss) || loss.Path != db.Path || loss.Revision != db.Revision {
+			t.Fatalf("credential loss result = %#v, %v", loss, err)
+		}
+		consent = loss.Operation
+	}
+	blocker := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(blocker, []byte("block"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := backend.ChangeCredentialsAllowingMetadataLoss(context.Background(), db, next, blocker, consent); !errors.Is(err, ErrBackup) {
+		t.Fatalf("backup failure = %v", err)
+	}
+	backupDir := filepath.Join(t.TempDir(), "backups")
+	updated, err := backend.ChangeCredentialsAllowingMetadataLoss(context.Background(), db, next, backupDir, consent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer updated.Clear()
+	backups, err := filepath.Glob(filepath.Join(backupDir, "*.kdbx"))
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("encrypted backup missing: %v %v", backups, err)
+	}
+	old, err := backend.Open(context.Background(), backups[0], creds)
+	if err != nil {
+		t.Fatal("backup does not retain old credentials")
+	}
+	old.Clear()
+	rotated, err := backend.Open(context.Background(), path, next)
+	if err != nil {
+		t.Fatal("rotated vault does not open with new credentials")
+	}
+	rotated.Clear()
+}
+
 func TestNativeCredentialChangeBackupFailureDoesNotWrite(t *testing.T) {
 	path, creds, db, backend := nativeFixture(t)
 	blocker := filepath.Join(t.TempDir(), "blocker")

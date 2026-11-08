@@ -16,8 +16,9 @@ import (
 )
 
 type operationBackend struct {
-	failure error
-	applied int
+	failure   error
+	applied   int
+	consented bool
 }
 
 func (b *operationBackend) Open(_ context.Context, path string, _ vault.Credentials) (*vault.Database, error) {
@@ -28,6 +29,10 @@ func (b *operationBackend) Apply(ctx context.Context, db *vault.Database, _ vaul
 		return nil, vault.ErrCanceled
 	}
 	b.applied++
+	b.consented = c.AllowDataLoss
+	if c.AllowDataLoss {
+		b.failure = nil
+	}
 	if b.failure != nil {
 		return nil, b.failure
 	}
@@ -57,6 +62,37 @@ func (b *operationBackend) Apply(ctx context.Context, db *vault.Database, _ vaul
 		out.Entries = append(out.Entries, e)
 	}
 	return out, nil
+}
+
+func TestMetadataLossRequiresExplicitDefaultCancelConsent(t *testing.T) {
+	t.Run("cancel", func(t *testing.T) {
+		m, b := operationModel(t)
+		s := m.ws.ActiveSession()
+		b.failure = &vault.DataLossError{Fields: []string{"PreviousParentGroup (previous parent group metadata)"}, Path: s.DB.Path, Revision: s.DB.Revision}
+		m.key(key("e"))
+		m.editor.inputs[editTitle].set("Draft remains")
+		execute(t, m, m.saveEditor())
+		if m.dialog == nil || m.dialog.kind != "data-loss" || m.dialog.selected != 0 || !strings.Contains(strings.Join(m.dialog.message, " "), "previous parent group metadata") {
+			t.Fatal("loss warning did not explain the metadata with safe default")
+		}
+		m.key(key("enter"))
+		if m.dialog != nil || m.editor == nil || b.applied != 1 || b.consented {
+			t.Fatal("cancel did not preserve the draft without another write")
+		}
+	})
+	t.Run("accept", func(t *testing.T) {
+		m, b := operationModel(t)
+		s := m.ws.ActiveSession()
+		b.failure = &vault.DataLossError{Fields: []string{"PreviousParentGroup (previous parent group metadata)"}, Path: s.DB.Path, Revision: s.DB.Revision}
+		m.key(key("e"))
+		m.editor.inputs[editTitle].set("Accepted draft")
+		execute(t, m, m.saveEditor())
+		m.key(tea.KeyMsg{Type: tea.KeyRight})
+		execute(t, m, m.key(key("enter")))
+		if b.applied != 2 || !b.consented || m.editor != nil {
+			t.Fatal("accepted save did not retry with scoped consent")
+		}
+	})
 }
 func (b *operationBackend) Generate(context.Context, int) ([]byte, error) {
 	return []byte("GENERATED-SECRET"), nil

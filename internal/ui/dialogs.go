@@ -23,6 +23,8 @@ type actionDialog struct {
 	sessionID, entryUUID, groupUUID string
 	groups                          []vault.Group
 	change                          vault.Change
+	loss                            *vault.DataLossError
+	credentials                     *vault.Credentials
 	after                           func() tea.Cmd
 	secret                          []byte
 }
@@ -42,6 +44,13 @@ func (m *Model) clearDialog() {
 		m.dialog.input.clear()
 		wipebuf.Wipe(m.dialog.secret)
 		m.dialog.secret = nil
+		wipebuf.Wipe(m.dialog.change.Password)
+		wipebuf.Wipe(m.dialog.change.AttachmentData)
+		m.dialog.change.Values = nil
+		if m.dialog.credentials != nil {
+			m.dialog.credentials.Clear()
+			m.dialog.credentials = nil
+		}
 		m.dialog.after = nil
 	}
 	m.dialog = nil
@@ -369,6 +378,28 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 				return m.apply(d.change)
 			}
 			m.clearDialog()
+		case "data-loss":
+			if choice == 1 {
+				s := m.ws.Sessions[d.sessionID]
+				if s == nil || s.DB == nil || s.ReadOnly || s.Stale || d.loss == nil || s.DB.Path != d.loss.Path || s.DB.Revision != d.loss.Revision {
+					m.clearDialog()
+					m.setNotice("vault changed · reload before saving", true)
+					return nil
+				}
+				if d.credentials != nil {
+					creds, loss := d.credentials.Clone(), d.loss
+					m.clearDialog()
+					return m.rotateCredentialsWithLossConsent(d.sessionID, creds, loss)
+				}
+				change := d.change
+				change.Password = append([]byte(nil), d.change.Password...)
+				change.AttachmentData = append([]byte(nil), d.change.AttachmentData...)
+				change.AllowDataLoss = true
+				change.DataLossConsent = d.loss.Operation
+				m.clearDialog()
+				return m.apply(change)
+			}
+			m.clearDialog()
 		case "external":
 			id := d.sessionID
 			if choice == 0 {
@@ -421,7 +452,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 			}
 		}
 	}
-	if d.kind == "delete" || d.kind == "startup-warning" {
+	if d.kind == "delete" || d.kind == "startup-warning" || d.kind == "data-loss" {
 		wrapped := make([]string, 0, len(body))
 		textWidth := max(1, min(m.width-6, 60)-5)
 		for i, line := range body {
@@ -497,7 +528,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		footer = ""
 	default:
 		body = append(body, "")
-		if d.kind == "delete" || d.kind == "startup-warning" || d.kind == "unsaved" || d.kind == "external" || d.kind == "discardReload" {
+		if d.kind == "delete" || d.kind == "data-loss" || d.kind == "startup-warning" || d.kind == "unsaved" || d.kind == "external" || d.kind == "discardReload" {
 			for _, option := range d.options {
 				shortcut := ""
 				if d.kind != "external" && strings.EqualFold(option, "Cancel") {
@@ -523,7 +554,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		width = min(m.width-6, 52)
 	case "external", "generator":
 		width = min(m.width-6, 72)
-	case "delete", "destination", "startup-warning":
+	case "delete", "data-loss", "destination", "startup-warning":
 		width = min(m.width-6, 60)
 	}
 	targets = make([]int, len(body))

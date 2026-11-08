@@ -359,10 +359,10 @@ func (m *Model) apply(change vault.Change) tea.Cmd {
 		}
 		defer resources.done()
 		db, err := writer.Apply(ctx, snapshot, creds, change, backupDir)
-		// The result carries only metadata needed to restore selection, never password bytes.
-		change.Password = nil
-		change.AttachmentData = nil
-		return appliedMsg{id: id, sessionID: s.ID, db: db, err: err, change: change}
+		resultChange := change
+		resultChange.Password = append([]byte(nil), change.Password...)
+		resultChange.AttachmentData = append([]byte(nil), change.AttachmentData...)
+		return appliedMsg{id: id, sessionID: s.ID, db: db, err: err, change: resultChange}
 	}
 }
 
@@ -443,6 +443,8 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		return nil, true
 	case appliedMsg:
+		defer wipebuf.Wipe(msg.change.Password)
+		defer wipebuf.Wipe(msg.change.AttachmentData)
 		if msg.id != m.operation {
 			if msg.db != nil {
 				msg.db.Clear()
@@ -455,6 +457,18 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 				msg.db.Clear()
 			}
 			text := writeError(msg.err)
+			var loss *vault.DataLossError
+			if errors.As(msg.err, &loss) {
+				if session := m.ws.Sessions[msg.sessionID]; session != nil && session.DB != nil && session.DB.Path == loss.Path && session.DB.Revision == loss.Revision && !session.ReadOnly && !session.Stale {
+					change := msg.change
+					change.Password = append([]byte(nil), msg.change.Password...)
+					change.AttachmentData = append([]byte(nil), msg.change.AttachmentData...)
+					message := metadataLossMessage(loss, "Saving", "An encrypted backup will be created before saving.")
+					m.dialog = &actionDialog{kind: "data-loss", title: "Confirm metadata loss", options: []string{"Cancel", "Save and lose metadata"}, selected: 0, sessionID: msg.sessionID, change: change, loss: loss, message: message}
+					m.setNotice("save needs metadata loss confirmation", true)
+					return nil, true
+				}
+			}
 			if m.editor != nil {
 				m.editor.err = text
 			}

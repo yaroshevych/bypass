@@ -16,10 +16,12 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -43,6 +45,7 @@ type nativeState struct {
 	path            string
 	protectedLocked bool
 	writeBlocked    bool
+	lossFields      []string
 }
 
 type nativeSelection struct {
@@ -244,20 +247,24 @@ func protectTOTPFields(db *gok.Database) {
 }
 
 func hasUnsupportedXML(raw []byte, kdbx4 bool) bool {
+	return len(unsupportedXMLFields(raw, kdbx4)) > 0
+}
+
+func unsupportedXMLFields(raw []byte, kdbx4 bool) []string {
 	if len(raw) == 0 {
-		return false
+		return nil
 	}
 	if kdbx4 {
 		offset := 0
 		for {
 			if len(raw)-offset < 5 {
-				return true
+				return []string{"unrecognized or malformed XML metadata"}
 			}
 			kind := raw[offset]
 			length := uint64(binary.LittleEndian.Uint32(raw[offset+1 : offset+5]))
 			offset += 5
 			if length > uint64(len(raw)-offset) {
-				return true
+				return []string{"unrecognized or malformed XML metadata"}
 			}
 			offset += int(length)
 			if kind == 0 {
@@ -267,7 +274,7 @@ func hasUnsupportedXML(raw []byte, kdbx4 bool) bool {
 		}
 	}
 	if !bytes.Contains(raw, []byte("<KeePassFile")) {
-		return true
+		return []string{"unrecognized or malformed XML metadata"}
 	}
 	known := map[string]bool{}
 	for _, name := range strings.Fields(`KeePassFile Meta Generator SettingsChanged HeaderHash DatabaseName DatabaseNameChanged DatabaseDescription DatabaseDescriptionChanged DefaultUserName DefaultUserNameChanged MaintenanceHistoryDays Color MasterKeyChanged MasterKeyChangeRec MasterKeyChangeForce MemoryProtection ProtectTitle ProtectUserName ProtectPassword ProtectURL ProtectNotes ProtectAutoType CustomIcons Icon Data RecycleBinEnabled RecycleBinUUID RecycleBinChanged EntryTemplatesGroup EntryTemplatesGroupChanged HistoryMaxItems HistoryMaxSize LastSelectedGroup LastTopVisibleGroup Binaries Binary ID Compressed Root Group UUID Name Notes IconID CustomIconUUID Times CreationTime LastModificationTime LastAccessTime ExpiryTime Expires UsageCount LocationChanged IsExpanded DefaultAutoTypeSequence EnableAutoType EnableSearching LastTopVisibleEntry Tags CustomData Item Key Value String AutoType Enabled DataTransferObfuscation DefaultSequence Association Window KeystrokeSequence History Entry OverrideURL ForegroundColor BackgroundColor DeletedObjects DeletedObject DeletionTime IconID Ref`) {
@@ -275,26 +282,88 @@ func hasUnsupportedXML(raw []byte, kdbx4 bool) bool {
 	}
 	knownAttrs := map[string]bool{"Protected": true, "Compressed": true, "ID": true, "Ref": true}
 	decoder := xml.NewDecoder(bytes.NewReader(raw))
+	var fields []string
+	seen := map[string]bool{}
+	add := func(name string) {
+		if !seen[name] {
+			fields = append(fields, name)
+			seen[name] = true
+		}
+	}
 	for {
 		tok, err := decoder.Token()
 		if err == io.EOF {
-			return false
+			return fields
 		}
 		if err != nil {
-			return true
+			return []string{"unrecognized or malformed XML metadata"}
 		}
 		switch item := tok.(type) {
 		case xml.StartElement:
 			if !known[item.Name.Local] || item.Name.Space != "" {
-				return true
+				name := item.Name.Local
+				if name == "PreviousParentGroup" {
+					add("PreviousParentGroup (previous parent group metadata)")
+				} else {
+					add(name)
+				}
 			}
 			for _, attr := range item.Attr {
 				if !knownAttrs[attr.Name.Local] || attr.Name.Space != "" {
-					return true
+					add("attribute " + attr.Name.Local)
 				}
 			}
 		}
 	}
+}
+
+func changeLossOperation(path string, revision [32]byte, change Change) [32]byte {
+	h := sha256.New()
+	writeConsentString(h, path)
+	writeConsentBytes(h, revision[:])
+	for _, value := range []string{string(change.Kind), change.EntryUUID, change.GroupUUID, change.NewName, change.AttachmentName} {
+		writeConsentString(h, value)
+	}
+	keys := make([]string, 0, len(change.Values))
+	for key := range change.Values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var count [8]byte
+	binary.LittleEndian.PutUint64(count[:], uint64(len(keys)))
+	writeConsentBytes(h, count[:])
+	for _, key := range keys {
+		writeConsentString(h, key)
+		writeConsentString(h, change.Values[key])
+	}
+	if change.PasswordChanged {
+		writeConsentBytes(h, []byte{1})
+	} else {
+		writeConsentBytes(h, []byte{0})
+	}
+	writeConsentBytes(h, change.Password)
+	writeConsentBytes(h, change.AttachmentData)
+	var result [32]byte
+	copy(result[:], h.Sum(nil))
+	return result
+}
+
+func credentialLossOperation(path string, revision [32]byte) [32]byte {
+	h := sha256.New()
+	writeConsentString(h, path)
+	writeConsentBytes(h, revision[:])
+	writeConsentString(h, "change_credentials")
+	var result [32]byte
+	copy(result[:], h.Sum(nil))
+	return result
+}
+
+func writeConsentString(h hash.Hash, value string) { writeConsentBytes(h, []byte(value)) }
+func writeConsentBytes(h hash.Hash, value []byte) {
+	var length [8]byte
+	binary.LittleEndian.PutUint64(length[:], uint64(len(value)))
+	_, _ = h.Write(length[:])
+	_, _ = h.Write(value)
 }
 
 func (b *NativeBackend) Open(ctx context.Context, path string, creds Credentials) (*Database, error) {
@@ -343,7 +412,8 @@ func (b *NativeBackend) Open(ctx context.Context, path string, creds Credentials
 		return nil, ErrMalformed
 	}
 	protectTOTPFields(native)
-	state := &nativeState{db: native, path: canonical, writeBlocked: hasUnsupportedXML(native.Content.RawData, native.Header.IsKdbx4())}
+	state := &nativeState{db: native, path: canonical, lossFields: unsupportedXMLFields(native.Content.RawData, native.Header.IsKdbx4())}
+	state.writeBlocked = len(state.lossFields) > 0
 	db, err := nativeModel(state)
 	if err != nil {
 		state.clear()
@@ -769,8 +839,14 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 	if s.db == nil {
 		return nil, ErrUnlock
 	}
+	if s.writeBlocked && !change.AllowDataLoss {
+		return nil, &DataLossError{Fields: append([]string(nil), s.lossFields...), Path: s.path, Revision: db.Revision, Operation: changeLossOperation(s.path, db.Revision, change)}
+	}
 	if s.writeBlocked {
-		return nil, ErrUnsupportedData
+		expected := changeLossOperation(s.path, db.Revision, change)
+		if subtle.ConstantTimeCompare(change.DataLossConsent[:], expected[:]) != 1 {
+			return nil, &DataLossError{Fields: append([]string(nil), s.lossFields...), Path: s.path, Revision: db.Revision, Operation: expected}
+		}
 	}
 	current, err := Revision(s.path)
 	if err != nil {
@@ -981,6 +1057,8 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		return nil, err
 	}
 	committed = true
+	s.writeBlocked = false
+	s.lossFields = nil
 	scrubNativeDatabase(originalDB)
 	fresh, err := b.modelUnderLock(db)
 	if err != nil {
@@ -1110,6 +1188,12 @@ func (b *NativeBackend) InfoDatabase(ctx context.Context, db *Database) (Databas
 }
 
 func (b *NativeBackend) ChangeCredentials(ctx context.Context, db *Database, _ Credentials, newCreds Credentials, backupDir string) (*Database, error) {
+	return b.ChangeCredentialsAllowingMetadataLoss(ctx, db, newCreds, backupDir, [32]byte{})
+}
+
+// ChangeCredentialsAllowingMetadataLoss retries credential rotation only when
+// the caller has obtained consent for this open database revision.
+func (b *NativeBackend) ChangeCredentialsAllowingMetadataLoss(ctx context.Context, db *Database, newCreds Credentials, backupDir string, consent [32]byte) (*Database, error) {
 	if err := contextError(ctx); err != nil {
 		return nil, err
 	}
@@ -1128,7 +1212,10 @@ func (b *NativeBackend) ChangeCredentials(ctx context.Context, db *Database, _ C
 	releasePath := lockNativePath(s.path)
 	defer releasePath()
 	if s.writeBlocked {
-		return nil, ErrUnsupportedData
+		expected := credentialLossOperation(s.path, db.Revision)
+		if subtle.ConstantTimeCompare(consent[:], expected[:]) != 1 {
+			return nil, &DataLossError{Fields: append([]string(nil), s.lossFields...), Path: s.path, Revision: db.Revision, Operation: expected}
+		}
 	}
 	revision, err := Revision(s.path)
 	if err != nil {
@@ -1165,6 +1252,8 @@ func (b *NativeBackend) ChangeCredentials(ctx context.Context, db *Database, _ C
 		return nil, ErrWrite
 	}
 	s.db = candidate
+	s.writeBlocked = false
+	s.lossFields = nil
 	s.protectedLocked = true
 	scrubNativeDatabase(originalDB)
 	fresh, err := nativeModel(s)

@@ -64,7 +64,20 @@ type Change struct {
 	NewName         string
 	AttachmentName  string
 	AttachmentData  []byte
+	AllowDataLoss   bool
+	DataLossConsent [32]byte
 }
+
+// DataLossError describes metadata that this backend cannot preserve on write.
+// A caller must obtain consent for the current database revision before retrying.
+type DataLossError struct {
+	Fields    []string
+	Path      string
+	Revision  [32]byte
+	Operation [32]byte
+}
+
+func (e *DataLossError) Error() string { return "vault metadata loss requires confirmation" }
 
 type Writer interface {
 	Apply(context.Context, *Database, Credentials, Change, string) (*Database, error)

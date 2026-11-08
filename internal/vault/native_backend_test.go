@@ -73,6 +73,77 @@ func TestNativeBackendProtectedValueRoundTrip(t *testing.T) {
 	}
 }
 
+func TestUnsupportedMetadataConsentBacksUpBeforeLossyWrite(t *testing.T) {
+	path, creds, db, backend := nativeFixture(t)
+	defer db.Clear()
+	fields := unsupportedXMLFields([]byte(`<KeePassFile><Root><Group><PreviousParentGroup>old-parent</PreviousParentGroup></Group></Root></KeePassFile>`), false)
+	if len(fields) != 1 || fields[0] != "PreviousParentGroup (previous parent group metadata)" {
+		t.Fatalf("unsupported metadata summary = %v", fields)
+	}
+	// Bind this detected loss to the disposable vault state.
+	db.native.lossFields, db.native.writeBlocked = fields, true
+	change := Change{Kind: AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Consent"}}
+	backups := filepath.Join(t.TempDir(), "backups")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = backend.Apply(context.Background(), db, creds, change, backups)
+	var loss *DataLossError
+	if !errors.As(err, &loss) {
+		t.Fatal("lossy write proceeded without consent")
+	}
+	after, err := os.ReadFile(path)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatal("unconfirmed write changed the vault")
+	}
+	if entries, _ := os.ReadDir(backups); len(entries) != 0 {
+		t.Fatal("unconfirmed write created a backup")
+	}
+
+	blocker := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(blocker, []byte("block"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	change.AllowDataLoss = true
+	change.DataLossConsent = loss.Operation
+	differentOperation := change
+	differentOperation.Values = map[string]string{"Title": "Different mutation"}
+	if _, err = backend.Apply(context.Background(), db, creds, differentOperation, backups); !errors.As(err, &loss) {
+		t.Fatal("consent was reused for a different operation")
+	}
+	if _, err = backend.Apply(context.Background(), db, creds, change, blocker); !errors.Is(err, ErrBackup) {
+		t.Fatalf("backup failure = %v", err)
+	}
+	after, err = os.ReadFile(path)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatal("backup failure changed the vault")
+	}
+
+	updated, err := backend.Apply(context.Background(), db, creds, change, backups)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Clear()
+	defer updated.Clear()
+	if updated.native.writeBlocked || len(updated.native.lossFields) != 0 {
+		t.Fatal("accepted save left stale metadata consent on the live database")
+	}
+	backupsFound, err := filepath.Glob(filepath.Join(backups, "*.kdbx"))
+	if err != nil || len(backupsFound) != 1 {
+		t.Fatalf("encrypted backup missing: %v %v", backupsFound, err)
+	}
+	backup, err := backend.Open(context.Background(), backupsFound[0], creds)
+	if err != nil {
+		t.Fatal("backup cannot be opened with original credentials")
+	}
+	defer backup.Clear()
+	backupBytes, err := os.ReadFile(backupsFound[0])
+	if err != nil || !bytes.Equal(before, backupBytes) {
+		t.Fatal("encrypted backup did not preserve the exact original vault")
+	}
+}
+
 func TestNativeApplyCancellationKeepsLiveAndPersistedDatabaseUnchanged(t *testing.T) {
 	path, creds, db, backend := nativeFixture(t)
 	defer db.Clear()
