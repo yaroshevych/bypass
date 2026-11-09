@@ -2,15 +2,19 @@ package ui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"bypass/internal/vault"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type itemHeader struct {
 	exists          bool
 	title           string
+	tags            []string
 	groupPath       string
 	modified        time.Time
 	expires         time.Time
@@ -27,6 +31,7 @@ func newItemHeader(entry *vault.Entry) itemHeader {
 	return itemHeader{
 		exists:          true,
 		title:           visibleField(*entry, "Title"),
+		tags:            append([]string(nil), entry.Tags...),
 		groupPath:       entry.GroupPath,
 		modified:        entry.Modified,
 		expires:         entry.Expires,
@@ -54,6 +59,7 @@ func (h itemHeader) renderWithIndent(styles *styleSet, width int, now time.Time,
 			title += " *"
 		}
 	}
+	title = appendTagChips(title, h.tags, width, styles.inactive)
 	groupPath := strings.Trim(h.groupPath, "/")
 	if groupPath == "" {
 		groupPath = "Passwords"
@@ -81,4 +87,59 @@ func (h itemHeader) renderWithIndent(styles *styleSet, width int, now time.Time,
 	}
 	lines = append(lines, styles.rule(width))
 	return lines
+}
+
+func appendTagChips(title string, tags []string, width int, chipStyle lipgloss.Style) string {
+	if width <= 0 || len(tags) == 0 {
+		return title
+	}
+	titleWidth := ansi.StringWidth(title)
+	available := max(0, width-titleWidth-1) // Keep one cell at the right edge.
+	tags = append([]string(nil), tags...)
+	sort.Slice(tags, func(i, j int) bool {
+		return strings.ToLower(strings.TrimSpace(safe(tags[i]))) < strings.ToLower(strings.TrimSpace(safe(tags[j])))
+	})
+	chips := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		tag = strings.TrimSpace(safe(tag))
+		if tag != "" {
+			chips = append(chips, chipStyle.Render(" "+tag+" "))
+		}
+	}
+	if len(chips) == 0 {
+		return title
+	}
+	total := 0
+	for i, chip := range chips {
+		if i > 0 {
+			total++
+		}
+		total += ansi.StringWidth(chip)
+	}
+	if total+3 <= available {
+		cluster := strings.Join(chips, " ")
+		return title + strings.Repeat(" ", max(3, width-titleWidth-1-ansi.StringWidth(cluster))) + cluster
+	}
+	ellipsis := chipStyle.Render(" … ")
+	ellipsisWidth := ansi.StringWidth(ellipsis)
+	cluster := make([]string, 0, len(chips)+1)
+	used := ellipsisWidth
+	for _, chip := range chips {
+		chipWidth := ansi.StringWidth(chip)
+		gap := 0
+		if len(cluster) > 0 {
+			gap = 1
+		}
+		if used+gap+chipWidth+4 > available {
+			break
+		}
+		cluster = append(cluster, chip)
+		used += gap + chipWidth
+	}
+	if used+4 <= available {
+		cluster = append(cluster, ellipsis)
+		text := strings.Join(cluster, " ")
+		return title + strings.Repeat(" ", max(3, width-titleWidth-1-ansi.StringWidth(text))) + text
+	}
+	return title
 }

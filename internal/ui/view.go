@@ -1168,11 +1168,7 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 }
 
 func (m *Model) detailLines(width, height int, focused bool) []string {
-	accent := m.colors().accent
 	lines, _, scrollbar := m.detailViewportLayout(width, height)
-	if focused && len(lines) > 0 {
-		lines[0] = accent.Render(ansi.Strip(lines[0]))
-	}
 	v := m.ws.ActiveView()
 	offset := 0
 	if v != nil {
@@ -1229,7 +1225,11 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 	if e == nil {
 		return []string{secondary.Render(" Select an entry")}, nil
 	}
-	lines := newItemHeader(e).renderWithIndent(styles, width, m.now(), false, false, 1)
+	focused := false
+	if v := m.ws.ActiveView(); v != nil {
+		focused = v.Focus == 2
+	}
+	lines := newItemHeader(e).renderWithIndent(styles, width, m.now(), focused, false, 1)
 	names := m.fieldNames()
 	var positions []int
 	for index, name := range names {
@@ -1305,7 +1305,11 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 		}
 	}
 	if len(e.Tags) > 0 {
-		lines = append(lines, "", secondary.Render(" Tags: "+safe(strings.Join(e.Tags, ", "))))
+		lines = append(lines, "")
+		tagLine := safe("Tags: " + strings.Join(e.Tags, ", "))
+		for _, line := range strings.Split(ansi.Wrap(tagLine, max(1, width-2), ""), "\n") {
+			lines = append(lines, secondary.Render(" "+line))
+		}
 	} else if len(names) > 0 && names[len(names)-1] == "Notes" && strings.Contains(e.Get("Notes"), "\n") {
 		lines = append(lines, "")
 	}

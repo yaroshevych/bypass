@@ -77,6 +77,7 @@ func newEntryEditor(e *vault.Entry, groupUUID string) *entryEditor {
 		isNew:           e == nil,
 		validationFocus: -1,
 	}
+	editor.header.tags = nil
 	for i, name := range editorFields {
 		value := ""
 		if name == "Password" {
