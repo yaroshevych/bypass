@@ -660,10 +660,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	case keyOpenVault:
 		return m.openPicker()
 	case keyHelp:
-		m.hideReveal()
-		m.help = true
-		m.helpOffset = 0
-		m.helpQuery.clear()
+		m.openPalette("actions")
 		return nil
 	case keyNewTab:
 		return m.duplicateTab()

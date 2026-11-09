@@ -267,7 +267,6 @@ func (m *Model) commands() []command {
 	})
 	add("set-pin", "Privacy", "Change PIN…", "", allReason, "", func() tea.Cmd { m.configurePIN(false); return nil })
 	add("protect", "Vault", "Lock UI with PIN", "", "", "", m.protectScreen)
-	add("help", "Help", "Shortcuts", "", "", "", func() tea.Cmd { m.help = true; m.helpOffset = 0; m.helpQuery.clear(); return nil })
 	return commands
 }
 

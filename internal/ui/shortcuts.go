@@ -44,5 +44,5 @@ var workspaceShortcuts = map[string]shortcut{
 	"grand-view": {keyGrand, "Shift+G"}, "search": {keySearch, "/"}, "jump": {keyJump, "Shift+J"},
 	"zoom": {keyZoom, "z"}, "duplicate": {keyNewTab, "t"},
 	"previous-tab": {keyPreviousTab, "["}, "next-tab": {keyNextTab, "]"},
-	"theme": {keyThemes, "Shift+T"}, "help": {keyHelp, "?"}, "quit": {keyQuit, "q"},
+	"theme": {keyThemes, "Shift+T"}, "quit": {keyQuit, "q"},
 }

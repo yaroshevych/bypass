@@ -8,8 +8,8 @@ Start the vault manager with `bypass`, or open a vault with
 
 <img width="1271" height="739" alt="Image" src="https://github.com/user-attachments/assets/6abc6b97-3920-411e-917f-934b32175dc8" />
 
-Press `ctrl+p` from the workspace (including inputs), Help, Large View, or
-Requests. Close other overlays first. Type to filter, move with Up/Down or
+Press `ctrl+p` from the workspace (including inputs), Large View, or
+Requests. Press `?` in the workspace to open it as well. Close other overlays first. Type to filter, move with Up/Down or
 Tab/Shift+Tab, and press Enter to select. Esc goes back or closes the palette.
 Disabled actions show a reason, such as "Unlock a vault first" or
 "Vault is read only".
@@ -20,8 +20,8 @@ forward them or use its locked mode. Some terminals send `ctrl+shift+p` and
 avoid multiplexer bindings.
 
 Workspace shortcuts depend on context; inputs and dialogs have their own
-bindings. "None" means there is no dedicated shortcut. Choose Shortcuts for
-the in-app reference.
+bindings. "None" means there is no dedicated shortcut. Press `ctrl+p` or `?`
+to open the searchable Command Palette and see available actions and shortcuts.
 
 <img width="1277" height="735" alt="Image" src="https://github.com/user-attachments/assets/3478d32d-f369-4979-90d8-731cde29d40c" />
 
@@ -148,7 +148,6 @@ clipboard after the configured timeout. See the startup options in
 | Theme… | `shift+t` | Preview and select a color theme. |
 | Layout… | None | Choose Classic or Compact appearance. |
 | Change PIN… | None | Set or change the session PIN. Requires at least one unlocked vault. |
-| Shortcuts | `?` | Open the searchable shortcut reference. |
 
 Themes: Macchiato, Mocha, Frappe, Latte, Tokyo Night, Gruvbox, Dracula, Nord,
 Vesper, and Omarchy. Omarchy follows system palette changes live. Theme and

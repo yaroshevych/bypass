@@ -291,7 +291,7 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 			"copy-focused": "Copy", "reveal": "Reveal", "grand-view": "Large View…",
 			"theme": "Theme…", "appearance": "Layout…", "set-pin": "Change PIN…", "protect": "Lock UI with PIN", "jump": "Jump…",
 			"read-only": "Read Only",
-			"totp":      "TOTP", "help": "Shortcuts", "close-vault": "Close Vault", "lock": "Lock Vault",
+			"totp":      "TOTP", "close-vault": "Close Vault", "lock": "Lock Vault",
 			"search": "Search", "zoom": "Zoom", "delete": "Delete…", "history-view": "History",
 		}[choice.id]
 		if wantLabel != "" && choice.label != wantLabel {
