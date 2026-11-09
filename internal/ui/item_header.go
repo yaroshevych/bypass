@@ -15,6 +15,7 @@ type itemHeader struct {
 	exists          bool
 	title           string
 	tags            []string
+	hoveredTag      string
 	groupPath       string
 	modified        time.Time
 	expires         time.Time
@@ -59,7 +60,7 @@ func (h itemHeader) renderWithIndent(styles *styleSet, width int, now time.Time,
 			title += " *"
 		}
 	}
-	title = appendTagChips(title, h.tags, width, styles.inactive)
+	title, _ = tagChipLayout(title, h.tags, width, styles.inactive, styles.active, h.hoveredTag)
 	groupPath := strings.Trim(h.groupPath, "/")
 	if groupPath == "" {
 		groupPath = "Passwords"
@@ -89,9 +90,14 @@ func (h itemHeader) renderWithIndent(styles *styleSet, width int, now time.Time,
 	return lines
 }
 
-func appendTagChips(title string, tags []string, width int, chipStyle lipgloss.Style) string {
+type tagChipSpan struct {
+	tag        string
+	start, end int
+}
+
+func tagChipLayout(title string, tags []string, width int, chipStyle, hoverStyle lipgloss.Style, hovered string) (string, []tagChipSpan) {
 	if width <= 0 || len(tags) == 0 {
-		return title
+		return title, nil
 	}
 	titleWidth := ansi.StringWidth(title)
 	available := max(0, width-titleWidth-1) // Keep one cell at the right edge.
@@ -99,15 +105,17 @@ func appendTagChips(title string, tags []string, width int, chipStyle lipgloss.S
 	sort.Slice(tags, func(i, j int) bool {
 		return strings.ToLower(strings.TrimSpace(safe(tags[i]))) < strings.ToLower(strings.TrimSpace(safe(tags[j])))
 	})
+	tagNames := make([]string, 0, len(tags))
 	chips := make([]string, 0, len(tags))
 	for _, tag := range tags {
 		tag = strings.TrimSpace(safe(tag))
 		if tag != "" {
+			tagNames = append(tagNames, tag)
 			chips = append(chips, chipStyle.Render(" "+tag+" "))
 		}
 	}
 	if len(chips) == 0 {
-		return title
+		return title, nil
 	}
 	total := 0
 	for i, chip := range chips {
@@ -117,8 +125,7 @@ func appendTagChips(title string, tags []string, width int, chipStyle lipgloss.S
 		total += ansi.StringWidth(chip)
 	}
 	if total+3 <= available {
-		cluster := strings.Join(chips, " ")
-		return title + strings.Repeat(" ", max(3, width-titleWidth-1-ansi.StringWidth(cluster))) + cluster
+		return renderTagChipCluster(title, tagNames, width, chips, "", chipStyle, hoverStyle, hovered)
 	}
 	ellipsis := chipStyle.Render(" … ")
 	ellipsisWidth := ansi.StringWidth(ellipsis)
@@ -137,9 +144,51 @@ func appendTagChips(title string, tags []string, width int, chipStyle lipgloss.S
 		used += gap + chipWidth
 	}
 	if used+4 <= available {
-		cluster = append(cluster, ellipsis)
-		text := strings.Join(cluster, " ")
-		return title + strings.Repeat(" ", max(3, width-titleWidth-1-ansi.StringWidth(text))) + text
+		selectedTags := tagNames[:len(cluster)]
+		return renderTagChipCluster(title, selectedTags, width, chips[:len(cluster)], ellipsis, chipStyle, hoverStyle, hovered)
 	}
-	return title
+	return title, nil
+}
+
+func renderTagChipCluster(title string, tags []string, width int, chips []string, ellipsis string, chipStyle, hoverStyle lipgloss.Style, hovered string) (string, []tagChipSpan) {
+	clusterWidth := 0
+	for i, chip := range chips {
+		if i > 0 {
+			clusterWidth++
+		}
+		clusterWidth += ansi.StringWidth(chip)
+	}
+	if ellipsis != "" {
+		if len(chips) > 0 {
+			clusterWidth++
+		}
+		clusterWidth += ansi.StringWidth(ellipsis)
+	}
+	titleWidth := ansi.StringWidth(title)
+	padding := max(3, width-titleWidth-1-clusterWidth)
+	result := title + strings.Repeat(" ", padding)
+	spans := make([]tagChipSpan, 0, len(chips))
+	position := titleWidth + padding
+	for i, chip := range chips {
+		if i > 0 {
+			result += " "
+			position++
+		}
+		style := chipStyle
+		if strings.EqualFold(tags[i], hovered) {
+			style = hoverStyle
+		}
+		result += style.Render(" " + tags[i] + " ")
+		chipWidth := ansi.StringWidth(chip)
+		spans = append(spans, tagChipSpan{tag: tags[i], start: position, end: position + chipWidth})
+		position += chipWidth
+	}
+	if ellipsis != "" {
+		if len(chips) > 0 {
+			result += " "
+			position++
+		}
+		result += ellipsis
+	}
+	return result, spans
 }

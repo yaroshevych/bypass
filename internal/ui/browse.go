@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strings"
+
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
@@ -19,6 +21,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		if !m.help && m.screen == browse && m.ws.ActiveSession() != nil {
 			m.hoverTab, m.tabHovered = m.tabAt(msg.X, msg.Y)
 		}
+		m.updateEntryTagHover(msg.X, msg.Y)
 		return nil
 	}
 	if !m.help && !m.writing && m.screen == browse && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
@@ -487,6 +490,10 @@ func (m *Model) mouse(msg tea.MouseMsg) {
 			v.DetailManual = false
 		}
 	case 2:
+		if tag, _, hit := m.entryTagAt(msg.X, msg.Y); hit {
+			m.selectTagView(tag)
+			return
+		}
 		_, positions, scrollbar := m.detailViewportLayout(pane.Width, pane.Height)
 		if scrollbar && msg.X == pane.X+pane.Width-1 {
 			return
@@ -499,6 +506,69 @@ func (m *Model) mouse(msg tea.MouseMsg) {
 			}
 		}
 	}
+}
+
+func (m *Model) updateEntryTagHover(x, y int) {
+	tag, entry, hit := m.entryTagAt(x, y)
+	if !hit {
+		m.hoveredTag, m.hoveredTagEntry = "", ""
+		return
+	}
+	m.hoveredTag, m.hoveredTagEntry = tag, entry
+}
+
+func (m *Model) entryTagAt(x, y int) (tag, entry string, hit bool) {
+	if m.screen != browse || m.searching || m.help || m.editor != nil || m.gate.Protected() {
+		return "", "", false
+	}
+	v := m.ws.ActiveView()
+	e := m.selected()
+	if v == nil || e == nil || v.DetailOffset != 0 {
+		return "", "", false
+	}
+	for _, pane := range m.layout().Panes {
+		if pane.Focus != 2 || x < pane.X || x >= pane.X+pane.Width || y != pane.Y {
+			continue
+		}
+		width := pane.Width
+		if _, _, scrollbar := m.detailViewportLayout(pane.Width, pane.Height); scrollbar {
+			width--
+		}
+		title := " " + visibleField(*e, "Title")
+		_, spans := tagChipLayout(title, e.Tags, width, m.colors().inactive, m.colors().active, "")
+		column := x - pane.X
+		for _, span := range spans {
+			if column >= span.start && column < span.end && m.tagViewIndex(span.tag) >= 0 {
+				return span.tag, e.UUID, true
+			}
+		}
+	}
+	return "", "", false
+}
+
+func (m *Model) tagViewIndex(tag string) int {
+	items := m.navigation()
+	for i, item := range items {
+		if strings.EqualFold(tag, "Favorite") && item.kind == "favorites" {
+			return i
+		}
+		if item.kind == "tag" && strings.EqualFold(item.value, tag) {
+			return i
+		}
+	}
+	return -1
+}
+
+func (m *Model) selectTagView(tag string) {
+	index := m.tagViewIndex(tag)
+	if index < 0 {
+		return
+	}
+	m.selectNav(index)
+	if view := m.ws.ActiveView(); view != nil {
+		view.Focus = 1
+	}
+	m.hoveredTag, m.hoveredTagEntry = "", ""
 }
 
 func (m *Model) restoreGroup() {

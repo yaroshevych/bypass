@@ -102,6 +102,7 @@ type Model struct {
 	detailDatabase                          *vault.Database
 	hoverTab                                int
 	tabHovered                              bool
+	hoveredTag, hoveredTagEntry             string
 	lifecycle                               *lifecycleState
 	extras                                  *extraState
 	styles                                  styleSet

@@ -1229,7 +1229,11 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 	if v := m.ws.ActiveView(); v != nil {
 		focused = v.Focus == 2
 	}
-	lines := newItemHeader(e).renderWithIndent(styles, width, m.now(), focused, false, 1)
+	header := newItemHeader(e)
+	if m.hoveredTagEntry == e.UUID {
+		header.hoveredTag = m.hoveredTag
+	}
+	lines := header.renderWithIndent(styles, width, m.now(), focused, false, 1)
 	names := m.fieldNames()
 	var positions []int
 	for index, name := range names {
