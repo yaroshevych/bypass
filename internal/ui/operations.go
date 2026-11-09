@@ -137,6 +137,28 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 	if s == nil || s.DB == nil {
 		return nil, false
 	}
+	if view := m.ws.ActiveView(); view != nil && view.Focus == 0 {
+		nav := m.currentNav()
+		var notice string
+		switch k.String() {
+		case keyEditEntry:
+			if nav.kind != "tag" && nav.kind != "group" {
+				notice = "can't edit this item"
+			}
+		case keyMoveEntry:
+			if nav.kind != "group" {
+				notice = "can't move this item"
+			}
+		case keyDelete:
+			if nav.kind != "group" {
+				notice = "can't delete this item"
+			}
+		}
+		if notice != "" {
+			m.setNotice(notice, true)
+			return nil, true
+		}
+	}
 	switch k.String() {
 	case keyNewEntry:
 		if !m.writable() {
