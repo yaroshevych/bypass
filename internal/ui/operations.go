@@ -204,8 +204,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		if !m.writable() {
 			return nil, true
 		}
-		m.confirmDelete()
-		return nil, true
+		return m.confirmDelete(), true
 	case keyMoveEntry:
 		if !m.writable() {
 			return nil, true

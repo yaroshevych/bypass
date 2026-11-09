@@ -69,15 +69,15 @@ func (m *Model) showExternal(id string) {
 		m.dialog.message = append(m.dialog.message, "Reload will discard your unsaved entry draft.")
 	}
 }
-func (m *Model) confirmDelete() {
+func (m *Model) confirmDelete() tea.Cmd {
 	s := m.ws.ActiveSession()
 	v := m.ws.ActiveView()
 	if s == nil || s.DB == nil || v == nil {
-		return
+		return nil
 	}
 	if v.Focus == 0 && m.currentNav().kind != "group" {
 		m.setNotice("select an entry or group to delete", true)
-		return
+		return nil
 	}
 	change := vault.Change{Kind: vault.DeleteEntry}
 	name := ""
@@ -86,7 +86,7 @@ func (m *Model) confirmDelete() {
 		groupID := m.currentNav().group
 		if groupID == s.DB.RootUUID || groupID == s.DB.RecycleBinUUID {
 			m.setNotice("can't delete root or bin groups here", true)
-			return
+			return nil
 		}
 		change.Kind = vault.DeleteGroup
 		change.GroupUUID = groupID
@@ -114,7 +114,7 @@ func (m *Model) confirmDelete() {
 	} else {
 		e := m.selectedRow()
 		if e == nil {
-			return
+			return nil
 		}
 		if e.OpaqueGroup {
 			change.Kind = vault.DeleteGroup
@@ -141,11 +141,11 @@ func (m *Model) confirmDelete() {
 	}
 	if change.Kind == vault.DeleteGroup && s.DB.Unlocked() && s.DB.RecycleBinEnabled && !permanent {
 		change.Kind = vault.PrepareDeleteGroup
-		action = "Review Deletion"
-		message = "Checks the recycle bin and prepares a deletion summary. Nothing moves or is deleted until you confirm the next dialog."
+		return m.apply(change)
 	}
 	m.hideReveal()
 	m.dialog = &actionDialog{kind: "delete", title: action, options: []string{"Cancel", action}, selected: 0, sessionID: s.ID, change: change, message: []string{safe(name), message}}
+	return nil
 }
 func (m *Model) chooseDestination(e *vault.Entry) {
 	s := m.ws.ActiveSession()
