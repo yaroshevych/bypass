@@ -142,6 +142,13 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		if !m.writable() {
 			return nil, true
 		}
+		if view := m.ws.ActiveView(); view != nil && view.Focus == 0 {
+			if nav := m.currentNav(); nav.kind == "group" {
+				m.hideReveal()
+				m.dialog = &actionDialog{kind: "rename-group", title: "New Group", sessionID: s.ID, groupUUID: nav.group, createGroup: true, selected: 0}
+				return nil, true
+			}
+		}
 		group := s.DB.RootUUID
 		if v := m.ws.ActiveView(); v != nil && v.GroupUUID != "" {
 			for _, g := range s.DB.Groups {

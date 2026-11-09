@@ -21,6 +21,7 @@ type actionDialog struct {
 	input                           input
 	err                             string
 	applyToPassword                 bool
+	createGroup                     bool
 	sessionID, entryUUID, groupUUID string
 	sourceGroupUUID                 string
 	groups                          []vault.Group
@@ -270,6 +271,9 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 			}
 			if d.kind == "rename-tag" {
 				return m.apply(vault.Change{Kind: vault.RenameTag, TagName: d.originalName, NewName: name})
+			}
+			if d.createGroup {
+				return m.apply(vault.Change{Kind: vault.CreateGroup, GroupUUID: d.groupUUID, NewName: name})
 			}
 			return m.apply(vault.Change{Kind: vault.RenameGroup, GroupUUID: d.groupUUID, NewName: name})
 		}
