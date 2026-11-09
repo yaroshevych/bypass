@@ -203,6 +203,20 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		if !m.writable() {
 			return nil, true
 		}
+		if view := m.ws.ActiveView(); view != nil && view.Focus == 0 {
+			if nav := m.currentNav(); nav.kind == "group" {
+				if nav.group == s.DB.RootUUID || nav.group == s.DB.RecycleBinUUID {
+					m.setNotice("the root and recycle bin groups can't be moved", true)
+					return nil, true
+				}
+				for _, group := range s.DB.Groups {
+					if group.UUID == nav.group {
+						m.chooseGroupDestination(group)
+						return nil, true
+					}
+				}
+			}
+		}
 		e := m.selected()
 		if e == nil {
 			return nil, true
@@ -541,7 +555,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			}
 		}
 		m.ws.Sessions[msg.sessionID].LastActivity = m.now()
-		if msg.change.Kind == vault.MoveEntry {
+		if msg.change.Kind == vault.MoveEntry || msg.change.Kind == vault.MoveGroup {
 			s := m.ws.Sessions[msg.sessionID]
 			destinations := []string{msg.change.GroupUUID}
 			for _, id := range s.Destinations {

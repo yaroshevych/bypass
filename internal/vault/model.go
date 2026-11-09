@@ -44,6 +44,7 @@ const (
 	AddEntry           ChangeKind = "add_entry"
 	EditEntry          ChangeKind = "edit_entry"
 	MoveEntry          ChangeKind = "move_entry"
+	MoveGroup          ChangeKind = "move_group"
 	DeleteEntry        ChangeKind = "delete_entry"
 	CreateGroup        ChangeKind = "create_group"
 	DeleteGroup        ChangeKind = "delete_group"
@@ -60,6 +61,7 @@ type Change struct {
 	Kind            ChangeKind
 	EntryUUID       string
 	GroupUUID       string
+	SourceGroupUUID string
 	Values          map[string]string
 	Password        []byte
 	PasswordChanged bool

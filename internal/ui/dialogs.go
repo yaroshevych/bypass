@@ -22,6 +22,7 @@ type actionDialog struct {
 	err                             string
 	applyToPassword                 bool
 	sessionID, entryUUID, groupUUID string
+	sourceGroupUUID                 string
 	groups                          []vault.Group
 	change                          vault.Change
 	loss                            *vault.DataLossError
@@ -163,6 +164,35 @@ func (m *Model) chooseDestination(e *vault.Entry) {
 	m.hideReveal()
 	m.dialog = &actionDialog{kind: "destination", title: title, sessionID: s.ID, entryUUID: e.UUID}
 	m.dialog.groups = destinationGroups(s.DB, s.Destinations)
+}
+
+func (m *Model) chooseGroupDestination(group vault.Group) {
+	s := m.ws.ActiveSession()
+	if s == nil || s.DB == nil {
+		return
+	}
+	excluded := map[string]bool{group.UUID: true}
+	for changed := true; changed; {
+		changed = false
+		for _, candidate := range s.DB.Groups {
+			if excluded[candidate.ParentUUID] && !excluded[candidate.UUID] {
+				excluded[candidate.UUID] = true
+				changed = true
+			}
+		}
+	}
+	if group.ParentUUID != "" {
+		excluded[group.ParentUUID] = true
+	}
+	groups := destinationGroups(s.DB, s.Destinations)
+	filtered := groups[:0]
+	for _, candidate := range groups {
+		if !excluded[candidate.UUID] {
+			filtered = append(filtered, candidate)
+		}
+	}
+	m.hideReveal()
+	m.dialog = &actionDialog{kind: "destination", title: "Move Group · " + safe(group.Name), sessionID: s.ID, sourceGroupUUID: group.UUID, groups: filtered}
 }
 func (d *actionDialog) filteredGroups() []vault.Group {
 	return d.groups
@@ -387,6 +417,9 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 				return nil
 			}
 			group := groups[min(d.selected, len(groups)-1)]
+			if d.sourceGroupUUID != "" {
+				return m.apply(vault.Change{Kind: vault.MoveGroup, SourceGroupUUID: d.sourceGroupUUID, GroupUUID: group.UUID})
+			}
 			return m.apply(vault.Change{Kind: vault.MoveEntry, EntryUUID: d.entryUUID, GroupUUID: group.UUID})
 		default:
 			return nil
@@ -675,7 +708,11 @@ func (m *Model) destinationDialogBody() ([]string, []int) {
 	for _, line := range d.message {
 		rows = append(rows, listComponentOutput{text: line, item: -1})
 	}
-	rows = append(rows, listComponentOutput{text: m.colors().secondary.Render(" Move item to:"), item: -1}, listComponentOutput{item: -1})
+	targetLabel := " Move item to:"
+	if d.sourceGroupUUID != "" {
+		targetLabel = " Move group to:"
+	}
+	rows = append(rows, listComponentOutput{text: m.colors().secondary.Render(targetLabel), item: -1}, listComponentOutput{item: -1})
 	groups := d.filteredGroups()
 	start, capacity := m.destinationViewport(groups)
 	start, end := viewportRange(len(groups), capacity, start)

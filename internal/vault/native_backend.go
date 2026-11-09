@@ -49,8 +49,9 @@ type nativeState struct {
 }
 
 type nativeSelection struct {
-	group *Group
-	entry *Entry
+	group       *Group
+	sourceGroup *Group
+	entry       *Entry
 }
 
 var nativePathLocks sync.Map
@@ -69,6 +70,19 @@ func modelGroup(db *Database, id string) *Group {
 		}
 	}
 	return nil
+}
+func groupWithin(db *Database, candidateID, ancestorID string) bool {
+	seen := make(map[string]bool)
+	for current := modelGroup(db, candidateID); current != nil; current = modelGroup(db, current.ParentUUID) {
+		if normalizeUUID(current.UUID) == normalizeUUID(ancestorID) {
+			return true
+		}
+		if seen[current.UUID] || current.ParentUUID == "" {
+			return false
+		}
+		seen[current.UUID] = true
+	}
+	return false
 }
 func modelEntry(db *Database, id string) *Entry {
 	for i := range db.Entries {
@@ -423,7 +437,7 @@ func changeLossOperation(path string, revision [32]byte, change Change) [32]byte
 	h := sha256.New()
 	writeConsentString(h, path)
 	writeConsentBytes(h, revision[:])
-	for _, value := range []string{string(change.Kind), change.EntryUUID, change.GroupUUID, change.NewName, change.TagName, change.AttachmentName} {
+	for _, value := range []string{string(change.Kind), change.EntryUUID, change.GroupUUID, change.SourceGroupUUID, change.NewName, change.TagName, change.AttachmentName} {
 		writeConsentString(h, value)
 	}
 	keys := make([]string, 0, len(change.Values))
@@ -1031,12 +1045,19 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 	if change.GroupUUID != "" {
 		selection.group = modelGroup(db, change.GroupUUID)
 	}
+	if change.SourceGroupUUID != "" {
+		selection.sourceGroup = modelGroup(db, change.SourceGroupUUID)
+	}
 	if change.EntryUUID != "" {
 		selection.entry = modelEntry(db, change.EntryUUID)
 	}
 	switch change.Kind {
 	case AddEntry, CreateGroup, MoveEntry:
 		if selection.group == nil || selection.group.Recycled {
+			return nil, ErrUnsupported
+		}
+	case MoveGroup:
+		if selection.group == nil || selection.group.Recycled || selection.sourceGroup == nil || selection.sourceGroup.Recycled || selection.sourceGroup.UUID == db.RootUUID || selection.sourceGroup.ParentUUID == selection.group.UUID || groupWithin(db, selection.group.UUID, selection.sourceGroup.UUID) {
 			return nil, ErrUnsupported
 		}
 	case EditEntry, DeleteEntry, AddAttachment, ReplaceAttachment, RemoveAttachment:
@@ -1149,6 +1170,29 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		moved := *e
 		removeNativeEntry(sg, e)
 		dg.Entries = append(dg.Entries, moved)
+	case MoveGroup:
+		g := findNativeGroup(s.db, change.SourceGroupUUID)
+		if g == nil {
+			return nil, ErrUnsupported
+		}
+		parentUUID := selection.sourceGroup.ParentUUID
+		moved := *g
+		if parentUUID == "" {
+			if !removeNativeRootGroup(s.db, g) {
+				return nil, ErrUnsupported
+			}
+		} else {
+			parent := findNativeGroup(s.db, parentUUID)
+			if parent == nil {
+				return nil, ErrUnsupported
+			}
+			removeNativeGroup(parent, g)
+		}
+		destination := findNativeGroup(s.db, change.GroupUUID)
+		if destination == nil {
+			return nil, ErrUnsupported
+		}
+		destination.Groups = append(destination.Groups, moved)
 	case DeleteEntry:
 		g, e := findNativeEntry(s.db, change.EntryUUID)
 		if g == nil || e == nil {

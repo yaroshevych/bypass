@@ -21,7 +21,7 @@ func contextError(ctx context.Context) error {
 
 func validateChange(change Change) error {
 	switch change.Kind {
-	case AddEntry, EditEntry, MoveEntry, DeleteEntry, CreateGroup, DeleteGroup, PrepareDeleteGroup, PrepareRecycleBin, AddAttachment, ReplaceAttachment, RemoveAttachment, RenameTag, RenameGroup:
+	case AddEntry, EditEntry, MoveEntry, MoveGroup, DeleteEntry, CreateGroup, DeleteGroup, PrepareDeleteGroup, PrepareRecycleBin, AddAttachment, ReplaceAttachment, RemoveAttachment, RenameTag, RenameGroup:
 	default:
 		return ErrUnsupported
 	}
@@ -53,6 +53,13 @@ func validateChange(change Change) error {
 			return ErrUnsupported
 		}
 	} else if change.TagName != "" {
+		return ErrUnsupported
+	}
+	if change.Kind == MoveGroup {
+		if change.SourceGroupUUID == "" || change.GroupUUID == "" || change.SourceGroupUUID == change.GroupUUID {
+			return ErrUnsupported
+		}
+	} else if change.SourceGroupUUID != "" {
 		return ErrUnsupported
 	}
 	if isAttachmentChange {
