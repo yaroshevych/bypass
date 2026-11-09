@@ -31,8 +31,9 @@ const bodyRule = "\x00bypass-dialog-body-rule"
 
 // Action is a rendered button and its semantic target.
 type Action struct {
-	Text   string
-	Target int
+	Text    string
+	Target  int
+	Focused bool
 }
 
 type Options struct {
@@ -42,6 +43,11 @@ type Options struct {
 	Body                       []string
 	EdgeToEdgeRows             []bool
 	HeaderBottomDividers       []int
+	MouseX, MouseY             int
+	MouseKnown                 bool
+	HoverStyle                 lipgloss.Style
+	InlineChoices              []string
+	InlineSelected             string
 	Actions                    []Action
 	Error                      string
 	BodyRows, MaxBodyRows      int
@@ -326,6 +332,62 @@ func ContentCapacity(o Options) int {
 func Render(o Options) []string {
 	if o.Height <= 0 {
 		return nil
+	}
+	if o.MouseKnown && len(o.InlineChoices) > 0 {
+		targets := make([]int, len(o.Body))
+		for i := range targets {
+			targets[i] = i
+		}
+		hit := HitTest(o, o.MouseX, o.MouseY, targets)
+		if hit.Target >= 0 && hit.Target < len(o.Body) {
+			left := 0
+			if !o.Fullscreen {
+				if o.Mode == Overlay {
+					body, _ := prepareBody(o)
+					footer := 0
+					if o.StatusBar != "" {
+						footer = 1
+					}
+					left = LayoutOverlay(o.Width, o.ScreenWidth, o.Height, len(body)+footer, o.Compact, o.X, o.Y).X + 2
+				} else {
+					left = LayoutBox(o).X + 2
+				}
+			}
+			line := o.Body[hit.Target]
+			plain := ansi.Strip(line)
+			for _, label := range o.InlineChoices {
+				if label == o.InlineSelected {
+					continue
+				}
+				index := strings.Index(plain, label)
+				if index < 0 {
+					continue
+				}
+				start := ansi.StringWidth(plain[:index])
+				end := start + ansi.StringWidth(label)
+				if o.MouseX-left >= start && o.MouseX-left < end {
+					o.Body = append([]string(nil), o.Body...)
+					o.Body[hit.Target] = ansi.Cut(line, 0, start) + o.HoverStyle.Render(label) + ansi.Cut(line, end, ansi.StringWidth(line))
+					break
+				}
+			}
+		}
+	}
+	if o.MouseKnown && len(o.Actions) > 0 {
+		targets := make([]int, len(o.Body))
+		for i := range targets {
+			targets[i] = -1
+		}
+		hit := HitTest(o, o.MouseX, o.MouseY, targets)
+		if hit.Target >= 0 {
+			o.Actions = append([]Action(nil), o.Actions...)
+			for i := range o.Actions {
+				if o.Actions[i].Target == hit.Target && !o.Actions[i].Focused {
+					o.Actions[i].Text = o.HoverStyle.Render(ansi.Strip(o.Actions[i].Text))
+					break
+				}
+			}
+		}
 	}
 	width := o.Width
 	if o.Mode == Overlay {

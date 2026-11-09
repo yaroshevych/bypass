@@ -683,7 +683,7 @@ func (m *Model) runLayerOptions(layout runDialogLayout) dialogrender.Options {
 	opts.MaxBodyRows, opts.Width, opts.X, opts.Y = layout.capacity, layout.width, layout.x, layout.y
 	rows := m.dialogActionRows(layout.actions, layout.focus, m.dialogInnerWidth(layout.width))
 	for i, row := range rows {
-		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: i})
+		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: i, Focused: i == layout.focus})
 	}
 	return opts
 }

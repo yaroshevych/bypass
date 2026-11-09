@@ -292,7 +292,7 @@ func (m *Model) pinContent() (opts dialogrender.Options, targets []int) {
 	opts = m.dialogOptions()
 	opts.Title, opts.Body, opts.Error, opts.Width = "Bypass - Secrets Manager", body, safe(message), width
 	for i, row := range m.dialogActionRows(actions, focus, actionWidth) {
-		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: actionBase + i})
+		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: actionBase + i, Focused: i == focus})
 	}
 	return opts, targets
 }
@@ -428,6 +428,14 @@ func (m *Model) overlayError(title string, body []string, footer, message string
 	}
 	opts.Body, opts.StatusBar, opts.Backdrop = body, footer, m.modalBackdrop()
 	opts.Error = safe(message)
+	if title == "Attachments" && m.extras != nil && strings.HasPrefix(m.extras.phase, "confirm-") {
+		opts.InlineChoices = []string{"Cancel", "Confirm"}
+		if m.extras.confirmProceed {
+			opts.InlineSelected = "Confirm"
+		} else {
+			opts.InlineSelected = "Cancel"
+		}
+	}
 	opts.Width, opts.X, opts.Y = width, x, y
 	return dialogrender.Render(opts)
 }

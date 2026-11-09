@@ -104,6 +104,8 @@ type Model struct {
 	tabHovered                              bool
 	hoveredTag, hoveredTagEntry             string
 	footerHover                             string
+	mouseX, mouseY                          int
+	mouseKnown                              bool
 	lifecycle                               *lifecycleState
 	extras                                  *extraState
 	styles                                  styleSet
@@ -368,6 +370,9 @@ func (m *Model) clearTransientUI() {
 func (m *Model) CleanupError() error { return m.cleanupErr }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if mouse, ok := msg.(tea.MouseMsg); ok && mouse.Action == tea.MouseActionMotion {
+		m.mouseX, m.mouseY, m.mouseKnown = mouse.X, mouse.Y, true
+	}
 	if mouse, ok := msg.(tea.MouseMsg); ok && mouse.Action == tea.MouseActionMotion && m.dragging == 0 && m.activeLayer() == layerWorkspace {
 		return m, m.pointer(mouse)
 	}

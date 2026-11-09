@@ -57,6 +57,7 @@ type entryEditor struct {
 	validation       string
 	validationFocus  int
 	focus            int
+	hover            int
 	isNew            bool
 	EntryUUID        string
 	GroupUUID        string
@@ -76,6 +77,7 @@ func newEntryEditor(e *vault.Entry, groupUUID string) *entryEditor {
 		headerNow:       time.Now(),
 		isNew:           e == nil,
 		validationFocus: -1,
+		hover:           -1,
 	}
 	editor.header.tags = nil
 	for i, name := range editorFields {
@@ -629,6 +631,9 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 	)
 	for _, action := range actions {
 		text := renderEditorAction(action.label, action.shortcut, width, e.compact, e.ascii, action.index == e.focus, styles)
+		if action.index == e.hover && action.index != e.focus {
+			text = styles.inactive.Render(ansi.Strip(text))
+		}
 		lines = append(lines, editorLine{text: text, focus: action.index})
 	}
 	if e.err != "" && e.validation == "" {

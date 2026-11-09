@@ -570,7 +570,7 @@ func (m *Model) lifecycleContent() (dialogrender.Options, []int) {
 	opts.Mode, opts.Title, opts.Body, opts.StatusBar, opts.Width = dialogrender.Overlay, title, body, footer, dialogWidth
 	opts.Error, opts.X, opts.Y = safe(l.err), -1, -1
 	for i, row := range m.dialogActionRows(actions, actionFocus, m.dialogInnerWidth(dialogWidth)) {
-		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: actionBase + i})
+		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: actionBase + i, Focused: i == actionFocus})
 	}
 	rowTargets := make([]int, len(body))
 	for i := range rowTargets {

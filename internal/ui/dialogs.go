@@ -827,8 +827,14 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 	}
 	opts = m.dialogOptions()
 	opts.Title, opts.Body, opts.StatusBar, opts.Width, opts.Error = d.title, body, footer, width, safe(d.err)
+	if len(actions) == 0 {
+		opts.InlineChoices = d.options
+		if d.selected >= 0 && d.selected < len(d.options) {
+			opts.InlineSelected = d.options[d.selected]
+		}
+	}
 	for i, row := range m.dialogActionRows(actions, actionFocus, m.dialogInnerWidth(width)) {
-		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: actionBase + i})
+		opts.Actions = append(opts.Actions, dialogrender.Action{Text: row, Target: actionBase + i, Focused: i == actionFocus})
 	}
 	return opts, targets
 }

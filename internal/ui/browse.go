@@ -19,6 +19,7 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	}
 	if msg.Action == tea.MouseActionMotion && m.dragging == 0 {
 		m.footerHover = m.footerActionAt(msg.X, msg.Y)
+		m.updateEditorHover(msg.X, msg.Y)
 		if !m.help && m.screen == browse && m.ws.ActiveSession() != nil {
 			m.hoverTab, m.tabHovered = m.tabAt(msg.X, msg.Y)
 		}
@@ -101,6 +102,8 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 			m.openGenerator()
 		case editorMove:
 			return m.moveEditorEntry()
+		case editorTags:
+			m.openEditorTags()
 		case editorFavorite:
 			m.toggleEditorFavorite()
 		}
@@ -164,6 +167,26 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	}
 	m.mouse(msg)
 	return nil
+}
+
+func (m *Model) updateEditorHover(x, y int) {
+	if m.editor == nil {
+		return
+	}
+	m.editor.hover = -1
+	for _, pane := range m.layout().Panes {
+		if pane.Focus != 2 || x < pane.X || x >= pane.X+pane.Width || y < pane.Y || y >= pane.Y+pane.Height {
+			continue
+		}
+		renderer := *m.editor
+		renderer.compact, renderer.ascii = m.compactAppearance(), m.settings.ASCII
+		lines := renderer.layoutLines(pane.Width, pane.Height)
+		row := y - pane.Y
+		if row < len(lines) && lines[row].focus >= editGenerate && lines[row].focus < editFocusCount {
+			m.editor.hover = lines[row].focus
+		}
+		return
+	}
 }
 
 func (m *Model) footerActionAt(x, y int) string {

@@ -1407,7 +1407,7 @@ func (m *Model) unlockOptions() dialogrender.Options {
 	opts := m.dialogOptions()
 	opts.Title, opts.Body, opts.Width, opts.Error = "Unlock Vault", body, width, safe(m.err)
 	rows := m.dialogActionRows([]dialogAction{{"Open", "enter"}, {"Cancel", "esc"}}, m.inputFocus-1, m.dialogInnerWidth(width))
-	opts.Actions = []dialogrender.Action{{Text: rows[0], Target: 1}, {Text: rows[1], Target: 2}}
+	opts.Actions = []dialogrender.Action{{Text: rows[0], Target: 1, Focused: m.inputFocus == 1}, {Text: rows[1], Target: 2, Focused: m.inputFocus == 2}}
 	return opts
 }
 

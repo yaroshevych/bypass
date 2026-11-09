@@ -119,7 +119,8 @@ func (m *Model) dialogOptions() dialogrender.Options {
 	return dialogrender.Options{
 		ScreenWidth: m.width, Height: m.height, Compact: m.compactAppearance(), ASCII: m.settings.ASCII, Fullscreen: m.smallDialogScreen(),
 		SquareEdges: m.smallDialogScreen() && !strings.EqualFold(m.settings.Appearance, "compact"),
-		Surface:     c.primary, Accent: c.accent, Secondary: c.secondary, ErrorStyle: c.error, Pill: c.active, Divider: c.divider,
+		MouseX:      m.mouseX, MouseY: m.mouseY, MouseKnown: m.mouseKnown, HoverStyle: c.inactive,
+		Surface: c.primary, Accent: c.accent, Secondary: c.secondary, ErrorStyle: c.error, Pill: c.active, Divider: c.divider,
 		RestoreResets: func(text string) string { return restoreThemeResets(text, theme.primary, theme.background) },
 	}
 }
