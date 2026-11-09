@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -337,11 +338,41 @@ func (m *Model) toggleEditorFavorite() {
 		return
 	}
 	m.editor.favorite = !m.editor.favorite
+	m.editor.tags = favoriteChangedTags(m.editor.tags, m.editor.favorite)
 	verb := "added"
 	if !m.editor.favorite {
 		verb = "removed"
 	}
 	m.setNotice("Favorite tag will be "+verb+" when you save", false)
+}
+
+func (m *Model) openEditorTags() {
+	if m.editor == nil {
+		return
+	}
+	seen := make(map[string]bool)
+	tags := make([]string, 0)
+	add := func(tag string) {
+		tag = strings.TrimSpace(tag)
+		key := strings.ToLower(tag)
+		if tag != "" && !seen[key] {
+			seen[key] = true
+			tags = append(tags, tag)
+		}
+	}
+	if session := m.ws.Sessions[m.editorSession]; session != nil && session.DB != nil {
+		for _, entry := range session.DB.Entries {
+			for _, tag := range entry.Tags {
+				add(tag)
+			}
+		}
+	}
+	for _, tag := range m.editor.tags {
+		add(tag)
+	}
+	sort.Slice(tags, func(i, j int) bool { return strings.ToLower(tags[i]) < strings.ToLower(tags[j]) })
+	m.hideReveal()
+	m.dialog = &actionDialog{kind: "tags", title: "Tags", sessionID: m.editorSession, tags: tags, selectedTags: append([]string(nil), m.editor.tags...)}
 }
 
 func (m *Model) clearEditor() {
@@ -381,6 +412,8 @@ func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 		m.openGenerator()
 	case editorMove:
 		return m.moveEditorEntry()
+	case editorTags:
+		m.openEditorTags()
 	case editorFavorite:
 		m.toggleEditorFavorite()
 	}

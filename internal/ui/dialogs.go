@@ -3,6 +3,7 @@ package ui
 import (
 	wipebuf "bypass/internal/secret"
 	"fmt"
+	"sort"
 	"strings"
 
 	dialogrender "bypass/internal/ui/dialog"
@@ -26,6 +27,10 @@ type actionDialog struct {
 	sessionID, entryUUID, groupUUID string
 	sourceGroupUUID                 string
 	groups                          []vault.Group
+	tags                            []string
+	selectedTags                    []string
+	tagIndex                        int
+	tagActionsFocused               bool
 	change                          vault.Change
 	loss                            *vault.DataLossError
 	credentials                     *vault.Credentials
@@ -229,6 +234,12 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 			m.clearDialog()
 		}
 		return nil
+	}
+	if d.kind == "tag-new" {
+		return m.newTagDialogKey(k)
+	}
+	if d.kind == "tags" {
+		return m.tagsDialogKey(k)
 	}
 	if key == "esc" {
 		if d.kind == "external" {
@@ -505,6 +516,118 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+func (m *Model) tagsDialogKey(k tea.KeyMsg) tea.Cmd {
+	d := m.dialog
+	key := k.String()
+	if key == "esc" {
+		m.clearDialog()
+		return nil
+	}
+	if key == " " || key == "space" {
+		if !d.tagActionsFocused && d.tagIndex >= 0 && d.tagIndex < len(d.tags) {
+			tag := d.tags[d.tagIndex]
+			for i, selected := range d.selectedTags {
+				if strings.EqualFold(strings.TrimSpace(selected), strings.TrimSpace(tag)) {
+					d.selectedTags = append(d.selectedTags[:i], d.selectedTags[i+1:]...)
+					return nil
+				}
+			}
+			d.selectedTags = append(d.selectedTags, tag)
+		}
+		return nil
+	}
+	if key == "up" || key == "down" || key == "tab" || key == "shift+tab" {
+		dialogFocus(key, len(d.tags), 3, &d.tagIndex, &d.selected, &d.tagActionsFocused)
+		return nil
+	}
+	if key != "enter" {
+		return nil
+	}
+	if !d.tagActionsFocused || d.selected == 0 {
+		if m.editor != nil {
+			m.editor.tags = append([]string(nil), d.selectedTags...)
+			m.editor.favorite = hasFavoriteTag(m.editor.tags)
+		}
+		m.clearDialog()
+		return nil
+	}
+	switch d.selected {
+	case 1:
+		d.kind, d.title, d.selected = "tag-new", "New Tag", 0
+		d.input.clear()
+		d.err = ""
+	case 2:
+		m.clearDialog()
+	}
+	return nil
+}
+
+func (m *Model) newTagDialogKey(k tea.KeyMsg) tea.Cmd {
+	d := m.dialog
+	key := k.String()
+	if key == "esc" {
+		d.kind, d.title, d.selected = "tags", "Tags", 0
+		d.input.clear()
+		d.err = ""
+		return nil
+	}
+	if key == "up" || key == "down" || key == "tab" || key == "shift+tab" {
+		dialogActionFocus(key, 3, &d.selected)
+		return nil
+	}
+	if key == "enter" {
+		if d.selected == 2 {
+			d.kind, d.title, d.selected = "tags", "Tags", 0
+			d.input.clear()
+			d.err = ""
+			return nil
+		}
+		name := strings.TrimSpace(d.input.value())
+		if name == "" {
+			d.err = "Tag name is required."
+			return nil
+		}
+		index := -1
+		for i, tag := range d.tags {
+			if strings.EqualFold(strings.TrimSpace(tag), name) {
+				index = i
+				break
+			}
+		}
+		if index < 0 {
+			d.tags = append(d.tags, name)
+			sort.Slice(d.tags, func(i, j int) bool { return strings.ToLower(d.tags[i]) < strings.ToLower(d.tags[j]) })
+			for i, tag := range d.tags {
+				if strings.EqualFold(tag, name) {
+					index = i
+					break
+				}
+			}
+		}
+		found := false
+		for _, tag := range d.selectedTags {
+			if strings.EqualFold(strings.TrimSpace(tag), name) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			d.selectedTags = append(d.selectedTags, d.tags[index])
+		}
+		d.kind, d.title, d.selected = "tags", "Tags", 0
+		d.tagIndex = index
+		d.tagActionsFocused = false
+		d.input.clear()
+		d.err = ""
+		return nil
+	}
+	if d.selected == 0 {
+		d.input.update(k)
+		d.err = ""
+	}
+	return nil
+}
+
 func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 	c := m.colors()
 	accent, secondary := c.accent, c.secondary
@@ -568,12 +691,60 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		fieldEnd = len(body)
 		actions, actionBase, actionFocus = []dialogAction{{"Save", "enter"}, {"Cancel", "esc"}}, 1, d.selected-1
 		footer = ""
-	case "group":
+	case "group", "tag-new":
 		actionWidth := m.dialogInnerWidth(min(m.width-6, 82))
+		label, submit := "Group name", "Create"
+		if d.kind == "tag-new" {
+			label, submit = "Tag name", "Add"
+		}
 		fieldStart = len(body)
-		body = append(body, m.dialogFields([]inputFieldView{{label: "Group name", value: &d.input, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
+		body = append(body, m.dialogFields([]inputFieldView{{label: label, value: &d.input, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
 		fieldEnd = len(body)
-		actions, actionBase, actionFocus = []dialogAction{{"Create", "enter"}, {"Cancel", "esc"}}, 1, d.selected-1
+		actions, actionBase, actionFocus = []dialogAction{{submit, "enter"}, {"Cancel", "esc"}}, 1, d.selected-1
+		footer = ""
+	case "tags":
+		body = append(body, secondary.Render(" Choose tags"))
+		capacity := max(1, min(8, m.height-12))
+		start, end := viewportRange(len(d.tags), capacity, viewportOffset(d.tagIndex, len(d.tags), capacity, d.offset))
+		rows := make([]listComponentRow, 0, max(1, end-start))
+		if len(d.tags) == 0 {
+			body = append(body, secondary.Render(" No tags available"))
+		} else {
+			for i := start; i < end; i++ {
+				checked := false
+				for _, tag := range d.selectedTags {
+					if strings.EqualFold(strings.TrimSpace(tag), strings.TrimSpace(d.tags[i])) {
+						checked = true
+						break
+					}
+				}
+				mark := "  "
+				if checked {
+					mark = "✓ "
+					if m.settings.ASCII {
+						mark = "x "
+					}
+				}
+				rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: mark + safe(d.tags[i]), right: "space", selected: !d.tagActionsFocused && i == d.tagIndex, activeFill: true, pillSelected: true, classicInset: true})
+			}
+			listRows := m.renderListComponent(rows, listComponentOptions{width: m.dialogInnerWidth(min(m.width-6, 46)), compact: compact, ascii: m.settings.ASCII, focused: !d.tagActionsFocused, sidebar: true})
+			listBody, listTargets := listContent(listRows)
+			body = append(body, listBody...)
+			contentTargets = append(contentTargets, -1)
+			for _, listTarget := range listTargets {
+				if listTarget >= 0 {
+					contentTargets = append(contentTargets, 100000+listTarget)
+				} else {
+					contentTargets = append(contentTargets, listTarget)
+				}
+			}
+		}
+		actionBase = len(body)
+		actions = []dialogAction{{"Save", "enter"}, {"Add new", ""}, {"Cancel", "esc"}}
+		actionFocus = -1
+		if d.tagActionsFocused {
+			actionFocus = d.selected
+		}
 		footer = ""
 	case "rename-tag", "rename-group":
 		actionWidth := m.dialogInnerWidth(min(m.width-6, 48))
@@ -635,10 +806,12 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		width = min(m.width-6, 42)
 	case "pin-setup", "pin-confirm":
 		width = min(m.width-6, 52)
-	case "rename-tag", "rename-group":
+	case "rename-tag", "rename-group", "tag-new":
 		width = min(m.width-6, 48)
 	case "external", "generator":
 		width = min(m.width-6, 72)
+	case "tags":
+		width = min(m.width-6, 46)
 	case "delete", "data-loss", "destination", "startup-warning":
 		width = min(m.width-6, 60)
 	}
@@ -698,9 +871,22 @@ func (m *Model) dialogPointer(msg tea.MouseMsg) tea.Cmd {
 	if target < 0 {
 		return nil
 	}
+	if m.dialog.kind == "tags" {
+		if target >= 100000 {
+			m.dialog.tagIndex = target - 100000
+			m.dialog.tagActionsFocused = false
+			return m.tagsDialogKey(tea.KeyMsg{Type: tea.KeySpace})
+		}
+		if target >= len(opts.Body) {
+			m.dialog.selected = target - len(opts.Body)
+			m.dialog.tagActionsFocused = true
+			return m.tagsDialogKey(tea.KeyMsg{Type: tea.KeyEnter})
+		}
+		return nil
+	}
 	d := m.dialog
 	d.selected = target
-	if target == 0 && (d.kind == "group" || d.kind == "rename-tag" || d.kind == "rename-group" || d.kind == "pin-setup" || d.kind == "pin-confirm" || d.kind == "generator" && len(d.secret) == 0) {
+	if target == 0 && (d.kind == "group" || d.kind == "tag-new" || d.kind == "rename-tag" || d.kind == "rename-group" || d.kind == "pin-setup" || d.kind == "pin-confirm" || d.kind == "generator" && len(d.secret) == 0) {
 		return nil
 	}
 	return m.dialogKey(tea.KeyMsg{Type: tea.KeyEnter})
