@@ -168,8 +168,12 @@ func TestEntryEditorTabActionsAndNotesEnter(t *testing.T) {
 	}
 	e.focus = editGenerate
 	e.key(editorTeaKey("down"))
+	if e.focus != editTags {
+		t.Fatalf("Down from Generator in new entry focused %d, want Tags", e.focus)
+	}
+	e.key(editorTeaKey("down"))
 	if e.focus != editSave {
-		t.Fatalf("Down from Generator in new entry focused %d, want Save", e.focus)
+		t.Fatalf("Down from Tags in new entry focused %d, want Save", e.focus)
 	}
 	if action := e.key(tea.KeyMsg{Type: tea.KeyCtrlS}); action != editorSave {
 		t.Fatalf("Ctrl+S = %v", action)
@@ -476,8 +480,12 @@ func TestExistingEntryActionsShowShortcutsAndMoveDialog(t *testing.T) {
 		t.Fatalf("Down from Generator focused %d, want Move", e.focus)
 	}
 	e.key(editorTeaKey("down"))
+	if e.focus != editTags {
+		t.Fatalf("Down from Move focused %d, want Tags", e.focus)
+	}
+	e.key(editorTeaKey("down"))
 	if e.focus != editFavorite {
-		t.Fatalf("Down from Move focused %d, want favorite action", e.focus)
+		t.Fatalf("Down from Tags focused %d, want favorite action", e.focus)
 	}
 	e.key(editorTeaKey("down"))
 	if e.focus != editSave {

@@ -838,7 +838,11 @@ func TestNumberKeysRemainTextInInputs(t *testing.T) {
 		m.ws.Open(fixture("/tmp/other.kdbx"))
 		m.ws.ActiveSession().ReadOnly = false
 		m.normalize()
+		m.ws.ActiveView().Focus = 1
 		m.key(key("e"))
+		if m.editor == nil {
+			t.Fatal("edit shortcut did not open the entry editor")
+		}
 		m.key(key("1"))
 		m.key(key("2"))
 		if m.ws.Active != 1 || m.editor.inputs[editTitle].value() != "Alpha12" {

@@ -150,14 +150,18 @@ func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	beforeStyles := m.styles
 
 	m.openPalette("actions")
-	m.palette.query.set("Theme")
+	m.palette.query.set("Settings")
 	m.refreshPalette()
 	if got := m.paletteChoices(); len(got) != 1 || got[0].run == nil {
 		t.Fatalf("theme command choices = %#v", got)
 	}
 	m.executePalette()
-	m.palette.query.set("Nord")
-	m.refreshPalette()
+	for i, choice := range m.paletteChoices() {
+		if choice.value == "nord" {
+			m.palette.selected = i
+			break
+		}
+	}
 	m.previewChoice()
 	if m.settings.Theme != "nord" || reflect.DeepEqual(m.styles, beforeStyles) {
 		t.Fatal("theme selection did not preview the requested theme")
@@ -179,23 +183,18 @@ func TestShiftTOpensThemePaletteWithoutCreatingTab(t *testing.T) {
 	m, _ := operationModel(t)
 	viewCount := len(m.ws.Views)
 	m.key(key("T"))
-	if m.palette == nil || m.palette.scope != "themes" {
-		t.Fatal("Shift+T did not open the Themes dialog")
+	if m.palette == nil || m.palette.scope != "settings" || m.palette.tab != 0 {
+		t.Fatal("Shift+T did not open the Theme tab in Settings")
 	}
 	if len(m.ws.Views) != viewCount {
 		t.Fatal("Shift+T created a tab")
-	}
-	for _, command := range m.commands() {
-		if command.id == "theme" && command.key != "Shift+T" {
-			t.Fatalf("Theme shortcut = %q, want Shift+T", command.key)
-		}
 	}
 }
 
 func TestThemesPaletteOmitsRedundantGroupHeading(t *testing.T) {
 	m, _ := operationModel(t)
 	m.settings.Appearance = "classic"
-	m.openPalette("themes")
+	m.openPalette("settings")
 	rows, _ := m.paletteRows(m.paletteChoices())
 	for _, row := range rows {
 		if row.choice == -1 {
@@ -230,7 +229,7 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 		"VIEW":     {"duplicate", "close-view", "previous-tab"},
 		"ENTRIES":  {"new", "edit", "group"},
 		"SECRETS":  {"copy-focused", "reveal", "generator"},
-		"SETTINGS": {"theme", "appearance"},
+		"SETTINGS": {"theme", "set-pin"},
 	}
 	for section, want := range wantStarts {
 		var got []string
@@ -289,7 +288,7 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 		}
 		wantLabel := map[string]string{
 			"copy-focused": "Copy", "reveal": "Reveal", "grand-view": "Large View…",
-			"theme": "Theme…", "appearance": "Layout…", "set-pin": "Change PIN…", "protect": "Lock UI with PIN", "jump": "Jump…",
+			"theme": "Settings…", "set-pin": "Change PIN…", "protect": "Lock UI with PIN", "jump": "Jump…",
 			"read-only": "Read Only",
 			"totp":      "TOTP", "close-vault": "Close Vault", "lock": "Lock Vault",
 			"search": "Search", "zoom": "Zoom", "delete": "Delete…", "history-view": "History",
@@ -766,7 +765,8 @@ func TestLayoutPaletteInitiallySelectsCurrentAppearance(t *testing.T) {
 		t.Run(appearance, func(t *testing.T) {
 			m, _ := operationModel(t)
 			m.settings.Appearance = appearance
-			m.openPalette("appearance")
+			m.openPalette("settings")
+			m.paletteKey(key("2"))
 			choice := m.paletteChoices()[m.palette.selected]
 			if choice.value != appearance {
 				t.Fatalf("selected %q, want %q", choice.value, appearance)
@@ -869,8 +869,8 @@ func TestHelpOmitsItemActionsShortcut(t *testing.T) {
 	if strings.Contains(help, "Redraw screen") {
 		t.Fatal("redraw should not appear in the shortcut dialog")
 	}
-	if !strings.Contains(help, "?            Shortcuts") {
-		t.Fatal("Shortcuts key should align with the other actions")
+	if !strings.Contains(help, "ctrl+p       Command palette") {
+		t.Fatal("Command palette shortcut should align with the other actions")
 	}
 	for _, line := range lines {
 		if strings.HasPrefix(line, "esc") && strings.Contains(line, "Cancel") {

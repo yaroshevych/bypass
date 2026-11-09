@@ -117,6 +117,7 @@ func operationModel(t *testing.T) (*Model, *operationBackend) {
 	m.ws.SetCredentials(m.ws.ActiveSession().ID, vault.Credentials{Password: []byte("SESSION-SECRET")})
 	m.ws.ActiveSession().LastActivity = now
 	m.normalize()
+	m.ws.ActiveView().Focus = 1
 	t.Cleanup(m.Close)
 	return m, b
 }
@@ -470,6 +471,7 @@ func TestLockingInactiveVaultPreservesActiveDraftAndPopover(t *testing.T) {
 	m.ws.Open(fixture("/tmp/other-active.kdbx"))
 	m.ws.ActiveSession().ReadOnly = false
 	m.normalize()
+	m.ws.ActiveView().Focus = 1
 	m.key(key("e"))
 	m.editor.inputs[editTitle].set("Draft")
 	m.openGenerator()
