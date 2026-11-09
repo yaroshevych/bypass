@@ -180,7 +180,7 @@ func TestUnsupportedXMLFieldsAreContextAware(t *testing.T) {
 		})
 	}
 
-	valid := []byte(`<KeePassFile><Meta><CustomData><Item><Key>plugin</Key><Value>value</Value></Item></CustomData></Meta><Root><Group><Entry><Tags>entry-tag</Tags></Entry></Group></Root></KeePassFile>`)
+	valid := []byte(`<KeePassFile><Meta><CustomData><Item><Key>plugin</Key><Value>value</Value></Item></CustomData></Meta><Root><Group><Entry><Tags>entry-tag</Tags><Binary><Key>document.pdf</Key><Value Ref="0"/></Binary><History><Entry><Binary><Key>old.pdf</Key><Value Ref="1"/></Binary></Entry></History></Entry></Group></Root></KeePassFile>`)
 	if fields := unsupportedXMLFields(valid, false); len(fields) != 0 {
 		t.Fatalf("supported fields reported as unsupported: %v", fields)
 	}

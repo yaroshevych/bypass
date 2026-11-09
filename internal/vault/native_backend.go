@@ -287,12 +287,12 @@ func unsupportedXMLFields(raw []byte, kdbx4 bool) []string {
 		"CustomIcons":      {"Icon": true},
 		"Icon":             {"UUID": true, "Data": true},
 		"Binaries":         {"Binary": true},
-		"Binary":           {"ID": true, "Compressed": true},
+		"Binary":           {"Key": true, "Value": true, "ID": true, "Compressed": true},
 		"CustomData":       {"Item": true},
 		"Item":             {"Key": true, "Value": true},
 		"Root":             {"Group": true, "DeletedObjects": true},
 		"Group":            {"UUID": true, "Name": true, "Notes": true, "IconID": true, "CustomIconUUID": true, "Times": true, "IsExpanded": true, "DefaultAutoTypeSequence": true, "EnableAutoType": true, "EnableSearching": true, "LastTopVisibleEntry": true, "Entry": true, "Group": true},
-		"Entry":            {"UUID": true, "IconID": true, "CustomIconUUID": true, "ForegroundColor": true, "BackgroundColor": true, "OverrideURL": true, "Tags": true, "Times": true, "String": true, "AutoType": true, "History": true, "Binaries": true, "CustomData": true},
+		"Entry":            {"UUID": true, "IconID": true, "CustomIconUUID": true, "ForegroundColor": true, "BackgroundColor": true, "OverrideURL": true, "Tags": true, "Times": true, "String": true, "AutoType": true, "History": true, "Binary": true, "Binaries": true, "CustomData": true},
 		"Times":            {"CreationTime": true, "LastModificationTime": true, "LastAccessTime": true, "ExpiryTime": true, "Expires": true, "UsageCount": true, "LocationChanged": true},
 		"String":           {"Key": true, "Value": true},
 		"AutoType":         {"Enabled": true, "DataTransferObfuscation": true, "DefaultSequence": true, "Association": true},
@@ -311,7 +311,43 @@ func unsupportedXMLFields(raw []byte, kdbx4 bool) []string {
 			seen[name] = true
 		}
 	}
+	type xmlFrame struct {
+		name, text, key, title, uuid string
+	}
+	var stack []xmlFrame
 	var parents []string
+	entryContext := func() string {
+		var title, uuid string
+		var groups []string
+		for i := range stack {
+			switch stack[i].name {
+			case "Entry":
+				if title == "" {
+					title = stack[i].title
+				}
+				if uuid == "" {
+					uuid = stack[i].uuid
+				}
+			case "Group":
+				if stack[i].title != "" {
+					groups = append(groups, stack[i].title)
+				}
+			}
+		}
+		if title == "" && uuid == "" {
+			return ""
+		}
+		label := title
+		if label == "" {
+			label = "UUID " + uuid
+		} else if uuid != "" {
+			label += " (UUID " + uuid + ")"
+		}
+		if len(groups) > 0 {
+			return fmt.Sprintf(" (entry %q in %s)", label, strings.Join(groups, " / "))
+		}
+		return fmt.Sprintf(" (entry %q)", label)
+	}
 	for {
 		tok, err := decoder.Token()
 		if err == io.EOF {
@@ -332,7 +368,7 @@ func unsupportedXMLFields(raw []byte, kdbx4 bool) []string {
 					add("PreviousParentGroup (previous parent group metadata)")
 				} else {
 					path := append(append([]string(nil), parents...), name)
-					add("unsupported XML path: " + strings.Join(path, "/"))
+					add("unsupported XML path: " + strings.Join(path, "/") + entryContext())
 				}
 			}
 			for _, attr := range item.Attr {
@@ -341,7 +377,41 @@ func unsupportedXMLFields(raw []byte, kdbx4 bool) []string {
 				}
 			}
 			parents = append(parents, item.Name.Local)
+			stack = append(stack, xmlFrame{name: item.Name.Local})
+		case xml.CharData:
+			if len(stack) > 0 {
+				stack[len(stack)-1].text += string(item)
+			}
 		case xml.EndElement:
+			if len(stack) > 0 {
+				frame := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				value := strings.TrimSpace(frame.text)
+				if len(stack) > 0 {
+					parent := &stack[len(stack)-1]
+					switch frame.name {
+					case "Key":
+						parent.key = value
+					case "Value":
+						if parent.name == "String" && parent.key == "Title" {
+							for i := len(stack) - 1; i >= 0; i-- {
+								if stack[i].name == "Entry" {
+									stack[i].title = value
+									break
+								}
+							}
+						}
+					case "UUID":
+						if parent.name == "Entry" {
+							parent.uuid = value
+						}
+					case "Name":
+						if parent.name == "Group" {
+							parent.title = value
+						}
+					}
+				}
+			}
 			if len(parents) > 0 {
 				parents = parents[:len(parents)-1]
 			}
