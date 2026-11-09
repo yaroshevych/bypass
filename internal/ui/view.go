@@ -1220,7 +1220,7 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 	compact := m.compactAppearance()
 	if row := m.selectedRow(); row != nil && row.OpaqueGroup {
 		var lines []string
-		for _, line := range dialogrender.WrapMessage("Bypass does not yet support operations with groups in the bin, except permanent deletion.", max(1, width-2)) {
+		for _, line := range dialogrender.WrapMessage("To restore this group, use Move Entry… and choose a destination. You can also permanently delete it.", max(1, width-2)) {
 			lines = append(lines, secondary.Render(" "+line))
 		}
 		return lines, nil

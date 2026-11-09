@@ -223,6 +223,14 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 				}
 			}
 		}
+		if entry := m.selectedRow(); entry != nil && entry.OpaqueGroup {
+			for _, group := range s.DB.Groups {
+				if group.UUID == entry.UUID {
+					m.chooseGroupDestination(group)
+					return nil, true
+				}
+			}
+		}
 		e := m.selected()
 		if e == nil {
 			return nil, true

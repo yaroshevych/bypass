@@ -164,14 +164,31 @@ func (m *Model) commands() []command {
 	add("new", "Entry", "New Entry…", "", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("n")) })
 	add("edit", "Entry", "Edit Entry…", "", editReason, "", invoke("e"))
 	add("group", "Entry", "New Group…", "", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("g")) })
+	moveGroupID := ""
+	if view := m.ws.ActiveView(); s != nil && s.DB != nil && view != nil && view.Focus == 0 {
+		if nav := m.currentNav(); nav.kind == "group" && nav.group != s.DB.RootUUID && nav.group != s.DB.RecycleBinUUID {
+			moveGroupID = nav.group
+		}
+	}
+	if row := m.selectedRow(); moveGroupID == "" && row != nil && row.OpaqueGroup {
+		moveGroupID = row.UUID
+	}
 	moveReason := writeReason
-	if moveReason == "" {
+	if moveReason == "" && moveGroupID == "" && m.selected() == nil {
 		moveReason = needEntry
 	}
 	if m.editor != nil {
 		moveReason = "Finish editing first"
 	}
 	add("move", "Entry", "Move Entry…", "", moveReason, "", func() tea.Cmd {
+		if moveGroupID != "" {
+			for _, group := range s.DB.Groups {
+				if group.UUID == moveGroupID {
+					m.chooseGroupDestination(group)
+					return nil
+				}
+			}
+		}
 		if e := m.selected(); e != nil {
 			m.chooseDestination(e)
 		}

@@ -1057,7 +1057,7 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 			return nil, ErrUnsupported
 		}
 	case MoveGroup:
-		if selection.group == nil || selection.group.Recycled || selection.sourceGroup == nil || selection.sourceGroup.Recycled || selection.sourceGroup.UUID == db.RootUUID || selection.sourceGroup.ParentUUID == selection.group.UUID || groupWithin(db, selection.group.UUID, selection.sourceGroup.UUID) {
+		if selection.group == nil || selection.group.Recycled || selection.sourceGroup == nil || selection.sourceGroup.UUID == db.RootUUID || selection.sourceGroup.ParentUUID == selection.group.UUID || groupWithin(db, selection.group.UUID, selection.sourceGroup.UUID) {
 			return nil, ErrUnsupported
 		}
 	case EditEntry, AddAttachment, ReplaceAttachment, RemoveAttachment:

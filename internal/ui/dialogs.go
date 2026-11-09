@@ -22,6 +22,7 @@ type actionDialog struct {
 	err                             string
 	applyToPassword                 bool
 	createGroup                     bool
+	restoringGroup                  bool
 	sessionID, entryUUID, groupUUID string
 	sourceGroupUUID                 string
 	groups                          []vault.Group
@@ -188,7 +189,11 @@ func (m *Model) chooseGroupDestination(group vault.Group) {
 		}
 	}
 	m.hideReveal()
-	m.dialog = &actionDialog{kind: "destination", title: "Move Group · " + safe(group.Name), sessionID: s.ID, sourceGroupUUID: group.UUID, groups: filtered}
+	title := "Move Group · " + safe(group.Name)
+	if group.Recycled {
+		title = "Restore Group · " + safe(group.Name)
+	}
+	m.dialog = &actionDialog{kind: "destination", title: title, sessionID: s.ID, sourceGroupUUID: group.UUID, restoringGroup: group.Recycled, groups: filtered}
 }
 func (d *actionDialog) filteredGroups() []vault.Group {
 	return d.groups
@@ -710,6 +715,9 @@ func (m *Model) destinationDialogBody() ([]string, []int) {
 	targetLabel := " Move item to:"
 	if d.sourceGroupUUID != "" {
 		targetLabel = " Move group to:"
+		if d.restoringGroup {
+			targetLabel = " Restore group to:"
+		}
 	}
 	rows = append(rows, listComponentOutput{text: m.colors().secondary.Render(targetLabel), item: -1}, listComponentOutput{item: -1})
 	groups := d.filteredGroups()
