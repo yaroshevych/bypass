@@ -25,8 +25,6 @@ type paletteState struct {
 	original         platform.Settings
 	originalStyles   styleSet
 	preview          bool
-	context          bool
-	x, y             int
 	err              string
 }
 type command struct {
@@ -260,11 +258,11 @@ func (m *Model) commands() []command {
 		})
 	})
 	add("theme", "Settings", "Theme…", "", "", "", func() tea.Cmd {
-		m.openPalette("themes", false)
+		m.openPalette("themes")
 		return nil
 	})
 	add("appearance", "Settings", "Layout…", "", "", "", func() tea.Cmd {
-		m.openPalette("appearance", false)
+		m.openPalette("appearance")
 		return nil
 	})
 	add("set-pin", "Privacy", "Change PIN…", "", allReason, "", func() tea.Cmd { m.configurePIN(false); return nil })
@@ -273,12 +271,12 @@ func (m *Model) commands() []command {
 	return commands
 }
 
-func (m *Model) openPalette(scope string, context bool) {
+func (m *Model) openPalette(scope string) {
 	m.clearExtras()
 	m.clearLifecycle()
 	m.hideReveal()
 	m.help = false
-	m.palette = &paletteState{scope: scope, original: m.settings, originalStyles: m.styles, context: context, x: -1, y: -1}
+	m.palette = &paletteState{scope: scope, original: m.settings, originalStyles: m.styles}
 	if scope == "themes" || scope == "appearance" {
 		current := strings.ReplaceAll(strings.ToLower(m.settings.Theme), " ", "-")
 		if scope == "appearance" {
@@ -362,15 +360,6 @@ func (m *Model) paletteChoices() []command {
 		choices = []command{{id: "compact", group: "Appearance", label: "Compact — pills, tighter rows", value: "compact"}, {id: "classic", group: "Appearance", label: "Classic — dividers, roomier rows", value: "classic"}}
 	default:
 		choices = m.commands()
-		if p.context {
-			var scoped []command
-			for _, choice := range choices {
-				if choice.group == "Entry" || choice.group == "Field" || choice.group == "Editor" {
-					scoped = append(scoped, choice)
-				}
-			}
-			choices = scoped
-		}
 	}
 	if p.query.value() != "" {
 		var docs []search.Document
@@ -451,9 +440,6 @@ func paletteChoiceRight(choice command) string {
 
 func (m *Model) paletteTitle() string {
 	title := map[string]string{"actions": "Commands", "themes": "Theme", "appearance": "Choose Appearance"}[m.palette.scope]
-	if m.palette.context {
-		title = "Item Actions"
-	}
 	if len(m.palette.stack) > 0 && m.palette.scope != "themes" {
 		title = "Commands › " + title
 	}
@@ -692,7 +678,7 @@ func (m *Model) paletteLines() []string {
 	opts := m.dialogOptions()
 	opts.Mode, opts.Title, opts.Header = dialogrender.Overlay, title, header
 	opts.Body, opts.StatusBar, opts.Backdrop = body, footer, m.modalBackdrop()
-	opts.Error, opts.Width, opts.X, opts.Y = safe(m.palette.err), width, m.palette.x, m.palette.y
+	opts.Error, opts.Width, opts.X, opts.Y = safe(m.palette.err), width, -1, -1
 	rows, _ := m.paletteRows(choices)
 	start := 0
 	if compact {
@@ -749,7 +735,7 @@ func (m *Model) palettePointer(msg tea.MouseMsg) tea.Cmd {
 	width := m.paletteDialogWidth(choices)
 	opts := m.dialogOptions()
 	opts.Mode, opts.Body, opts.Error, opts.Width, opts.StatusBar = dialogrender.Overlay, body, safe(p.err), width, footer
-	opts.X, opts.Y = p.x, p.y
+	opts.X, opts.Y = -1, -1
 	hit := dialogrender.HitTest(opts, msg.X, msg.Y, targets)
 	if !hit.Inside {
 		m.closePalette(false)
@@ -782,9 +768,6 @@ func (m *Model) helpActionGroups() (map[string][]string, int) {
 	add("VIEW", helpShortcutLine("ctrl+p", "Command palette"))
 	var quitLine string
 	for _, command := range orderCommandChoices(m.commands()) {
-		if command.id == "search" {
-			add("VIEW", helpShortcutLine("a", "Context actions"))
-		}
 		if command.key == "" || command.id == "previous-tab" || command.id == "next-tab" || command.id == "cancel-edit" {
 			continue
 		}

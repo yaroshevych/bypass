@@ -24,7 +24,7 @@ func TestDialogsKeepActionsVisibleInSmallWindows(t *testing.T) {
 					t.Errorf("%s %v unlock hides %q", appearance, size, label)
 				}
 			}
-			m.openPalette("actions", false)
+			m.openPalette("actions")
 			if !strings.Contains(strings.Join(m.paletteLines(), "\n"), "COMMANDS") {
 				t.Errorf("%s %v hides command palette", appearance, size)
 			}
@@ -118,7 +118,7 @@ func TestErrorStatesWrapInSmallWindows(t *testing.T) {
 						m.err = message
 						lines = m.pickerLines()
 					case "palette":
-						m.openPalette("actions", false)
+						m.openPalette("actions")
 						m.palette.err = message
 						lines = m.paletteLines()
 					case "group", "generator", "delete", "external", "unsaved", "pin-setup":
@@ -415,7 +415,7 @@ func TestPaletteErrorIsNotAnActionTarget(t *testing.T) {
 	for _, appearance := range []string{"classic", "compact"} {
 		m := New(Options{})
 		m.settings.Appearance, m.width, m.height = appearance, 48, 16
-		m.openPalette("actions", false)
+		m.openPalette("actions")
 		m.palette.err = "An error that wraps on a narrow terminal."
 		found := false
 		for y, line := range m.paletteLines() {
@@ -466,7 +466,7 @@ func TestOpenDialogsAndEditorSurviveResize(t *testing.T) {
 		m := New(Options{})
 		m.settings.Appearance = appearance
 		m.width, m.height = 80, 24
-		m.openPalette("themes", false)
+		m.openPalette("themes")
 		m.palette.query.set("Nord")
 		m.refreshPalette()
 		for _, size := range [][2]int{{48, 16}, {80, 24}} {
@@ -523,7 +523,7 @@ func TestSmallPaneDialogsUseFullscreenAndRemainInteractive(t *testing.T) {
 				t.Fatal("small dialog has a border")
 			}
 			m.screen = browse
-			m.openPalette("actions", false)
+			m.openPalette("actions")
 			m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("theme")})
 			view = ansi.Strip(m.View())
 			if !strings.Contains(view, "theme") {
@@ -642,7 +642,7 @@ func TestSmallDialogControlsUseFullWidth(t *testing.T) {
 	if got := ansi.StringWidth(opts.Body[3]); got != m.width {
 		t.Errorf("unlock input width = %d, want %d", got, m.width)
 	}
-	m.openPalette("actions", false)
+	m.openPalette("actions")
 	if got := m.paletteListWidth(m.paletteChoices()); got != m.width {
 		t.Errorf("palette list width = %d, want %d", got, m.width)
 	}

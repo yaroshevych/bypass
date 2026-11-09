@@ -64,7 +64,7 @@ func TestScrollbarsShowOverflowAndPosition(t *testing.T) {
 	if !strings.HasSuffix(ansi.Strip(lines[9]), "#") {
 		t.Fatal("details scrollbar did not reach the bottom")
 	}
-	m.openPalette("actions", false)
+	m.openPalette("actions")
 	palette := m.paletteLines()
 	paletteRight := (m.width-m.paletteDialogWidth(m.paletteChoices()))/2 + m.paletteDialogWidth(m.paletteChoices()) - 1
 	if !columnContains(palette, paletteRight, "#") {
@@ -97,7 +97,7 @@ func TestDialogScrollbarsAlignWithFrameInBothAppearances(t *testing.T) {
 			m, _ := operationModel(t)
 			m.width, m.height = 100, 20
 			m.settings.ASCII, m.settings.Appearance = true, appearance
-			m.openPalette("actions", false)
+			m.openPalette("actions")
 			width := m.paletteDialogWidth(m.paletteChoices())
 			if !columnContains(m.paletteLines(), (m.width-width)/2+width-1, "#") {
 				t.Fatal("palette thumb is not on the frame")

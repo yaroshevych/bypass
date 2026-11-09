@@ -15,7 +15,7 @@ func TestPaletteSelectionVisibleAtResponsiveSizes(t *testing.T) {
 	for _, size := range [][2]int{{48, 16}, {60, 20}, {80, 24}, {120, 35}} {
 		m, _ := operationModel(t)
 		m.width, m.height = size[0], size[1]
-		m.openPalette("actions", false)
+		m.openPalette("actions")
 		m.palette.selected = len(m.paletteChoices()) - 1
 		m.refreshPalette()
 		_, rows, _ := m.paletteContent()
@@ -126,7 +126,7 @@ func TestLargeViewShortcutIsDistinguishedFromNewGroup(t *testing.T) {
 	if !strings.Contains(joined, "shift+g") || !strings.Contains(joined, "Large View") {
 		t.Fatalf("help does not show the shifted Large View shortcut: %q", joined)
 	}
-	m.openPalette("actions", false)
+	m.openPalette("actions")
 	choices := m.paletteChoices()
 	rows, _ := m.paletteRows(choices)
 	for _, row := range rows {
@@ -149,7 +149,7 @@ func TestPaletteThemePreviewCancelRestoresStylesAndViewFilters(t *testing.T) {
 	beforeSettings := m.settings
 	beforeStyles := m.styles
 
-	m.openPalette("actions", false)
+	m.openPalette("actions")
 	m.palette.query.set("Theme")
 	m.refreshPalette()
 	if got := m.paletteChoices(); len(got) != 1 || got[0].run == nil {
@@ -195,7 +195,7 @@ func TestShiftTOpensThemePaletteWithoutCreatingTab(t *testing.T) {
 func TestThemesPaletteOmitsRedundantGroupHeading(t *testing.T) {
 	m, _ := operationModel(t)
 	m.settings.Appearance = "classic"
-	m.openPalette("themes", false)
+	m.openPalette("themes")
 	rows, _ := m.paletteRows(m.paletteChoices())
 	for _, row := range rows {
 		if row.choice == -1 {
@@ -212,7 +212,7 @@ func TestThemesPaletteOmitsRedundantGroupHeading(t *testing.T) {
 
 func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 	m, _ := operationModel(t)
-	m.openPalette("actions", false)
+	m.openPalette("actions")
 	choices := m.paletteChoices()
 	rows, _ := m.paletteRows(choices)
 	wantSections := []string{"VAULTS", "VIEW", "ENTRIES", "SECRETS", "SETTINGS"}
@@ -344,7 +344,7 @@ func TestCommandPaletteBundlesCommandsIntoFiveSections(t *testing.T) {
 func TestOpenVaultCommandUsesCtrlOPicker(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 100, 30
-	m.openPalette("actions", false)
+	m.openPalette("actions")
 	choices := m.paletteChoices()
 	openIndex := -1
 	for i, choice := range choices {
@@ -369,7 +369,7 @@ func TestCommandPaletteRendersShortcutsInLowercase(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 100, 30
 	m.settings.Appearance = "classic"
-	m.openPalette("actions", false)
+	m.openPalette("actions")
 	choices := m.paletteChoices()
 	rows, _ := m.paletteRows(choices)
 	want := map[string][2]string{
@@ -434,7 +434,7 @@ func TestPaletteShowsEditorShortcutsWithoutDraft(t *testing.T) {
 		for selected := 0; selected < 2; selected++ {
 			m, _ := operationModel(t)
 			m.width, m.height, m.settings.Appearance = 120, 35, appearance
-			m.openPalette("actions", false)
+			m.openPalette("actions")
 			choices := []command{
 				{id: "save", group: "Editor", label: "Save Entry", key: "Ctrl+S", reason: "No entry draft"},
 				{id: "cancel-edit", group: "Editor", label: "Cancel", key: "Esc", reason: "No entry draft"},
@@ -500,7 +500,7 @@ func TestCompactPaletteHeaderShowsSecondaryFilterPillAndPlainCount(t *testing.T)
 	m, _ := operationModel(t)
 	m.width, m.height = 100, 30
 	m.settings.Appearance = "compact"
-	m.openPalette("actions", false)
+	m.openPalette("actions")
 	lines := m.paletteLines()
 	count := paletteCountLabel("actions", len(m.paletteChoices()))
 	var header string
@@ -648,7 +648,7 @@ func TestPaletteResizeAndClosePreservesWorkspaceFocus(t *testing.T) {
 		view := m.ws.ActiveView()
 		view.Focus = focus
 		before := *view
-		m.openPalette("actions", false)
+		m.openPalette("actions")
 		m.Update(tea.WindowSizeMsg{Width: 48, Height: 16})
 		m.Update(tea.WindowSizeMsg{Width: 120, Height: 35})
 		m.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -661,7 +661,7 @@ func TestPaletteResizeAndClosePreservesWorkspaceFocus(t *testing.T) {
 func TestActiveLayerPrioritizesPrivacyAndModalSurfaces(t *testing.T) {
 	m, _ := operationModel(t)
 	m.width, m.height = 120, 35
-	m.openPalette("actions", false)
+	m.openPalette("actions")
 	m.dialog = &actionDialog{kind: "group"}
 	if m.activeLayer() != layerDialog {
 		t.Fatal("dialog did not cover palette")
@@ -689,7 +689,7 @@ func TestGlobalLockWorksFromModalAndTinyScreens(t *testing.T) {
 			m.width, m.height = 120, 35
 			switch where {
 			case "palette":
-				m.openPalette("actions", false)
+				m.openPalette("actions")
 			case "help":
 				m.help = true
 			case "tiny":
@@ -735,7 +735,7 @@ func TestPaletteSelectionWraps(t *testing.T) {
 	for _, scope := range []string{"actions", "themes", "appearance"} {
 		t.Run(scope, func(t *testing.T) {
 			m, _ := operationModel(t)
-			m.openPalette(scope, false)
+			m.openPalette(scope)
 			count := len(m.paletteChoices())
 			if count < 2 {
 				t.Fatal("expected multiple choices")
@@ -766,7 +766,7 @@ func TestLayoutPaletteInitiallySelectsCurrentAppearance(t *testing.T) {
 		t.Run(appearance, func(t *testing.T) {
 			m, _ := operationModel(t)
 			m.settings.Appearance = appearance
-			m.openPalette("appearance", false)
+			m.openPalette("appearance")
 			choice := m.paletteChoices()[m.palette.selected]
 			if choice.value != appearance {
 				t.Fatalf("selected %q, want %q", choice.value, appearance)
@@ -827,7 +827,7 @@ func TestHelpContentHasLeftPaddingAndFits(t *testing.T) {
 	}
 }
 
-func TestHelpListsContextualShortcuts(t *testing.T) {
+func TestHelpOmitsItemActionsShortcut(t *testing.T) {
 	m, _ := operationModel(t)
 	groups, _ := m.helpActionGroups()
 	var lines []string
@@ -835,7 +835,7 @@ func TestHelpListsContextualShortcuts(t *testing.T) {
 		lines = append(lines, group...)
 	}
 	help := strings.Join(lines, "\n")
-	for _, want := range []string{"shift+l", "Context actions"} {
+	for _, want := range []string{"shift+l"} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help missing %q", want)
 		}
@@ -843,8 +843,8 @@ func TestHelpListsContextualShortcuts(t *testing.T) {
 	if strings.Contains(help, "Remove recent vault") {
 		t.Fatal("welcome-screen removal should not appear in the shortcut dialog")
 	}
-	if strings.Contains(help, "Context actions (unlocked)") {
-		t.Fatal("context action label should not include the unlocked qualifier")
+	if strings.Contains(help, "Context actions") {
+		t.Fatal("Item Actions shortcut remains in the shortcut dialog")
 	}
 	if strings.Contains(help, "Open vault (workspace)") {
 		t.Fatal("Open vault label should not include the workspace qualifier")
@@ -863,8 +863,8 @@ func TestHelpListsContextualShortcuts(t *testing.T) {
 	if !strings.Contains(view, "1–9 / [ ]    Switch tab") || strings.Contains(view, "/            Filter") {
 		t.Fatalf("tab row is missing or duplicate filter row remains: %q", view)
 	}
-	if !strings.Contains(view, "a            Context actions\n/            Search") {
-		t.Fatalf("context actions should appear immediately above Search: %q", view)
+	if !strings.Contains(view, "/            Search") {
+		t.Fatalf("Search shortcut is missing from View section: %q", view)
 	}
 	if strings.Contains(help, "Redraw screen") {
 		t.Fatal("redraw should not appear in the shortcut dialog")

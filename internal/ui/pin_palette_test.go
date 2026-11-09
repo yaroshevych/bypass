@@ -4,7 +4,7 @@ import "testing"
 
 func executePINLockFromPalette(t *testing.T, m *Model) {
 	t.Helper()
-	m.openPalette("actions", false)
+	m.openPalette("actions")
 	for i, choice := range m.paletteChoices() {
 		if choice.id == "protect" {
 			if choice.reason != "" {

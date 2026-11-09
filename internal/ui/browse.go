@@ -90,20 +90,6 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		m.mouse(msg)
 		return nil
 	}
-	if msg.Button == tea.MouseButtonRight {
-		if m.screen != browse || m.ws.ActiveSession() == nil {
-			return nil
-		}
-		copy := msg
-		copy.Button = tea.MouseButtonLeft
-		m.mouse(copy)
-		m.openPalette("actions", true)
-		if m.palette != nil {
-			m.palette.x = msg.X
-			m.palette.y = msg.Y
-		}
-		return nil
-	}
 	if msg.Button != tea.MouseButtonLeft {
 		m.mouse(msg)
 		return nil

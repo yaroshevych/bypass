@@ -102,7 +102,7 @@ func TestCtrlWUsesInputContext(t *testing.T) {
 	})
 	t.Run("palette filter", func(t *testing.T) {
 		m, _ := operationModel(t)
-		m.openPalette("actions", false)
+		m.openPalette("actions")
 		m.palette.query.set("first second")
 		m.Update(tea.KeyMsg{Type: tea.KeyCtrlW})
 		if m.palette == nil || m.palette.query.value() != "first " || len(m.ws.Views) != 1 {

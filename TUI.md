@@ -93,9 +93,8 @@ mode, external changes, or an unusable backup location can prevent writes.
 
 Views of the same vault share its data, write mode, and lock state. Their
 selection, filters, and pane positions are independent. Bypass supports up to
-nine tabs; number keys `1` to `9` select tabs directly. Press `a` in an unlocked
-workspace to open the contextual action palette. On the welcome screen, `delete` or `backspace`
-removes the selected recent vault from the list.
+nine tabs; number keys `1` to `9` select tabs directly. On the welcome screen,
+`delete` or `backspace` removes the selected recent vault from the list.
 
 Select views and groups in navigation, entries in the list, and fields in details.
 Use arrow keys, Tab, or the mouse; drag dividers to resize panes. Narrow terminals

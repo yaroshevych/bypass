@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-func TestRightClickOpensContextPaletteForClickedEntry(t *testing.T) {
+func TestRightClickDoesNotOpenItemActions(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 120, 35
 	m.ws.Open(fixture("/tmp/right-click.kdbx"))
@@ -21,14 +21,11 @@ func TestRightClickOpensContextPaletteForClickedEntry(t *testing.T) {
 	msg := tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonRight, X: pane.X + 2, Y: pane.Y + 1}
 	m.pointer(msg)
 
-	if m.palette == nil || !m.palette.context {
-		t.Fatal("right click did not open the context action palette")
+	if m.palette != nil {
+		t.Fatal("right click opened Item Actions")
 	}
-	if got := m.ws.ActiveView().SelectedUUID; got != "a" {
-		t.Fatalf("right click did not select the clicked entry: got %q", got)
-	}
-	if m.palette.x != msg.X || m.palette.y != msg.Y {
-		t.Fatalf("context palette position = (%d,%d), want (%d,%d)", m.palette.x, m.palette.y, msg.X, msg.Y)
+	if got := m.ws.ActiveView().SelectedUUID; got != "b" {
+		t.Fatalf("right click changed the selected entry: got %q", got)
 	}
 }
 

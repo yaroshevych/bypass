@@ -615,7 +615,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	if m.dialog == nil && m.screen == browse && !m.writing {
 		if key == "ctrl+p" {
-			m.openPalette("actions", false)
+			m.openPalette("actions")
 			return nil
 		}
 	}
@@ -668,7 +668,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	case keyNewTab:
 		return m.duplicateTab()
 	case keyThemes:
-		m.openPalette("themes", false)
+		m.openPalette("themes")
 		return nil
 	case keyPreviousTab:
 		if m.moveTab(-1) {
@@ -790,8 +790,6 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		return m.beginJump()
 	case keyZoom:
 		v.Zoom = !v.Zoom
-	case "a":
-		m.openPalette("actions", true)
 	}
 	return nil
 }
@@ -841,7 +839,7 @@ func (m *Model) helpKey(k tea.KeyMsg) tea.Cmd {
 	case "ctrl+c":
 		return m.leaveEditor(func() tea.Cmd { m.Close(); return tea.Quit })
 	case "ctrl+p":
-		m.openPalette("actions", false)
+		m.openPalette("actions")
 		return nil
 	case "up":
 		m.scrollHelp(-1)

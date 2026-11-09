@@ -39,7 +39,7 @@ func (m *Model) grandKey(k tea.KeyMsg) tea.Cmd {
 	case "L":
 		return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) })
 	case "ctrl+p":
-		m.openPalette("actions", false)
+		m.openPalette("actions")
 	case "up", "k":
 		m.grandOffset = max(0, m.grandOffset-1)
 	case "down", "j":
