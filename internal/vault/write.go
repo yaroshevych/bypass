@@ -21,7 +21,7 @@ func contextError(ctx context.Context) error {
 
 func validateChange(change Change) error {
 	switch change.Kind {
-	case AddEntry, EditEntry, MoveEntry, DeleteEntry, CreateGroup, DeleteGroup, PrepareDeleteGroup, PrepareRecycleBin, AddAttachment, ReplaceAttachment, RemoveAttachment, RenameTag:
+	case AddEntry, EditEntry, MoveEntry, DeleteEntry, CreateGroup, DeleteGroup, PrepareDeleteGroup, PrepareRecycleBin, AddAttachment, ReplaceAttachment, RemoveAttachment, RenameTag, RenameGroup:
 	default:
 		return ErrUnsupported
 	}
@@ -40,8 +40,13 @@ func validateChange(change Change) error {
 	if len(change.Password) > 0 && !change.PasswordChanged {
 		return ErrUnsupported
 	}
-	if change.NewName != "" && change.Kind != CreateGroup && change.Kind != RenameTag {
+	if change.NewName != "" && change.Kind != CreateGroup && change.Kind != RenameTag && change.Kind != RenameGroup {
 		return ErrUnsupported
+	}
+	if change.Kind == CreateGroup || change.Kind == RenameGroup {
+		if strings.TrimSpace(change.NewName) == "" || strings.ContainsAny(change.NewName, "\r\n\x00") {
+			return ErrUnsupported
+		}
 	}
 	if change.Kind == RenameTag {
 		if strings.TrimSpace(change.TagName) == "" || strings.TrimSpace(change.NewName) == "" || strings.ContainsAny(change.TagName+change.NewName, ",;\t\r\n\x00") {

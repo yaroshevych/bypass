@@ -13,7 +13,7 @@ import (
 
 type actionDialog struct {
 	kind, title                     string
-	tagName                         string
+	originalName                    string
 	message                         []string
 	options                         []string
 	selected, offset                int
@@ -220,7 +220,7 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 			return nil
 		}
 	}
-	if d.kind == "rename-tag" {
+	if d.kind == "rename-tag" || d.kind == "rename-group" {
 		switch key {
 		case "up", "down", "tab", "shift+tab":
 			dialogActionFocus(key, 3, &d.selected)
@@ -232,14 +232,21 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 			}
 			name := strings.TrimSpace(d.input.value())
 			if name == "" {
-				d.err = "Tag name is required."
+				if d.kind == "rename-tag" {
+					d.err = "Tag name is required."
+				} else {
+					d.err = "Group name is required."
+				}
 				return nil
 			}
-			if name == d.tagName {
+			if name == d.originalName {
 				m.clearDialog()
 				return nil
 			}
-			return m.apply(vault.Change{Kind: vault.RenameTag, TagName: d.tagName, NewName: name})
+			if d.kind == "rename-tag" {
+				return m.apply(vault.Change{Kind: vault.RenameTag, TagName: d.originalName, NewName: name})
+			}
+			return m.apply(vault.Change{Kind: vault.RenameGroup, GroupUUID: d.groupUUID, NewName: name})
 		}
 		if d.selected == 0 {
 			d.input.update(k)
@@ -531,10 +538,14 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		fieldEnd = len(body)
 		actions, actionBase, actionFocus = []dialogAction{{"Create", "enter"}, {"Cancel", "esc"}}, 1, d.selected-1
 		footer = ""
-	case "rename-tag":
+	case "rename-tag", "rename-group":
 		actionWidth := m.dialogInnerWidth(min(m.width-6, 48))
 		fieldStart = len(body)
-		body = append(body, m.dialogFields([]inputFieldView{{label: "Tag name", value: &d.input, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
+		label := "Tag name"
+		if d.kind == "rename-group" {
+			label = "Group name"
+		}
+		body = append(body, m.dialogFields([]inputFieldView{{label: label, value: &d.input, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
 		fieldEnd = len(body)
 		actions, actionBase, actionFocus = []dialogAction{{"Save", "enter"}, {"Cancel", "esc"}}, 1, d.selected-1
 		footer = ""
@@ -587,7 +598,7 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		width = min(m.width-6, 42)
 	case "pin-setup", "pin-confirm":
 		width = min(m.width-6, 52)
-	case "rename-tag":
+	case "rename-tag", "rename-group":
 		width = min(m.width-6, 48)
 	case "external", "generator":
 		width = min(m.width-6, 72)
@@ -652,7 +663,7 @@ func (m *Model) dialogPointer(msg tea.MouseMsg) tea.Cmd {
 	}
 	d := m.dialog
 	d.selected = target
-	if target == 0 && (d.kind == "group" || d.kind == "rename-tag" || d.kind == "pin-setup" || d.kind == "pin-confirm" || d.kind == "generator" && len(d.secret) == 0) {
+	if target == 0 && (d.kind == "group" || d.kind == "rename-tag" || d.kind == "rename-group" || d.kind == "pin-setup" || d.kind == "pin-confirm" || d.kind == "generator" && len(d.secret) == 0) {
 		return nil
 	}
 	return m.dialogKey(tea.KeyMsg{Type: tea.KeyEnter})

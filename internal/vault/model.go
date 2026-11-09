@@ -53,6 +53,7 @@ const (
 	ReplaceAttachment  ChangeKind = "replace_attachment"
 	RemoveAttachment   ChangeKind = "remove_attachment"
 	RenameTag          ChangeKind = "rename_tag"
+	RenameGroup        ChangeKind = "rename_group"
 )
 
 type Change struct {

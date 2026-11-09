@@ -1047,6 +1047,10 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		if selection.group == nil || selection.group.UUID == db.RootUUID {
 			return nil, ErrUnsupported
 		}
+	case RenameGroup:
+		if selection.group == nil || selection.group.UUID == db.RootUUID || selection.group.Recycled {
+			return nil, ErrUnsupported
+		}
 	case PrepareRecycleBin:
 		if change.EntryUUID == "" && change.GroupUUID == "" {
 			return nil, ErrUnsupported
@@ -1172,6 +1176,12 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		child := gok.NewGroup()
 		child.Name = change.NewName
 		g.Groups = append(g.Groups, child)
+	case RenameGroup:
+		g := findNativeGroup(s.db, change.GroupUUID)
+		if g == nil || selection.group.UUID == db.RootUUID || selection.group.Recycled {
+			return nil, ErrUnsupported
+		}
+		g.Name = change.NewName
 	case RenameTag:
 		renameNativeTag(s.db, change.TagName, change.NewName)
 	case DeleteGroup:

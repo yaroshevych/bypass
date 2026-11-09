@@ -157,10 +157,21 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		if v := m.ws.ActiveView(); v != nil && v.Focus == 0 {
-			if nav := m.currentNav(); nav.kind == "tag" {
+			nav := m.currentNav()
+			if nav.kind == "tag" {
 				m.hideReveal()
-				m.dialog = &actionDialog{kind: "rename-tag", title: "Rename Tag", sessionID: s.ID, tagName: nav.value, selected: 0}
+				m.dialog = &actionDialog{kind: "rename-tag", title: "Rename Tag", sessionID: s.ID, originalName: nav.value, selected: 0}
 				m.dialog.input.set(nav.value)
+				return nil, true
+			}
+			if nav.kind == "group" {
+				if nav.group == s.DB.RootUUID || nav.group == s.DB.RecycleBinUUID {
+					m.setNotice("the root and recycle bin groups can't be renamed", true)
+					return nil, true
+				}
+				m.hideReveal()
+				m.dialog = &actionDialog{kind: "rename-group", title: "Rename Group", sessionID: s.ID, groupUUID: nav.group, originalName: nav.label, selected: 0}
+				m.dialog.input.set(nav.label)
 				return nil, true
 			}
 		}
