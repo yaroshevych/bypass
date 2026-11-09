@@ -918,14 +918,14 @@ func (b *NativeBackend) CreateWithOptions(ctx context.Context, path string, cred
 	defer scrubNativeDatabase(db)
 	db.Content.Root.Groups = nil
 	root := gok.NewGroup()
-	root.Name = filepath.Base(abs)
+	root.Name = "Passwords"
 	bin := gok.NewGroup()
 	bin.Name = "Recycle Bin"
 	root.Groups = append(root.Groups, bin)
 	db.Content.Root.Groups = append(db.Content.Root.Groups, root)
 	db.Content.Meta.RecycleBinEnabled.Bool = true
 	db.Content.Meta.RecycleBinUUID = bin.UUID
-	db.Content.Meta.DatabaseName = root.Name
+	db.Content.Meta.DatabaseName = filepath.Base(abs)
 	if err := writeNativeFileExclusive(abs, db); err != nil {
 		return nil, err
 	}
