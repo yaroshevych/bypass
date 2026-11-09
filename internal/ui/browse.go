@@ -18,11 +18,35 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	if msg.Action == tea.MouseActionMotion && m.dragging == 0 {
+		m.footerHover = m.footerActionAt(msg.X, msg.Y)
 		if !m.help && m.screen == browse && m.ws.ActiveSession() != nil {
 			m.hoverTab, m.tabHovered = m.tabAt(msg.X, msg.Y)
 		}
 		m.updateEntryTagHover(msg.X, msg.Y)
 		return nil
+	}
+	if msg.Action == tea.MouseActionRelease && m.dragging == 0 && m.footerActionAt(msg.X, msg.Y) != "" {
+		return nil
+	}
+	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+		if action := m.footerActionAt(msg.X, msg.Y); action != "" {
+			if action == "settings" {
+				m.openPalette("settings")
+				return nil
+			}
+			key := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(action)}
+			switch action {
+			case "ctrl+p":
+				key = tea.KeyMsg{Type: tea.KeyCtrlP}
+			case "enter":
+				key = tea.KeyMsg{Type: tea.KeyEnter}
+			case "esc":
+				key = tea.KeyMsg{Type: tea.KeyEsc}
+			case "tab":
+				key = tea.KeyMsg{Type: tea.KeyTab}
+			}
+			return m.key(key)
+		}
 	}
 	if !m.help && !m.writing && m.screen == browse && msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
 		if index, hit := m.tabAt(msg.X, msg.Y); hit {
@@ -140,6 +164,22 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	}
 	m.mouse(msg)
 	return nil
+}
+
+func (m *Model) footerActionAt(x, y int) string {
+	if m.screen != browse || m.ws.ActiveSession() == nil || m.ws.ActiveSession().DB == nil || y != m.height-1 {
+		return ""
+	}
+	lines := m.workspaceLines()
+	if len(lines) == 0 || len(lines) > m.height {
+		return ""
+	}
+	for _, span := range m.footerActionSpans(lines[len(lines)-1]) {
+		if x >= span.start && x < span.end {
+			return span.key
+		}
+	}
+	return ""
 }
 
 func (m *Model) welcomePointer(msg tea.MouseMsg) tea.Cmd {

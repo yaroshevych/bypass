@@ -741,9 +741,9 @@ func (m *Model) paletteLines() []string {
 	if m.palette.scope == "settings" {
 		opts.StatusBar = "enter save · esc cancel"
 		if m.palette.footerHover == 1 {
-			opts.StatusBar = styles.active.Render("enter save") + " · esc cancel"
+			opts.StatusBar = styles.inactive.Render("enter save") + " · esc cancel"
 		} else if m.palette.footerHover == 2 {
-			opts.StatusBar = "enter save · " + styles.active.Render("esc cancel")
+			opts.StatusBar = "enter save · " + styles.inactive.Render("esc cancel")
 		}
 		if !compact {
 			opts.EdgeToEdgeRows = []bool{true, true}

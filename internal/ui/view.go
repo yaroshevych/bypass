@@ -500,7 +500,57 @@ func (m *Model) workspaceLines() []string {
 	} else if v := m.ws.ActiveView(); v != nil && v.Query != "" {
 		footerLine = m.searchFooterLine(footer, contextual, true)
 	}
-	return append(lines, footerLine)
+	return append(lines, m.highlightFooterActions(footerLine))
+}
+
+type footerActionSpan struct {
+	key        string
+	start, end int
+}
+
+func (m *Model) footerActionSpans(line string) []footerActionSpan {
+	plain := ansi.Strip(line)
+	var spans []footerActionSpan
+	add := func(label, key string, fromEnd bool) {
+		index := strings.Index(plain, label)
+		if fromEnd {
+			index = strings.LastIndex(plain, label)
+		}
+		if index >= 0 {
+			start := lipgloss.Width(plain[:index])
+			spans = append(spans, footerActionSpan{key, start, start + lipgloss.Width(label)})
+		}
+	}
+	if strings.Contains(plain, "bypass") {
+		spans = append(spans, footerActionSpan{"settings", 0, lipgloss.Width(m.footerBadge())})
+	}
+	if !m.searching {
+		if v := m.ws.ActiveView(); v != nil && v.Query == "" {
+			add("/ filter", "/", false)
+			add("ctrl+p commands", "ctrl+p", false)
+		}
+	}
+	for _, hint := range strings.Split(m.footerContext(), " · ") {
+		parts := strings.Fields(hint)
+		if len(parts) > 0 {
+			add(hint, parts[0], true)
+		}
+	}
+	return spans
+}
+
+func (m *Model) highlightFooterActions(line string) string {
+	for _, span := range m.footerActionSpans(line) {
+		if span.key == m.footerHover {
+			style := m.colors().inactive
+			label := ansi.Strip(ansi.Cut(line, span.start, span.end))
+			if span.key == "settings" {
+				label = fit(" bypass ", span.end-span.start)
+			}
+			return ansi.Cut(line, 0, span.start) + style.Render(label) + ansi.Cut(line, span.end, m.width)
+		}
+	}
+	return line
 }
 
 // noticeOverflowLines reserves dedicated rows when the footer cannot show a notice.

@@ -103,6 +103,7 @@ type Model struct {
 	hoverTab                                int
 	tabHovered                              bool
 	hoveredTag, hoveredTagEntry             string
+	footerHover                             string
 	lifecycle                               *lifecycleState
 	extras                                  *extraState
 	styles                                  styleSet
