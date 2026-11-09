@@ -20,6 +20,7 @@ const (
 	editNotes
 	editGenerate
 	editMove
+	editFavorite
 	editSave
 	editCancel
 	editFocusCount
@@ -33,6 +34,7 @@ const (
 	editorCancel
 	editorGenerate
 	editorMove
+	editorFavorite
 )
 
 var editorFields = [...]string{"Title", "UserName", "Password", "URL", "Notes"}
@@ -56,6 +58,8 @@ type entryEditor struct {
 	isNew            bool
 	EntryUUID        string
 	GroupUUID        string
+	originalTags     []string
+	favorite         bool
 	header           itemHeader
 	headerNow        time.Time
 	err              string
@@ -90,6 +94,8 @@ func newEntryEditor(e *vault.Entry, groupUUID string) *entryEditor {
 	}
 	if e != nil {
 		editor.EntryUUID = e.UUID
+		editor.originalTags = append([]string(nil), e.Tags...)
+		editor.favorite = hasFavoriteTag(e.Tags)
 		if e.GroupUUID != "" {
 			editor.GroupUUID = e.GroupUUID
 		}
@@ -111,7 +117,39 @@ func (e *entryEditor) dirty() bool {
 			return true
 		}
 	}
-	return !runesEqual(e.inputs[editPassword].text, e.originalPassword)
+	return !runesEqual(e.inputs[editPassword].text, e.originalPassword) || e.favoriteChanged()
+}
+
+func hasFavoriteTag(tags []string) bool {
+	for _, tag := range tags {
+		if strings.EqualFold(strings.TrimSpace(tag), "Favorite") {
+			return true
+		}
+	}
+	return false
+}
+
+func favoriteChangedTags(tags []string, favorite bool) []string {
+	updated := make([]string, 0, len(tags)+1)
+	found := false
+	for _, tag := range tags {
+		if strings.EqualFold(strings.TrimSpace(tag), "Favorite") {
+			if favorite && !found {
+				updated = append(updated, "Favorite")
+				found = true
+			}
+			continue
+		}
+		updated = append(updated, tag)
+	}
+	if favorite && !found {
+		updated = append(updated, "Favorite")
+	}
+	return updated
+}
+
+func (e *entryEditor) favoriteChanged() bool {
+	return e != nil && !e.isNew && e.favorite != hasFavoriteTag(e.originalTags)
 }
 
 // clear drops the editor's buffers. It cannot overwrite Go strings that were
@@ -136,6 +174,8 @@ func (e *entryEditor) clear() {
 		delete(e.original, key)
 	}
 	e.original = nil
+	e.originalTags = nil
+	e.favorite = false
 	e.EntryUUID = ""
 	e.GroupUUID = ""
 	e.header = itemHeader{}
@@ -153,6 +193,9 @@ func (e *entryEditor) values() map[string]string {
 	}
 	for _, name := range []string{"Title", "UserName", "URL", "Notes"} {
 		values[name] = e.inputs[fieldIndex(name)].value()
+	}
+	if e.favoriteChanged() {
+		values["Tags"] = strings.Join(favoriteChangedTags(e.originalTags, e.favorite), ", ")
 	}
 	return values
 }
@@ -260,6 +303,8 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 				return editorGenerate
 			case editMove:
 				return editorMove
+			case editFavorite:
+				return editorFavorite
 			case editSave:
 				return editorSave
 			case editCancel:
@@ -334,6 +379,8 @@ func (e *entryEditor) pointer(row, width, height int, compact, ascii bool) edito
 		return editorGenerate
 	case editMove:
 		return editorMove
+	case editFavorite:
+		return editorFavorite
 	case editSave:
 		return editorSave
 	case editCancel:
@@ -347,6 +394,7 @@ func (e *entryEditor) actionFocuses() []int {
 	actions := []int{editGenerate}
 	if !e.isNew {
 		actions = append(actions, editMove)
+		actions = append(actions, editFavorite)
 	}
 	return append(actions, editSave, editCancel)
 }
@@ -533,6 +581,11 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 			index    int
 			shortcut string
 		}{"Move…", editMove, ""})
+		actions = append(actions, struct {
+			label    string
+			index    int
+			shortcut string
+		}{map[bool]string{true: "Remove from Favorites", false: "Add to Favorites"}[e.favorite], editFavorite, ""})
 	}
 	actions = append(actions,
 		struct {

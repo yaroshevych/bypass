@@ -74,6 +74,8 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 			m.openGenerator()
 		case editorMove:
 			return m.moveEditorEntry()
+		case editorFavorite:
+			m.toggleEditorFavorite()
 		}
 
 		return nil

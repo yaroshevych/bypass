@@ -306,6 +306,22 @@ func (m *Model) startEditor(e *vault.Entry, group string) {
 	m.ws.ActiveView().DetailOffset = 0
 }
 
+func (m *Model) isFavorite(entry *vault.Entry) bool {
+	return entry != nil && hasFavoriteTag(entry.Tags)
+}
+
+func (m *Model) toggleEditorFavorite() {
+	if m.editor == nil || m.editor.isNew {
+		return
+	}
+	m.editor.favorite = !m.editor.favorite
+	verb := "added"
+	if !m.editor.favorite {
+		verb = "removed"
+	}
+	m.setNotice("Favorite tag will be "+verb+" when you save", false)
+}
+
 func (m *Model) clearEditor() {
 	if m.editor != nil {
 		m.editor.clear()
@@ -343,6 +359,8 @@ func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 		m.openGenerator()
 	case editorMove:
 		return m.moveEditorEntry()
+	case editorFavorite:
+		m.toggleEditorFavorite()
 	}
 	return nil
 }
