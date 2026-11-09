@@ -40,6 +40,8 @@ type Options struct {
 	Title                      string
 	Header                     Header
 	Body                       []string
+	EdgeToEdgeRows             []bool
+	HeaderBottomDividers       []int
 	Actions                    []Action
 	Error                      string
 	BodyRows, MaxBodyRows      int
@@ -387,13 +389,16 @@ func renderFullscreen(o Options, background []string, footer string) []string {
 		header += " " + o.Header.Accessory
 	}
 	lines := []string{fit(header, width)}
-	for _, line := range o.Body {
+	for i, line := range o.Body {
 		if line == bodyRule {
 			line = strings.Repeat("─", width)
 			if o.ASCII {
 				line = strings.Repeat("-", width)
 			}
 			line = o.Divider.Render(line)
+		}
+		if i < len(o.EdgeToEdgeRows) && o.EdgeToEdgeRows[i] {
+			line = fit(line, width)
 		}
 		lines = append(lines, fit(line, width))
 	}
@@ -442,11 +447,26 @@ func renderOverlay(o Options, background []string, width int, border, horizontal
 			topRule = ruleWithDivider(width, tl, tr, horizontal, o.Header.Divider, topJoin)
 			bottomRule = ruleWithDivider(width, leftRule, rightRule, horizontal, o.Header.Divider, cross)
 		}
+		for _, divider := range o.HeaderBottomDividers {
+			join := "┬"
+			if o.ASCII {
+				join = "+"
+			}
+			runes := []rune(bottomRule)
+			if divider > 0 && divider < len(runes)-1 {
+				runes[divider] = []rune(join)[0]
+				bottomRule = string(runes)
+			}
+		}
 		box = []string{o.Divider.Render(topRule), wrap(header, false), o.Divider.Render(bottomRule)}
 	}
 	for i, line := range o.Body {
 		if line == bodyRule {
 			box = append(box, o.Divider.Render(leftRule+strings.Repeat(horizontal, max(0, width-2))+rightRule))
+			continue
+		}
+		if i < len(o.EdgeToEdgeRows) && o.EdgeToEdgeRows[i] {
+			box = append(box, fit(line, width))
 			continue
 		}
 		wrapped := wrap(line, false)
@@ -504,9 +524,13 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 			content = append(content, o.Divider.Render(strings.Repeat(horizontal, width)))
 		}
 	}
-	for _, line := range o.Body {
+	edgeRows := make(map[int]bool)
+	for i, line := range o.Body {
 		if line == bodyRule {
 			content = append(content, bodyRule)
+		} else if i < len(o.EdgeToEdgeRows) && o.EdgeToEdgeRows[i] {
+			content = append(content, fit(line, width))
+			edgeRows[len(content)-1] = true
 		} else {
 			content = append(content, "  "+fit(line, inner))
 		}
@@ -545,6 +569,10 @@ func renderBox(o Options, background []string, width int, border, horizontal, tl
 	for i, line := range content {
 		if line == bodyRule {
 			frame(top+i, o.Divider.Render(leftRule+strings.Repeat(horizontal, max(0, width-2))+rightRule))
+			continue
+		}
+		if edgeRows[i] {
+			frame(top+i, line)
 			continue
 		}
 		if i == headerRuleRow {

@@ -665,7 +665,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	case keyNewTab:
 		return m.duplicateTab()
 	case keyThemes:
-		m.openPalette("themes")
+		m.openPalette("settings")
 		return nil
 	case keyPreviousTab:
 		if m.moveTab(-1) {

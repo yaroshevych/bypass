@@ -19,6 +19,10 @@ type paletteFrame struct {
 }
 type paletteState struct {
 	scope            string
+	tab              int
+	tabSelections    [2]int
+	footerHover      int
+	tabHover         int
 	query            input
 	selected, offset int
 	stack            []paletteFrame
@@ -257,12 +261,8 @@ func (m *Model) commands() []command {
 			return nil
 		})
 	})
-	add("theme", "Settings", "Theme…", "", "", "", func() tea.Cmd {
-		m.openPalette("themes")
-		return nil
-	})
-	add("appearance", "Settings", "Layout…", "", "", "", func() tea.Cmd {
-		m.openPalette("appearance")
+	add("theme", "Settings", "Settings…", "", "", "", func() tea.Cmd {
+		m.openPalette("settings")
 		return nil
 	})
 	add("set-pin", "Privacy", "Change PIN…", "", allReason, "", func() tea.Cmd { m.configurePIN(false); return nil })
@@ -275,18 +275,25 @@ func (m *Model) openPalette(scope string) {
 	m.clearLifecycle()
 	m.hideReveal()
 	m.help = false
-	m.palette = &paletteState{scope: scope, original: m.settings, originalStyles: m.styles}
-	if scope == "themes" || scope == "appearance" {
+	m.palette = &paletteState{scope: scope, original: m.settings, originalStyles: m.styles, tabHover: -1}
+	if scope == "settings" {
 		current := strings.ReplaceAll(strings.ToLower(m.settings.Theme), " ", "-")
-		if scope == "appearance" {
-			current = strings.ToLower(m.settings.Appearance)
-		}
+		p := m.palette
 		for i, choice := range m.paletteChoices() {
 			if choice.value == current {
-				m.palette.selected = i
+				p.tabSelections[0] = i
 				break
 			}
 		}
+		p.tab = 1
+		for i, choice := range m.paletteChoices() {
+			if choice.value == strings.ToLower(m.settings.Appearance) {
+				p.tabSelections[1] = i
+				break
+			}
+		}
+		p.tab = 0
+		p.selected = p.tabSelections[p.tab]
 	}
 	m.refreshPalette()
 }
@@ -350,13 +357,15 @@ func (m *Model) paletteChoices() []command {
 	}
 	var choices []command
 	switch p.scope {
-	case "themes":
-		for _, label := range themeNames() {
-			id := strings.ReplaceAll(strings.ToLower(label), " ", "-")
-			choices = append(choices, command{id: "theme:" + id, group: "Themes", label: label, value: id})
+	case "settings":
+		if p.tab == 0 {
+			for _, label := range themeNames() {
+				id := strings.ReplaceAll(strings.ToLower(label), " ", "-")
+				choices = append(choices, command{id: "theme:" + id, group: "Themes", label: label, value: id})
+			}
+		} else {
+			choices = []command{{id: "compact", group: "Appearance", label: "Compact — pills, tighter rows", value: "compact"}, {id: "classic", group: "Appearance", label: "Classic — dividers, roomier rows", value: "classic"}}
 		}
-	case "appearance":
-		choices = []command{{id: "compact", group: "Appearance", label: "Compact — pills, tighter rows", value: "compact"}, {id: "classic", group: "Appearance", label: "Classic — dividers, roomier rows", value: "classic"}}
 	default:
 		choices = m.commands()
 	}
@@ -390,7 +399,7 @@ func (m *Model) paletteRows(choices []command) ([]paletteRow, int) {
 		section := choice.group
 		if p != nil && p.scope == "actions" {
 			section = commandSection(choice.group)
-		} else if p != nil && p.scope == "themes" {
+		} else if p != nil && p.scope == "settings" {
 			section = ""
 		}
 		if section != group {
@@ -438,8 +447,8 @@ func paletteChoiceRight(choice command) string {
 }
 
 func (m *Model) paletteTitle() string {
-	title := map[string]string{"actions": "Commands", "themes": "Theme", "appearance": "Choose Appearance"}[m.palette.scope]
-	if len(m.palette.stack) > 0 && m.palette.scope != "themes" {
+	title := map[string]string{"actions": "Commands", "settings": "Settings"}[m.palette.scope]
+	if len(m.palette.stack) > 0 && m.palette.scope != "settings" {
 		title = "Commands › " + title
 	}
 	return title
@@ -544,23 +553,20 @@ func (m *Model) refreshPalette() {
 }
 func (m *Model) previewChoice() {
 	p := m.palette
-	if p == nil {
+	if p == nil || p.scope != "settings" {
 		return
 	}
 	choices := m.paletteChoices()
-	if len(choices) == 0 {
+	if p.selected < 0 || p.selected >= len(choices) {
 		return
 	}
-	choice := choices[p.selected]
-	if p.scope == "themes" {
-		m.settings.Theme = choice.value
-		m.styles = stylesForPalette(m.colorsForTheme(choice.value))
-		p.preview = true
+	if p.tab == 0 {
+		m.settings.Theme = choices[p.selected].value
+		m.styles = stylesForPalette(m.colorsForTheme(m.settings.Theme))
+	} else {
+		m.settings.Appearance = choices[p.selected].value
 	}
-	if p.scope == "appearance" {
-		m.settings.Appearance = choice.value
-		p.preview = true
-	}
+	p.preview = true
 }
 func (m *Model) executePalette() tea.Cmd {
 	p := m.palette
@@ -577,8 +583,13 @@ func (m *Model) executePalette() tea.Cmd {
 		m.pushPalette(choice.next)
 		return nil
 	}
-	if p.scope == "themes" || p.scope == "appearance" {
-		m.previewChoice()
+	if p.scope == "settings" {
+		if p.tab == 0 {
+			m.settings.Theme = choice.value
+			m.styles = stylesForPalette(m.colorsForTheme(choice.value))
+		} else {
+			m.settings.Appearance = choice.value
+		}
 		m.closePalette(true)
 		return tea.Batch(m.persistPreferences(), m.syncOmarchyThemeWatch())
 	}
@@ -591,6 +602,33 @@ func (m *Model) executePalette() tea.Cmd {
 }
 func (m *Model) paletteKey(k tea.KeyMsg) tea.Cmd {
 	p := m.palette
+	if p.scope == "settings" {
+		switch k.String() {
+		case "1", "2", "left", "right", "[", "]":
+			tab := p.tab
+			switch k.String() {
+			case "1":
+				tab = 0
+			case "2":
+				tab = 1
+			case "left", "[":
+				tab = max(0, tab-1)
+			case "right", "]":
+				tab = min(1, tab+1)
+			}
+			if tab != p.tab {
+				p.tabSelections[p.tab] = p.selected
+				p.tab = tab
+				p.selected = p.tabSelections[tab]
+				m.refreshPalette()
+				m.previewChoice()
+			}
+			return nil
+		}
+		if k.String() != "up" && k.String() != "down" && k.String() != "enter" && k.String() != "esc" && k.String() != "ctrl+c" {
+			return nil
+		}
+	}
 	switch k.String() {
 	case "ctrl+c":
 		m.closePalette(false)
@@ -632,8 +670,11 @@ func (m *Model) paletteCapacity() int {
 	opts.Width = m.paletteDialogWidth(m.paletteChoices())
 	opts.Error = safe(m.palette.err)
 	capacity := dialogrender.ContentCapacity(opts)
-	if m.compactAppearance() {
+	if m.compactAppearance() && m.palette.scope != "settings" {
 		capacity-- // The compact palette includes a blank row below its header.
+	}
+	if m.palette.scope == "settings" {
+		capacity -= m.settingsTabRowCount() + 1 // Reserve the tabs and space above the footer.
 	}
 	return max(1, capacity)
 }
@@ -643,15 +684,32 @@ func (m *Model) paletteContent() (string, []listComponentOutput, string) {
 	choices := m.paletteChoices()
 	rows, _ := m.paletteRows(choices)
 	var body []listComponentOutput
-	if m.compactAppearance() {
+	if p.scope == "settings" {
+		tabsWidth := m.paletteListWidth(choices)
+		if !m.compactAppearance() {
+			tabsWidth = m.paletteDialogWidth(choices)
+		}
+		for _, line := range m.settingsTabsRows(tabsWidth) {
+			body = append(body, listComponentOutput{text: line, item: -1})
+		}
+	} else if m.compactAppearance() {
 		body = append(body, listComponentOutput{item: -1})
 	}
 	start, end := viewportRange(len(rows), m.paletteCapacity(), p.offset)
 	for _, row := range rows[start:end] {
 		body = append(body, listComponentOutput{text: row.text, item: row.choice})
 	}
+	if p.scope == "settings" {
+		visibleRows := min(m.paletteCapacity(), len(themeNames()))
+		for i := end - start; i < visibleRows; i++ {
+			body = append(body, listComponentOutput{item: -1})
+		}
+	}
 	if len(choices) == 0 {
 		body = append(body, listComponentOutput{text: m.colors().secondary.Render("No matching actions"), item: -1})
+	}
+	if p.scope == "settings" {
+		body = append(body, listComponentOutput{item: -1})
 	}
 	return m.paletteTitle(), body, ""
 }
@@ -673,18 +731,99 @@ func (m *Model) paletteLines() []string {
 	if compact {
 		headerWidth = 0
 	}
-	header := dialogrender.FilterHeader(title, safe(m.palette.query.value()), m.palette.query.cursor, "type to filter", count, headerWidth, compact, m.settings.ASCII, filterDialogStyles(styles))
+	var header dialogrender.Header
+	if m.palette.scope != "settings" {
+		header = dialogrender.FilterHeader(title, safe(m.palette.query.value()), m.palette.query.cursor, "type to filter", count, headerWidth, compact, m.settings.ASCII, filterDialogStyles(styles))
+	}
 	opts := m.dialogOptions()
 	opts.Mode, opts.Title, opts.Header = dialogrender.Overlay, title, header
 	opts.Body, opts.StatusBar, opts.Backdrop = body, footer, m.modalBackdrop()
+	if m.palette.scope == "settings" {
+		opts.StatusBar = "enter save · esc cancel"
+		if m.palette.footerHover == 1 {
+			opts.StatusBar = styles.active.Render("enter save") + " · esc cancel"
+		} else if m.palette.footerHover == 2 {
+			opts.StatusBar = "enter save · " + styles.active.Render("esc cancel")
+		}
+		if !compact {
+			opts.EdgeToEdgeRows = []bool{true, true}
+			opts.HeaderBottomDividers = []int{12, 25}
+		}
+	}
 	opts.Error, opts.Width, opts.X, opts.Y = safe(m.palette.err), width, -1, -1
 	rows, _ := m.paletteRows(choices)
 	start := 0
-	if compact {
+	if compact && m.palette.scope != "settings" {
 		start = 1
+	} else if m.palette.scope == "settings" {
+		start = m.settingsTabRowCount()
 	}
 	opts.Scrollbar = &dialogrender.Scrollbar{Start: start, Height: m.paletteCapacity(), Offset: m.palette.offset, Total: len(rows)}
 	return dialogrender.Render(opts)
+}
+
+func (m *Model) settingsTabRowCount() int {
+	return 2
+}
+
+func (m *Model) settingsTabsRows(width int) []string {
+	c := m.colors()
+	if m.compactAppearance() {
+		labels := []string{"1 Theme", "2 Layout"}
+		for i := range labels {
+			if i == m.palette.tab {
+				style := c.active
+				if m.palette.tabHover == i {
+					style = style.Foreground(c.accent.GetForeground())
+				}
+				if m.settings.ASCII {
+					labels[i] = style.Render("[ " + labels[i] + " ]")
+				} else {
+					labels[i] = renderPill(labels[i], lipgloss.Width(labels[i])+4, style, c.inactive, c.squareEdges)
+				}
+			} else {
+				style := c.inactive
+				if m.palette.tabHover == i {
+					style = style.Foreground(c.accent.GetForeground()).Bold(true)
+				}
+				labels[i] = style.Render(" " + labels[i] + " ")
+			}
+		}
+		tabs := strings.Join(labels, c.inactive.Render(" "))
+		if !m.settings.ASCII {
+			edge := c.primary.Foreground(c.inactive.GetBackground())
+			tabs = edge.Render(c.leftEdge()) + tabs + edge.Render(c.rightEdge())
+		}
+		return []string{fit(tabs, width), ""}
+	}
+	leftWidth, rightWidth := 12, 12
+	vertical, horizontal, joinLeft, joinRight, joinBottom := "│", "─", "├", "┤", "┴"
+	if m.settings.ASCII {
+		vertical, horizontal, joinLeft, joinRight, joinBottom = "|", "-", "+", "+", "+"
+	}
+	leftLabel, rightLabel := c.primary, c.primary
+	if m.palette.tab == 0 {
+		leftLabel = c.accent.Bold(true)
+	} else {
+		rightLabel = c.accent.Bold(true)
+	}
+	if m.palette.tabHover == 0 {
+		leftLabel = c.accent.Bold(true)
+	} else if m.palette.tabHover == 1 {
+		rightLabel = c.accent.Bold(true)
+	}
+	rule := []rune(joinLeft + strings.Repeat(horizontal, max(0, width-2)) + joinRight)
+	for _, pos := range []int{leftWidth, leftWidth + rightWidth + 1} {
+		if pos < len(rule)-1 {
+			rule[pos] = []rune(joinBottom)[0]
+		}
+	}
+	bottom := c.divider.Render(string(rule))
+	leftText := c.divider.Render(vertical) + leftLabel.Render(fit("  1 THEME  ", leftWidth-1))
+	rightText := rightLabel.Render(fit("  2 LAYOUT  ", rightWidth))
+	middle := leftText + c.divider.Render(vertical) + rightText + c.divider.Render(vertical)
+	middle = fit(middle, max(0, width-1)) + c.divider.Render(vertical)
+	return []string{fit(middle, width), fit(bottom, width)}
 }
 
 func paletteCountLabel(scope string, count int) string {
@@ -710,22 +849,22 @@ func filterDialogStyles(c *styleSet) dialogrender.FilterStyles {
 }
 func (m *Model) palettePointer(msg tea.MouseMsg) tea.Cmd {
 	p := m.palette
-	if msg.Action != tea.MouseActionPress {
+	if msg.Action != tea.MouseActionPress && msg.Action != tea.MouseActionMotion {
 		return nil
 	}
-	if msg.Button == tea.MouseButtonWheelUp {
+	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelUp {
 		p.selected = max(0, p.selected-1)
 		m.refreshPalette()
 		m.previewChoice()
 		return nil
 	}
-	if msg.Button == tea.MouseButtonWheelDown {
+	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelDown {
 		p.selected = min(max(0, len(m.paletteChoices())-1), p.selected+1)
 		m.refreshPalette()
 		m.previewChoice()
 		return nil
 	}
-	if msg.Button != tea.MouseButtonLeft {
+	if msg.Action == tea.MouseActionPress && msg.Button != tea.MouseButtonLeft {
 		return nil
 	}
 	_, rows, footer := m.paletteContent()
@@ -734,14 +873,116 @@ func (m *Model) palettePointer(msg tea.MouseMsg) tea.Cmd {
 	width := m.paletteDialogWidth(choices)
 	opts := m.dialogOptions()
 	opts.Mode, opts.Body, opts.Error, opts.Width, opts.StatusBar = dialogrender.Overlay, body, safe(p.err), width, footer
+	if p.scope == "settings" {
+		opts.StatusBar = "enter save · esc cancel"
+		if len(targets) > 0 {
+			targets[0] = -2
+		}
+	}
 	opts.X, opts.Y = -1, -1
 	hit := dialogrender.HitTest(opts, msg.X, msg.Y, targets)
 	if !hit.Inside {
+		if msg.Action == tea.MouseActionMotion {
+			p.footerHover = 0
+			p.tabHover = -1
+		} else {
+			m.closePalette(false)
+		}
+		return nil
+	}
+	footerAction := 0
+	if p.scope == "settings" {
+		prepared, _ := dialogrender.PrepareBody(opts)
+		footerY, footerRight, footerWidth := 1+len(prepared), opts.ScreenWidth, opts.ScreenWidth
+		if !opts.Fullscreen {
+			geometry := dialogrender.LayoutOverlay(width, opts.ScreenWidth, opts.Height, len(prepared)+1, opts.Compact, -1, -1)
+			footerY = geometry.Y + geometry.HeaderRows + len(prepared)
+			footerRight = geometry.X + geometry.Width - 2
+			footerWidth = geometry.Width - 4
+			if opts.Compact {
+				footerRight++
+				footerWidth++
+			}
+		}
+		if msg.Y == footerY {
+			label := []rune(opts.StatusBar)
+			if footerWidth < len(label) {
+				label = append(label[:max(0, footerWidth-1)], '…')
+			}
+			x := msg.X - (footerRight - len(label))
+			if x >= 0 && x < min(len(label), len("enter save")) {
+				footerAction = 1
+			}
+			cancelStart := len([]rune("enter save · "))
+			if x >= cancelStart && x < len(label) {
+				footerAction = 2
+			}
+		}
+	}
+	if msg.Action == tea.MouseActionMotion {
+		p.footerHover = footerAction
+		p.tabHover = -1
+		if hit.Target != -2 {
+			return nil
+		}
+	}
+	if footerAction == 1 {
+		return m.executePalette()
+	}
+	if footerAction == 2 {
 		m.closePalette(false)
+		return nil
+	}
+	if hit.Target == -2 {
+		left := 0
+		if !opts.Fullscreen {
+			prepared, _ := dialogrender.PrepareBody(opts)
+			geometry := dialogrender.LayoutOverlay(width, opts.ScreenWidth, opts.Height, len(prepared)+1, opts.Compact, -1, -1)
+			left = geometry.X
+		}
+		x := msg.X - left
+		tab := -1
+		if opts.Compact {
+			if !opts.Fullscreen {
+				x -= 2
+			}
+			if !m.settings.ASCII {
+				x--
+			}
+			firstWidth := len("1 Theme") + 2
+			if p.tab == 0 {
+				firstWidth += 2
+			}
+			secondWidth := len("2 Layout") + 2
+			if p.tab == 1 {
+				secondWidth += 2
+			}
+			if x >= 0 && x < firstWidth {
+				tab = 0
+			} else if x > firstWidth && x <= firstWidth+secondWidth {
+				tab = 1
+			}
+		} else if x > 0 && x < 12 {
+			tab = 0
+		} else if x > 12 && x < 25 {
+			tab = 1
+		}
+		if tab >= 0 {
+			if msg.Action == tea.MouseActionMotion {
+				p.tabHover = tab
+				return nil
+			}
+			return m.paletteKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{rune('1' + tab)}})
+		}
 		return nil
 	}
 	if hit.Target >= 0 {
 		p.selected = hit.Target
+		if p.scope == "settings" {
+			m.refreshPalette()
+			m.previewChoice()
+			return nil
+		}
 		return m.executePalette()
 	}
 	return nil

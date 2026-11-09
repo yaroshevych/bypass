@@ -145,14 +145,12 @@ clipboard after the configured timeout. See the startup options in
 
 | Action | Shortcut | Behavior |
 | --- | --- | --- |
-| Theme… | `shift+t` | Preview and select a color theme. |
-| Layout… | None | Choose Classic or Compact appearance. |
+| Settings… | `shift+t` | Choose a theme or Classic/Compact layout. Switch tabs with `1`/`2`, `[`/`]`, or Left/Right; use Up/Down to select and Enter to save. Esc cancels. |
 | Change PIN… | None | Set or change the session PIN. Requires at least one unlocked vault. |
 
 Themes: Macchiato, Mocha, Frappe, Latte, Tokyo Night, Gruvbox, Dracula, Nord,
-Vesper, and Omarchy. Omarchy follows system palette changes live. Theme and
-layout choices preview as you select them; Enter saves and Esc cancels. Classic and Compact have the
-same actions and controls.
+Vesper, and Omarchy. Omarchy follows system palette changes live. Classic and
+Compact have the same actions and controls.
 
 Set `"watch_omarchy_theme": false` in `~/.config/bypass/config.json` to
 disable live theme watching.
