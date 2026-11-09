@@ -594,6 +594,10 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 				}
 			}
 		}
+		previousSelection := ""
+		if view := m.ws.ActiveView(); view != nil && view.SessionID == msg.sessionID {
+			previousSelection = view.SelectedUUID
+		}
 		if !m.ws.ReplaceDatabase(msg.sessionID, msg.db) {
 			if msg.db != nil {
 				msg.db.Clear()
@@ -674,6 +678,15 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		m.selectResult(msg.change)
+		if previousSelection != "" && (msg.change.Kind == vault.EditEntry || msg.change.Kind == vault.DeleteEntry || msg.change.Kind == vault.DeleteGroup) {
+			if view := m.ws.ActiveView(); view != nil && view.SessionID == msg.sessionID && view.SelectedUUID != previousSelection {
+				if len(m.entries()) > 0 {
+					view.Focus = 1
+				} else {
+					view.Focus = 0
+				}
+			}
+		}
 		m.setNotice("saved · backup created", false)
 		if renamed != "" {
 			m.setNotice("moved as "+safe(renamed)+" · backup created", false)
