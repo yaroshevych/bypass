@@ -591,7 +591,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 				}
 			}
 			if !found {
-				m.setNotice("item unavailable after locating recycle bin", true)
+				m.setNotice("item unavailable after verifying the recycle bin", true)
 				return nil, true
 			}
 			action, message := "Move to Recycle Bin", "Entry history and attachments move with the item."

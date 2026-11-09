@@ -138,15 +138,10 @@ func (m *Model) confirmDelete() {
 		action = "Delete Permanently"
 		message = "Permanently deletes this group and all its contents. If names match, the first matching group is deleted. Recovery requires a backup."
 	}
-	if change.Kind == vault.DeleteGroup && s.DB.Unlocked() && !permanent {
+	if change.Kind == vault.DeleteGroup && s.DB.Unlocked() && s.DB.RecycleBinEnabled && !permanent {
 		change.Kind = vault.PrepareDeleteGroup
-		action = "Inspect Recycle Bin"
-		message = "Creates an encrypted backup and a temporary entry to find the recycle bin. Review the deletion details before continuing."
-	}
-	if s.DB.Unlocked() && s.DB.RecycleBinEnabled && !s.DB.RecycleBinVerified && (change.Kind == vault.DeleteEntry || change.Kind == vault.DeleteGroup && permanent) {
-		change.Kind = vault.PrepareRecycleBin
-		action = "Inspect Recycle Bin"
-		message = "Creates an encrypted backup and a temporary entry to find the recycle bin. Review the deletion details before continuing."
+		action = "Review Deletion"
+		message = "Checks the recycle bin and prepares a deletion summary. Nothing moves or is deleted until you confirm the next dialog."
 	}
 	m.hideReveal()
 	m.dialog = &actionDialog{kind: "delete", title: action, options: []string{"Cancel", action}, selected: 0, sessionID: s.ID, change: change, message: []string{safe(name), message}}

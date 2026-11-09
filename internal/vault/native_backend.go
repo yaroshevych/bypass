@@ -1060,8 +1060,15 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		if selection.group == nil || selection.group.Recycled || selection.sourceGroup == nil || selection.sourceGroup.Recycled || selection.sourceGroup.UUID == db.RootUUID || selection.sourceGroup.ParentUUID == selection.group.UUID || groupWithin(db, selection.group.UUID, selection.sourceGroup.UUID) {
 			return nil, ErrUnsupported
 		}
-	case EditEntry, DeleteEntry, AddAttachment, ReplaceAttachment, RemoveAttachment:
+	case EditEntry, AddAttachment, ReplaceAttachment, RemoveAttachment:
 		if selection.entry == nil {
+			return nil, ErrUnsupported
+		}
+	case DeleteEntry:
+		if selection.entry == nil {
+			return nil, ErrUnsupported
+		}
+		if db.RecycleBinEnabled && !selection.entry.Recycled && findNativeGroup(s.db, db.RecycleBinUUID) == nil {
 			return nil, ErrUnsupported
 		}
 	case DeleteGroup, PrepareDeleteGroup:
@@ -1101,7 +1108,7 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		next.GroupDeletePlan = plan
 		return next, nil
 	}
-	if db.RecycleBinEnabled && !db.RecycleBinVerified && (change.Kind == DeleteEntry && !selection.entry.Recycled || change.Kind == DeleteGroup && !selection.group.Recycled) {
+	if db.RecycleBinEnabled && !db.RecycleBinVerified && change.Kind == DeleteGroup && !selection.group.Recycled {
 		return nil, ErrUnsupported
 	}
 	if err := backupVault(s.path, backupDir); err != nil {
