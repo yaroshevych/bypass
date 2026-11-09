@@ -143,7 +143,7 @@ func (m *Model) grandLines() []string {
 	columns, visible, total := m.grandGeometry()
 	start := min(m.grandOffset, max(0, total-visible))
 	cell := grandCellWidth(runes, m.settings.ASCII)
-	body := []string{c.secondary.Render(fmt.Sprintf("%s · %d characters · positions start at 1", safe(m.revealField), len(runes))), ""}
+	body := []string{c.secondary.Render(" " + fmt.Sprintf("%s · %d characters · positions start at 1", safe(m.revealField), len(runes))), ""}
 	if len(runes) == 0 {
 		body = append(body, c.secondary.Render("This field is empty."))
 	}
