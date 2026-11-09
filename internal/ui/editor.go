@@ -19,7 +19,6 @@ const (
 	editURL
 	editNotes
 	editGenerate
-	editMove
 	editTags
 	editFavorite
 	editSave
@@ -34,7 +33,6 @@ const (
 	editorSave
 	editorCancel
 	editorGenerate
-	editorMove
 	editorTags
 	editorFavorite
 )
@@ -307,9 +305,6 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 		return editorNone
 	}
 	if e.focus >= editGenerate {
-		if key == "m" && e.focus == editMove {
-			return editorMove
-		}
 		if orderedFocus(key, e.focusOrder(), &e.focus, false) {
 			return editorNone
 		}
@@ -317,8 +312,6 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 			switch e.focus {
 			case editGenerate:
 				return editorGenerate
-			case editMove:
-				return editorMove
 			case editTags:
 				return editorTags
 			case editFavorite:
@@ -395,8 +388,6 @@ func (e *entryEditor) pointer(row, width, height int, compact, ascii bool) edito
 	switch focus {
 	case editGenerate:
 		return editorGenerate
-	case editMove:
-		return editorMove
 	case editTags:
 		return editorTags
 	case editFavorite:
@@ -411,11 +402,7 @@ func (e *entryEditor) pointer(row, width, height int, compact, ascii bool) edito
 }
 
 func (e *entryEditor) actionFocuses() []int {
-	actions := []int{editGenerate}
-	if !e.isNew {
-		actions = append(actions, editMove)
-	}
-	actions = append(actions, editTags)
+	actions := []int{editGenerate, editTags}
 	if !e.isNew {
 		actions = append(actions, editFavorite)
 	}
@@ -598,13 +585,6 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 		index    int
 		shortcut string
 	}{{"Generate Password…", editGenerate, ""}}
-	if !e.isNew {
-		actions = append(actions, struct {
-			label    string
-			index    int
-			shortcut string
-		}{"Move…", editMove, ""})
-	}
 	actions = append(actions, struct {
 		label    string
 		index    int

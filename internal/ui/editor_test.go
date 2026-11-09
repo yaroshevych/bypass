@@ -469,19 +469,15 @@ func TestExistingEntryActionsShowShortcutsAndMoveDialog(t *testing.T) {
 		}
 		return out
 	}(), "\n")
-	for _, want := range []string{"Generate Password…", "Move…", "Add to Favorites", "ctrl+s", "esc"} {
+	for _, want := range []string{"Generate Password…", "Tags…", "Add to Favorites", "ctrl+s", "esc"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("edit actions missing %q:\n%s", want, joined)
 		}
 	}
 	e.focus = editGenerate
 	e.key(editorTeaKey("down"))
-	if e.focus != editMove {
-		t.Fatalf("Down from Generator focused %d, want Move", e.focus)
-	}
-	e.key(editorTeaKey("down"))
 	if e.focus != editTags {
-		t.Fatalf("Down from Move focused %d, want Tags", e.focus)
+		t.Fatalf("Down from Generator focused %d, want Tags", e.focus)
 	}
 	e.key(editorTeaKey("down"))
 	if e.focus != editFavorite {
@@ -495,12 +491,8 @@ func TestExistingEntryActionsShowShortcutsAndMoveDialog(t *testing.T) {
 	if action := e.key(editorTeaKey("enter")); action != editorFavorite {
 		t.Fatalf("Enter on favorite action = %v", action)
 	}
-	e.focus = editMove
-	if action := e.key(editorTeaKey("enter")); action != editorMove {
-		t.Fatalf("Enter on Move = %v", action)
-	}
-	if action := e.key(editorTeaKey("m")); action != editorMove {
-		t.Fatalf("Move shortcut = %v", action)
+	if strings.Contains(joined, "Move…") {
+		t.Fatal("Move action remains in the entry editor")
 	}
 }
 
