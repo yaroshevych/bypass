@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 )
 
 const maxGeneratedPasswordLength = 1024
@@ -20,7 +21,7 @@ func contextError(ctx context.Context) error {
 
 func validateChange(change Change) error {
 	switch change.Kind {
-	case AddEntry, EditEntry, MoveEntry, DeleteEntry, CreateGroup, DeleteGroup, PrepareDeleteGroup, PrepareRecycleBin, AddAttachment, ReplaceAttachment, RemoveAttachment:
+	case AddEntry, EditEntry, MoveEntry, DeleteEntry, CreateGroup, DeleteGroup, PrepareDeleteGroup, PrepareRecycleBin, AddAttachment, ReplaceAttachment, RemoveAttachment, RenameTag:
 	default:
 		return ErrUnsupported
 	}
@@ -39,7 +40,14 @@ func validateChange(change Change) error {
 	if len(change.Password) > 0 && !change.PasswordChanged {
 		return ErrUnsupported
 	}
-	if change.NewName != "" && change.Kind != CreateGroup {
+	if change.NewName != "" && change.Kind != CreateGroup && change.Kind != RenameTag {
+		return ErrUnsupported
+	}
+	if change.Kind == RenameTag {
+		if strings.TrimSpace(change.TagName) == "" || strings.TrimSpace(change.NewName) == "" || strings.ContainsAny(change.TagName+change.NewName, ",;\t\r\n\x00") {
+			return ErrUnsupported
+		}
+	} else if change.TagName != "" {
 		return ErrUnsupported
 	}
 	if isAttachmentChange {

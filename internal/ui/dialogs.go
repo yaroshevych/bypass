@@ -13,6 +13,7 @@ import (
 
 type actionDialog struct {
 	kind, title                     string
+	tagName                         string
 	message                         []string
 	options                         []string
 	selected, offset                int
@@ -218,6 +219,33 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 			d.offset = max(0, d.offset-page)
 			return nil
 		}
+	}
+	if d.kind == "rename-tag" {
+		switch key {
+		case "up", "down", "tab", "shift+tab":
+			dialogActionFocus(key, 3, &d.selected)
+			return nil
+		case "enter":
+			if d.selected == 2 {
+				m.clearDialog()
+				return nil
+			}
+			name := strings.TrimSpace(d.input.value())
+			if name == "" {
+				d.err = "Tag name is required."
+				return nil
+			}
+			if name == d.tagName {
+				m.clearDialog()
+				return nil
+			}
+			return m.apply(vault.Change{Kind: vault.RenameTag, TagName: d.tagName, NewName: name})
+		}
+		if d.selected == 0 {
+			d.input.update(k)
+			d.err = ""
+		}
+		return nil
 	}
 	if d.kind == "group" {
 		switch key {
@@ -503,6 +531,13 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		fieldEnd = len(body)
 		actions, actionBase, actionFocus = []dialogAction{{"Create", "enter"}, {"Cancel", "esc"}}, 1, d.selected-1
 		footer = ""
+	case "rename-tag":
+		actionWidth := m.dialogInnerWidth(min(m.width-6, 48))
+		fieldStart = len(body)
+		body = append(body, m.dialogFields([]inputFieldView{{label: "Tag name", value: &d.input, focused: d.selected == 0, indent: 1}}, actionWidth, false)...)
+		fieldEnd = len(body)
+		actions, actionBase, actionFocus = []dialogAction{{"Save", "enter"}, {"Cancel", "esc"}}, 1, d.selected-1
+		footer = ""
 	case "generator":
 		if len(d.secret) == 0 {
 			body = append(body, "")
@@ -552,6 +587,8 @@ func (m *Model) dialogContent() (opts dialogrender.Options, targets []int) {
 		width = min(m.width-6, 42)
 	case "pin-setup", "pin-confirm":
 		width = min(m.width-6, 52)
+	case "rename-tag":
+		width = min(m.width-6, 48)
 	case "external", "generator":
 		width = min(m.width-6, 72)
 	case "delete", "data-loss", "destination", "startup-warning":
@@ -615,7 +652,7 @@ func (m *Model) dialogPointer(msg tea.MouseMsg) tea.Cmd {
 	}
 	d := m.dialog
 	d.selected = target
-	if target == 0 && (d.kind == "group" || d.kind == "pin-setup" || d.kind == "pin-confirm" || d.kind == "generator" && len(d.secret) == 0) {
+	if target == 0 && (d.kind == "group" || d.kind == "rename-tag" || d.kind == "pin-setup" || d.kind == "pin-confirm" || d.kind == "generator" && len(d.secret) == 0) {
 		return nil
 	}
 	return m.dialogKey(tea.KeyMsg{Type: tea.KeyEnter})

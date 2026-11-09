@@ -52,6 +52,7 @@ const (
 	AddAttachment      ChangeKind = "add_attachment"
 	ReplaceAttachment  ChangeKind = "replace_attachment"
 	RemoveAttachment   ChangeKind = "remove_attachment"
+	RenameTag          ChangeKind = "rename_tag"
 )
 
 type Change struct {
@@ -62,6 +63,7 @@ type Change struct {
 	Password        []byte
 	PasswordChanged bool
 	NewName         string
+	TagName         string
 	AttachmentName  string
 	AttachmentData  []byte
 	AttachmentIndex *int

@@ -423,7 +423,7 @@ func changeLossOperation(path string, revision [32]byte, change Change) [32]byte
 	h := sha256.New()
 	writeConsentString(h, path)
 	writeConsentBytes(h, revision[:])
-	for _, value := range []string{string(change.Kind), change.EntryUUID, change.GroupUUID, change.NewName, change.AttachmentName} {
+	for _, value := range []string{string(change.Kind), change.EntryUUID, change.GroupUUID, change.NewName, change.TagName, change.AttachmentName} {
 		writeConsentString(h, value)
 	}
 	keys := make([]string, 0, len(change.Values))
@@ -606,6 +606,69 @@ func nativeModel(state *nativeState) (*Database, error) {
 		return nil, ErrMalformed
 	}
 	return d, nil
+}
+
+func databaseHasTag(db *Database, name string) bool {
+	var hasTag func(Entry) bool
+	hasTag = func(entry Entry) bool {
+		for _, tag := range entry.Tags {
+			if tag == name {
+				return true
+			}
+		}
+		for _, history := range entry.History {
+			if hasTag(history) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, entry := range db.Entries {
+		if hasTag(entry) {
+			return true
+		}
+	}
+	return false
+}
+
+func renameNativeTag(db *gok.Database, oldName, newName string) {
+	var renameEntry func(*gok.Entry)
+	renameEntry = func(entry *gok.Entry) {
+		tags := splitTags(entry.Tags)
+		changed := false
+		seen := make(map[string]bool, len(tags))
+		updated := make([]string, 0, len(tags))
+		for _, tag := range tags {
+			if tag == oldName {
+				tag = newName
+				changed = true
+			}
+			if !seen[tag] {
+				seen[tag] = true
+				updated = append(updated, tag)
+			}
+		}
+		if changed {
+			entry.Tags = strings.Join(updated, ", ")
+		}
+		for i := range entry.Histories {
+			for j := range entry.Histories[i].Entries {
+				renameEntry(&entry.Histories[i].Entries[j])
+			}
+		}
+	}
+	var renameGroup func(*gok.Group)
+	renameGroup = func(group *gok.Group) {
+		for i := range group.Entries {
+			renameEntry(&group.Entries[i])
+		}
+		for i := range group.Groups {
+			renameGroup(&group.Groups[i])
+		}
+	}
+	for i := range db.Content.Root.Groups {
+		renameGroup(&db.Content.Root.Groups[i])
+	}
 }
 
 func uuidString(id gok.UUID) string { raw, _ := id.MarshalText(); return normalizeUUID(string(raw)) }
@@ -988,6 +1051,10 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		if change.EntryUUID == "" && change.GroupUUID == "" {
 			return nil, ErrUnsupported
 		}
+	case RenameTag:
+		if !databaseHasTag(db, change.TagName) {
+			return nil, ErrUnsupported
+		}
 	}
 	if change.Kind == PrepareRecycleBin {
 		if !db.RecycleBinEnabled || findNativeGroup(s.db, db.RecycleBinUUID) == nil {
@@ -1105,6 +1172,8 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		child := gok.NewGroup()
 		child.Name = change.NewName
 		g.Groups = append(g.Groups, child)
+	case RenameTag:
+		renameNativeTag(s.db, change.TagName, change.NewName)
 	case DeleteGroup:
 		g := findNativeGroup(s.db, change.GroupUUID)
 		if g == nil || selection.group.UUID == db.RootUUID {

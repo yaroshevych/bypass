@@ -156,6 +156,14 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		if !m.writable() {
 			return nil, true
 		}
+		if v := m.ws.ActiveView(); v != nil && v.Focus == 0 {
+			if nav := m.currentNav(); nav.kind == "tag" {
+				m.hideReveal()
+				m.dialog = &actionDialog{kind: "rename-tag", title: "Rename Tag", sessionID: s.ID, tagName: nav.value, selected: 0}
+				m.dialog.input.set(nav.value)
+				return nil, true
+			}
+		}
 		if e := m.selected(); e != nil {
 			if s.DB.Unlocked() {
 				return m.prepareEditor(*e), true
@@ -512,6 +520,14 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 				msg.db.Clear()
 			}
 			return nil, true
+		}
+		if msg.change.Kind == vault.RenameTag {
+			for i := range m.ws.Views {
+				view := &m.ws.Views[i]
+				if view.SessionID == msg.sessionID && view.NavKey == "tag:"+msg.change.TagName {
+					view.NavKey = "tag:" + msg.change.NewName
+				}
+			}
 		}
 		m.ws.Sessions[msg.sessionID].LastActivity = m.now()
 		if msg.change.Kind == vault.MoveEntry {
