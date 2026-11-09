@@ -1076,7 +1076,7 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 			return nil, ErrUnsupported
 		}
 	case RenameGroup:
-		if selection.group == nil || selection.group.UUID == db.RootUUID || selection.group.Recycled {
+		if selection.group == nil || selection.group.Recycled {
 			return nil, ErrUnsupported
 		}
 	case PrepareRecycleBin:
@@ -1229,7 +1229,7 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		g.Groups = append(g.Groups, child)
 	case RenameGroup:
 		g := findNativeGroup(s.db, change.GroupUUID)
-		if g == nil || selection.group.UUID == db.RootUUID || selection.group.Recycled {
+		if g == nil || selection.group.Recycled {
 			return nil, ErrUnsupported
 		}
 		g.Name = change.NewName

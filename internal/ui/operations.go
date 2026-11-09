@@ -172,8 +172,8 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 				return nil, true
 			}
 			if nav.kind == "group" {
-				if nav.group == s.DB.RootUUID || nav.group == s.DB.RecycleBinUUID {
-					m.setNotice("the root and recycle bin groups can't be renamed", true)
+				if nav.group == s.DB.RecycleBinUUID {
+					m.setNotice("the recycle bin group can't be renamed", true)
 					return nil, true
 				}
 				m.hideReveal()
