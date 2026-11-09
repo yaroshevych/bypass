@@ -104,16 +104,13 @@ type Database struct {
 	Revision           [32]byte
 }
 
-// GroupDeletePlan describes the effects confirmed after the native bin probe.
+// GroupDeletePlan describes the group subtree prepared for deletion confirmation.
 type GroupDeletePlan struct {
-	GroupUUID       string
-	GroupName       string
-	TargetEntries   int
-	TargetGroups    int
-	MatchingGroups  int
-	MatchingEntries int
-	BinPath         string
-	Revision        [32]byte
+	GroupUUID     string
+	GroupName     string
+	TargetEntries int
+	TargetGroups  int
+	Revision      [32]byte
 }
 
 func (d *Database) Clone() *Database {

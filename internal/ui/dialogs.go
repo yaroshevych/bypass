@@ -137,7 +137,7 @@ func (m *Model) confirmDelete() tea.Cmd {
 	}
 	if change.Kind == vault.DeleteGroup && permanent {
 		action = "Delete Permanently"
-		message = "Permanently deletes this group and all its contents. If names match, the first matching group is deleted. Recovery requires a backup."
+		message = "Permanently deletes this group and all its contents. Recovery requires a backup."
 	}
 	if change.Kind == vault.DeleteGroup && s.DB.Unlocked() && s.DB.RecycleBinEnabled && !permanent {
 		change.Kind = vault.PrepareDeleteGroup

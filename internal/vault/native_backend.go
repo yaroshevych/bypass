@@ -1096,7 +1096,7 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		return db.Clone(), nil
 	}
 	if change.Kind == PrepareDeleteGroup {
-		if !db.RecycleBinEnabled || selection.group.Recycled {
+		if !db.RecycleBinEnabled || selection.group.Recycled || findNativeGroup(s.db, db.RecycleBinUUID) == nil {
 			return nil, ErrUnsupported
 		}
 		plan := &GroupDeletePlan{GroupUUID: selection.group.UUID, GroupName: selection.group.Name, Revision: db.Revision}

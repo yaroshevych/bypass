@@ -604,7 +604,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			if permanent {
 				action, message = "Delete Permanently", "This permanently deletes the item. Recovery requires a backup."
 				if change.Kind == vault.DeleteGroup {
-					message = "Permanently deletes this group and all its contents. If names match, the first matching group is deleted. Recovery requires a backup."
+					message = "Permanently deletes this group and all its contents. Recovery requires a backup."
 				}
 			}
 			m.dialog = &actionDialog{kind: "delete", title: action, options: []string{"Cancel", action}, selected: 0, sessionID: msg.sessionID, change: change, message: []string{safe(name), message}}
@@ -619,11 +619,10 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 				return plural
 			}
 			message := []string{
-				fmt.Sprintf("%s: %d %s in %d %s", safe(plan.GroupName), plan.TargetEntries, plural(plan.TargetEntries, "entry", "entries"), plan.TargetGroups, plural(plan.TargetGroups, "group", "groups")),
-				fmt.Sprintf("%d matching %s in the bin %s %d %s.", plan.MatchingGroups, plural(plan.MatchingGroups, "group", "groups"), plural(plan.MatchingGroups, "contains", "contain"), plan.MatchingEntries, plural(plan.MatchingEntries, "entry", "entries")),
-				"Entries move to the bin root and conflicting titles are renamed. All these groups and their hierarchy are permanently deleted. Recovery requires a backup.",
+				fmt.Sprintf("%s contains %d %s across %d %s.", safe(plan.GroupName), plan.TargetEntries, plural(plan.TargetEntries, "entry", "entries"), plan.TargetGroups, plural(plan.TargetGroups, "group", "groups")),
+				"The entire group hierarchy will move to the recycle bin and can be restored later. Nothing is permanently deleted.",
 			}
-			m.dialog = &actionDialog{kind: "delete", title: "Delete Group", options: []string{"Cancel", "Delete Group"}, selected: 0, sessionID: msg.sessionID, change: vault.Change{Kind: vault.DeleteGroup, GroupUUID: plan.GroupUUID}, message: message}
+			m.dialog = &actionDialog{kind: "delete", title: "Move Group to Recycle Bin", options: []string{"Cancel", "Move Group to Recycle Bin"}, selected: 0, sessionID: msg.sessionID, change: vault.Change{Kind: vault.DeleteGroup, GroupUUID: plan.GroupUUID}, message: message}
 			return nil, true
 		}
 		m.selectResult(msg.change)
