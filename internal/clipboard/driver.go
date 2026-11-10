@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"os/exec"
 	"runtime"
 	"time"
@@ -65,8 +64,6 @@ func (d systemDriver) Write(ctx context.Context, value []byte) error {
 	cmd := exec.CommandContext(bounded, d.writeCommand, d.writeArgs...)
 	cmd.WaitDelay = 250 * time.Millisecond
 	cmd.Stdin = bytes.NewReader(value)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
 	if err := cmd.Run(); err != nil {
 		return ErrOperation
 	}
@@ -84,7 +81,6 @@ func (d systemDriver) Read(ctx context.Context) ([]byte, error) {
 	var output limitedBuffer
 	output.limit = maxClipboardBytes
 	cmd.Stdout = &output
-	cmd.Stderr = io.Discard
 	if err := cmd.Run(); err != nil || output.exceeded {
 		output.wipe()
 		return nil, ErrOperation
