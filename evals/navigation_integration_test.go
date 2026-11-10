@@ -28,7 +28,7 @@ func TestGrandViewGroupingCenteringNotesAndQCloseTmux(t *testing.T) {
 	e.key("p")
 	e.mustShow("Password", "••••••••")
 	e.key("G")
-	e.mustShow("GRAND VIEW", "positions start at 1")
+	e.mustShow("LARGE VIEW", "positions start at 1")
 	e.waitFor("configured character background groups", func() bool {
 		raw := e.captureEscaped()
 		// tmux coalesces adjacent cells with the same attributes. The first
@@ -47,7 +47,7 @@ func TestGrandViewGroupingCenteringNotesAndQCloseTmux(t *testing.T) {
 		centered = left > 0 && width < 116 && left-right <= 1 && right-left <= 1
 	}
 	if !centered {
-		e.failWithScreen("Grand View did not fit its content and center horizontally", e.capture())
+		e.failWithScreen("Large View did not fit its content and center horizontally", e.capture())
 	}
 	e.key("q")
 	e.mustShow("Seed Entry", "Password", "••••••••")
@@ -55,7 +55,7 @@ func TestGrandViewGroupingCenteringNotesAndQCloseTmux(t *testing.T) {
 	e.key("J")
 	e.key("n")
 	e.key("G")
-	e.mustShow("GRAND VIEW", "Notes", "synthetic seed note")
+	e.mustShow("LARGE VIEW", "Notes", "synthetic seed note")
 	if strings.Contains(e.capture(), "positions start at 1") {
 		e.failWithScreen("Notes used indexed character mode", e.capture())
 	}

@@ -385,7 +385,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.mustShow("Eval Entry", "Password", "••••••••")
 	e.mustNotShow(secretSentinel)
 	e.key("G")
-	e.mustShow("GRAND VIEW", "Password", "positions start at 1", "q close")
+	e.mustShow("LARGE VIEW", "Password", "positions start at 1", "q close")
 	e.key("Escape")
 	e.mustShow("Eval Entry", "••••••••")
 	e.mustNotShow(secretSentinel)
@@ -954,8 +954,8 @@ func (e *evalSession) close() {
 var displayedCodePattern = regexp.MustCompile(`(?m)(Code[ \t]+)[A-Za-z0-9]{4,32}\b`)
 
 func (e *evalSession) redact(s string) string {
-	if strings.Contains(s, "\n") && strings.Contains(strings.ToUpper(s), "GRAND VIEW") {
-		return "[Grand View screen withheld: explicit secret display was active]"
+	if strings.Contains(s, "\n") && strings.Contains(strings.ToUpper(s), "LARGE VIEW") {
+		return "[Large View screen withheld: explicit secret display was active]"
 	}
 	s = displayedCodePattern.ReplaceAllString(s, "${1}[REDACTED]")
 	for _, secret := range e.secrets {

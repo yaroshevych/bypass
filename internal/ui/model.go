@@ -117,6 +117,8 @@ type Model struct {
 	jump                                    bool
 	grand                                   bool
 	grandOffset                             int
+	grandSpaced                             bool
+	grandFooterHover                        string
 	gate                                    *privacy.Gate
 	pinInput                                input
 	pinError                                string

@@ -13,7 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// Grand View shares reveal's session binding, reference resolution and buffer
+// Large View shares reveal's session binding, reference resolution and buffer
 // cleanup. It remains visible until dismissed or privacy/lock takes over.
 func (m *Model) openGrandView() tea.Cmd {
 	if m.selected() == nil || m.editor != nil {
@@ -40,6 +40,9 @@ func (m *Model) grandKey(k tea.KeyMsg) tea.Cmd {
 		return m.leaveEditor(func() tea.Cmd { return m.lockCurrent(true) })
 	case "ctrl+p":
 		m.openPalette("actions")
+	case "s":
+		m.grandSpaced = !m.grandSpaced
+		m.grandOffset = 0
 	case "up", "k":
 		m.grandOffset = max(0, m.grandOffset-1)
 	case "down", "j":
@@ -60,6 +63,35 @@ func (m *Model) grandKey(k tea.KeyMsg) tea.Cmd {
 }
 
 func (m *Model) grandPointer(msg tea.MouseMsg) tea.Cmd {
+	action := ""
+	if m.revealCancel == nil {
+		lines := m.grandLines()
+		if msg.Y >= 0 && msg.Y < len(lines) {
+			line := ansi.Strip(lines[msg.Y])
+			if strings.Contains(line, "up/down scroll") {
+				for _, label := range []string{"s space", "q close"} {
+					if start := strings.Index(line, label); start >= 0 {
+						x := lipgloss.Width(line[:start])
+						if msg.X >= x && msg.X < x+lipgloss.Width(label) {
+							action = label
+						}
+					}
+				}
+			}
+		}
+	}
+	if msg.Action == tea.MouseActionMotion {
+		m.grandFooterHover = action
+		return nil
+	}
+	if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+		switch action {
+		case "s space":
+			return m.grandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+		case "q close":
+			return m.grandKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+		}
+	}
 	if msg.Action == tea.MouseActionPress {
 		switch msg.Button {
 		case tea.MouseButtonWheelUp:
@@ -82,8 +114,8 @@ func (m *Model) grandGeometry() (columns, visible, total int) {
 	}
 	runes := []rune(string(m.revealValue))
 	defer wipebuf.Wipe(runes)
-	cell := grandCellWidth(runes, m.settings.ASCII)
-	columns = max(1, (m.width-8)/cell)
+	cell := grandCellWidth(runes, m.settings.ASCII, m.grandSpaced)
+	columns = max(1, (m.width-9)/cell)
 	visible = max(1, m.grandContentCapacity()/3)
 	total = max(1, (len(runes)+columns-1)/columns)
 	return
@@ -122,10 +154,17 @@ func grandCharacter(r rune, ascii bool) string {
 	return string(r)
 }
 
-func grandCellWidth(runes []rune, ascii bool) int {
-	width := max(4, len(strconv.Itoa(len(runes)))+2)
+func grandCellWidth(runes []rune, ascii, spaced bool) int {
+	width := 1
+	if spaced {
+		width = max(4, len(strconv.Itoa(len(runes)))+2)
+	}
 	for _, r := range runes {
-		width = max(width, lipgloss.Width(grandCharacter(r, ascii))+2)
+		characterWidth := lipgloss.Width(grandCharacter(r, ascii))
+		if spaced {
+			characterWidth += 2
+		}
+		width = max(width, characterWidth)
 	}
 	return width
 }
@@ -142,7 +181,7 @@ func (m *Model) grandLines() []string {
 	defer wipebuf.Wipe(runes)
 	columns, visible, total := m.grandGeometry()
 	start := min(m.grandOffset, max(0, total-visible))
-	cell := grandCellWidth(runes, m.settings.ASCII)
+	cell := grandCellWidth(runes, m.settings.ASCII, m.grandSpaced)
 	body := []string{c.secondary.Render(" " + fmt.Sprintf("%s · %d characters · positions start at 1", safe(m.revealField), len(runes))), ""}
 	if len(runes) == 0 {
 		body = append(body, c.secondary.Render("This field is empty."))
@@ -162,26 +201,32 @@ func (m *Model) grandLines() []string {
 				valueStyle, indexStyle = stripeValue, stripeIndex
 			}
 			values.WriteString(valueStyle.Render(fit(strings.Repeat(" ", left)+value, cell)))
-			number := strconv.Itoa(index + 1)
+			number := strconv.Itoa((index + 1) % 10)
+			if m.grandSpaced {
+				number = strconv.Itoa(index + 1)
+			}
 			indexes.WriteString(indexStyle.Render(fit(strings.Repeat(" ", (cell-len(number))/2)+number, cell)))
 		}
-		body = append(body, values.String(), indexes.String(), "")
+		body = append(body, " "+values.String(), " "+indexes.String(), "")
 	}
-	footer := "q close · PgUp/PgDn scroll"
+	footer := "s space · q close · up/down scroll"
 	if total > visible {
-		footer = fmt.Sprintf("rows %d–%d/%d · q close · PgUp/PgDn scroll", start+1, min(total, start+visible), total)
+		footer = fmt.Sprintf("rows %d–%d/%d · s space · q close · up/down scroll", start+1, min(total, start+visible), total)
+	}
+	if m.grandFooterHover != "" {
+		footer = strings.Replace(footer, m.grandFooterHover, m.colors().inactive.Render(m.grandFooterHover), 1)
 	}
 	return m.grandOverlay(body, footer)
 }
 
 func (m *Model) grandOverlay(body []string, footer string) []string {
-	width := max(lipgloss.Width("Grand View"), lipgloss.Width(footer))
+	width := max(lipgloss.Width("Large View"), lipgloss.Width(footer))
 	for _, line := range body {
 		width = max(width, lipgloss.Width(line))
 	}
 	// Include the borders and one padding cell on each side. The shared
 	// overlay centers the result and keeps it within the terminal.
-	return m.overlay("Grand View", body, footer, min(m.width-4, width+4), -1, -1)
+	return m.overlay("Large View", body, footer, min(m.width-4, width+4), -1, -1)
 }
 
 func (m *Model) grandIsText() bool {
@@ -212,9 +257,12 @@ func (m *Model) grandTextView() []string {
 			body = append(body, c.primary.Render(row))
 		}
 	}
-	footer := "q close · PgUp/PgDn scroll"
+	footer := "q close · up/down scroll"
 	if len(rows) > visible {
-		footer = fmt.Sprintf("lines %d–%d/%d · q close · PgUp/PgDn scroll", start+1, min(len(rows), start+visible), len(rows))
+		footer = fmt.Sprintf("lines %d–%d/%d · q close · up/down scroll", start+1, min(len(rows), start+visible), len(rows))
+	}
+	if m.grandFooterHover != "" {
+		footer = strings.Replace(footer, m.grandFooterHover, m.colors().inactive.Render(m.grandFooterHover), 1)
 	}
 	return m.grandOverlay(body, footer)
 }

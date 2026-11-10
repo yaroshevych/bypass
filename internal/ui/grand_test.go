@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"testing"
 	"unicode"
@@ -31,16 +30,16 @@ func setGrandPassword(t *testing.T, m *Model, value string) {
 func TestGrandViewShowsCharactersAndOneBasedIndexesThenZeroesOnClose(t *testing.T) {
 	m, _ := operationModel(t)
 	focusGrandPassword(m)
-	setGrandPassword(t, m, "abc")
+	setGrandPassword(t, m, "abcdefghijkl")
 	m.key(key("G"))
-	if !m.grand || string(m.revealValue) != "abc" {
+	if !m.grand || string(m.revealValue) != "abcdefghijkl" {
 		t.Fatalf("Grand View did not open on the focused field: grand=%v value=%q", m.grand, m.revealValue)
 	}
 	view := ansi.Strip(strings.Join(m.grandLines(), "\n"))
-	if !strings.Contains(view, "3 characters · positions start at 1") || !strings.Contains(view, "a") || !strings.Contains(view, "b") || !strings.Contains(view, "c") {
+	if !strings.Contains(view, "12 characters · positions start at 1") || !strings.Contains(view, "a") || !strings.Contains(view, "b") || !strings.Contains(view, "c") {
 		t.Fatalf("Grand View is missing its field values or position legend:\n%s", view)
 	}
-	if !regexp.MustCompile(`\b1\s+2\s+3\b`).MatchString(view) {
+	if !strings.Contains(view, "123456789012") || !strings.Contains(view, "abcdefghijkl") {
 		t.Fatalf("Grand View does not show 1-based character indexes:\n%s", view)
 	}
 
@@ -56,6 +55,23 @@ func TestGrandViewShowsCharactersAndOneBasedIndexesThenZeroesOnClose(t *testing.
 	}
 	if strings.Contains(m.View(), "abc") {
 		t.Fatal("closed Grand View continued to show the password")
+	}
+}
+
+func TestGrandViewSpaceToggle(t *testing.T) {
+	m, _ := operationModel(t)
+	focusGrandPassword(m)
+	setGrandPassword(t, m, "abcdefghijkl")
+	m.key(key("G"))
+	m.key(key("s"))
+	view := ansi.Strip(strings.Join(m.grandLines(), "\n"))
+	if !strings.Contains(view, "s space") || !strings.Contains(view, "10") || strings.Contains(view, "abcdefghijkl") {
+		t.Fatalf("spaced view missing spaced characters or full indexes:\n%s", view)
+	}
+	m.key(key("s"))
+	view = ansi.Strip(strings.Join(m.grandLines(), "\n"))
+	if !strings.Contains(view, "abcdefghijkl") || !strings.Contains(view, "123456789012") {
+		t.Fatalf("space toggle did not restore compact view:\n%s", view)
 	}
 }
 
@@ -94,16 +110,16 @@ func TestGrandViewUnicodeAndControlCharactersAreSafeAndRuneIndexed(t *testing.T)
 func TestGrandViewScrollsToFinalCharacters(t *testing.T) {
 	m, _ := operationModel(t)
 	focusGrandPassword(m)
-	value := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	value := strings.Repeat("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 8)
 	setGrandPassword(t, m, value)
 	m.width, m.height = 48, 16
 	m.key(key("G"))
-	if columns, visible, total := m.grandGeometry(); columns != 10 || visible != 4 || total != 8 || m.grandOffset != 0 {
+	if columns, visible, total := m.grandGeometry(); columns != 39 || visible != 4 || total != 8 || m.grandOffset != 0 {
 		t.Fatalf("small Grand View geometry = %d columns, %d visible rows, %d total rows, offset %d", columns, visible, total, m.grandOffset)
 	}
 	m.key(tea.KeyMsg{Type: tea.KeyEnd})
 	view := ansi.Strip(strings.Join(m.grandLines(), "\n"))
-	if m.grandOffset != 4 || !strings.Contains(view, "72") || !strings.Contains(view, "Z") {
+	if m.grandOffset != 4 || !strings.Contains(view, "9012345678") || !strings.Contains(view, "Z") {
 		t.Fatalf("Grand View did not reach the final indexed character:\n%s", view)
 	}
 }

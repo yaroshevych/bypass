@@ -16,8 +16,8 @@ func TestFailureDiagnosticsRedactSecretDisplays(t *testing.T) {
 			t.Fatal("diagnostic retained a registered or displayed secret")
 		}
 	}
-	grand := e.redact("Grand View\n m   2   -   e \n 1   2   3   4 ")
+	grand := e.redact("Large View\n m   2   -   e \n 1   2   3   4 ")
 	if strings.Contains(grand, "m   2") || !strings.Contains(grand, "withheld") {
-		t.Fatal("diagnostic exposed spaced Grand View characters")
+		t.Fatal("diagnostic exposed spaced Large View characters")
 	}
 }

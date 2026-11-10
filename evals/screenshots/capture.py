@@ -160,7 +160,7 @@ def capture(args, fixture, output):
                             # Username, password, URL, notes.
                             key(*(['Down'] * (1 if args.screen == 'grand-password' else 3)))
                             key('G')
-                            wait('Grand View')
+                            wait('Large View')
                         elif args.screen == 'attachments':
                             palette('Attachments', 'Attachments')
                         elif args.screen == 'history':

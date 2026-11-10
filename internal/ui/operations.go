@@ -1091,6 +1091,8 @@ func (m *Model) requestRevealField() tea.Cmd {
 func (m *Model) hideReveal() {
 	m.grand = false
 	m.grandOffset = 0
+	m.grandSpaced = false
+	m.grandFooterHover = ""
 	if m.revealCancel != nil {
 		m.revealCancel()
 		m.revealCancel = nil
