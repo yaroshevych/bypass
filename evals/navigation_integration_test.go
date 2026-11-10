@@ -29,6 +29,7 @@ func TestGrandViewGroupingCenteringNotesAndQCloseTmux(t *testing.T) {
 	e.mustShow("Password", "••••••••")
 	e.key("G")
 	e.mustShow("LARGE VIEW", "positions start at 1")
+	e.key("s")
 	e.waitFor("configured character background groups", func() bool {
 		raw := e.captureEscaped()
 		// tmux coalesces adjacent cells with the same attributes. The first
@@ -121,9 +122,11 @@ func TestNavigationActionsAndSessionCleanupTmux(t *testing.T) {
 	e.waitFor("accepted search", func() bool {
 		return !strings.Contains(e.capture(), "enter apply") && strings.Contains(e.capture(), "/ Eval")
 	})
-	palette("Layout")
-	e.mustShow("CHOOSE APPEARANCE")
-	e.typeText("Compact")
+	palette("Settings")
+	e.mustShow("SETTINGS")
+	e.key("Right")
+	e.mustShow("Compact")
+	e.key("Up")
 	e.key("Enter")
 	e.mustSettingsContain(`"appearance": "compact"`)
 	t.Run("ASCII toggle", func(t *testing.T) {
@@ -133,11 +136,11 @@ func TestNavigationActionsAndSessionCleanupTmux(t *testing.T) {
 		e.mustShow("[ 1 Eval Entry ]")
 	})
 	e.key("?")
-	e.mustShow("KEYBOARD SHORTCUTS")
+	e.mustShow("COMMANDS")
 	e.typeText("Large")
 	e.mustShow("Large View")
 	e.key("Escape")
-	e.waitFor("shortcut dialog closed", func() bool { return !strings.Contains(e.capture(), "KEYBOARD SHORTCUTS") })
+	e.waitFor("shortcut dialog closed", func() bool { return !strings.Contains(e.capture(), "COMMANDS") })
 	palette("Change PIN")
 	e.mustShow("SET SESSION PIN")
 	e.typeText("2468")

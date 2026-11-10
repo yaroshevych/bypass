@@ -79,6 +79,7 @@ func TestFailedWritesKeepVaultAndDraftAndAllowRetryTmux(t *testing.T) {
 			e.typeText(fixturePassword)
 			e.key("Enter")
 			e.mustShow("Seed Entry")
+			e.key("Right")
 			if failure == "file-permissions" {
 				e.mustShow("read only")
 				e.key("e")

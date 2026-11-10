@@ -258,24 +258,20 @@ func TestMilestone2RealCLITmuxWorkflow(t *testing.T) {
 		t.Fatal("saved entry was not moved into Archive")
 	}
 	e.key("DC")
-	e.mustShow("INSPECT RECYCLE BIN")
-	e.key("Right")
-	e.key("Enter")
-	e.mustShow("MOVE TO RECYCLE BIN")
-	e.key("Right")
+	e.mustShow("DELETE", "Cancel")
+	e.key("Down")
 	e.key("Enter")
 	e.waitForWithin(20*time.Second, "recycle operation completed", func() bool {
 		screen := e.capture()
-		return strings.Contains(screen, "saved · backup created") && !strings.Contains(screen, "MOVE TO RECYCLE BIN") && !strings.Contains(screen, "Working…")
+		return strings.Contains(screen, "saved · backup created") && !strings.Contains(screen, "DELETE") && !strings.Contains(screen, "Working…")
 	})
 	e.key("Left")
 	e.key("Left")
-	for i := 0; i < 4; i++ {
-		e.key("Up")
-	}
-	for i := 0; i < 2; i++ {
+	e.key("PPage")
+	for i := 0; i < 3; i++ {
 		e.key("Down")
 	}
+	e.key("Right")
 	e.mustShow("Bin", "Eval Created Edited")
 	e.key("m")
 	e.mustShow("RESTORE EVAL CREATED EDITED")
@@ -342,16 +338,18 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	// Command palette can preview a nested theme and restore the original
 	// appearance on Escape, then commit a different theme and compact layout.
 	e.key("C-p")
-	e.typeText("Theme")
+	e.typeText("Settings")
 	e.key("Enter")
-	e.mustShow("THEME", "Macchiato")
-	e.typeText("Tokyo Night")
+	e.mustShow("SETTINGS", "Macchiato")
+	for range 4 {
+		e.key("Down")
+	}
 	e.mustShow("Tokyo Night")
 	e.key("Escape")
 	closedFrames := 0
 	e.waitFor("theme picker closed", func() bool {
 		screen := e.capture()
-		if strings.Contains(screen, "Eval Entry") && !strings.Contains(screen, "THEME") && !strings.Contains(screen, "COMMANDS") {
+		if strings.Contains(screen, "Eval Entry") && !strings.Contains(screen, "SETTINGS") && !strings.Contains(screen, "COMMANDS") {
 			closedFrames++
 		} else {
 			closedFrames = 0
@@ -360,20 +358,24 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	})
 	e.key("C-p")
 	e.mustShow("COMMANDS")
-	e.typeText("Theme")
+	e.typeText("Settings")
 	e.key("Enter")
-	e.mustShow("THEME", "Macchiato")
-	e.typeText("Nord")
+	e.mustShow("SETTINGS", "Macchiato")
+	for range 7 {
+		e.key("Down")
+	}
 	e.mustShow("Nord")
 	e.key("Enter")
 	e.mustSettingsContain("\"theme\": \"nord\"")
 	e.mustSettingsContain("\"grand_view_group_size\": 3")
 
 	e.key("C-p")
-	e.typeText("Layout")
+	e.typeText("Settings")
 	e.key("Enter")
-	e.mustShow("CHOOSE APPEARANCE", "Compact")
-	e.typeText("Compact")
+	e.mustShow("SETTINGS")
+	e.key("Right")
+	e.mustShow("Compact")
+	e.key("Up")
 	e.key("Enter")
 	e.mustShow("Eval Entry", "", "")
 	e.mustSettingsContain("\"appearance\": \"compact\"")
@@ -387,6 +389,7 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.key("G")
 	e.mustShow("LARGE VIEW", "Password", "positions start at 1", "q close")
 	e.key("Escape")
+	e.waitFor("large view closed", func() bool { return !strings.Contains(e.capture(), "LARGE VIEW") })
 	e.mustShow("Eval Entry", "••••••••")
 	e.mustNotShow(secretSentinel)
 	e.key("n")

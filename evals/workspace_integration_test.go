@@ -71,6 +71,7 @@ func TestWorkspaceNativeViewsDraftsAndSessionLocks(t *testing.T) {
 		return strings.Contains(screen, "First Native Entry") && !strings.Contains(screen, "enter apply")
 	})
 	e.key("t")
+	e.mustShow("2 FIRST NATIVE ENTRY")
 	e.key("/")
 	e.key("C-u")
 	e.typeText("NoSuchEntry")
