@@ -1,0 +1,1 @@
+This is the production Go source of gokeepasslib v3.6.0, retained locally under its MIT license. Bypass adds the optional LastModificationTime XML field to CustomData so saves preserve KeePass custom metadata timestamps. Remove this replacement when the upstream library supports the field.

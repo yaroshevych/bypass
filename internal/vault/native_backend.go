@@ -303,7 +303,7 @@ func unsupportedXMLFields(raw []byte, kdbx4 bool) []string {
 		"Binaries":         {"Binary": true},
 		"Binary":           {"Key": true, "Value": true, "ID": true, "Compressed": true},
 		"CustomData":       {"Item": true},
-		"Item":             {"Key": true, "Value": true},
+		"Item":             {"Key": true, "Value": true, "LastModificationTime": true},
 		"Root":             {"Group": true, "DeletedObjects": true},
 		"Group":            {"UUID": true, "Name": true, "Notes": true, "IconID": true, "CustomIconUUID": true, "Times": true, "IsExpanded": true, "DefaultAutoTypeSequence": true, "EnableAutoType": true, "EnableSearching": true, "LastTopVisibleEntry": true, "Entry": true, "Group": true},
 		"Entry":            {"UUID": true, "IconID": true, "CustomIconUUID": true, "ForegroundColor": true, "BackgroundColor": true, "OverrideURL": true, "Tags": true, "Times": true, "String": true, "AutoType": true, "History": true, "Binary": true, "Binaries": true, "CustomData": true},

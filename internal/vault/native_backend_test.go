@@ -7,7 +7,48 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	gok "github.com/tobischo/gokeepasslib/v3"
 )
+
+func TestCustomDataModificationTimeSurvivesSave(t *testing.T) {
+	path, creds, db, backend := nativeFixture(t)
+	stamp := "2020-01-01T00:00:00Z"
+	db.native.db.Content.Meta.CustomData = []gok.CustomData{{Key: "plugin", Value: "value", LastModificationTime: &stamp}}
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gok.NewEncoder(f).Encode(db.native.db); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db.Clear()
+	db, err = backend.Open(context.Background(), path, creds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Clear()
+	if db.native.writeBlocked {
+		t.Fatalf("supported metadata blocked write: %v", db.native.lossFields)
+	}
+	updated, err := backend.Apply(context.Background(), db, creds, Change{Kind: AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "test"}}, filepath.Join(t.TempDir(), "backups"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated.Clear()
+	reopened, err := backend.Open(context.Background(), path, creds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Clear()
+	items := reopened.native.db.Content.Meta.CustomData
+	if len(items) != 1 || items[0].Key != "plugin" || items[0].Value != "value" || items[0].LastModificationTime == nil || *items[0].LastModificationTime != stamp {
+		t.Fatalf("custom metadata did not survive save: %#v", items)
+	}
+}
 
 type cancelAfterFirstCheck struct {
 	context.Context
