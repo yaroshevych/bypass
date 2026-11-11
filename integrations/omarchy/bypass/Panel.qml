@@ -162,21 +162,25 @@ Panel {
     }
     return false
   }
+  function showAllItems() {
+    if (panel.loadedContent) panel.loadedContent.queryField.text = "*"
+  }
   function moveList(list, index, direction) {
     if (!panel.loadedContent) return
     const content = panel.loadedContent
-    const count = list === "recent" ? filteredRecent.length : list === "password" ? 3 : list === "fields" ? fields.length + 1 : items.length
-    const next = index + direction
-    if (list === "recent" && next < 0) { content.recentFilter.forceActiveFocus(); return }
-    if (list === "items" && next < 0) { content.queryField.forceActiveFocus(); return }
-    if (next < 0 || next >= count) return
+    const count = list === "recent" ? filteredRecent.length : list === "password" ? 3 : list === "fields" ? fields.length + 1 : items.length + 2
+    let next = index + direction
+    if (list === "items" && index < 0) next = direction > 0 ? 0 : count - 1
+    else next = (next + count) % count
+    if (list === "recent" && count === 0) { content.recentFilter.forceActiveFocus(); return }
+    if (list === "items" && count === 1) { content.queryField.forceActiveFocus(); return }
     const target = list === "recent"
       ? content.recentRepeater.itemAt(next)
       : list === "password"
         ? [content.passwordBackButton, content.passwordField, content.unlockButton][next]
         : list === "fields"
           ? (next === 0 ? content.fieldsBackButton : content.fieldRepeater.itemAt(next - 1))
-          : content.itemRepeater.itemAt(next)
+          : next === items.length ? content.showAllButton : next === items.length + 1 ? content.queryField : content.itemRepeater.itemAt(next)
     if (!target) return
     target.forceActiveFocus()
     content.ensureVisible(target)
@@ -226,6 +230,7 @@ Panel {
       property alias queryField: searchField
       property alias recentRepeater: recentRows
       property alias itemRepeater: itemRows
+      property alias showAllButton: showAllButton
       property alias recentFilter: recentFilter
       function ensureVisible(item) {
         const view = scroll.contentItem
@@ -410,6 +415,14 @@ Panel {
               iconText: "󰌋"
               onClicked: root.openItem(itemButton.modelData)
             }
+          }
+          WideButton {
+            id: showAllButton
+            visible: searchField.text === ""
+            text: strings.t("vault.show_all")
+            navigationList: "items"
+            navigationIndex: root.items.length
+            onClicked: root.showAllItems()
           }
         }
         ColumnLayout {

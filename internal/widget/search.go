@@ -13,6 +13,9 @@ import (
 // details and retains ownership of the entries and their values.
 func Search(query string, entries []vault.Entry) []string {
 	terms := strings.Fields(strings.ToLower(query))
+	if query == "*" {
+		terms = nil
+	}
 	type match struct {
 		id    string
 		score int
@@ -23,6 +26,10 @@ func Search(query string, entries []vault.Entry) []string {
 			continue
 		}
 		if len(terms) == 0 {
+			if query == "*" {
+				matches = append(matches, match{id: entry.UUID})
+				continue
+			}
 			for _, tag := range entry.Tags {
 				if strings.EqualFold(tag, "favorite") {
 					matches = append(matches, match{id: entry.UUID})

@@ -8,6 +8,7 @@
   "vault.recent": "RECENT VAULTS",
   "vault.favorites": "FAVORITES",
   "vault.results": "SEARCH RESULTS",
+  "vault.show_all": "Show All",
   "vault.open_ellipsis": "Open vault…",
   "vault.kee_pass_filter": "KeePass vaults (*.kdbx)",
   "vault.all_files_filter": "All files (*)",
