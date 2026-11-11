@@ -11,7 +11,9 @@ sh scripts/install-omarchy-widget.sh
 ```
 
 The script installs `bypass` in `~/.local/bin`, installs the widget in the
-Omarchy user plugin directory, and adds it to the bar. Ensure `~/.local/bin`
+Omarchy user plugin directory, and adds it to the bar. Run the same command to
+replace an earlier installation; the widget keeps its position on the bar.
+Ensure `~/.local/bin`
 is on your `PATH`. Restart any running Bypass terminal sessions after an
 update: the approval protocol verifies that the processes use the same build.
 
