@@ -263,17 +263,31 @@ Panel {
         id: contentColumn
         width: scroll.availableWidth
         spacing: Style.space(14)
-        PanelHero {
+        RowLayout {
           Layout.fillWidth: true
-          title: "bypass"
-          meta: strings.t("vault.subtitle")
-          iconComponent: Component {
-            BodyText { text: "󰌾"; font.pixelSize: Style.font.display }
+          PanelHero {
+            Layout.fillWidth: true
+            title: "bypass"
+            meta: strings.t("vault.subtitle")
+            iconComponent: Component {
+              BodyText { text: "󰌾"; font.pixelSize: Style.font.display }
+            }
+          }
+          WideButton {
+            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+            Layout.fillWidth: false
+            implicitHeight: Style.space(32)
+            Layout.minimumHeight: Style.space(32)
+            Layout.maximumHeight: Style.space(32)
+            visible: true
+            enabled: root.requests.length > 0
+            opacity: root.requests.length > 0 ? 1 : 0.55
+            text: strings.t("approval.requests") + " (" + root.requests.length + ")"
+            onClicked: root.reviewRequest(root.requests[0])
           }
         }
         BodyText { visible: root.errorText !== ""; text: root.errorText; color: Commons.Color.urgent; wrapMode: Text.Wrap; Layout.fillWidth: true }
         BodyText { visible: root.approvalError !== ""; text: root.approvalError; color: Commons.Color.urgent; wrapMode: Text.Wrap; Layout.fillWidth: true }
-        WideButton { visible: root.requests.length > 0 && root.screen !== "approval"; text: strings.t("approval.review"); onClicked: root.reviewRequest(root.requests[0]) }
         ColumnLayout {
           visible: root.screen === "recent"
           Layout.fillWidth: true

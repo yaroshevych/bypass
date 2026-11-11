@@ -22,6 +22,7 @@
   "secret.reveal": "Reveal",
   "secret.hide": "Hide",
   "approval.review": "Review request",
+  "approval.requests": "Requests",
   "approval.title": "Secret access request",
   "approval.agent": "Agent: %1",
   "approval.unknown": "Unknown",
