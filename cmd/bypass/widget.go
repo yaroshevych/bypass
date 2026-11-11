@@ -48,6 +48,9 @@ func widgetCommand(input io.Reader, output io.Writer) error {
 	defer cancel()
 	defer session.Lock(context.Background())
 	var outMu sync.Mutex
+	var activityMu sync.Mutex
+	lastActivity := time.Now()
+	unlocked := false
 	encoder := json.NewEncoder(output)
 	send := func(response widgetResponse) error {
 		outMu.Lock()
@@ -61,6 +64,13 @@ func widgetCommand(input io.Reader, output io.Writer) error {
 			select {
 			case now := <-ticker.C:
 				_ = session.ExpireClipboard(ctx, now)
+				activityMu.Lock()
+				if unlocked && settings.IdleTimeout > 0 && now.Sub(lastActivity) >= settings.IdleTimeout {
+					_ = session.Lock(ctx)
+					unlocked = false
+					_ = send(widgetResponse{Action: "locked"})
+				}
+				activityMu.Unlock()
 			case <-ctx.Done():
 				return
 			}
@@ -77,6 +87,8 @@ func widgetCommand(input io.Reader, output io.Writer) error {
 		clear(scanner.Bytes())
 		response := widgetResponse{Action: request.Action}
 		var err error
+		activityMu.Lock()
+		lastActivity = time.Now()
 		switch request.Action {
 		case "recent":
 			response.Recent, err = store.LoadRecent()
@@ -85,7 +97,8 @@ func widgetCommand(input io.Reader, output io.Writer) error {
 			request.Password = ""
 			err = session.Open(ctx, request.Path, password)
 			if err == nil {
-				err = store.Remember(request.Path)
+				unlocked = true
+				_ = store.Remember(request.Path)
 			}
 		case "items":
 			response.Items, err = session.Items(ctx, request.Query)
@@ -97,9 +110,11 @@ func widgetCommand(input io.Reader, output io.Writer) error {
 			err = session.CopyReference(ctx, request.ID, request.Field)
 		case "lock":
 			err = session.Lock(ctx)
+			unlocked = false
 		default:
 			err = errors.New("unknown widget action")
 		}
+		activityMu.Unlock()
 		if err != nil {
 			response.Error = err.Error()
 		}
