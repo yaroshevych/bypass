@@ -16,6 +16,7 @@ func TestSearchFavoritesAndFields(t *testing.T) {
 	for query, want := range map[string][]string{
 		"": {"a"}, "#production": {"a"}, "/Work/Cloud/Example#API": {"a"},
 		"synthetic-value": {"a"}, "wrk cld": {"a"}, "cloud": {"a", "b"}, "missing": {},
+		"*": {"a", "b"},
 	} {
 		if got := Search(query, entries); !reflect.DeepEqual(got, want) {
 			t.Errorf("query %q: got %v, want %v", query, got, want)

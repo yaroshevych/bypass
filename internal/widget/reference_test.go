@@ -31,8 +31,13 @@ func TestFieldReferenceRejectsInvalidInput(t *testing.T) {
 }
 
 func TestRelativeFieldReferenceMatchesWidgetPath(t *testing.T) {
-	got, err := relativeFieldReference("", "Amazon", "Password")
-	if err != nil || got != "bypass://Amazon#Password" {
-		t.Fatalf("got %q, err %v", got, err)
+	for _, tc := range []struct{ group, title, field, want string }{
+		{"", "Amazon", "Password", "bypass://Amazon#Password"},
+		{"Work/Cloud", "Google Cloud", "API/Token", "bypass://Work/Cloud/Google%20Cloud#API%2FToken"},
+	} {
+		got, err := relativeFieldReference(tc.group, tc.title, tc.field)
+		if err != nil || got != tc.want {
+			t.Errorf("got %q, err %v; want %q", got, err, tc.want)
+		}
 	}
 }
