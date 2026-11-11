@@ -8,6 +8,7 @@ plugindir="$pluginroot/bypass.vault"
 
 command -v omarchy >/dev/null || { printf '%s\n' 'Omarchy is required.' >&2; exit 1; }
 command -v go >/dev/null || { printf '%s\n' 'Go is required.' >&2; exit 1; }
+command -v sha256sum >/dev/null || { printf '%s\n' 'sha256sum is required.' >&2; exit 1; }
 omarchy plugin validate "$root/integrations/omarchy/bypass"
 mkdir -p "$root/bin"
 (cd "$root" && go build -trimpath -o bin/bypass ./cmd/bypass)
@@ -30,8 +31,13 @@ staging=$(mktemp -d "$pluginroot/../.bypass-install.XXXXXX")
 install -m 755 "$root/bin/bypass" "$tmpbinary"
 mv -f "$tmpbinary" "$bindir/bypass"
 install -d "$staging/plugin/i18n"
-install -m 644 "$root/integrations/omarchy/bypass/manifest.json" "$root/integrations/omarchy/bypass/Panel.qml" "$staging/plugin/"
+panelhash=$(sha256sum "$root/integrations/omarchy/bypass/Panel.qml")
+panelhash=${panelhash%% *}
+panelname="Panel_$panelhash.qml"
+install -m 644 "$root/integrations/omarchy/bypass/Panel.qml" "$staging/plugin/$panelname"
+sed "s/\"Panel.qml\"/\"$panelname\"/" "$root/integrations/omarchy/bypass/manifest.json" > "$staging/plugin/manifest.json"
 install -m 644 "$root/integrations/omarchy/bypass/i18n/"*.json "$staging/plugin/i18n/"
+omarchy plugin validate "$staging/plugin"
 if [ -e "$plugindir" ] || [ -L "$plugindir" ]; then
   mv "$plugindir" "$staging/previous"
 fi
