@@ -59,6 +59,9 @@ func (s *Session) Lock(ctx context.Context) error {
 func (s *Session) Items(ctx context.Context, query string) ([]Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if len(query) > 4096 {
+		return nil, errors.New("search query is too long")
+	}
 	if s.db == nil {
 		return nil, errors.New("vault is locked")
 	}

@@ -3,6 +3,7 @@ package widget
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,6 +49,9 @@ func TestSessionVaultLifecycle(t *testing.T) {
 	items, err := s.Items(ctx, "synthetic secret")
 	if err != nil || len(items) != 1 {
 		t.Fatalf("search failed: %v, %v", items, err)
+	}
+	if _, err := s.Items(ctx, strings.Repeat("x", 4097)); err == nil {
+		t.Fatal("accepted an oversized search")
 	}
 	fields, err := s.Fields(ctx, items[0].ID)
 	if err != nil {
