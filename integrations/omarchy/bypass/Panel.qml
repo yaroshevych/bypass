@@ -493,15 +493,38 @@ Panel {
           visible: root.screen === "approval"
           Layout.fillWidth: true
           PanelSeparator { Layout.fillWidth: true }
-          WideButton { text: strings.t("back"); iconText: "󰁍"; onClicked: { root.review = ({}); root.screen = root.previousScreen } }
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+            WideButton {
+              text: strings.t("back")
+              iconText: "󰁍"
+              Layout.fillWidth: true
+              implicitHeight: searchField.implicitHeight
+              Layout.minimumHeight: searchField.implicitHeight
+              Layout.maximumHeight: searchField.implicitHeight
+              onClicked: { root.review = ({}); root.screen = root.previousScreen }
+            }
+            Item { Layout.fillWidth: true; Layout.minimumWidth: 0; implicitHeight: searchField.implicitHeight }
+            Item { implicitWidth: Style.space(84); implicitHeight: searchField.implicitHeight }
+          }
           PanelSectionHeader { text: strings.t("approval.title"); Layout.fillWidth: true }
           BodyText { text: strings.t("approval.agent").arg(root.review.agent || strings.t("approval.unknown")); Layout.fillWidth: true; wrapMode: Text.Wrap }
           BodyText { text: strings.t("approval.command").arg((root.review.command || []).join(" ")); Layout.fillWidth: true; wrapMode: Text.Wrap }
           BodyText { text: strings.t("approval.directory").arg(root.review.directory || ""); Layout.fillWidth: true; wrapMode: Text.Wrap }
           BodyText { text: strings.t("approval.identity_note"); wrapMode: Text.Wrap; Layout.fillWidth: true }
-          Repeater {
-            model: root.review.targets || []
-            BodyText { required property var modelData; text: modelData.Group + "/" + modelData.Title + " #" + modelData.Field; Layout.fillWidth: true; wrapMode: Text.Wrap }
+          ColumnLayout {
+            visible: (root.review.targets || []).length > 0
+            Layout.fillWidth: true
+            Layout.topMargin: Style.space(12)
+            Layout.bottomMargin: Style.space(8)
+            spacing: Style.space(12)
+            PanelSeparator { Layout.fillWidth: true }
+            PanelSectionHeader { text: strings.t("approval.requested_secrets"); Layout.fillWidth: true }
+            Repeater {
+              model: root.review.targets || []
+              BodyText { required property var modelData; text: modelData.Title + ": " + modelData.Field; Layout.fillWidth: true; wrapMode: Text.Wrap }
+            }
           }
           WideButton { text: strings.t("approval.approve"); enabled: (root.review.targets || []).length > 0; onClicked: root.send({action: "approve", id: root.requestId}) }
           WideButton { text: strings.t("approval.deny"); onClicked: root.send({action: "deny", id: root.requestId}) }

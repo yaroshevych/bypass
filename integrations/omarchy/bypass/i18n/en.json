@@ -29,6 +29,7 @@
   "approval.command": "Command: %1",
   "approval.directory": "Directory: %1",
   "approval.identity_note": "Agent identity is self-claimed and not verified.",
+  "approval.requested_secrets": "Requested secrets",
   "approval.approve": "Approve once",
   "approval.deny": "Deny"
 }
