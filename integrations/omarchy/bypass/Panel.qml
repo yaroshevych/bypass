@@ -137,7 +137,11 @@ Panel {
         })
       }
     }
-    else if (result.action === "fields") { fields = result.fields || []; screen = "fields" }
+    else if (result.action === "fields") {
+      fields = result.fields || []
+      screen = "fields"
+      Qt.callLater(function() { if (root.opened && root.screen === "fields") root.moveList("fields", root.fields.length > 0 ? 0 : -1, 1) })
+    }
     else if (result.action === "review") review = result
     else if (result.action === "approve" || result.action === "deny") { requestId = ""; review = ({}); screen = previousScreen }
     else if (result.action === "lock" || result.action === "locked") { screen = "recent"; items = []; fields = []; send({action: "recent"}) }
@@ -154,13 +158,17 @@ Panel {
   function moveList(list, index, direction) {
     if (!panel.loadedContent) return
     const content = panel.loadedContent
-    const count = list === "recent" ? recent.length + 1 : items.length
+    const count = list === "recent" ? recent.length + 1 : list === "password" ? 3 : list === "fields" ? fields.length + 1 : items.length
     const next = index + direction
     if (list === "items" && next < 0) { content.queryField.forceActiveFocus(); return }
     if (next < 0 || next >= count) return
     const target = list === "recent"
       ? (next === recent.length ? content.openButton : content.recentRepeater.itemAt(next))
-      : content.itemRepeater.itemAt(next)
+      : list === "password"
+        ? [content.passwordField, content.unlockButton, content.passwordBackButton][next]
+        : list === "fields"
+          ? (next === 0 ? content.fieldsBackButton : content.fieldRepeater.itemAt(next - 1))
+          : content.itemRepeater.itemAt(next)
     if (!target) return
     target.forceActiveFocus()
     content.ensureVisible(target)
@@ -203,6 +211,10 @@ Panel {
     content: ScrollView {
       id: scroll
       property alias passwordField: password
+      property alias unlockButton: unlockButton
+      property alias passwordBackButton: passwordBackButton
+      property alias fieldsBackButton: fieldsBackButton
+      property alias fieldRepeater: fieldRows
       property alias queryField: searchField
       property alias recentRepeater: recentRows
       property alias itemRepeater: itemRows
@@ -265,10 +277,12 @@ Panel {
             placeholderText: strings.t("vault.password")
             password: true
             Layout.fillWidth: true
+            Keys.onDownPressed: function(event) { root.moveList("password", 0, 1); event.accepted = true }
+            Keys.onUpPressed: function(event) { event.accepted = true }
             onAccepted: { root.send({action: "open", path: root.vaultPath, password: text}); text = "" }
           }
-          WideButton { text: strings.t("vault.unlock"); onClicked: { root.send({action: "open", path: root.vaultPath, password: password.text}); password.text = "" } }
-          WideButton { text: strings.t("back"); onClicked: { password.text = ""; root.screen = "recent" } }
+          WideButton { id: unlockButton; text: strings.t("vault.unlock"); navigationList: "password"; navigationIndex: 1; onClicked: { root.send({action: "open", path: root.vaultPath, password: password.text}); password.text = "" } }
+          WideButton { id: passwordBackButton; text: strings.t("back"); navigationList: "password"; navigationIndex: 2; onClicked: { password.text = ""; root.screen = "recent" } }
         }
         ColumnLayout {
           visible: root.screen === "items"
@@ -306,18 +320,25 @@ Panel {
           visible: root.screen === "fields"
           Layout.fillWidth: true
           PanelSeparator { Layout.fillWidth: true }
-          WideButton { text: strings.t("back"); iconText: "󰁍"; onClicked: { root.fields = []; root.screen = "items" } }
+          WideButton { id: fieldsBackButton; text: strings.t("back"); iconText: "󰁍"; navigationList: "fields"; navigationIndex: 0; onClicked: { root.fields = []; root.screen = "items" } }
           PanelSectionHeader { text: root.itemTitle; Layout.fillWidth: true }
           Repeater {
+            id: fieldRows
             model: root.fields
             ColumnLayout {
               id: fieldRow
               required property var modelData
+              required property int index
               Layout.fillWidth: true
+              activeFocusOnTab: true
+              Keys.onUpPressed: function(event) { root.moveList("fields", fieldRow.index + 1, -1); event.accepted = true }
+              Keys.onDownPressed: function(event) { root.moveList("fields", fieldRow.index + 1, 1); event.accepted = true }
+              Keys.onReturnPressed: function(event) { root.send({action: "copy", id: root.itemId, field: fieldRow.modelData.Name}); event.accepted = true }
+              Keys.onEnterPressed: function(event) { root.send({action: "copy", id: root.itemId, field: fieldRow.modelData.Name}); event.accepted = true }
               HoverHandler { id: fieldHover }
               RowLayout {
                 Layout.fillWidth: true
-                BodyText { text: modelData.Name; Layout.fillWidth: true }
+                BodyText { text: modelData.Name; color: fieldRow.activeFocus ? Commons.Color.accent : Commons.Color.foreground; Layout.fillWidth: true }
                 PanelActionButton { iconText: "󰌷"; tooltipText: strings.t("copy.path"); focusable: true; opacity: fieldHover.hovered || activeFocus ? 1 : 0; onClicked: root.send({action: "copy-reference", id: root.itemId, field: modelData.Name}) }
               }
               RowLayout {
@@ -334,7 +355,8 @@ Panel {
                   iconText: "󰆏"
                   tooltipText: strings.t("copy.value")
                   focusable: true
-                  opacity: fieldHover.hovered || activeFocus ? 1 : 0
+                  hasCursor: fieldRow.activeFocus
+                  opacity: fieldHover.hovered || activeFocus || fieldRow.activeFocus ? 1 : 0
                   onClicked: root.send({action: "copy", id: root.itemId, field: modelData.Name})
                 }
                 PanelActionButton {
