@@ -3,6 +3,7 @@
   "service.invalid_response": "Invalid response from Bypass",
   "service.stopped": "Bypass service stopped",
   "vault.open": "Open vault",
+  "vault.open_button": "Open",
   "vault.subtitle": "SECRETS MANAGER",
   "vault.recent": "RECENT VAULTS",
   "vault.favorites": "FAVORITES",

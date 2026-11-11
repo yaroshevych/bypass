@@ -29,3 +29,10 @@ func TestFieldReferenceRejectsInvalidInput(t *testing.T) {
 		}
 	}
 }
+
+func TestRelativeFieldReferenceMatchesWidgetPath(t *testing.T) {
+	got, err := relativeFieldReference("", "Amazon", "Password")
+	if err != nil || got != "bypass://Amazon#Password" {
+		t.Fatalf("got %q, err %v", got, err)
+	}
+}

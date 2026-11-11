@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +23,7 @@ type Session struct {
 
 type Item struct{ ID, Title, Group string }
 type Field struct {
+	Group       string `json:"group,omitempty"`
 	Name, Value string
 	Protected   bool
 }
@@ -99,12 +101,21 @@ func (s *Session) Fields(ctx context.Context, id string) ([]Field, error) {
 	if s.db == nil {
 		return nil, errors.New("vault is locked")
 	}
+	group := ""
+	for _, entry := range s.db.Entries {
+		if entry.UUID == id && !entry.Recycled {
+			group = strings.TrimPrefix(strings.Trim(entry.GroupPath, "/"), "Passwords/")
+			break
+		}
+	}
 	fields, err := s.backend.EntryDetails(ctx, s.db, id)
 	if err != nil {
 		return nil, err
 	}
+	hasTOTP := false
 	for _, entry := range s.db.Entries {
 		if entry.UUID == id && !entry.Recycled && entry.HasTOTP {
+			hasTOTP = true
 			filtered := fields[:0]
 			for _, field := range fields {
 				if field.Name != "TOTP" {
@@ -118,12 +129,15 @@ func (s *Session) Fields(ctx context.Context, id string) ([]Field, error) {
 	sort.SliceStable(fields, func(i, j int) bool { return fieldOrder(fields[i].Name) < fieldOrder(fields[j].Name) })
 	result := make([]Field, 0, len(fields))
 	for _, field := range fields {
+		if field.Value == "" && !(field.Name == "TOTP" && hasTOTP) {
+			continue
+		}
 		value := field.Value
 		protected := field.Protected || field.Name == "Password" || field.Name == "TOTP"
 		if protected {
 			value = ""
 		}
-		result = append(result, Field{Name: field.Name, Value: value, Protected: protected})
+		result = append(result, Field{Group: group, Name: field.Name, Value: value, Protected: protected})
 	}
 	return result, nil
 }
@@ -147,8 +161,8 @@ func fieldOrder(name string) int {
 	}
 }
 
-// Reveal returns only the password or generated one-time code. The caller
-// owns the returned bytes and must clear them after use.
+// Reveal returns a protected field or generated one-time code. The caller owns
+// the returned bytes and must clear them after use.
 func (s *Session) Reveal(ctx context.Context, id, field string) ([]byte, int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -160,7 +174,20 @@ func (s *Session) Reveal(ctx context.Context, id, field string) ([]byte, int, er
 		return result.Code, result.RemainingSeconds, err
 	}
 	if field != "Password" {
-		return nil, 0, errors.New("field cannot be revealed")
+		fields, err := s.backend.EntryDetails(ctx, s.db, id)
+		if err != nil {
+			return nil, 0, err
+		}
+		protected := false
+		for _, candidate := range fields {
+			if candidate.Name == field && candidate.Protected {
+				protected = true
+				break
+			}
+		}
+		if !protected {
+			return nil, 0, errors.New("field cannot be revealed")
+		}
 	}
 	value, err := s.backend.ResolveField(ctx, s.db, vault.Credentials{}, id, field)
 	return value, 0, err
@@ -217,7 +244,8 @@ func (s *Session) CopyReference(ctx context.Context, id, field string) error {
 	if !found {
 		return errors.New("field unavailable")
 	}
-	ref, err := FieldReference(s.db.Path, selected.GroupPath, selected.Get("Title"), field)
+	group := strings.TrimPrefix(strings.Trim(selected.GroupPath, "/"), "Passwords/")
+	ref, err := relativeFieldReference(group, selected.Get("Title"), field)
 	if err != nil {
 		return err
 	}

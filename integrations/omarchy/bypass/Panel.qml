@@ -1,4 +1,5 @@
 import QtQuick
+import QtCore
 import QtQuick.Controls
 import QtQuick.Controls as Controls
 import QtQuick.Layouts
@@ -20,9 +21,12 @@ Panel {
   property string vaultPath: ""
   property string itemId: ""
   property string itemTitle: ""
+  property string itemGroup: ""
   property string errorText: ""
   property string approvalError: ""
   property var recent: []
+  property string recentQuery: ""
+  readonly property var filteredRecent: recent.filter(path => path.toLowerCase().includes(recentQuery.toLowerCase().trim()))
   property var items: []
   property var fields: []
   property var requests: []
@@ -32,7 +36,6 @@ Panel {
   property string revealedField: ""
   property string revealedValue: ""
   property string revealPending: ""
-  property int selectedItem: -1
   property bool focusSearchOnResults: false
   Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
@@ -65,7 +68,7 @@ Panel {
 
   onOpenedChanged: {
     if (opened) {
-      Qt.callLater(function() { if (root.opened && root.screen === "recent") root.moveList("recent", -1, 1) })
+      Qt.callLater(function() { if (root.opened && root.screen === "recent") panel.loadedContent.recentFilter.forceActiveFocus() })
     } else {
       if (panel.loadedContent) panel.loadedContent.passwordField.text = ""
       fields = []
@@ -79,7 +82,7 @@ Panel {
       if (!root.opened || !panel.loadedContent) return
       if (root.screen === "password") panel.loadedContent.passwordField.forceActiveFocus()
       else if (root.screen === "items") panel.loadedContent.queryField.forceActiveFocus()
-      else if (root.screen === "recent") root.moveList("recent", -1, 1)
+      else if (root.screen === "recent") panel.loadedContent.recentFilter.forceActiveFocus()
     })
   }
 
@@ -120,15 +123,11 @@ Panel {
     if (result.error) return
     if (result.action === "recent") {
       recent = result.recent || []
-      Qt.callLater(function() {
-        if (root.opened && root.screen === "recent" && panel.loadedContent && panel.loadedContent.openButton.activeFocus && root.recent.length > 0)
-          root.moveList("recent", -1, 1)
-      })
+
     }
     else if (result.action === "open") { screen = "items"; focusSearchOnResults = true; send({action: "items", query: ""}) }
     else if (result.action === "items") {
       items = result.items || []
-      selectedItem = -1
       if (focusSearchOnResults) {
         focusSearchOnResults = false
         Qt.callLater(function() {
@@ -139,33 +138,42 @@ Panel {
     }
     else if (result.action === "fields") {
       fields = (result.fields || []).filter(field => field.Name !== "Title")
+      itemGroup = fields.length > 0 && fields[0].Group ? fields[0].Group : ""
       screen = "fields"
-      Qt.callLater(function() { if (root.opened && root.screen === "fields") root.moveList("fields", root.fields.length > 0 ? 0 : -1, 1) })
     }
     else if (result.action === "review") review = result
     else if (result.action === "approve" || result.action === "deny") { requestId = ""; review = ({}); screen = previousScreen }
     else if (result.action === "lock" || result.action === "locked") { screen = "recent"; items = []; fields = []; send({action: "recent"}) }
   }
+  function displayPath(path) {
+    const home = decodeURIComponent(StandardPaths.writableLocation(StandardPaths.HomeLocation).toString().replace(/^file:\/\//, "")).replace(/\/$/, "")
+    return home && (path === home || path.startsWith(home + "/")) ? "~" + path.slice(home.length) : path
+  }
   function openVault(path) { vaultPath = path; errorText = ""; screen = "password" }
   function openItem(item) { itemId = item.ID; itemTitle = item.Title; send({action: "fields", id: item.ID}) }
-  function moveItemSelection(direction) {
-    if (items.length === 0) { selectedItem = -1; return }
-    selectedItem = Math.max(-1, Math.min(items.length - 1, selectedItem + direction))
-    if (selectedItem < 0 || !panel.loadedContent) return
-    const target = panel.loadedContent.itemRepeater.itemAt(selectedItem)
-    if (target) panel.loadedContent.ensureVisible(target)
+  function escapeView() {
+    if (screen === "fields") { fields = []; screen = "items"; return true }
+    if (screen === "items") { close(); return true }
+    if (screen === "password") {
+      if (panel.loadedContent) panel.loadedContent.passwordField.text = ""
+      errorText = ""
+      screen = "recent"
+      return true
+    }
+    return false
   }
   function moveList(list, index, direction) {
     if (!panel.loadedContent) return
     const content = panel.loadedContent
-    const count = list === "recent" ? recent.length + 1 : list === "password" ? 3 : list === "fields" ? fields.length + 1 : items.length
+    const count = list === "recent" ? filteredRecent.length : list === "password" ? 3 : list === "fields" ? fields.length + 1 : items.length
     const next = index + direction
+    if (list === "recent" && next < 0) { content.recentFilter.forceActiveFocus(); return }
     if (list === "items" && next < 0) { content.queryField.forceActiveFocus(); return }
     if (next < 0 || next >= count) return
     const target = list === "recent"
-      ? (next === recent.length ? content.openButton : content.recentRepeater.itemAt(next))
+      ? content.recentRepeater.itemAt(next)
       : list === "password"
-        ? [content.passwordField, content.unlockButton, content.passwordBackButton][next]
+        ? [content.passwordBackButton, content.passwordField, content.unlockButton][next]
         : list === "fields"
           ? (next === 0 ? content.fieldsBackButton : content.fieldRepeater.itemAt(next - 1))
           : content.itemRepeater.itemAt(next)
@@ -205,7 +213,7 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: !panel.loadedContent ? null : root.screen === "password" ? panel.loadedContent.passwordField : root.screen === "items" ? panel.loadedContent.queryField : root.screen === "recent" ? panel.loadedContent.firstRecent() : panel.loadedContent
+    focusTarget: !panel.loadedContent ? null : root.screen === "password" ? panel.loadedContent.passwordField : root.screen === "items" ? panel.loadedContent.queryField : root.screen === "recent" ? panel.loadedContent.recentFilter : panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(560))
     content: ScrollView {
@@ -218,8 +226,7 @@ Panel {
       property alias queryField: searchField
       property alias recentRepeater: recentRows
       property alias itemRepeater: itemRows
-      property alias openButton: openVaultButton
-      function firstRecent() { return root.recent.length > 0 ? (recentRows.itemAt(0) || openVaultButton) : openVaultButton }
+      property alias recentFilter: recentFilter
       function ensureVisible(item) {
         const view = scroll.contentItem
         const y = item.mapToItem(contentColumn, 0, 0).y
@@ -230,6 +237,21 @@ Panel {
       implicitHeight: contentColumn.implicitHeight
       contentWidth: availableWidth
       clip: true
+      Keys.onEscapePressed: function(event) { event.accepted = root.escapeView() }
+      Keys.onUpPressed: function(event) {
+        if (root.screen !== "fields") { event.accepted = false; return }
+        const view = scroll.contentItem
+        if (view.contentY <= 0) { event.accepted = false; return }
+        view.contentY = Math.max(0, view.contentY - Style.space(42))
+        event.accepted = true
+      }
+      Keys.onDownPressed: function(event) {
+        if (root.screen !== "fields") { event.accepted = false; return }
+        const view = scroll.contentItem
+        if (view.contentY + view.height >= view.contentHeight) { event.accepted = false; return }
+        view.contentY = Math.min(view.contentHeight - view.height, view.contentY + Style.space(42))
+        event.accepted = true
+      }
       ColumnLayout {
         id: contentColumn
         width: scroll.availableWidth
@@ -250,54 +272,126 @@ Panel {
           Layout.fillWidth: true
           spacing: Style.space(8)
           PanelSeparator { Layout.fillWidth: true }
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+            TextField {
+              id: recentFilter
+              placeholderText: strings.t("search")
+              Layout.fillWidth: true
+              Layout.minimumWidth: 0
+              Layout.maximumHeight: implicitHeight
+              onTextChanged: root.recentQuery = text
+              Keys.onDownPressed: function(event) { root.moveList("recent", -1, 1); event.accepted = true }
+              Keys.onUpPressed: function(event) { event.accepted = true }
+              onAccepted: if (root.filteredRecent.length > 0) root.openVault(root.filteredRecent[0])
+            }
+            Ui.Button {
+              text: strings.t("vault.open_button")
+              iconText: "󰝰"
+              bordered: true
+              focusable: true
+              Layout.minimumHeight: recentFilter.implicitHeight
+              Layout.maximumHeight: recentFilter.implicitHeight
+              onClicked: picker.open()
+            }
+          }
           PanelSectionHeader { text: strings.t("vault.recent"); Layout.fillWidth: true }
           Repeater {
             id: recentRows
-            model: root.recent
+            model: root.filteredRecent
             WideButton {
               id: recentButton
               required property string modelData
               required property int index
               navigationList: "recent"
               navigationIndex: index
-              text: modelData
+              bordered: false
+              implicitHeight: searchField.implicitHeight
+              Layout.minimumHeight: searchField.implicitHeight
+              Layout.maximumHeight: searchField.implicitHeight
+              text: root.displayPath(modelData)
               iconText: "󰌾"
               onClicked: root.openVault(recentButton.modelData)
             }
           }
-          WideButton { id: openVaultButton; text: strings.t("vault.open_ellipsis"); iconText: "󰝰"; navigationList: "recent"; navigationIndex: root.recent.length; onClicked: picker.open() }
         }
         ColumnLayout {
           visible: root.screen === "password"
           Layout.fillWidth: true
+          spacing: Style.space(8)
           PanelSeparator { Layout.fillWidth: true }
-          BodyText { text: root.vaultPath; elide: Text.ElideMiddle; Layout.fillWidth: true }
+          WideButton {
+            id: passwordBackButton
+            text: strings.t("back")
+            iconText: "󰁍"
+            navigationList: "password"
+            navigationIndex: 0
+            implicitHeight: searchField.implicitHeight
+            Layout.minimumHeight: searchField.implicitHeight
+            Layout.maximumHeight: searchField.implicitHeight
+            onClicked: { password.text = ""; root.screen = "recent" }
+          }
+          BodyText { text: root.displayPath(root.vaultPath); elide: Text.ElideMiddle; Layout.fillWidth: true }
           TextField {
             id: password
             placeholderText: strings.t("vault.password")
             password: true
             Layout.fillWidth: true
-            Keys.onDownPressed: function(event) { root.moveList("password", 0, 1); event.accepted = true }
-            Keys.onUpPressed: function(event) { event.accepted = true }
+            Keys.onDownPressed: function(event) { root.moveList("password", 1, 1); event.accepted = true }
+            Keys.onUpPressed: function(event) { root.moveList("password", 1, -1); event.accepted = true }
+            Keys.onEscapePressed: function(event) { event.accepted = root.escapeView() }
             onAccepted: { root.send({action: "open", path: root.vaultPath, password: text}); text = "" }
           }
-          WideButton { id: unlockButton; text: strings.t("vault.unlock"); navigationList: "password"; navigationIndex: 1; onClicked: { root.send({action: "open", path: root.vaultPath, password: password.text}); password.text = "" } }
-          WideButton { id: passwordBackButton; text: strings.t("back"); navigationList: "password"; navigationIndex: 2; onClicked: { password.text = ""; root.screen = "recent" } }
+          WideButton { id: unlockButton; text: strings.t("vault.unlock"); navigationList: "password"; navigationIndex: 2; onClicked: { root.send({action: "open", path: root.vaultPath, password: password.text}); password.text = "" } }
+        }
+        ColumnLayout {
+          visible: root.screen === "items" || root.screen === "fields"
+          Layout.fillWidth: true
+          spacing: Style.space(8)
+          PanelSeparator { Layout.fillWidth: true }
+          RowLayout {
+            Layout.fillWidth: true
+            spacing: Style.space(8)
+            TextField {
+              id: searchField
+              visible: root.screen === "items"
+              placeholderText: strings.t("search")
+              Layout.fillWidth: true
+              Layout.minimumWidth: 0
+              Layout.maximumHeight: implicitHeight
+              onTextChanged: root.send({action: "items", query: text})
+              Keys.onDownPressed: function(event) { root.moveList("items", -1, 1); event.accepted = true }
+              Keys.onUpPressed: function(event) { root.moveList("items", -1, -1); event.accepted = true }
+              Keys.onEscapePressed: function(event) { event.accepted = root.escapeView() }
+              onAccepted: if (root.items.length > 0) root.openItem(root.items[0])
+            }
+            WideButton {
+              id: fieldsBackButton
+              visible: root.screen === "fields"
+              text: strings.t("back")
+              iconText: "󰁍"
+              Layout.minimumWidth: 0
+              implicitHeight: searchField.implicitHeight
+              Layout.minimumHeight: searchField.implicitHeight
+              Layout.maximumHeight: searchField.implicitHeight
+              onClicked: { root.fields = []; root.screen = "items" }
+            }
+            Ui.Button {
+              text: strings.t("vault.lock")
+              iconText: "󰌾"
+              bordered: true
+              focusable: true
+              Layout.minimumHeight: searchField.implicitHeight
+              Layout.maximumHeight: searchField.implicitHeight
+              onClicked: root.send({action: "lock"})
+            }
+          }
         }
         ColumnLayout {
           visible: root.screen === "items"
           Layout.fillWidth: true
           spacing: Style.space(8)
-          PanelSeparator { Layout.fillWidth: true }
-          TextField {
-            id: searchField
-            placeholderText: strings.t("search")
-            Layout.fillWidth: true
-            onTextChanged: root.send({action: "items", query: text})
-            Keys.onDownPressed: function(event) { root.moveItemSelection(1); event.accepted = true }
-            Keys.onUpPressed: function(event) { root.moveItemSelection(-1); event.accepted = true }
-            onAccepted: if (root.items.length > 0) root.openItem(root.items[Math.max(0, root.selectedItem)])
-          }
           PanelSectionHeader { text: searchField.text === "" ? strings.t("vault.favorites") : strings.t("vault.results"); Layout.fillWidth: true }
           Repeater {
             id: itemRows
@@ -306,22 +400,22 @@ Panel {
               id: itemButton
               required property var modelData
               required property int index
+              bordered: false
+              implicitHeight: searchField.implicitHeight
+              Layout.minimumHeight: searchField.implicitHeight
+              Layout.maximumHeight: searchField.implicitHeight
               navigationList: "items"
               navigationIndex: index
-              hasCursor: searchField.activeFocus && root.selectedItem === index
               text: modelData.Title
               iconText: "󰌋"
               onClicked: root.openItem(itemButton.modelData)
             }
           }
-          WideButton { text: strings.t("vault.lock"); iconText: "󰌾"; onClicked: root.send({action: "lock"}) }
         }
         ColumnLayout {
           visible: root.screen === "fields"
           Layout.fillWidth: true
-          PanelSeparator { Layout.fillWidth: true }
-          WideButton { id: fieldsBackButton; text: strings.t("back"); iconText: "󰁍"; navigationList: "fields"; navigationIndex: 0; onClicked: { root.fields = []; root.screen = "items" } }
-          PanelSectionHeader { text: root.itemTitle; Layout.fillWidth: true }
+          BodyText { text: root.itemTitle; font.pixelSize: Style.font.title; font.bold: true; elide: Text.ElideRight; Layout.fillWidth: true }
           Repeater {
             id: fieldRows
             model: root.fields
@@ -331,16 +425,11 @@ Panel {
               required property int index
               readonly property bool actionsHovered: fieldHover.hovered
               Layout.fillWidth: true
-              activeFocusOnTab: true
-              Keys.onUpPressed: function(event) { root.moveList("fields", fieldRow.index + 1, -1); event.accepted = true }
-              Keys.onDownPressed: function(event) { root.moveList("fields", fieldRow.index + 1, 1); event.accepted = true }
-              Keys.onReturnPressed: function(event) { root.send({action: "copy", id: root.itemId, field: fieldRow.modelData.Name}); event.accepted = true }
-              Keys.onEnterPressed: function(event) { root.send({action: "copy", id: root.itemId, field: fieldRow.modelData.Name}); event.accepted = true }
               HoverHandler { id: fieldHover }
               RowLayout {
                 Layout.fillWidth: true
-                BodyText { text: modelData.Name; color: fieldRow.activeFocus ? Commons.Color.accent : Commons.Color.foreground; Layout.fillWidth: true }
-                PanelActionButton { iconText: "󰌷"; tooltipText: strings.t("copy.path"); focusable: true; opacity: fieldHover.hovered || activeFocus ? 1 : 0; onClicked: root.send({action: "copy-reference", id: root.itemId, field: modelData.Name}) }
+                BodyText { text: modelData.Name; color: Commons.Color.foreground; Layout.fillWidth: true }
+                PanelActionButton { iconText: "󰌷"; tooltipText: "Copy bypass://" + (fieldRow.modelData.Group ? fieldRow.modelData.Group + "/" : "") + root.itemTitle + "#" + fieldRow.modelData.Name; focusable: true; opacity: fieldHover.hovered || activeFocus ? 1 : 0; onClicked: root.send({action: "copy-reference", id: root.itemId, field: modelData.Name}) }
               }
               RowLayout {
                 Layout.fillWidth: true
@@ -353,7 +442,7 @@ Panel {
                   Layout.fillWidth: true
                 }
                 PanelActionButton {
-                  visible: modelData.Name === "Password" || modelData.Name === "TOTP"
+                  visible: modelData.Protected
                   iconText: root.revealedField === modelData.Name ? "󰈉" : "󰈈"
                   tooltipText: root.revealedField === modelData.Name ? strings.t("secret.hide") : strings.t("secret.reveal")
                   focusable: true

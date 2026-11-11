@@ -29,7 +29,7 @@ func TestSessionVaultLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated, err := backend.Apply(ctx, db, creds, vault.Change{Kind: vault.AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Example", "Tags": "Favorite", "URL": "https://example.test", "Notes": "first\nsecond", "TOTP Seed": "JBSWY3DPEHPK3PXP"}, PasswordChanged: true, Password: []byte("synthetic secret")}, filepath.Join(t.TempDir(), "backups"))
+	updated, err := backend.Apply(ctx, db, creds, vault.Change{Kind: vault.AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Example", "Tags": "Favorite", "URL": "", "Notes": "first\nsecond", "TOTP Seed": "JBSWY3DPEHPK3PXP"}, PasswordChanged: true, Password: []byte("synthetic secret")}, filepath.Join(t.TempDir(), "backups"))
 	db.Clear()
 	if err != nil {
 		t.Fatal(err)
@@ -63,8 +63,11 @@ func TestSessionVaultLifecycle(t *testing.T) {
 		}
 	}
 	last := -1
-	foundTOTP := false
+	foundTOTP, foundPassword := false, false
 	for _, field := range fields {
+		if field.Name == "URL" || field.Name == "UserName" {
+			t.Fatalf("empty field %s was displayed", field.Name)
+		}
 		if rank := fieldOrder(field.Name); rank < last {
 			t.Fatal("fields are not in TUI order")
 		} else {
@@ -73,9 +76,15 @@ func TestSessionVaultLifecycle(t *testing.T) {
 		if field.Name == "TOTP" {
 			foundTOTP = field.Protected && field.Value == ""
 		}
+		if field.Name == "Password" {
+			foundPassword = field.Protected && field.Value == ""
+		}
 	}
 	if !foundTOTP {
 		t.Fatal("generated TOTP field is missing or unmasked")
+	}
+	if !foundPassword {
+		t.Fatal("nonempty password field is missing or unmasked")
 	}
 	passwordValue, _, err := s.Reveal(ctx, items[0].ID, "Password")
 	if err != nil || string(passwordValue) != "synthetic secret" {
@@ -87,8 +96,13 @@ func TestSessionVaultLifecycle(t *testing.T) {
 		t.Fatal("TOTP reveal failed")
 	}
 	clear(code)
-	if _, _, err := s.Reveal(ctx, items[0].ID, "TOTP Seed"); err == nil {
-		t.Fatal("seed was revealable")
+	seed, _, err := s.Reveal(ctx, items[0].ID, "TOTP Seed")
+	if err != nil || string(seed) != "JBSWY3DPEHPK3PXP" {
+		t.Fatal("protected custom field reveal failed")
+	}
+	clear(seed)
+	if _, _, err := s.Reveal(ctx, items[0].ID, "Notes"); err == nil {
+		t.Fatal("unprotected field was accepted for reveal")
 	}
 	if err := s.CopyReference(ctx, items[0].ID, "TOTP"); err != nil {
 		t.Fatal(err)
