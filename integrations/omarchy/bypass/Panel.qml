@@ -329,6 +329,7 @@ Panel {
               id: fieldRow
               required property var modelData
               required property int index
+              readonly property bool actionsHovered: fieldHover.hovered
               Layout.fillWidth: true
               activeFocusOnTab: true
               Keys.onUpPressed: function(event) { root.moveList("fields", fieldRow.index + 1, -1); event.accepted = true }
@@ -355,8 +356,7 @@ Panel {
                   iconText: "󰆏"
                   tooltipText: strings.t("copy.value")
                   focusable: true
-                  hasCursor: fieldRow.activeFocus
-                  opacity: fieldHover.hovered || activeFocus || fieldRow.activeFocus ? 1 : 0
+                  opacity: fieldRow.actionsHovered || activeFocus ? 1 : 0
                   onClicked: root.send({action: "copy", id: root.itemId, field: modelData.Name})
                 }
                 PanelActionButton {
@@ -364,7 +364,7 @@ Panel {
                   iconText: root.revealedField === modelData.Name ? "󰈉" : "󰈈"
                   tooltipText: root.revealedField === modelData.Name ? strings.t("secret.hide") : strings.t("secret.reveal")
                   focusable: true
-                  opacity: fieldHover.hovered || activeFocus ? 1 : 0
+                  opacity: fieldRow.actionsHovered || activeFocus ? 1 : 0
                   onClicked: root.toggleReveal(modelData.Name)
                 }
               }
