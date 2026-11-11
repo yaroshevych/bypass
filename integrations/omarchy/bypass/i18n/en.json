@@ -17,6 +17,8 @@
   "search": "Search",
   "copy.path": "Copy path",
   "copy.value": "Copy",
+  "secret.reveal": "Reveal",
+  "secret.hide": "Hide",
   "approval.review": "Review request",
   "approval.title": "Secret access request",
   "approval.agent": "Agent: %1",

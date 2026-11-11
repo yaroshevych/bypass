@@ -29,6 +29,9 @@ Panel {
   property string requestId: ""
   property var review: ({})
   property string previousScreen: "recent"
+  property string revealedField: ""
+  property string revealedValue: ""
+  property string revealPending: ""
   Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
   component BodyText: Text {
@@ -38,19 +41,52 @@ Panel {
     font.pixelSize: Style.font.body
   }
   component WideButton: Ui.Button {
+    id: wideButton
+    property string navigationList: ""
+    property int navigationIndex: -1
     Layout.fillWidth: true
     implicitHeight: Style.space(42)
     bordered: true
     focusable: true
     leftAlign: true
+    Keys.onUpPressed: function(event) {
+      if (navigationIndex < 0) { event.accepted = false; return }
+      root.moveList(navigationList, navigationIndex, -1)
+      event.accepted = true
+    }
+    Keys.onDownPressed: function(event) {
+      if (navigationIndex < 0) { event.accepted = false; return }
+      root.moveList(navigationList, navigationIndex, 1)
+      event.accepted = true
+    }
   }
 
   onOpenedChanged: {
-    if (!opened) {
+    if (opened) {
+      Qt.callLater(function() { if (root.opened && root.screen === "recent") root.moveList("recent", -1, 1) })
+    } else {
       if (panel.loadedContent) panel.loadedContent.passwordField.text = ""
       fields = []
+      clearReveal()
       if (screen === "fields") screen = "items"
     }
+  }
+  onScreenChanged: {
+    if (screen !== "fields") clearReveal()
+    Qt.callLater(function() {
+      if (!root.opened || !panel.loadedContent) return
+      if (root.screen === "password") panel.loadedContent.passwordField.forceActiveFocus()
+      else if (root.screen === "items") panel.loadedContent.queryField.forceActiveFocus()
+      else if (root.screen === "recent") root.moveList("recent", -1, 1)
+    })
+  }
+
+  function clearReveal() { revealedField = ""; revealedValue = ""; revealPending = ""; revealTimer.stop() }
+  function toggleReveal(field) {
+    if (revealedField === field || revealPending === field) { clearReveal(); return }
+    clearReveal()
+    revealPending = field
+    send({action: "reveal", id: itemId, field: field})
   }
 
   function send(value) {
@@ -68,9 +104,25 @@ Panel {
       return
     }
     if (result.action === "show-request") { root.open(); root.reviewRequest(result.id); return }
+    if (result.action === "reveal") {
+      if (result.error) { clearReveal(); errorText = result.error; return }
+      if (!opened || screen !== "fields" || result.id !== itemId || result.field !== revealPending) return
+      revealedField = result.field
+      revealedValue = result.value || ""
+      revealPending = ""
+      revealTimer.interval = Math.max(1, Math.min(10, result.remaining || 10)) * 1000
+      revealTimer.restart()
+      return
+    }
     errorText = result.error || ""
     if (result.error) return
-    if (result.action === "recent") recent = result.recent || []
+    if (result.action === "recent") {
+      recent = result.recent || []
+      Qt.callLater(function() {
+        if (root.opened && root.screen === "recent" && panel.loadedContent && panel.loadedContent.openButton.activeFocus && root.recent.length > 0)
+          root.moveList("recent", -1, 1)
+      })
+    }
     else if (result.action === "open") { screen = "items"; send({action: "items", query: ""}) }
     else if (result.action === "items") items = result.items || []
     else if (result.action === "fields") { fields = result.fields || []; screen = "fields" }
@@ -79,7 +131,24 @@ Panel {
     else if (result.action === "lock" || result.action === "locked") { screen = "recent"; items = []; fields = []; send({action: "recent"}) }
   }
   function openVault(path) { vaultPath = path; errorText = ""; screen = "password" }
+  function openItem(item) { itemId = item.ID; itemTitle = item.Title; send({action: "fields", id: item.ID}) }
+  function moveList(list, index, direction) {
+    if (!panel.loadedContent) return
+    const content = panel.loadedContent
+    const count = list === "recent" ? recent.length + 1 : items.length
+    const next = index + direction
+    if (list === "items" && next < 0) { content.queryField.forceActiveFocus(); return }
+    if (next < 0 || next >= count) return
+    const target = list === "recent"
+      ? (next === recent.length ? content.openButton : content.recentRepeater.itemAt(next))
+      : content.itemRepeater.itemAt(next)
+    if (!target) return
+    target.forceActiveFocus()
+    content.ensureVisible(target)
+  }
   function reviewRequest(id) { if (screen !== "approval") previousScreen = screen; requestId = id; review = ({}); screen = "approval"; send({action: "review", id: id}) }
+
+  Timer { id: revealTimer; repeat: false; onTriggered: root.clearReveal() }
 
   Process {
     id: service
@@ -109,13 +178,24 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: !panel.loadedContent ? null : root.screen === "password" ? panel.loadedContent.passwordField : root.screen === "items" ? panel.loadedContent.queryField : panel.loadedContent
+    focusTarget: !panel.loadedContent ? null : root.screen === "password" ? panel.loadedContent.passwordField : root.screen === "items" ? panel.loadedContent.queryField : root.screen === "recent" ? panel.loadedContent.firstRecent() : panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(560))
     content: ScrollView {
       id: scroll
       property alias passwordField: password
       property alias queryField: searchField
+      property alias recentRepeater: recentRows
+      property alias itemRepeater: itemRows
+      property alias openButton: openVaultButton
+      function firstRecent() { return root.recent.length > 0 ? (recentRows.itemAt(0) || openVaultButton) : openVaultButton }
+      function ensureVisible(item) {
+        const view = scroll.contentItem
+        const y = item.mapToItem(contentColumn, 0, 0).y
+        if (y < view.contentY) view.contentY = y
+        else if (y + item.height > view.contentY + view.height)
+          view.contentY = Math.min(Math.max(0, view.contentHeight - view.height), y + item.height - view.height)
+      }
       implicitHeight: contentColumn.implicitHeight
       contentWidth: availableWidth
       clip: true
@@ -141,16 +221,20 @@ Panel {
           PanelSeparator { Layout.fillWidth: true }
           PanelSectionHeader { text: strings.t("vault.recent"); Layout.fillWidth: true }
           Repeater {
+            id: recentRows
             model: root.recent
             WideButton {
               id: recentButton
               required property string modelData
+              required property int index
+              navigationList: "recent"
+              navigationIndex: index
               text: modelData
               iconText: "󰌾"
               onClicked: root.openVault(recentButton.modelData)
             }
           }
-          WideButton { text: strings.t("vault.open_ellipsis"); iconText: "󰝰"; onClicked: picker.open() }
+          WideButton { id: openVaultButton; text: strings.t("vault.open_ellipsis"); iconText: "󰝰"; navigationList: "recent"; navigationIndex: root.recent.length; onClicked: picker.open() }
         }
         ColumnLayout {
           visible: root.screen === "password"
@@ -172,16 +256,27 @@ Panel {
           Layout.fillWidth: true
           spacing: Style.space(8)
           PanelSeparator { Layout.fillWidth: true }
-          TextField { id: searchField; placeholderText: strings.t("search"); Layout.fillWidth: true; onTextChanged: root.send({action: "items", query: text}) }
+          TextField {
+            id: searchField
+            placeholderText: strings.t("search")
+            Layout.fillWidth: true
+            onTextChanged: root.send({action: "items", query: text})
+            Keys.onDownPressed: function(event) { root.moveList("items", -1, 1); event.accepted = true }
+            onAccepted: if (root.items.length > 0) root.openItem(root.items[0])
+          }
           PanelSectionHeader { text: searchField.text === "" ? strings.t("vault.favorites") : strings.t("vault.results"); Layout.fillWidth: true }
           Repeater {
+            id: itemRows
             model: root.items
             WideButton {
               id: itemButton
               required property var modelData
+              required property int index
+              navigationList: "items"
+              navigationIndex: index
               text: modelData.Title
               iconText: "󰌋"
-              onClicked: { root.itemId = itemButton.modelData.ID; root.itemTitle = itemButton.modelData.Title; root.send({action: "fields", id: itemButton.modelData.ID}) }
+              onClicked: root.openItem(itemButton.modelData)
             }
           }
           WideButton { text: strings.t("vault.lock"); iconText: "󰌾"; onClicked: root.send({action: "lock"}) }
@@ -195,17 +290,40 @@ Panel {
           Repeater {
             model: root.fields
             ColumnLayout {
+              id: fieldRow
               required property var modelData
               Layout.fillWidth: true
+              HoverHandler { id: fieldHover }
               RowLayout {
                 Layout.fillWidth: true
                 BodyText { text: modelData.Name; Layout.fillWidth: true }
-                PanelActionButton { iconText: "󰆏"; tooltipText: strings.t("copy.path"); focusable: true; onClicked: root.send({action: "copy-reference", id: root.itemId, field: modelData.Name}) }
+                PanelActionButton { iconText: "󰌷"; tooltipText: strings.t("copy.path"); focusable: true; opacity: fieldHover.hovered || activeFocus ? 1 : 0; onClicked: root.send({action: "copy-reference", id: root.itemId, field: modelData.Name}) }
               }
               RowLayout {
                 Layout.fillWidth: true
-                BodyText { text: modelData.Protected ? "••••••••" : modelData.Value; color: Qt.darker(Commons.Color.foreground, 1.3); elide: Text.ElideRight; Layout.fillWidth: true }
-                PanelActionButton { iconText: "󰆏"; tooltipText: strings.t("copy.value"); focusable: true; onClicked: root.send({action: "copy", id: root.itemId, field: modelData.Name}) }
+                BodyText {
+                  text: modelData.Protected ? (root.revealedField === modelData.Name ? root.revealedValue : "••••••••") : modelData.Value
+                  color: Qt.darker(Commons.Color.foreground, 1.3)
+                  wrapMode: modelData.Name === "Notes" ? Text.Wrap : Text.NoWrap
+                  maximumLineCount: modelData.Name === "Notes" ? 5 : 1
+                  elide: Text.ElideRight
+                  Layout.fillWidth: true
+                }
+                PanelActionButton {
+                  iconText: "󰆏"
+                  tooltipText: strings.t("copy.value")
+                  focusable: true
+                  opacity: fieldHover.hovered || activeFocus ? 1 : 0
+                  onClicked: root.send({action: "copy", id: root.itemId, field: modelData.Name})
+                }
+                PanelActionButton {
+                  visible: modelData.Name === "Password" || modelData.Name === "TOTP"
+                  iconText: root.revealedField === modelData.Name ? "󰈉" : "󰈈"
+                  tooltipText: root.revealedField === modelData.Name ? strings.t("secret.hide") : strings.t("secret.reveal")
+                  focusable: true
+                  opacity: fieldHover.hovered || activeFocus ? 1 : 0
+                  onClicked: root.toggleReveal(modelData.Name)
+                }
               }
             }
           }
