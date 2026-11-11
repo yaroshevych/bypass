@@ -138,7 +138,7 @@ Panel {
       }
     }
     else if (result.action === "fields") {
-      fields = result.fields || []
+      fields = (result.fields || []).filter(field => field.Name !== "Title")
       screen = "fields"
       Qt.callLater(function() { if (root.opened && root.screen === "fields") root.moveList("fields", root.fields.length > 0 ? 0 : -1, 1) })
     }
