@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "bypass.vault",
+  "name": "Bypass",
+  "version": "0.1.0",
+  "author": "Bypass",
+  "description": "Browse an unlocked Bypass vault",
+  "kinds": ["bar-widget"],
+  "entryPoints": {"barWidget": "Panel.qml"},
+  "barWidget": {"displayName": "Bypass", "description": "Vault and approval requests", "category": "Security", "allowMultiple": false}
+}
