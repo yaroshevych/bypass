@@ -11,6 +11,7 @@ import (
 
 	"bypass/internal/clipboard"
 	"bypass/internal/platform"
+	runpkg "bypass/internal/run"
 	"bypass/internal/widget"
 )
 
@@ -24,16 +25,26 @@ type widgetRequest struct {
 }
 
 type widgetResponse struct {
-	Action string         `json:"action"`
-	Error  string         `json:"error,omitempty"`
-	Recent []string       `json:"recent,omitempty"`
-	Items  []widget.Item  `json:"items,omitempty"`
-	Fields []widget.Field `json:"fields,omitempty"`
+	Action    string          `json:"action"`
+	Error     string          `json:"error,omitempty"`
+	Recent    []string        `json:"recent,omitempty"`
+	Items     []widget.Item   `json:"items,omitempty"`
+	Fields    []widget.Field  `json:"fields,omitempty"`
+	ID        string          `json:"id,omitempty"`
+	Targets   []widget.Target `json:"targets,omitempty"`
+	Command   []string        `json:"command,omitempty"`
+	Directory string          `json:"directory,omitempty"`
+	Agent     string          `json:"agent,omitempty"`
+	Caller    []string        `json:"caller,omitempty"`
 }
 
 // widgetCommand communicates over the private pipes inherited from the shell.
 // Passwords and copied values are never command-line arguments.
 func widgetCommand(input io.Reader, output io.Writer) error {
+	return widgetCommandWithApprovals(input, output, true)
+}
+
+func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) error {
 	paths, err := platform.Resolve()
 	if err != nil {
 		return err
@@ -56,6 +67,17 @@ func widgetCommand(input io.Reader, output io.Writer) error {
 		outMu.Lock()
 		defer outMu.Unlock()
 		return encoder.Encode(response)
+	}
+	approvals := &widgetApprovals{pending: make(map[string]*widgetPending), session: session, send: send}
+	if socketPath, err := runpkg.WidgetSocketPath(); listen && err == nil {
+		server, err := runpkg.Listen(socketPath, approvals.submit)
+		if err == nil {
+			defer server.Close()
+		} else {
+			_ = send(widgetResponse{Action: "approval-status", Error: "approval service unavailable"})
+		}
+	} else if listen {
+		_ = send(widgetResponse{Action: "approval-status", Error: "approval service unavailable"})
 	}
 	go func() {
 		ticker := time.NewTicker(time.Second)
@@ -108,6 +130,12 @@ func widgetCommand(input io.Reader, output io.Writer) error {
 			err = session.CopyValue(ctx, request.ID, request.Field)
 		case "copy-reference":
 			err = session.CopyReference(ctx, request.ID, request.Field)
+		case "review":
+			response = approvals.review(ctx, request.ID)
+		case "approve":
+			err = approvals.decide(ctx, request.ID, true)
+		case "deny":
+			err = approvals.decide(ctx, request.ID, false)
 		case "lock":
 			err = session.Lock(ctx)
 			unlocked = false

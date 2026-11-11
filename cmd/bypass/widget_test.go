@@ -11,7 +11,7 @@ func TestWidgetServiceLockedState(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	var out bytes.Buffer
-	if err := widgetCommand(strings.NewReader("{\"action\":\"recent\"}\n{\"action\":\"items\"}\n"), &out); err != nil {
+	if err := widgetCommandWithApprovals(strings.NewReader("{\"action\":\"recent\"}\n{\"action\":\"items\"}\n"), &out, false); err != nil {
 		t.Fatal(err)
 	}
 	decoder := json.NewDecoder(&out)
