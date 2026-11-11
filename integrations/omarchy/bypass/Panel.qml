@@ -1,11 +1,13 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls as Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
 import Quickshell
 import Quickshell.Io
 import qs.Ui
 import qs.Commons
+import qs.Commons as Commons
 
 Panel {
   id: root
@@ -26,10 +28,11 @@ Panel {
   property string requestId: ""
   property var review: ({})
   property string previousScreen: "recent"
+  Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
   onOpenedChanged: {
     if (!opened) {
-      password.text = ""
+      if (panel.loadedContent) panel.loadedContent.passwordField.text = ""
       fields = []
       if (screen === "fields") screen = "items"
     }
@@ -37,11 +40,11 @@ Panel {
 
   function send(value) {
     if (service.running) service.write(JSON.stringify(value) + "\n")
-    else errorText = "Bypass service is unavailable"
+    else errorText = strings.t("service.unavailable")
   }
   function handle(line) {
     let result
-    try { result = JSON.parse(line) } catch (e) { errorText = "Invalid response from Bypass"; return }
+    try { result = JSON.parse(line) } catch (e) { errorText = strings.t("service.invalid_response"); return }
     if (result.action === "approval-status") { approvalError = result.error || ""; return }
     if (result.action === "request") { requests = requests.concat([result.id]); return }
     if (result.action === "request-closed") {
@@ -70,12 +73,12 @@ Panel {
     stdinEnabled: true
     stdout: SplitParser { onRead: data => root.handle(data) }
     onStarted: root.send({action: "recent"})
-    onExited: { root.screen = "recent"; root.items = []; root.fields = []; root.errorText = "Bypass service stopped" }
+    onExited: { root.screen = "recent"; root.items = []; root.fields = []; root.errorText = strings.t("service.stopped") }
   }
   FileDialog {
     id: picker
-    title: "Open vault"
-    nameFilters: ["KeePass vaults (*.kdbx)", "All files (*)"]
+    title: strings.t("vault.open")
+    nameFilters: [strings.t("vault.kee_pass_filter"), strings.t("vault.all_files_filter")]
     onAccepted: root.openVault(decodeURIComponent(selectedFile.toString().replace(/^file:\/\//, "")))
   }
   BarIconButton {
@@ -91,10 +94,12 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: panel.loadedContent
+    focusTarget: !panel.loadedContent ? null : root.screen === "password" ? panel.loadedContent.passwordField : root.screen === "items" ? panel.loadedContent.queryField : panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(Style.space(500))
     content: ScrollView {
+      property alias passwordField: password
+      property alias queryField: searchField
       clip: true
       ColumnLayout {
         width: parent.width
@@ -102,13 +107,13 @@ Panel {
         Label { text: "Bypass"; font.bold: true; font.pixelSize: 22 }
         Label { visible: root.errorText !== ""; text: root.errorText; textFormat: Text.PlainText; wrapMode: Text.Wrap; Layout.fillWidth: true }
         Label { visible: root.approvalError !== ""; text: root.approvalError; textFormat: Text.PlainText; wrapMode: Text.Wrap; Layout.fillWidth: true }
-        Button { visible: root.requests.length > 0 && root.screen !== "approval"; text: "Review request"; onClicked: root.reviewRequest(root.requests[0]) }
+        Controls.Button { visible: root.requests.length > 0 && root.screen !== "approval"; text: strings.t("approval.review"); onClicked: root.reviewRequest(root.requests[0]) }
         ColumnLayout {
           visible: root.screen === "recent"
           Layout.fillWidth: true
           Repeater {
             model: root.recent
-            Button {
+            Controls.Button {
               id: recentButton
               required property string modelData
               text: modelData
@@ -117,7 +122,7 @@ Panel {
               onClicked: root.openVault(modelData)
             }
           }
-          Button { text: "Open vault…"; Layout.fillWidth: true; onClicked: picker.open() }
+          Controls.Button { text: strings.t("vault.open_ellipsis"); Layout.fillWidth: true; onClicked: picker.open() }
         }
         ColumnLayout {
           visible: root.screen === "password"
@@ -125,21 +130,21 @@ Panel {
           Label { text: root.vaultPath; textFormat: Text.PlainText; elide: Text.ElideMiddle; Layout.fillWidth: true }
           TextField {
             id: password
-            placeholderText: "Password"
-            echoMode: TextInput.Password
+            placeholderText: strings.t("vault.password")
+            password: true
             Layout.fillWidth: true
             onAccepted: { root.send({action: "open", path: root.vaultPath, password: text}); text = "" }
           }
-          Button { text: "Unlock"; Layout.fillWidth: true; onClicked: { root.send({action: "open", path: root.vaultPath, password: password.text}); password.text = "" } }
-          Button { text: "Back"; onClicked: { password.text = ""; root.screen = "recent" } }
+          Controls.Button { text: strings.t("vault.unlock"); Layout.fillWidth: true; onClicked: { root.send({action: "open", path: root.vaultPath, password: password.text}); password.text = "" } }
+          Controls.Button { text: strings.t("back"); onClicked: { password.text = ""; root.screen = "recent" } }
         }
         ColumnLayout {
           visible: root.screen === "items"
           Layout.fillWidth: true
-          TextField { placeholderText: "Search"; Layout.fillWidth: true; onTextChanged: root.send({action: "items", query: text}) }
+          TextField { id: searchField; placeholderText: strings.t("search"); Layout.fillWidth: true; onTextChanged: root.send({action: "items", query: text}) }
           Repeater {
             model: root.items
-            Button {
+            Controls.Button {
               id: itemButton
               required property var modelData
               text: modelData.Title
@@ -148,12 +153,12 @@ Panel {
               onClicked: { root.itemId = modelData.ID; root.itemTitle = modelData.Title; root.send({action: "fields", id: modelData.ID}) }
             }
           }
-          Button { text: "Lock"; onClicked: root.send({action: "lock"}) }
+          Controls.Button { text: strings.t("vault.lock"); onClicked: root.send({action: "lock"}) }
         }
         ColumnLayout {
           visible: root.screen === "fields"
           Layout.fillWidth: true
-          Button { text: "← Back"; onClicked: { root.fields = []; root.screen = "items" } }
+          Controls.Button { text: strings.t("back"); onClicked: { root.fields = []; root.screen = "items" } }
           Label { text: root.itemTitle; textFormat: Text.PlainText; font.bold: true }
           Repeater {
             model: root.fields
@@ -163,12 +168,12 @@ Panel {
               RowLayout {
                 Layout.fillWidth: true
                 Label { text: modelData.Name; textFormat: Text.PlainText; Layout.fillWidth: true }
-                Button { text: "Copy path"; onClicked: root.send({action: "copy-reference", id: root.itemId, field: modelData.Name}) }
+                Controls.Button { text: strings.t("copy.path"); onClicked: root.send({action: "copy-reference", id: root.itemId, field: modelData.Name}) }
               }
               RowLayout {
                 Layout.fillWidth: true
                 Label { text: modelData.Protected ? "••••••••" : modelData.Value; textFormat: Text.PlainText; elide: Text.ElideRight; Layout.fillWidth: true }
-                Button { text: "Copy"; onClicked: root.send({action: "copy", id: root.itemId, field: modelData.Name}) }
+                Controls.Button { text: strings.t("copy.value"); onClicked: root.send({action: "copy", id: root.itemId, field: modelData.Name}) }
               }
             }
           }
@@ -176,18 +181,18 @@ Panel {
         ColumnLayout {
           visible: root.screen === "approval"
           Layout.fillWidth: true
-          Button { text: "← Back"; onClicked: { root.review = ({}); root.screen = root.previousScreen } }
-          Label { text: "Secret access request"; font.bold: true }
-          Label { text: "Agent: " + (root.review.agent || "Unknown"); textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap }
-          Label { text: "Command: " + (root.review.command || []).join(" "); textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap }
-          Label { text: "Directory: " + (root.review.directory || ""); textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap }
-          Label { text: "Agent identity is self-claimed and not verified."; wrapMode: Text.Wrap; Layout.fillWidth: true }
+          Controls.Button { text: strings.t("back"); onClicked: { root.review = ({}); root.screen = root.previousScreen } }
+          Label { text: strings.t("approval.title"); font.bold: true }
+          Label { text: strings.t("approval.agent").arg(root.review.agent || strings.t("approval.unknown")); textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap }
+          Label { text: strings.t("approval.command").arg((root.review.command || []).join(" ")); textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap }
+          Label { text: strings.t("approval.directory").arg(root.review.directory || ""); textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap }
+          Label { text: strings.t("approval.identity_note"); wrapMode: Text.Wrap; Layout.fillWidth: true }
           Repeater {
             model: root.review.targets || []
             Label { required property var modelData; text: modelData.Group + "/" + modelData.Title + " #" + modelData.Field; textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap }
           }
-          Button { text: "Approve once"; enabled: (root.review.targets || []).length > 0; Layout.fillWidth: true; onClicked: root.send({action: "approve", id: root.requestId}) }
-          Button { text: "Deny"; Layout.fillWidth: true; onClicked: root.send({action: "deny", id: root.requestId}) }
+          Controls.Button { text: strings.t("approval.approve"); enabled: (root.review.targets || []).length > 0; Layout.fillWidth: true; onClicked: root.send({action: "approve", id: root.requestId}) }
+          Controls.Button { text: strings.t("approval.deny"); Layout.fillWidth: true; onClicked: root.send({action: "deny", id: root.requestId}) }
         }
       }
     }

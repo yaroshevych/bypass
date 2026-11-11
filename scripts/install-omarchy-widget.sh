@@ -16,6 +16,8 @@ trap 'rm -f "$tmpbinary"' EXIT HUP INT TERM
 install -m 755 "$root/bin/bypass" "$tmpbinary"
 mv -f "$tmpbinary" "$bindir/bypass"
 install -m 644 "$root/integrations/omarchy/bypass/manifest.json" "$root/integrations/omarchy/bypass/Panel.qml" "$plugindir/"
+install -d "$plugindir/i18n"
+install -m 644 "$root/integrations/omarchy/bypass/i18n/"*.json "$plugindir/i18n/"
 omarchy-shell shell rescanPlugins
 omarchy bar put bypass.vault --section right
 printf '%s\n' "Installed Bypass to $bindir and added its Omarchy widget."
