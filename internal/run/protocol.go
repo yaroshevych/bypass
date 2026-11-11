@@ -24,6 +24,7 @@ type Request struct {
 	Command    []string
 	Directory  string
 	References []string
+	Arbitrate  bool
 	// Identity is the raw bearer credential and is only populated on the client
 	// side before the controlled request frame is written.
 	Identity []byte `json:"-"`
@@ -38,6 +39,7 @@ type Pending struct {
 	Identity Identity
 	Context  context.Context
 	reply    chan Response
+	ack      chan bool
 	once     sync.Once
 }
 
@@ -46,6 +48,7 @@ func (p *Pending) Reply(r Response) bool {
 		clearResponse(&r)
 	}
 	accepted := false
+	transferred := false
 	p.once.Do(func() {
 		if p.Context.Err() != nil {
 			clearResponse(&r)
@@ -53,12 +56,24 @@ func (p *Pending) Reply(r Response) bool {
 		}
 		select {
 		case p.reply <- r:
-			accepted = true
+			transferred = true
+			if p.ack == nil {
+				accepted = true
+			} else {
+				select {
+				case accepted = <-p.ack:
+				case <-p.Context.Done():
+					select {
+					case accepted = <-p.ack:
+					default:
+					}
+				}
+			}
 		case <-p.Context.Done():
 			clearResponse(&r)
 		}
 	})
-	if !accepted {
+	if !transferred {
 		clearResponse(&r)
 	}
 	return accepted
@@ -93,6 +108,15 @@ func SocketPath() (string, error) {
 	sum := sha256.Sum256([]byte(base))
 	return filepath.Join(root, fmt.Sprintf("bypass-%d-%x", os.Getuid(), sum[:8]), "run.sock"), nil
 }
+
+// WidgetSocketPath is distinct from the terminal server's socket.
+func WidgetSocketPath() (string, error) {
+	path, err := SocketPath()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Dir(path), "widget.sock"), nil
+}
 func Listen(path string, submit func(*Pending)) (*Server, error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
@@ -112,7 +136,11 @@ func Listen(path string, submit func(*Pending)) (*Server, error) {
 		return nil, err
 	}
 	// Hold an advisory lock before removing a socket left by a crashed TUI.
-	fd, err := unix.Open(filepath.Join(dir, "server.lock"), unix.O_CREAT|unix.O_RDWR|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)
+	lockName := "server.lock"
+	if filepath.Base(path) != "run.sock" {
+		lockName = filepath.Base(path) + ".lock"
+	}
+	fd, err := unix.Open(filepath.Join(dir, lockName), unix.O_CREAT|unix.O_RDWR|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -167,6 +195,10 @@ func (s *Server) serve(conn *net.UnixConn, submit func(*Pending)) {
 	if err := authenticate(conn); err != nil {
 		return
 	}
+	s.serveAuthenticated(conn, callerAncestry(conn), submit)
+}
+
+func (s *Server) serveAuthenticated(conn net.Conn, caller []string, submit func(*Pending)) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
@@ -192,9 +224,20 @@ func (s *Server) serve(conn *net.UnixConn, submit func(*Pending)) {
 	}
 	wipebuf.Wipe(request.Identity)
 	request.Identity = nil
-	pending := &Pending{Caller: callerAncestry(conn), Request: request, Identity: identity, Context: ctx, reply: make(chan Response)}
+	pending := &Pending{Caller: caller, Request: request, Identity: identity, Context: ctx, reply: make(chan Response)}
+	if request.Arbitrate {
+		pending.ack = make(chan bool, 1)
+	}
 	// The request is one frame. Further client input or EOF cancels it.
-	go func() { var b [1]byte; conn.Read(b[:]); cancel() }()
+	clientSignal := make(chan bool, 1)
+	go func() {
+		var b [1]byte
+		n, err := conn.Read(b[:])
+		clientSignal <- err == nil && n == 1 && b[0] == 1
+		if !request.Arbitrate || err != nil || n != 1 || b[0] != 1 {
+			cancel()
+		}
+	}()
 	go submit(pending)
 	select {
 	case response := <-pending.reply:
@@ -202,50 +245,172 @@ func (s *Server) serve(conn *net.UnixConn, submit func(*Pending)) {
 		if ctx.Err() != nil {
 			return
 		}
-		_ = writeResponse(conn, response)
+		if err := writeResponse(conn, response); err != nil {
+			return
+		}
+		if request.Arbitrate {
+			select {
+			case accepted := <-clientSignal:
+				pending.ack <- accepted
+			case <-ctx.Done():
+			}
+		}
 	case <-ctx.Done():
 	}
 }
 func Exchange(ctx context.Context, path string, request Request) (Response, error) {
+	response, err, _ := exchange(ctx, path, request)
+	return response, err
+}
+
+// ExchangeAny delivers one request to each server and accepts the first
+// complete response. Transport failures do not override another server's
+// pending decision. A rejection is a complete response and wins as well.
+func ExchangeAny(ctx context.Context, paths []string, request Request) (Response, error) {
+	defer wipebuf.Wipe(request.Identity)
+	if len(paths) == 0 {
+		return Response{}, errors.New("Bypass unavailable; open Bypass and unlock the required vault")
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	type result struct {
+		response  Response
+		err       error
+		complete  bool
+		decision  chan bool
+		committed chan error
+	}
+	results := make(chan result, len(paths))
+	for _, path := range paths {
+		copyRequest := request
+		copyRequest.Identity = append([]byte(nil), request.Identity...)
+		copyRequest.Arbitrate = true
+		go func() {
+			defer wipebuf.Wipe(copyRequest.Identity)
+			conn, err := (&net.Dialer{}).DialContext(ctx, "unix", path)
+			if err != nil {
+				results <- result{err: errors.New("Bypass unavailable; open Bypass and unlock the required vault")}
+				return
+			}
+			defer conn.Close()
+			unix, ok := conn.(*net.UnixConn)
+			if !ok {
+				results <- result{err: errors.New("invalid IPC connection")}
+				return
+			}
+			if err := authenticate(unix); err != nil {
+				results <- result{err: err}
+				return
+			}
+			if deadline, ok := ctx.Deadline(); ok {
+				_ = conn.SetDeadline(deadline)
+			}
+			stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+			defer stop()
+			if err := writeRequest(conn, copyRequest); err != nil {
+				results <- result{err: err}
+				return
+			}
+			var response Response
+			if err := readResponse(io.LimitReader(conn, MaxMessage), &response); err != nil {
+				clearResponse(&response)
+				results <- result{err: errors.New("Bypass request failed or timed out")}
+				return
+			}
+			var responseErr error
+			if response.Error != "" {
+				responseErr = errors.New(response.Error)
+				clearResponse(&response)
+			}
+			if responseErr != nil && response.Error != "secret request denied" {
+				results <- result{err: responseErr}
+				return
+			}
+			decision := make(chan bool, 1)
+			committed := make(chan error, 1)
+			results <- result{response: response, err: responseErr, complete: true, decision: decision, committed: committed}
+			select {
+			case selected := <-decision:
+				if selected {
+					_, err = conn.Write([]byte{1})
+					committed <- err
+				}
+			case <-ctx.Done():
+				committed <- ctx.Err()
+			}
+		}()
+	}
+	var lastErr error
+	for remaining := len(paths); remaining > 0; remaining-- {
+		result := <-results
+		if result.complete {
+			result.decision <- true
+			if err := <-result.committed; err != nil {
+				clearResponse(&result.response)
+				cancel()
+				go func(n int) {
+					for ; n > 0; n-- {
+						other := <-results
+						clearResponse(&other.response)
+					}
+				}(remaining - 1)
+				return Response{}, err
+			}
+			cancel()
+			// Drain and wipe any concurrently completed response after the winner.
+			go func(n int) {
+				for ; n > 0; n-- {
+					other := <-results
+					clearResponse(&other.response)
+				}
+			}(remaining - 1)
+			return result.response, result.err
+		}
+		lastErr = result.err
+	}
+	return Response{}, lastErr
+}
+
+func exchange(ctx context.Context, path string, request Request) (Response, error, bool) {
 	defer wipebuf.Wipe(request.Identity)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var response Response
 	conn, err := (&net.Dialer{}).DialContext(ctx, "unix", path)
 	if err != nil {
-		return response, errors.New("Bypass TUI unavailable; open Bypass and unlock the required vault")
+		return response, errors.New("Bypass unavailable; open Bypass and unlock the required vault"), false
 	}
 	defer conn.Close()
 	unix, ok := conn.(*net.UnixConn)
 	if !ok {
-		return response, errors.New("invalid IPC connection")
+		return response, errors.New("invalid IPC connection"), false
 	}
 	if err := authenticate(unix); err != nil {
-		return response, err
+		return response, err, false
 	}
 	if deadline, ok := ctx.Deadline(); ok {
 		conn.SetDeadline(deadline)
 	}
 	go func() { <-ctx.Done(); conn.Close() }()
 	if err := writeRequest(conn, request); err != nil {
-		return response, err
+		return response, err, false
 	}
 	if err := readResponse(io.LimitReader(conn, MaxMessage), &response); err != nil {
 		if ctx.Err() != nil {
-			return response, fmt.Errorf("approval timed out: %w", ctx.Err())
+			return response, fmt.Errorf("approval timed out: %w", ctx.Err()), false
 		}
-		return response, errors.New("Bypass request failed or timed out")
+		return response, errors.New("Bypass request failed or timed out"), false
 	}
 	if err := ctx.Err(); err != nil {
 		clearResponse(&response)
-		return Response{}, fmt.Errorf("approval timed out: %w", err)
+		return Response{}, fmt.Errorf("approval timed out: %w", err), false
 	}
 	if response.Error != "" {
 		err := errors.New(response.Error)
 		clearResponse(&response)
-		return Response{}, err
+		return Response{}, err, true
 	}
-	return response, nil
+	return response, nil, true
 }
 
 var requestMagic = [4]byte{'B', 'R', 'Q', 1}
@@ -254,12 +419,13 @@ type requestMetadata struct {
 	Command    []string
 	Directory  string
 	References []string
+	Arbitrate  bool `json:",omitempty"`
 }
 
 // writeRequest emits one bounded frame and wipes both its metadata encoding
 // and the assembled frame when the write finishes.
 func writeRequest(w io.Writer, request Request) error {
-	metadata, err := json.Marshal(requestMetadata{Command: request.Command, Directory: request.Directory, References: request.References})
+	metadata, err := json.Marshal(requestMetadata{Command: request.Command, Directory: request.Directory, References: request.References, Arbitrate: request.Arbitrate})
 	if err != nil {
 		return err
 	}
@@ -312,7 +478,7 @@ func readRequest(r io.Reader) (Request, error) {
 	if identityLen > MaxMessage-12-metadataLen {
 		return request, errors.New("request too large")
 	}
-	request.Command, request.Directory, request.References = decoded.Command, decoded.Directory, decoded.References
+	request.Command, request.Directory, request.References, request.Arbitrate = decoded.Command, decoded.Directory, decoded.References, decoded.Arbitrate
 	if identityLen > 0 {
 		request.Identity = make([]byte, identityLen)
 		if _, err := io.ReadFull(r, request.Identity); err != nil {

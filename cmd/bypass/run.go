@@ -186,9 +186,13 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 		if err != nil {
 			return err
 		}
+		widgetPath, err := runpkg.WidgetSocketPath()
+		if err != nil {
+			return err
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 		defer cancel()
-		response, err := runpkg.Exchange(ctx, path, runpkg.Request{Command: command, Directory: cwd, References: list, Identity: identityBytes})
+		response, err := runpkg.ExchangeAny(ctx, []string{path, widgetPath}, runpkg.Request{Command: command, Directory: cwd, References: list, Identity: identityBytes})
 		if err != nil {
 			return err
 		}
