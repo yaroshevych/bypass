@@ -32,6 +32,8 @@ Panel {
   property string revealedField: ""
   property string revealedValue: ""
   property string revealPending: ""
+  property int selectedItem: -1
+  property bool focusSearchOnResults: false
   Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
   component BodyText: Text {
@@ -123,8 +125,18 @@ Panel {
           root.moveList("recent", -1, 1)
       })
     }
-    else if (result.action === "open") { screen = "items"; send({action: "items", query: ""}) }
-    else if (result.action === "items") items = result.items || []
+    else if (result.action === "open") { screen = "items"; focusSearchOnResults = true; send({action: "items", query: ""}) }
+    else if (result.action === "items") {
+      items = result.items || []
+      selectedItem = -1
+      if (focusSearchOnResults) {
+        focusSearchOnResults = false
+        Qt.callLater(function() {
+          if (root.opened && root.screen === "items" && panel.loadedContent)
+            panel.loadedContent.queryField.forceActiveFocus()
+        })
+      }
+    }
     else if (result.action === "fields") { fields = result.fields || []; screen = "fields" }
     else if (result.action === "review") review = result
     else if (result.action === "approve" || result.action === "deny") { requestId = ""; review = ({}); screen = previousScreen }
@@ -132,6 +144,13 @@ Panel {
   }
   function openVault(path) { vaultPath = path; errorText = ""; screen = "password" }
   function openItem(item) { itemId = item.ID; itemTitle = item.Title; send({action: "fields", id: item.ID}) }
+  function moveItemSelection(direction) {
+    if (items.length === 0) { selectedItem = -1; return }
+    selectedItem = Math.max(-1, Math.min(items.length - 1, selectedItem + direction))
+    if (selectedItem < 0 || !panel.loadedContent) return
+    const target = panel.loadedContent.itemRepeater.itemAt(selectedItem)
+    if (target) panel.loadedContent.ensureVisible(target)
+  }
   function moveList(list, index, direction) {
     if (!panel.loadedContent) return
     const content = panel.loadedContent
@@ -261,8 +280,9 @@ Panel {
             placeholderText: strings.t("search")
             Layout.fillWidth: true
             onTextChanged: root.send({action: "items", query: text})
-            Keys.onDownPressed: function(event) { root.moveList("items", -1, 1); event.accepted = true }
-            onAccepted: if (root.items.length > 0) root.openItem(root.items[0])
+            Keys.onDownPressed: function(event) { root.moveItemSelection(1); event.accepted = true }
+            Keys.onUpPressed: function(event) { root.moveItemSelection(-1); event.accepted = true }
+            onAccepted: if (root.items.length > 0) root.openItem(root.items[Math.max(0, root.selectedItem)])
           }
           PanelSectionHeader { text: searchField.text === "" ? strings.t("vault.favorites") : strings.t("vault.results"); Layout.fillWidth: true }
           Repeater {
@@ -274,6 +294,7 @@ Panel {
               required property int index
               navigationList: "items"
               navigationIndex: index
+              hasCursor: searchField.activeFocus && root.selectedItem === index
               text: modelData.Title
               iconText: "󰌋"
               onClicked: root.openItem(itemButton.modelData)
