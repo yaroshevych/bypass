@@ -69,6 +69,46 @@ func TestArbitratedServerRejectsDisconnectedClient(t *testing.T) {
 	}
 }
 
+func TestArbitrationCommitsOnlySelectedServer(t *testing.T) {
+	clients := make([]net.Conn, 2)
+	accepted := make(chan bool, 2)
+	server := &Server{done: make(chan struct{})}
+	for i := range clients {
+		client, conn := net.Pipe()
+		clients[i] = client
+		defer conn.Close()
+		go server.serveAuthenticated(conn, nil, func(p *Pending) { accepted <- p.Reply(Response{}) })
+		if err := writeRequest(client, Request{Command: []string{"test"}, References: []string{"ref"}, Arbitrate: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, client := range clients {
+		var response Response
+		if err := readResponse(client, &response); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := clients[0].Write([]byte{1}); err != nil {
+		t.Fatal(err)
+	}
+	clients[0].Close()
+	clients[1].Close()
+	count := 0
+	for range clients {
+		select {
+		case result := <-accepted:
+			if result {
+				count++
+			}
+		case <-time.After(time.Second):
+			t.Fatal("server did not finish")
+		}
+	}
+	if count != 1 {
+		t.Fatalf("accepted %d responses, want one", count)
+	}
+}
+
 func TestArbitratedReplyRequiresAcknowledgement(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
