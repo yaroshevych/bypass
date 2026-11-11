@@ -353,19 +353,19 @@ Panel {
                   Layout.fillWidth: true
                 }
                 PanelActionButton {
-                  iconText: "󰆏"
-                  tooltipText: strings.t("copy.value")
-                  focusable: true
-                  opacity: fieldRow.actionsHovered || activeFocus ? 1 : 0
-                  onClicked: root.send({action: "copy", id: root.itemId, field: modelData.Name})
-                }
-                PanelActionButton {
                   visible: modelData.Name === "Password" || modelData.Name === "TOTP"
                   iconText: root.revealedField === modelData.Name ? "󰈉" : "󰈈"
                   tooltipText: root.revealedField === modelData.Name ? strings.t("secret.hide") : strings.t("secret.reveal")
                   focusable: true
                   opacity: fieldRow.actionsHovered || activeFocus ? 1 : 0
                   onClicked: root.toggleReveal(modelData.Name)
+                }
+                PanelActionButton {
+                  iconText: "󰆏"
+                  tooltipText: strings.t("copy.value")
+                  focusable: true
+                  opacity: fieldRow.actionsHovered || activeFocus ? 1 : 0
+                  onClicked: root.send({action: "copy", id: root.itemId, field: modelData.Name})
                 }
               }
             }
