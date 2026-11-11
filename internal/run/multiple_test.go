@@ -3,6 +3,7 @@ package run
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -106,6 +107,100 @@ func TestArbitrationCommitsOnlySelectedServer(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("accepted %d responses, want one", count)
+	}
+}
+
+func TestExchangeAnySelectsOneDecision(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	server := &Server{done: make(chan struct{})}
+	pending := make(chan *Pending, 2)
+	dial := func(_ context.Context, _ string) (net.Conn, error) {
+		client, conn := net.Pipe()
+		go func() { defer conn.Close(); server.serveAuthenticated(conn, nil, func(p *Pending) { pending <- p }) }()
+		return client, nil
+	}
+	result := make(chan error, 1)
+	go func() {
+		response, err := exchangeAny(ctx, []string{"terminal", "widget"}, Request{Command: []string{"test"}, References: []string{"ref"}}, dial, func(net.Conn) error { return nil })
+		if err == nil && string(response.Values["ref"]) != "synthetic" {
+			err = errors.New("wrong response")
+		}
+		clearResponse(&response)
+		result <- err
+	}()
+	var first, second *Pending
+	select {
+	case first = <-pending:
+	case <-ctx.Done():
+		t.Fatal("first server missed request")
+	}
+	select {
+	case second = <-pending:
+	case <-ctx.Done():
+		t.Fatal("second server missed request")
+	}
+	accepted := make(chan bool, 1)
+	go func() { accepted <- first.Reply(Response{Values: map[string][]byte{"ref": []byte("synthetic")}}) }()
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("exchange did not finish")
+	}
+	select {
+	case ok := <-accepted:
+		if !ok {
+			t.Fatal("winner not committed")
+		}
+	case <-ctx.Done():
+		t.Fatal("winner did not finish")
+	}
+	select {
+	case <-second.Context.Done():
+	case <-ctx.Done():
+		t.Fatal("loser was not cancelled")
+	}
+}
+
+func TestExchangeAnyWaitsAfterUnavailableVault(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	server := &Server{done: make(chan struct{})}
+	pending := make(chan *Pending, 2)
+	dial := func(_ context.Context, _ string) (net.Conn, error) {
+		client, conn := net.Pipe()
+		go func() { defer conn.Close(); server.serveAuthenticated(conn, nil, func(p *Pending) { pending <- p }) }()
+		return client, nil
+	}
+	done := make(chan error, 1)
+	go func() {
+		response, err := exchangeAny(ctx, []string{"terminal", "widget"}, Request{Command: []string{"test"}, References: []string{"ref"}}, dial, func(net.Conn) error { return nil })
+		clearResponse(&response)
+		done <- err
+	}()
+	var first, second *Pending
+	select {
+	case first = <-pending:
+	case <-ctx.Done():
+		t.Fatal("first request missing")
+	}
+	select {
+	case second = <-pending:
+	case <-ctx.Done():
+		t.Fatal("second request missing")
+	}
+	go first.Reply(Response{Error: "entry not found in unlocked vault"})
+	go second.Reply(Response{Values: map[string][]byte{"ref": []byte("synthetic")}})
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("available server did not win: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("exchange did not complete")
 	}
 }
 

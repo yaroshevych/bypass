@@ -267,6 +267,18 @@ func Exchange(ctx context.Context, path string, request Request) (Response, erro
 // complete response. Transport failures do not override another server's
 // pending decision. A rejection is a complete response and wins as well.
 func ExchangeAny(ctx context.Context, paths []string, request Request) (Response, error) {
+	return exchangeAny(ctx, paths, request, func(ctx context.Context, path string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", path)
+	}, func(conn net.Conn) error {
+		unix, ok := conn.(*net.UnixConn)
+		if !ok {
+			return errors.New("invalid IPC connection")
+		}
+		return authenticate(unix)
+	})
+}
+
+func exchangeAny(ctx context.Context, paths []string, request Request, dial func(context.Context, string) (net.Conn, error), verify func(net.Conn) error) (Response, error) {
 	defer wipebuf.Wipe(request.Identity)
 	if len(paths) == 0 {
 		return Response{}, errors.New("Bypass unavailable; open Bypass and unlock the required vault")
@@ -287,18 +299,13 @@ func ExchangeAny(ctx context.Context, paths []string, request Request) (Response
 		copyRequest.Arbitrate = true
 		go func() {
 			defer wipebuf.Wipe(copyRequest.Identity)
-			conn, err := (&net.Dialer{}).DialContext(ctx, "unix", path)
+			conn, err := dial(ctx, path)
 			if err != nil {
 				results <- result{err: errors.New("Bypass unavailable; open Bypass and unlock the required vault")}
 				return
 			}
 			defer conn.Close()
-			unix, ok := conn.(*net.UnixConn)
-			if !ok {
-				results <- result{err: errors.New("invalid IPC connection")}
-				return
-			}
-			if err := authenticate(unix); err != nil {
+			if err := verify(conn); err != nil {
 				results <- result{err: err}
 				return
 			}
