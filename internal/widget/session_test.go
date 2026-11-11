@@ -70,6 +70,20 @@ func TestSessionVaultLifecycle(t *testing.T) {
 	if len(driver.value) == 0 || string(driver.value[:9]) != "bypass://" {
 		t.Fatal("reference copy failed")
 	}
+	targets, err := s.Targets(ctx, []string{string(driver.value)})
+	if err != nil || len(targets) != 1 {
+		t.Fatalf("target resolution failed: %v", err)
+	}
+	resolved, err := s.ResolveApproved(ctx, targets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(resolved[targets[0].Reference]) != "synthetic secret" {
+		t.Fatal("approval resolved the wrong value")
+	}
+	for _, value := range resolved {
+		clear(value)
+	}
 	if err := s.Lock(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -78,5 +92,8 @@ func TestSessionVaultLifecycle(t *testing.T) {
 	}
 	if _, err := s.Items(ctx, ""); err == nil {
 		t.Fatal("locked vault remained accessible")
+	}
+	if _, err := s.ResolveApproved(ctx, targets); err == nil {
+		t.Fatal("approved a locked vault")
 	}
 }
