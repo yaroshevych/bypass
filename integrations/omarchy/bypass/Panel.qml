@@ -162,8 +162,9 @@ Panel {
     }
     return false
   }
+  Timer { id: searchTimer; interval: 120; repeat: false; onTriggered: root.send({action: "items", query: panel.loadedContent.queryField.text}) }
   function showAllItems() {
-    if (panel.loadedContent) panel.loadedContent.queryField.text = "*"
+    if (panel.loadedContent) { searchTimer.stop(); panel.loadedContent.queryField.text = "*"; send({action: "items", query: "*"}) }
   }
   function moveList(list, index, direction) {
     if (!panel.loadedContent) return
@@ -365,7 +366,7 @@ Panel {
               Layout.fillWidth: true
               Layout.minimumWidth: 0
               Layout.maximumHeight: implicitHeight
-              onTextChanged: root.send({action: "items", query: text})
+              onTextChanged: searchTimer.restart()
               Keys.onDownPressed: function(event) { root.moveList("items", -1, 1); event.accepted = true }
               Keys.onUpPressed: function(event) { root.moveList("items", -1, -1); event.accepted = true }
               Keys.onEscapePressed: function(event) { event.accepted = root.escapeView() }
