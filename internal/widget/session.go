@@ -3,6 +3,7 @@ package widget
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
 	"time"
 
@@ -102,15 +103,67 @@ func (s *Session) Fields(ctx context.Context, id string) ([]Field, error) {
 	if err != nil {
 		return nil, err
 	}
+	for _, entry := range s.db.Entries {
+		if entry.UUID == id && !entry.Recycled && entry.HasTOTP {
+			filtered := fields[:0]
+			for _, field := range fields {
+				if field.Name != "TOTP" {
+					filtered = append(filtered, field)
+				}
+			}
+			fields = append(filtered, vault.Field{Name: "TOTP", Protected: true})
+			break
+		}
+	}
+	sort.SliceStable(fields, func(i, j int) bool { return fieldOrder(fields[i].Name) < fieldOrder(fields[j].Name) })
 	result := make([]Field, 0, len(fields))
 	for _, field := range fields {
 		value := field.Value
-		if field.Protected {
+		protected := field.Protected || field.Name == "Password" || field.Name == "TOTP"
+		if protected {
 			value = ""
 		}
-		result = append(result, Field{Name: field.Name, Value: value, Protected: field.Protected})
+		result = append(result, Field{Name: field.Name, Value: value, Protected: protected})
 	}
 	return result, nil
+}
+
+func fieldOrder(name string) int {
+	switch name {
+	case "UserName":
+		return 0
+	case "Password":
+		return 1
+	case "URL":
+		return 2
+	case "Notes":
+		return 3
+	case "Email":
+		return 4
+	case "TOTP":
+		return 5
+	default:
+		return 6
+	}
+}
+
+// Reveal returns only the password or generated one-time code. The caller
+// owns the returned bytes and must clear them after use.
+func (s *Session) Reveal(ctx context.Context, id, field string) ([]byte, int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.db == nil {
+		return nil, 0, errors.New("vault is locked")
+	}
+	if field == "TOTP" {
+		result, err := s.backend.TOTP(ctx, s.db, vault.Credentials{}, id)
+		return result.Code, result.RemainingSeconds, err
+	}
+	if field != "Password" {
+		return nil, 0, errors.New("field cannot be revealed")
+	}
+	value, err := s.backend.ResolveField(ctx, s.db, vault.Credentials{}, id, field)
+	return value, 0, err
 }
 
 func (s *Session) CopyValue(ctx context.Context, id, field string) error {
@@ -154,7 +207,7 @@ func (s *Session) CopyReference(ctx context.Context, id, field string) error {
 	if err != nil {
 		return err
 	}
-	found := false
+	found := field == "TOTP" && selected.HasTOTP
 	for _, candidate := range fields {
 		if candidate.Name == field {
 			found = true

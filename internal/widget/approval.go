@@ -82,7 +82,7 @@ func (s *Session) targets(ctx context.Context, references []string) ([]Target, e
 		if err != nil {
 			return nil, err
 		}
-		found := false
+		found := field == "TOTP" && selected.HasTOTP
 		for _, item := range fields {
 			if item.Name == field {
 				found = true

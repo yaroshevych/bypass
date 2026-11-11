@@ -29,7 +29,7 @@ func TestSessionVaultLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated, err := backend.Apply(ctx, db, creds, vault.Change{Kind: vault.AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Example", "Tags": "Favorite"}, PasswordChanged: true, Password: []byte("synthetic secret")}, filepath.Join(t.TempDir(), "backups"))
+	updated, err := backend.Apply(ctx, db, creds, vault.Change{Kind: vault.AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Example", "Tags": "Favorite", "URL": "https://example.test", "Notes": "first\nsecond", "TOTP Seed": "JBSWY3DPEHPK3PXP"}, PasswordChanged: true, Password: []byte("synthetic secret")}, filepath.Join(t.TempDir(), "backups"))
 	db.Clear()
 	if err != nil {
 		t.Fatal(err)
@@ -61,6 +61,40 @@ func TestSessionVaultLifecycle(t *testing.T) {
 		if field.Protected && field.Value != "" {
 			t.Fatal("protected value exposed")
 		}
+	}
+	last := -1
+	foundTOTP := false
+	for _, field := range fields {
+		if rank := fieldOrder(field.Name); rank < last {
+			t.Fatal("fields are not in TUI order")
+		} else {
+			last = rank
+		}
+		if field.Name == "TOTP" {
+			foundTOTP = field.Protected && field.Value == ""
+		}
+	}
+	if !foundTOTP {
+		t.Fatal("generated TOTP field is missing or unmasked")
+	}
+	passwordValue, _, err := s.Reveal(ctx, items[0].ID, "Password")
+	if err != nil || string(passwordValue) != "synthetic secret" {
+		t.Fatal("password reveal failed")
+	}
+	clear(passwordValue)
+	code, remaining, err := s.Reveal(ctx, items[0].ID, "TOTP")
+	if err != nil || len(code) != 6 || remaining < 1 {
+		t.Fatal("TOTP reveal failed")
+	}
+	clear(code)
+	if _, _, err := s.Reveal(ctx, items[0].ID, "TOTP Seed"); err == nil {
+		t.Fatal("seed was revealable")
+	}
+	if err := s.CopyReference(ctx, items[0].ID, "TOTP"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Targets(ctx, []string{string(driver.value)}); err != nil {
+		t.Fatal("generated TOTP reference cannot be resolved")
 	}
 	if err := s.CopyValue(ctx, items[0].ID, "Password"); err != nil {
 		t.Fatal(err)

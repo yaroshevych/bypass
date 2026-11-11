@@ -36,6 +36,9 @@ type widgetResponse struct {
 	Directory string          `json:"directory,omitempty"`
 	Agent     string          `json:"agent,omitempty"`
 	Caller    []string        `json:"caller,omitempty"`
+	Field     string          `json:"field,omitempty"`
+	Value     string          `json:"value,omitempty"`
+	Remaining int             `json:"remaining,omitempty"`
 }
 
 // widgetCommand communicates over the private pipes inherited from the shell.
@@ -126,6 +129,15 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 			response.Items, err = session.Items(ctx, request.Query)
 		case "fields":
 			response.Fields, err = session.Fields(ctx, request.ID)
+		case "reveal":
+			var value []byte
+			value, response.Remaining, err = session.Reveal(ctx, request.ID, request.Field)
+			if err == nil {
+				response.ID = request.ID
+				response.Field = request.Field
+				response.Value = string(value)
+			}
+			clear(value)
 		case "copy":
 			err = session.CopyValue(ctx, request.ID, request.Field)
 		case "copy-reference":
