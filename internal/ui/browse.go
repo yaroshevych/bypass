@@ -697,6 +697,9 @@ func (m *Model) adjustViewport() {
 }
 
 func visibleField(e vault.Entry, name string) string {
+	if name == "TOTP" && e.HasTOTP {
+		return "••••••"
+	}
 	if e.IsProtected(name) || name == "Password" {
 		return "••••••••"
 	}

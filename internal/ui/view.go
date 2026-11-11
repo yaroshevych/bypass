@@ -1291,6 +1291,8 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 		label := name
 		if name == "UserName" {
 			label = "Username"
+		} else if name == "TOTP" {
+			label = "2FA Code"
 		}
 		label = strings.ToUpper(safe(label))
 		labelLine := secondary.Render(" " + label)

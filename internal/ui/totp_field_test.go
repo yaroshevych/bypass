@@ -18,13 +18,20 @@ func TestTOTPFieldMaskedRevealRefreshAndLock(t *testing.T) {
 			entry := &m.ws.ActiveSession().DB.Entries[0]
 			applyEntryDetails(entry, []vault.Field{{Name: "TOTP", Protected: true}})
 			m.searchCache = nil
+			names := m.fieldNames()
+			if len(names) < 3 || names[1] != "Password" || names[2] != "TOTP" {
+				t.Fatalf("field order = %v, want TOTP immediately after Password", names)
+			}
 			for i, name := range m.fieldNames() {
 				if name == "TOTP" {
 					m.ws.ActiveView().FieldIndex = i
 				}
 			}
 			m.ws.ActiveView().Focus = 2
-			if m.focusedField() != "TOTP" || visibleField(*entry, "TOTP") != "••••••••" {
+			if !strings.Contains(m.View(), "2FA CODE") {
+				t.Fatal("2FA Code label missing")
+			}
+			if m.focusedField() != "TOTP" || visibleField(*entry, "TOTP") != "••••••" {
 				t.Fatal("TOTP field missing or unmasked")
 			}
 			execute(t, m, m.toggleReveal())
