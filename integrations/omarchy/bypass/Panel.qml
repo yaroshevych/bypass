@@ -243,19 +243,20 @@ Panel {
       implicitHeight: contentColumn.implicitHeight
       contentWidth: availableWidth
       clip: true
+      Keys.priority: Keys.BeforeItem
       Keys.onEscapePressed: function(event) { event.accepted = root.escapeView() }
       Keys.onUpPressed: function(event) {
         if (root.screen !== "fields") { event.accepted = false; return }
         const view = scroll.contentItem
         if (view.contentY <= 0) { event.accepted = false; return }
-        view.contentY = Math.max(0, view.contentY - Style.space(42))
+        view.contentY = Math.max(0, view.contentY - Math.max(Style.space(42), view.height * 0.8))
         event.accepted = true
       }
       Keys.onDownPressed: function(event) {
         if (root.screen !== "fields") { event.accepted = false; return }
         const view = scroll.contentItem
         if (view.contentY + view.height >= view.contentHeight) { event.accepted = false; return }
-        view.contentY = Math.min(view.contentHeight - view.height, view.contentY + Style.space(42))
+        view.contentY = Math.min(view.contentHeight - view.height, view.contentY + Math.max(Style.space(42), view.height * 0.8))
         event.accepted = true
       }
       ColumnLayout {
