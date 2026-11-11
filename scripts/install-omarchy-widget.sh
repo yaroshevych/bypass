@@ -8,7 +8,6 @@ plugindir="$pluginroot/bypass.vault"
 
 command -v omarchy >/dev/null || { printf '%s\n' 'Omarchy is required.' >&2; exit 1; }
 command -v go >/dev/null || { printf '%s\n' 'Go is required.' >&2; exit 1; }
-command -v sha256sum >/dev/null || { printf '%s\n' 'sha256sum is required.' >&2; exit 1; }
 omarchy plugin validate "$root/integrations/omarchy/bypass"
 mkdir -p "$root/bin"
 (cd "$root" && go build -trimpath -o bin/bypass ./cmd/bypass)
@@ -31,18 +30,14 @@ staging=$(mktemp -d "$pluginroot/../.bypass-install.XXXXXX")
 install -m 755 "$root/bin/bypass" "$tmpbinary"
 mv -f "$tmpbinary" "$bindir/bypass"
 install -d "$staging/plugin/i18n"
-panelhash=$(sha256sum "$root/integrations/omarchy/bypass/Panel.qml")
-panelhash=${panelhash%% *}
-panelname="Panel_$panelhash.qml"
-install -m 644 "$root/integrations/omarchy/bypass/Panel.qml" "$staging/plugin/$panelname"
-sed "s/\"Panel.qml\"/\"$panelname\"/" "$root/integrations/omarchy/bypass/manifest.json" > "$staging/plugin/manifest.json"
+install -m 644 "$root/integrations/omarchy/bypass/Panel.qml" "$root/integrations/omarchy/bypass/manifest.json" "$staging/plugin/"
 install -m 644 "$root/integrations/omarchy/bypass/i18n/"*.json "$staging/plugin/i18n/"
 omarchy plugin validate "$staging/plugin"
 if [ -e "$plugindir" ] || [ -L "$plugindir" ]; then
   mv "$plugindir" "$staging/previous"
 fi
 mv "$staging/plugin" "$plugindir"
-omarchy-shell shell rescanPlugins
+omarchy restart shell
 omarchy bar put bypass.vault --section right
 printf '%s\n' "Installed Bypass to $bindir and added its Omarchy widget."
 printf '%s\n' 'Restart any running Bypass TUI so both processes use the same executable.'
