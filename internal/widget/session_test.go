@@ -64,6 +64,12 @@ func TestSessionVaultLifecycle(t *testing.T) {
 	if string(driver.value) != "synthetic secret" {
 		t.Fatal("copy failed")
 	}
+	if err := s.CopyReference(ctx, items[0].ID, "Password"); err != nil {
+		t.Fatal(err)
+	}
+	if len(driver.value) == 0 || string(driver.value[:9]) != "bypass://" {
+		t.Fatal("reference copy failed")
+	}
 	if err := s.Lock(ctx); err != nil {
 		t.Fatal(err)
 	}

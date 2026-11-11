@@ -124,6 +124,52 @@ func (s *Session) CopyValue(ctx context.Context, id, field string) error {
 	return s.clipboard.Copy(ctx, value, time.Now(), s.clipboardTimeout)
 }
 
+// CopyReference copies a reference only when it uniquely identifies the entry.
+func (s *Session) CopyReference(ctx context.Context, id, field string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.db == nil {
+		return errors.New("vault is locked")
+	}
+	var selected *vault.Entry
+	for i := range s.db.Entries {
+		entry := &s.db.Entries[i]
+		if entry.UUID == id && !entry.Recycled {
+			selected = entry
+			break
+		}
+	}
+	if selected == nil {
+		return errors.New("entry unavailable")
+	}
+	for _, entry := range s.db.Entries {
+		if !entry.Recycled && entry.UUID != id && entry.GroupPath == selected.GroupPath && entry.Get("Title") == selected.Get("Title") {
+			return errors.New("entry reference is ambiguous")
+		}
+	}
+	fields, err := s.backend.EntryDetails(ctx, s.db, id)
+	if err != nil {
+		return err
+	}
+	found := false
+	for _, candidate := range fields {
+		if candidate.Name == field {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return errors.New("field unavailable")
+	}
+	ref, err := FieldReference(s.db.Path, selected.GroupPath, selected.Get("Title"), field)
+	if err != nil {
+		return err
+	}
+	value := []byte(ref)
+	defer clear(value)
+	return s.clipboard.Copy(ctx, value, time.Now(), s.clipboardTimeout)
+}
+
 func (s *Session) ExpireClipboard(ctx context.Context, now time.Time) error {
 	_, err := s.clipboard.Expire(ctx, now)
 	return err
