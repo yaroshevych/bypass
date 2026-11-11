@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	gok "github.com/tobischo/gokeepasslib/v3"
+	"github.com/tobischo/gokeepasslib/v3/wrappers"
 )
 
 func TestCustomDataModificationTimeSurvivesSave(t *testing.T) {
@@ -47,6 +48,38 @@ func TestCustomDataModificationTimeSurvivesSave(t *testing.T) {
 	items := reopened.native.db.Content.Meta.CustomData
 	if len(items) != 1 || items[0].Key != "plugin" || items[0].Value != "value" || items[0].LastModificationTime == nil || *items[0].LastModificationTime != stamp {
 		t.Fatalf("custom metadata did not survive save: %#v", items)
+	}
+}
+
+func TestNativeModelInheritsGroupSearchSetting(t *testing.T) {
+	db := gok.NewDatabase()
+	root := gok.NewGroup()
+	root.Name = "Root"
+	root.EnableSearching = wrappers.NullableBoolWrapper{}
+	inherited := gok.NewGroup()
+	inherited.Name = "Inherited"
+	inherited.EnableSearching = wrappers.NullableBoolWrapper{}
+	disabled := gok.NewGroup()
+	disabled.Name = "Disabled"
+	disabled.EnableSearching = wrappers.NewNullableBoolWrapper(false)
+	child := gok.NewGroup()
+	child.Name = "Disabled child"
+	child.EnableSearching = wrappers.NullableBoolWrapper{}
+	enabled := gok.NewGroup()
+	enabled.Name = "Re-enabled"
+	enabled.EnableSearching = wrappers.NewNullableBoolWrapper(true)
+	disabled.Groups = []gok.Group{child, enabled}
+	root.Groups = []gok.Group{inherited, disabled}
+	db.Content.Root.Groups = []gok.Group{root}
+	model, err := nativeModel(&nativeState{db: db})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"Root": true, "Inherited": true, "Disabled": false, "Disabled child": false, "Re-enabled": true}
+	for _, group := range model.Groups {
+		if group.SearchEnabled != want[group.Name] {
+			t.Errorf("group %q search = %v, want %v", group.Name, group.SearchEnabled, want[group.Name])
+		}
 	}
 }
 

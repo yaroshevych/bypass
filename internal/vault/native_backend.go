@@ -589,8 +589,8 @@ func nativeModel(state *nativeState) (*Database, error) {
 	d.Name = meta.DatabaseName
 	d.RecycleBinUUID = uuidString(meta.RecycleBinUUID)
 	rootGroups := state.db.Content.Root.Groups
-	var visit func(g *gok.Group, parent, path string, recycled bool)
-	visit = func(g *gok.Group, parent, path string, recycled bool) {
+	var visit func(g *gok.Group, parent, path string, recycled, inheritedSearch bool)
+	visit = func(g *gok.Group, parent, path string, recycled, inheritedSearch bool) {
 		id := uuidString(g.UUID)
 		if d.RootUUID == "" && parent == "" {
 			d.RootUUID = id
@@ -600,21 +600,21 @@ func nativeModel(state *nativeState) (*Database, error) {
 			gpath = strings.TrimSuffix(path, "/") + "/" + g.Name + "/"
 		}
 		isRecycled := recycled || id == d.RecycleBinUUID
-		if g.Name == "" {
-			d.Groups = append(d.Groups, Group{UUID: id, ParentUUID: parent, Path: gpath, Recycled: isRecycled, SearchEnabled: true, Name: ""})
-		} else {
-			d.Groups = append(d.Groups, Group{UUID: id, ParentUUID: parent, Path: gpath, Name: g.Name, Recycled: isRecycled, SearchEnabled: g.EnableSearching.Bool})
+		searchEnabled := inheritedSearch
+		if g.EnableSearching.Valid {
+			searchEnabled = g.EnableSearching.Bool
 		}
+		d.Groups = append(d.Groups, Group{UUID: id, ParentUUID: parent, Path: gpath, Name: g.Name, Recycled: isRecycled, SearchEnabled: searchEnabled})
 		for i := range g.Entries {
 			e := &g.Entries[i]
 			d.Entries = append(d.Entries, nativeEntry(e, id, gpath, isRecycled, false))
 		}
 		for i := range g.Groups {
-			visit(&g.Groups[i], id, gpath, isRecycled)
+			visit(&g.Groups[i], id, gpath, isRecycled, searchEnabled)
 		}
 	}
 	for i := range rootGroups {
-		visit(&rootGroups[i], "", "/", false)
+		visit(&rootGroups[i], "", "/", false, true)
 	}
 	if d.RootUUID == "" {
 		return nil, ErrMalformed
