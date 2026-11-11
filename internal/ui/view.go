@@ -1358,13 +1358,18 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 			}
 		}
 	}
-	if len(e.Tags) > 0 {
+	if len(e.Tags) > 0 || len(e.AttachmentNames) > 0 {
 		lines = append(lines, "")
+	}
+	if len(e.Tags) > 0 {
 		tagLine := safe("Tags: " + strings.Join(e.Tags, ", "))
 		for _, line := range strings.Split(ansi.Wrap(tagLine, max(1, width-2), ""), "\n") {
 			lines = append(lines, secondary.Render(" "+line))
 		}
-	} else if len(names) > 0 && names[len(names)-1] == "Notes" && strings.Contains(e.Get("Notes"), "\n") {
+	}
+	if len(e.AttachmentNames) > 0 {
+		lines = append(lines, secondary.Render(fmt.Sprintf(" Attachments: %d", len(e.AttachmentNames))))
+	} else if len(e.Tags) == 0 && len(names) > 0 && names[len(names)-1] == "Notes" && strings.Contains(e.Get("Notes"), "\n") {
 		lines = append(lines, "")
 	}
 	return lines, positions
