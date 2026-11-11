@@ -6,6 +6,7 @@ import QtQuick.Dialogs
 import Quickshell
 import Quickshell.Io
 import qs.Ui
+import qs.Ui as Ui
 import qs.Commons
 import qs.Commons as Commons
 
@@ -29,6 +30,20 @@ Panel {
   property var review: ({})
   property string previousScreen: "recent"
   Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
+
+  component BodyText: Text {
+    textFormat: Text.PlainText
+    color: Commons.Color.foreground
+    font.family: Style.font.family
+    font.pixelSize: Style.font.body
+  }
+  component WideButton: Ui.Button {
+    Layout.fillWidth: true
+    implicitHeight: Style.space(42)
+    bordered: true
+    focusable: true
+    leftAlign: true
+  }
 
   onOpenedChanged: {
     if (!opened) {
@@ -96,38 +111,52 @@ Panel {
     open: root.opened
     focusTarget: !panel.loadedContent ? null : root.screen === "password" ? panel.loadedContent.passwordField : root.screen === "items" ? panel.loadedContent.queryField : panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
-    contentHeight: panel.fittedContentHeight(Style.space(500))
+    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(560))
     content: ScrollView {
+      id: scroll
       property alias passwordField: password
       property alias queryField: searchField
+      implicitHeight: contentColumn.implicitHeight
+      contentWidth: availableWidth
       clip: true
       ColumnLayout {
-        width: parent.width
-        spacing: 8
-        Label { text: "Bypass"; font.bold: true; font.pixelSize: 22 }
-        Label { visible: root.errorText !== ""; text: root.errorText; textFormat: Text.PlainText; wrapMode: Text.Wrap; Layout.fillWidth: true }
-        Label { visible: root.approvalError !== ""; text: root.approvalError; textFormat: Text.PlainText; wrapMode: Text.Wrap; Layout.fillWidth: true }
-        Controls.Button { visible: root.requests.length > 0 && root.screen !== "approval"; text: strings.t("approval.review"); onClicked: root.reviewRequest(root.requests[0]) }
+        id: contentColumn
+        width: scroll.availableWidth
+        spacing: Style.space(14)
+        PanelHero {
+          Layout.fillWidth: true
+          title: "bypass"
+          meta: strings.t("vault.subtitle")
+          iconComponent: Component {
+            BodyText { text: "󰌾"; font.pixelSize: Style.font.display }
+          }
+        }
+        BodyText { visible: root.errorText !== ""; text: root.errorText; color: Commons.Color.urgent; wrapMode: Text.Wrap; Layout.fillWidth: true }
+        BodyText { visible: root.approvalError !== ""; text: root.approvalError; color: Commons.Color.urgent; wrapMode: Text.Wrap; Layout.fillWidth: true }
+        WideButton { visible: root.requests.length > 0 && root.screen !== "approval"; text: strings.t("approval.review"); onClicked: root.reviewRequest(root.requests[0]) }
         ColumnLayout {
           visible: root.screen === "recent"
           Layout.fillWidth: true
+          spacing: Style.space(8)
+          PanelSeparator { Layout.fillWidth: true }
+          PanelSectionHeader { text: strings.t("vault.recent"); Layout.fillWidth: true }
           Repeater {
             model: root.recent
-            Controls.Button {
+            WideButton {
               id: recentButton
               required property string modelData
               text: modelData
-              contentItem: Label { text: recentButton.text; textFormat: Text.PlainText; elide: Text.ElideMiddle }
-              Layout.fillWidth: true
-              onClicked: root.openVault(modelData)
+              iconText: "󰌾"
+              onClicked: root.openVault(recentButton.modelData)
             }
           }
-          Controls.Button { text: strings.t("vault.open_ellipsis"); Layout.fillWidth: true; onClicked: picker.open() }
+          WideButton { text: strings.t("vault.open_ellipsis"); iconText: "󰝰"; onClicked: picker.open() }
         }
         ColumnLayout {
           visible: root.screen === "password"
           Layout.fillWidth: true
-          Label { text: root.vaultPath; textFormat: Text.PlainText; elide: Text.ElideMiddle; Layout.fillWidth: true }
+          PanelSeparator { Layout.fillWidth: true }
+          BodyText { text: root.vaultPath; elide: Text.ElideMiddle; Layout.fillWidth: true }
           TextField {
             id: password
             placeholderText: strings.t("vault.password")
@@ -135,31 +164,34 @@ Panel {
             Layout.fillWidth: true
             onAccepted: { root.send({action: "open", path: root.vaultPath, password: text}); text = "" }
           }
-          Controls.Button { text: strings.t("vault.unlock"); Layout.fillWidth: true; onClicked: { root.send({action: "open", path: root.vaultPath, password: password.text}); password.text = "" } }
-          Controls.Button { text: strings.t("back"); onClicked: { password.text = ""; root.screen = "recent" } }
+          WideButton { text: strings.t("vault.unlock"); onClicked: { root.send({action: "open", path: root.vaultPath, password: password.text}); password.text = "" } }
+          WideButton { text: strings.t("back"); onClicked: { password.text = ""; root.screen = "recent" } }
         }
         ColumnLayout {
           visible: root.screen === "items"
           Layout.fillWidth: true
+          spacing: Style.space(8)
+          PanelSeparator { Layout.fillWidth: true }
           TextField { id: searchField; placeholderText: strings.t("search"); Layout.fillWidth: true; onTextChanged: root.send({action: "items", query: text}) }
+          PanelSectionHeader { text: searchField.text === "" ? strings.t("vault.favorites") : strings.t("vault.results"); Layout.fillWidth: true }
           Repeater {
             model: root.items
-            Controls.Button {
+            WideButton {
               id: itemButton
               required property var modelData
               text: modelData.Title
-              contentItem: Label { text: itemButton.text; textFormat: Text.PlainText; elide: Text.ElideRight }
-              Layout.fillWidth: true
-              onClicked: { root.itemId = modelData.ID; root.itemTitle = modelData.Title; root.send({action: "fields", id: modelData.ID}) }
+              iconText: "󰌋"
+              onClicked: { root.itemId = itemButton.modelData.ID; root.itemTitle = itemButton.modelData.Title; root.send({action: "fields", id: itemButton.modelData.ID}) }
             }
           }
-          Controls.Button { text: strings.t("vault.lock"); onClicked: root.send({action: "lock"}) }
+          WideButton { text: strings.t("vault.lock"); iconText: "󰌾"; onClicked: root.send({action: "lock"}) }
         }
         ColumnLayout {
           visible: root.screen === "fields"
           Layout.fillWidth: true
-          Controls.Button { text: strings.t("back"); onClicked: { root.fields = []; root.screen = "items" } }
-          Label { text: root.itemTitle; textFormat: Text.PlainText; font.bold: true }
+          PanelSeparator { Layout.fillWidth: true }
+          WideButton { text: strings.t("back"); iconText: "󰁍"; onClicked: { root.fields = []; root.screen = "items" } }
+          PanelSectionHeader { text: root.itemTitle; Layout.fillWidth: true }
           Repeater {
             model: root.fields
             ColumnLayout {
@@ -167,13 +199,13 @@ Panel {
               Layout.fillWidth: true
               RowLayout {
                 Layout.fillWidth: true
-                Label { text: modelData.Name; textFormat: Text.PlainText; Layout.fillWidth: true }
-                Controls.Button { text: strings.t("copy.path"); onClicked: root.send({action: "copy-reference", id: root.itemId, field: modelData.Name}) }
+                BodyText { text: modelData.Name; Layout.fillWidth: true }
+                PanelActionButton { iconText: "󰆏"; tooltipText: strings.t("copy.path"); focusable: true; onClicked: root.send({action: "copy-reference", id: root.itemId, field: modelData.Name}) }
               }
               RowLayout {
                 Layout.fillWidth: true
-                Label { text: modelData.Protected ? "••••••••" : modelData.Value; textFormat: Text.PlainText; elide: Text.ElideRight; Layout.fillWidth: true }
-                Controls.Button { text: strings.t("copy.value"); onClicked: root.send({action: "copy", id: root.itemId, field: modelData.Name}) }
+                BodyText { text: modelData.Protected ? "••••••••" : modelData.Value; color: Qt.darker(Commons.Color.foreground, 1.3); elide: Text.ElideRight; Layout.fillWidth: true }
+                PanelActionButton { iconText: "󰆏"; tooltipText: strings.t("copy.value"); focusable: true; onClicked: root.send({action: "copy", id: root.itemId, field: modelData.Name}) }
               }
             }
           }
@@ -181,18 +213,19 @@ Panel {
         ColumnLayout {
           visible: root.screen === "approval"
           Layout.fillWidth: true
-          Controls.Button { text: strings.t("back"); onClicked: { root.review = ({}); root.screen = root.previousScreen } }
-          Label { text: strings.t("approval.title"); font.bold: true }
-          Label { text: strings.t("approval.agent").arg(root.review.agent || strings.t("approval.unknown")); textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap }
-          Label { text: strings.t("approval.command").arg((root.review.command || []).join(" ")); textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap }
-          Label { text: strings.t("approval.directory").arg(root.review.directory || ""); textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap }
-          Label { text: strings.t("approval.identity_note"); wrapMode: Text.Wrap; Layout.fillWidth: true }
+          PanelSeparator { Layout.fillWidth: true }
+          WideButton { text: strings.t("back"); iconText: "󰁍"; onClicked: { root.review = ({}); root.screen = root.previousScreen } }
+          PanelSectionHeader { text: strings.t("approval.title"); Layout.fillWidth: true }
+          BodyText { text: strings.t("approval.agent").arg(root.review.agent || strings.t("approval.unknown")); Layout.fillWidth: true; wrapMode: Text.Wrap }
+          BodyText { text: strings.t("approval.command").arg((root.review.command || []).join(" ")); Layout.fillWidth: true; wrapMode: Text.Wrap }
+          BodyText { text: strings.t("approval.directory").arg(root.review.directory || ""); Layout.fillWidth: true; wrapMode: Text.Wrap }
+          BodyText { text: strings.t("approval.identity_note"); wrapMode: Text.Wrap; Layout.fillWidth: true }
           Repeater {
             model: root.review.targets || []
-            Label { required property var modelData; text: modelData.Group + "/" + modelData.Title + " #" + modelData.Field; textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap }
+            BodyText { required property var modelData; text: modelData.Group + "/" + modelData.Title + " #" + modelData.Field; Layout.fillWidth: true; wrapMode: Text.Wrap }
           }
-          Controls.Button { text: strings.t("approval.approve"); enabled: (root.review.targets || []).length > 0; Layout.fillWidth: true; onClicked: root.send({action: "approve", id: root.requestId}) }
-          Controls.Button { text: strings.t("approval.deny"); Layout.fillWidth: true; onClicked: root.send({action: "deny", id: root.requestId}) }
+          WideButton { text: strings.t("approval.approve"); enabled: (root.review.targets || []).length > 0; onClicked: root.send({action: "approve", id: root.requestId}) }
+          WideButton { text: strings.t("approval.deny"); onClicked: root.send({action: "deny", id: root.requestId}) }
         }
       }
     }
