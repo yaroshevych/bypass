@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -42,6 +43,10 @@ func TestCLIExitAndHelp(t *testing.T) {
 		}
 		os.Exit(0)
 	}
+	truePath, err := filepath.EvalSymlinks("/usr/bin/true")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -61,7 +66,7 @@ func TestCLIExitAndHelp(t *testing.T) {
 		{"unknown root flag", []string{"--bad-option"}, "bypass --help", true},
 		{"unknown run flag", []string{"run", "--bad-option"}, "bypass run --help", true},
 		{"single dash option", []string{"run", "-timeout", "0s", "--", "x"}, "--timeout must be positive", true},
-		{"no references", []string{"run", "--", "/usr/bin/true"}, "", false},
+		{"no references", []string{"run", "--", truePath}, "", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			args := append([]string{"-test.run=TestCLIExitAndHelp", "--"}, tc.args...)
