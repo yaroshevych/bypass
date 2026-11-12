@@ -48,7 +48,7 @@ func TestCLIExitAndHelp(t *testing.T) {
 		want string
 		fail bool
 	}{
-		{"root help", []string{"--help"}, "Commands:\n  run", false},
+		{"root help", []string{"--help"}, "bypass run [OPTIONS] -- COMMAND", false},
 		{"help command", []string{"help"}, "bypass vault.kdbx", false},
 		{"run help", []string{"help", "run"}, "--identity-token", false},
 		{"single dash help", []string{"run", "-help"}, "Usage: bypass run", false},

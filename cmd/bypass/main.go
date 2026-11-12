@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -47,6 +48,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return runCommand(args[1:], stdout, stderr)
 	}
 	if len(args) > 0 && args[0] == "widget-service" {
+		if runtime.GOOS != "linux" {
+			return errors.New("widget-service is only available on Linux")
+		}
 		return widgetCommand(os.Stdin, stdout)
 	}
 	flags := flag.NewFlagSet("bypass", flag.ContinueOnError)
