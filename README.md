@@ -67,8 +67,8 @@ prompt or command line.
 Approve once or grant an agent identity access to those fields until the vault
 locks or Bypass exits. Review or clear these in-memory permissions in the TUI.
 
-Agents can use `--identity NAME-SECRET` or `BYPASS_IDENTITY` to keep session
-permissions separate by agent.
+Agents can set `BYPASS_IDENTITY_TOKEN` to identify themselves across requests
+and keep session permissions separate by agent.
 
 Commands keep their terminal behavior and exit status. Locking a vault or closing
 Bypass does not interrupt a launched command.
@@ -76,14 +76,14 @@ Bypass does not interrupt a launched command.
 ## CLI reference
 
 ```text
-bypass run [--identity NAME-SECRET] [--env-file FILE]... [--timeout DURATION] -- COMMAND [ARGS...]
+bypass run [--identity-token NAME-SECRET] [--env-file FILE]... [--timeout DURATION] -- COMMAND [ARGS...]
 ```
 
 | Option | Behavior |
 | --- | --- |
-| `--identity NAME-SECRET` | Scope session permissions to an agent. Defaults to `BYPASS_IDENTITY`. |
+| `--identity-token NAME-SECRET` | Identify an agent across requests. Prefer `BYPASS_IDENTITY_TOKEN`. |
 | `--env-file FILE` | Load variables from a file. Repeat to combine files; later files win. |
-| `--timeout DURATION` | Limit the wait for approval and secrets. Default: `60s`. |
+| `--timeout DURATION` | Limit connection, approval, unlock, and secret delivery; does not limit command runtime. Default: `60s` or config. |
 | `--help` | Show command help. |
 
 References can also come from the inherited environment. Files override inherited

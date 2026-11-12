@@ -13,7 +13,7 @@ import (
 func TestReleaseRejectsDebugStartup(t *testing.T) {
 	var output bytes.Buffer
 	err := run([]string{"--debug-env", "unused"}, &output, &output)
-	if err == nil || !strings.Contains(output.String(), "flag provided but not defined") {
+	if err == nil || !strings.Contains(err.Error(), "invalid option") {
 		t.Fatalf("release accepted debug startup: %v %s", err, output.String())
 	}
 }
@@ -24,7 +24,7 @@ func TestReleaseBinaryRejectsDebugStartup(t *testing.T) {
 		t.Fatalf("build: %v\n%s", err, output)
 	}
 	output, err := exec.Command(binary, "--debug-env", "unused").CombinedOutput()
-	if err == nil || !strings.Contains(string(output), "flag provided but not defined") {
+	if err == nil || !strings.Contains(string(output), "invalid option") {
 		t.Fatalf("release accepted debug startup: %v %s", err, output)
 	}
 }

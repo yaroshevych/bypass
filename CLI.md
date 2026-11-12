@@ -64,14 +64,14 @@ this way gives it the resolved environment.
 ### Synopsis
 
 ```text
-bypass run [--identity NAME-SECRET] [--env-file FILE]... [--timeout DURATION] -- COMMAND [ARGS...]
+bypass run [--identity-token NAME-SECRET] [--env-file FILE]... [--timeout DURATION] -- COMMAND [ARGS...]
 ```
 
 ### Arguments and options
 
 | Argument | Description | Default |
 | --- | --- | --- |
-| `--identity NAME-SECRET` | Select an agent identity for session permissions. Overrides `BYPASS_IDENTITY`; an explicit empty value selects anonymous mode. | `BYPASS_IDENTITY`, otherwise anonymous. |
+| `--identity-token NAME-SECRET` | Identify an agent across requests for session permissions. An explicit empty value selects anonymous mode. | `BYPASS_IDENTITY_TOKEN`, then `BYPASS_IDENTITY`, otherwise anonymous. |
 | `--env-file FILE` | Read variables from an environment file. Repeatable; files are processed in order. | No files; inherited environment only. |
 | `--timeout DURATION` | Time allowed to connect to Bypass, approve, unlock, and receive secrets. Examples: `30s`, `2m`, `1m30s`. | `60s`, or the configured value. |
 | `--` | Separate Bypass options from the command. Required. | None |
@@ -87,15 +87,16 @@ An identity has a readable name of 1 to 64 ASCII letters, digits, spaces, `_`,
 random secret once per agent and reuse the full identity:
 
 ```sh
-export BYPASS_IDENTITY="deploy-$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
+export BYPASS_IDENTITY_TOKEN="deploy-$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
 bypass run --env-file .env.deploy -- ./scripts/deploy.sh
 ```
 
 The full identity is a private bearer credential; no registration is needed.
-`--identity` overrides the environment value, and `--identity=` selects anonymous
-access. Environment files cannot set `BYPASS_IDENTITY`; Bypass removes it from the
-launched command's environment even when no references are used. The approval
-screen shows only the readable name.
+`--identity-token` overrides the environment value, and `--identity-token=`
+selects anonymous access. The older `--identity` and `BYPASS_IDENTITY` names
+remain supported. Environment files cannot set either identity variable; Bypass
+removes both from the launched command's environment even when no references are
+used. The approval screen shows only the readable name.
 
 Prefer the environment variable to avoid exposing the bearer in command
 arguments. Other processes running as the same user may still inspect it.

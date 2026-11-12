@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -15,7 +18,7 @@ func TestNoninteractiveFlags(t *testing.T) {
 	}{
 		{"version", []string{"--version"}, "bypass dev", false},
 		{"help", []string{"--help"}, "Usage:", false},
-		{"unknown", []string{"--bad-option"}, "flag provided but not defined", true},
+		{"unknown", []string{"--bad-option"}, "", true},
 		{"too many paths", []string{"one", "two"}, "", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -26,6 +29,47 @@ func TestNoninteractiveFlags(t *testing.T) {
 			}
 			if !strings.Contains(out.String(), tc.want) {
 				t.Fatalf("missing %q", tc.want)
+			}
+		})
+	}
+}
+
+func TestCLIExitAndHelp(t *testing.T) {
+	if os.Getenv("BYPASS_CLI_TEST_HELPER") == "1" {
+		if err := run(os.Args[3:], os.Stdout, os.Stderr); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+		fail bool
+	}{
+		{"root help", []string{"--help"}, "Commands:\n  run", false},
+		{"help command", []string{"help"}, "bypass vault.kdbx", false},
+		{"run help", []string{"help", "run"}, "--identity-token", false},
+		{"single dash help", []string{"run", "-help"}, "Usage: bypass run", false},
+		{"version", []string{"--version"}, "bypass ", false},
+		{"single dash version", []string{"-version"}, "bypass ", false},
+		{"missing command", []string{"run"}, "missing command; usage: bypass run -- COMMAND [ARGS...]", true},
+		{"empty command", []string{"run", "--"}, "missing command", true},
+		{"missing separator", []string{"run", "npm", "test"}, "missing '--' before command; try 'bypass run --help'", true},
+		{"late separator", []string{"run", "npm", "--", "test"}, "missing '--'", true},
+		{"unknown root flag", []string{"--bad-option"}, "bypass --help", true},
+		{"unknown run flag", []string{"run", "--bad-option"}, "bypass run --help", true},
+		{"single dash option", []string{"run", "-timeout", "0s", "--", "x"}, "--timeout must be positive", true},
+		{"no references", []string{"run", "--", "/usr/bin/true"}, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append([]string{"-test.run=TestCLIExitAndHelp", "--"}, tc.args...)
+			cmd := exec.Command(os.Args[0], args...)
+			cmd.Env = []string{"BYPASS_CLI_TEST_HELPER=1", "HOME=" + t.TempDir(), "PATH=/usr/bin:/bin"}
+			out, err := cmd.CombinedOutput()
+			if (err != nil) != tc.fail || !strings.Contains(string(out), tc.want) {
+				t.Fatalf("output %q, error %v; want %q, failure %v", out, err, tc.want, tc.fail)
 			}
 		})
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"flag"
@@ -32,6 +33,16 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer) error {
+	if len(args) > 0 && args[0] == "help" {
+		switch {
+		case len(args) == 1:
+			args = []string{"--help"}
+		case len(args) == 2 && args[1] == "run":
+			args = []string{"run", "--help"}
+		default:
+			return fmt.Errorf("unknown help topic; try 'bypass --help'")
+		}
+	}
 	if len(args) > 0 && args[0] == "run" {
 		return runCommand(args[1:], stdout, stderr)
 	}
@@ -39,28 +50,49 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return widgetCommand(os.Stdin, stdout)
 	}
 	flags := flag.NewFlagSet("bypass", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags.SetOutput(io.Discard)
 	showVersion := flags.Bool("version", false, "print version and exit")
 	readOnly := flags.Bool("read-only", false, "open vaults read only")
 	idle := flags.Duration("idle-timeout", 0, "vault lock timeout without a PIN (default 15m or config)")
 	clipTimeout := flags.Duration("clipboard-timeout", 0, "clipboard timeout (default 10s or config)")
 	debugStartup := configureDebug(flags)
+	var help bytes.Buffer
 	flags.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: bypass [options] [vault.kdbx]\n\nBypass Secrets Manager — KeePass-compatible vault workspace.")
-		flags.PrintDefaults()
+		fmt.Fprintln(&help, `Usage:
+bypass [OPTIONS] [VAULT]    Run in interactive TUI mode. VAULT is an optional
+                            path to a vault file; omit it to open the welcome screen.
+
+bypass run [OPTIONS] -- COMMAND [ARGS...]
+                            Run in non-interactive mode, passing secrets to COMMAND
+                            via environment variables.
+
+Options:
+  --read-only               Open vaults read only
+  --idle-timeout TIME       Vault lock timeout (default: 15m or config)
+  --clipboard-timeout TIME  Clipboard timeout (default: 10s or config)
+  --version                 Print version and exit
+  --help                    Show this help
+
+Examples:
+  bypass
+  bypass vault.kdbx
+  API_TOKEN=bypass://GitHub bypass run -- ./scripts/publish.sh
+
+Run 'bypass help run' for command options.`)
 	}
 	if err := flags.Parse(args); err != nil {
 		if err == flag.ErrHelp {
+			_, _ = io.Copy(stdout, &help)
 			return nil
 		}
-		return err
+		return fmt.Errorf("invalid option or value; try 'bypass --help'")
 	}
 	if *showVersion {
 		_, err := fmt.Fprintln(stdout, "bypass", version)
 		return err
 	}
 	if flags.NArg() > 1 {
-		return fmt.Errorf("expected at most one vault path")
+		return fmt.Errorf("expected at most one vault path; try 'bypass --help'")
 	}
 	var store ui.RecentStore
 	var saveSettings func(platform.Settings) error
@@ -88,13 +120,13 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 	if *idle != 0 {
 		if *idle < time.Second || *idle > 24*time.Hour {
-			return fmt.Errorf("idle timeout must be between 1s and 24h")
+			return fmt.Errorf("--idle-timeout must be between 1s and 24h")
 		}
 		settings.IdleTimeout = *idle
 	}
 	if *clipTimeout != 0 {
 		if *clipTimeout < time.Second || *clipTimeout > 10*time.Minute {
-			return fmt.Errorf("clipboard timeout must be between 1s and 10m")
+			return fmt.Errorf("--clipboard-timeout must be between 1s and 10m")
 		}
 		settings.ClipboardTimeout = *clipTimeout
 	}

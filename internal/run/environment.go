@@ -13,7 +13,7 @@ func Environment(inherited []string, files ...io.Reader) (map[string]string, err
 	values := make(map[string]string)
 	for _, item := range inherited {
 		key, value, ok := strings.Cut(item, "=")
-		if ok && key != "" && key != "BYPASS_IDENTITY" {
+		if ok && key != "" && key != "BYPASS_IDENTITY" && key != "BYPASS_IDENTITY_TOKEN" {
 			values[key] = value
 		}
 	}
@@ -32,7 +32,7 @@ func Environment(inherited []string, files ...io.Reader) (map[string]string, err
 			if !ok || !validKey(key) {
 				return nil, fmt.Errorf("invalid environment entry at line %d", line)
 			}
-			if key == "BYPASS_IDENTITY" {
+			if key == "BYPASS_IDENTITY" || key == "BYPASS_IDENTITY_TOKEN" {
 				continue
 			}
 			value = strings.TrimSpace(value)

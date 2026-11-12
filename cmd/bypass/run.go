@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -39,6 +40,9 @@ func selectedIdentity(option identityFlag, lookup func(string) (string, bool)) [
 	if option.set {
 		return []byte(option.value)
 	}
+	if value, ok := lookup("BYPASS_IDENTITY_TOKEN"); ok {
+		return []byte(value)
+	}
 	if value, ok := lookup("BYPASS_IDENTITY"); ok {
 		return []byte(value)
 	}
@@ -47,7 +51,7 @@ func selectedIdentity(option identityFlag, lookup func(string) (string, bool)) [
 
 func runCommand(args []string, stdout, stderr io.Writer) error {
 	flags := flag.NewFlagSet("bypass run", flag.ContinueOnError)
-	flags.SetOutput(stderr)
+	flags.SetOutput(io.Discard)
 	timeoutDefault := 60 * time.Second
 	if paths, err := platform.Resolve(); err == nil {
 		settings, err := platform.LoadSettings(paths)
@@ -60,35 +64,53 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 	}
 	timeout := flags.Duration("timeout", timeoutDefault, "IPC approval timeout (positive duration)")
 	var identityOption identityFlag
-	flags.Var(&identityOption, "identity", "agent identity bearer (overrides BYPASS_IDENTITY)")
+	flags.Var(&identityOption, "identity-token", "agent identity bearer (prefer BYPASS_IDENTITY_TOKEN)")
+	flags.Var(&identityOption, "identity", "deprecated alias for --identity-token")
 	var files envFiles
 	flags.Var(&files, "env-file", "environment file; repeatable, later files override earlier files")
+	var help bytes.Buffer
 	flags.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: bypass run [--identity NAME-SECRET] [--env-file FILE] [--timeout 60s] -- COMMAND [ARGS...]")
-		flags.PrintDefaults()
+		fmt.Fprintln(&help, `Usage: bypass run [OPTIONS] -- COMMAND [ARGS...]
+
+Run COMMAND with approved secrets from bypass:// references in
+environment variables or env files.
+
+Secrets require user approval, either previously granted or requested
+interactively in the Bypass app.
+
+Options go before --. COMMAND and its arguments go after --.
+
+Options:
+  --env-file FILE          Read environment file; repeatable, later files win
+  --identity-token TOKEN   Agent identity credential; identifies an agent
+                           across requests. Prefer BYPASS_IDENTITY_TOKEN
+  --timeout DURATION       Connection, approval and secret delivery deadline
+                           (default: 60s or config; excludes command runtime)
+  --help                   Show this help
+
+Examples:
+  bypass run --env-file .env.deploy -- ./scripts/deploy.sh --target staging
+  bypass run --timeout 2m -- npm test
+  API_TOKEN=bypass://GitHub bypass run -- ./scripts/publish.sh`)
 	}
 	if err := flags.Parse(args); err != nil {
 		if err == flag.ErrHelp {
+			_, _ = io.Copy(stdout, &help)
 			return nil
 		}
-		return err
-	}
-	separator := false
-	for _, arg := range args {
-		if arg == "--" {
-			separator = true
-			break
-		}
-	}
-	if !separator {
-		return fmt.Errorf("separate the command with --")
-	}
-	if *timeout <= 0 {
-		return fmt.Errorf("timeout must be positive")
+		return fmt.Errorf("invalid option or value; try 'bypass run --help'")
 	}
 	command := flags.Args()
+	parsed := len(args) - len(command)
+	separator := parsed > 0 && args[parsed-1] == "--"
 	if len(command) == 0 {
-		return fmt.Errorf("command is required after --")
+		return fmt.Errorf("missing command; usage: bypass run -- COMMAND [ARGS...]")
+	}
+	if !separator {
+		return fmt.Errorf("missing '--' before command; try 'bypass run --help'")
+	}
+	if *timeout <= 0 {
+		return fmt.Errorf("--timeout must be positive; try 'bypass run --help'")
 	}
 	identityBytes := selectedIdentity(identityOption, os.LookupEnv)
 	defer wipebuf.Wipe(identityBytes)
@@ -152,6 +174,7 @@ func runCommand(args []string, stdout, stderr io.Writer) error {
 	// BYPASS_IDENTITY configures the runner and must never flow into a child.
 	// It is also reserved from env-file substitution, regardless of references.
 	delete(environment, "BYPASS_IDENTITY")
+	delete(environment, "BYPASS_IDENTITY_TOKEN")
 	refs := map[string]bool{}
 	for _, value := range environment {
 		_, err := runpkg.Substitute(value, func(r runpkg.Reference) (string, error) { return "", nil })
