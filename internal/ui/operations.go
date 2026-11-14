@@ -308,7 +308,13 @@ func (m *Model) prepareEditor(entry vault.Entry) tea.Cmd {
 		if err != nil {
 			return editorReadyMsg{id: id, sessionID: sessionID, entryID: entry.UUID, err: err}
 		}
-		password, err := resolver.ResolveField(ctx, snapshot, vault.Credentials{}, entry.UUID, "Password")
+		var password []byte
+		for _, field := range fields {
+			if field.Name == "Password" && field.Value != "" {
+				password, err = resolver.ResolveField(ctx, snapshot, vault.Credentials{}, entry.UUID, "Password")
+				break
+			}
+		}
 		return editorReadyMsg{id: id, sessionID: sessionID, entryID: entry.UUID, password: password, secret: holdSecret(ctx, password), fields: fields, err: err}
 	}
 }

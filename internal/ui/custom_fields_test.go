@@ -1,9 +1,11 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
+	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
@@ -145,6 +147,94 @@ func TestCustomFieldSelectionHintOnlyOnSelectedRow(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestCustomFieldMouseActions(t *testing.T) {
+	m, _ := operationModel(t)
+	m.width, m.height = 120, 35
+	m.startEditor(&vault.Entry{Fields: []vault.Field{{Name: "Title", Value: "Entry"}, {Name: "First", Value: "one"}}}, "root")
+	m.editor.openCustomFields()
+	clickTarget := func(target int) {
+		t.Helper()
+		for _, pane := range m.layout().Panes {
+			if pane.Focus != 2 {
+				continue
+			}
+			opts, targets := m.customFieldsDialogOptions(pane.Width, pane.Height)
+			for y := 0; y < pane.Height; y++ {
+				for x := 0; x < pane.Width; x++ {
+					if dialogrender.HitTest(opts, x, y, targets).Target == target {
+						m.pointer(tea.MouseMsg{X: pane.X + x, Y: pane.Y + y, Action: tea.MouseActionPress, Button: tea.MouseButtonLeft})
+						return
+					}
+				}
+			}
+		}
+		t.Fatalf("mouse target %d is not visible", target)
+	}
+	clickTarget(0)
+	if !m.editor.customEdit || m.editor.customName.value() != "First" {
+		t.Fatal("clicking the field did not open it")
+	}
+	clickTarget(2)
+	if !m.editor.customConcealed {
+		t.Fatal("clicking Concealed did not toggle it")
+	}
+	clickTarget(3)
+	if m.editor.customEdit || !m.editor.customFields[0].Protected {
+		t.Fatal("clicking Save did not stage the field edit")
+	}
+	clickTarget(100002)
+	if m.editor.customOpen || m.editor.customFields[0].Protected {
+		t.Fatal("clicking list Cancel did not discard the edit")
+	}
+}
+
+func TestCustomFieldDialogsFitSmallWindows(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, size := range [][2]int{{48, 16}, {70, 24}} {
+			t.Run(appearance+"/"+fmt.Sprint(size), func(t *testing.T) {
+				m := New(Options{})
+				m.width, m.height, m.settings.Appearance = size[0], size[1], appearance
+				m.editor = newEntryEditor(&vault.Entry{Fields: []vault.Field{{Name: "First", Value: "one"}}}, "root")
+				m.editor.openCustomFields()
+				list := ansi.Strip(strings.Join(m.customFieldsDialog(size[0], size[1]), "\n"))
+				for _, want := range []string{"First", "Add New", "Save", "Cancel"} {
+					if !strings.Contains(list, want) {
+						t.Fatalf("list missing %q:\n%s", want, list)
+					}
+				}
+				m.editor.customKey(tea.KeyMsg{Type: tea.KeyEnter})
+				field := ansi.Strip(strings.Join(m.customFieldsDialog(size[0], size[1]), "\n"))
+				for _, want := range []string{"Field name", "Field value", "Concealed", "Save", "Delete", "Cancel"} {
+					if !strings.Contains(field, want) {
+						t.Fatalf("field dialog missing %q:\n%s", want, field)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestCustomFieldDialogFitsDetailsPane(t *testing.T) {
+	m, _ := operationModel(t)
+	m.width, m.height = 100, 24
+	m.startEditor(&vault.Entry{Fields: []vault.Field{{Name: "Title", Value: "Entry"}, {Name: "First", Value: "one"}}}, "root")
+	m.editor.openCustomFields()
+	m.editor.customKey(tea.KeyMsg{Type: tea.KeyEnter})
+	for _, pane := range m.layout().Panes {
+		if pane.Focus != 2 {
+			continue
+		}
+		view := ansi.Strip(strings.Join(m.customFieldsDialog(pane.Width, pane.Height), "\n"))
+		for _, want := range []string{"Field name", "Field value", "Concealed", "Save", "Delete", "Cancel"} {
+			if !strings.Contains(view, want) {
+				t.Fatalf("details pane %dx%d missing %q:\n%s", pane.Width, pane.Height, want, view)
+			}
+		}
+		return
+	}
+	t.Fatal("details pane missing")
 }
 
 func TestEmailIsStandardFieldAfterURL(t *testing.T) {

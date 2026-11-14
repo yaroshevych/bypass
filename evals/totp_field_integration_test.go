@@ -38,7 +38,7 @@ func TestNativeTOTPFieldRevealAndLockTmux(t *testing.T) {
 			e.mustShow("UNLOCK VAULT")
 			e.typeText(fixturePassword)
 			e.key("Enter")
-			e.mustShow("Authenticator", "TOTP")
+			e.mustShow("Authenticator", "2FA CODE")
 			e.mustNotShow(seed)
 			codePattern := regexp.MustCompile(`\b[0-9]{6}\b`)
 			if codePattern.MatchString(e.capture()) {
@@ -46,9 +46,6 @@ func TestNativeTOTPFieldRevealAndLockTmux(t *testing.T) {
 			}
 			e.key("Right")
 			e.key("Right")
-			for i := 0; i < 4; i++ {
-				e.key("Down")
-			}
 			e.key("v")
 			e.waitFor("inline TOTP code", func() bool { return codePattern.MatchString(e.capture()) })
 			e.registerSecret(codePattern.FindString(e.capture()))

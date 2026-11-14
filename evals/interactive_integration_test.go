@@ -98,6 +98,7 @@ func TestInteractiveBackendTmuxEditCreateAndReopen(t *testing.T) {
 			e.key("C-u")
 			e.typeText("https://edited.test")
 			e.key("Tab")
+			e.key("Tab") // Email
 			e.key("C-u")
 			e.typeText("first edited line")
 			e.key("Enter")
@@ -125,6 +126,7 @@ func TestInteractiveBackendTmuxEditCreateAndReopen(t *testing.T) {
 			e.key("Tab")
 			e.typeText("https://created.test")
 			e.key("Tab")
+			e.key("Tab") // Email
 			e.typeText("created notes")
 			e.key("C-s")
 			e.waitFor("interactive creation saved", func() bool {

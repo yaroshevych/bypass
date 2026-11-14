@@ -530,6 +530,8 @@ func TestLongNotesScrollWithArrowKeys(t *testing.T) {
 func TestLongNotesScrollPastControlToBlankRow(t *testing.T) {
 	m, _ := operationModel(t)
 	m.width, m.height = 100, 24
+	entry := &m.ws.ActiveSession().DB.Entries[0]
+	entry.Fields = slices.DeleteFunc(entry.Fields, func(field vault.Field) bool { return field.Name == "Private" })
 	m.ws.ActiveSession().DB.Entries[0].Fields = append(m.ws.ActiveSession().DB.Entries[0].Fields,
 		vault.Field{Name: "Notes", Value: strings.Repeat("line\n", 60) + "last note line"})
 	v := m.ws.ActiveView()
@@ -556,6 +558,8 @@ func TestLongNotesScrollPastControlToBlankRow(t *testing.T) {
 func TestHoldingDownAtEndOfLongNotesKeepsScrollPosition(t *testing.T) {
 	m, _ := operationModel(t)
 	m.width, m.height = 100, 24
+	entry := &m.ws.ActiveSession().DB.Entries[0]
+	entry.Fields = slices.DeleteFunc(entry.Fields, func(field vault.Field) bool { return field.Name == "Private" })
 	m.ws.ActiveSession().DB.Entries[0].Fields = append(m.ws.ActiveSession().DB.Entries[0].Fields,
 		vault.Field{Name: "Notes", Value: strings.Repeat("line\n", 60) + "last note line"})
 	v := m.ws.ActiveView()
@@ -573,6 +577,22 @@ func TestHoldingDownAtEndOfLongNotesKeepsScrollPosition(t *testing.T) {
 		if v.DetailOffset != end || !v.DetailManual {
 			t.Fatalf("down at end moved offset from %d to %d", end, v.DetailOffset)
 		}
+	}
+}
+
+func TestLongNotesScrollContinuesToFollowingCustomField(t *testing.T) {
+	m, _ := operationModel(t)
+	m.width, m.height = 100, 24
+	entry := &m.ws.ActiveSession().DB.Entries[0]
+	entry.Fields = append(entry.Fields, vault.Field{Name: "Notes", Value: strings.Repeat("line\n", 60) + "last note line"})
+	v := m.ws.ActiveView()
+	v.Focus, v.FieldIndex = 2, slices.Index(m.fieldNames(), "Notes")
+	m.adjustViewport()
+	for i := 0; i < 100 && m.focusedField() != "Private"; i++ {
+		m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	}
+	if m.focusedField() != "Private" {
+		t.Fatal("down did not reach the custom field following notes")
 	}
 }
 
