@@ -11,6 +11,49 @@ import (
 
 func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	m.tabHovered = false
+	if m.editor != nil && m.editor.customOpen && m.activeLayer() == layerWorkspace {
+		if msg.Action != tea.MouseActionPress {
+			return nil
+		}
+		for _, pane := range m.layout().Panes {
+			if pane.Focus != 2 {
+				continue
+			}
+			if msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown {
+				if !m.editor.customEdit {
+					key := tea.KeyDown
+					if msg.Button == tea.MouseButtonWheelUp {
+						key = tea.KeyUp
+					}
+					m.editor.customKey(tea.KeyMsg{Type: key})
+				}
+				return nil
+			}
+			if msg.Button != tea.MouseButtonLeft {
+				return nil
+			}
+			opts, targets := m.customFieldsDialogOptions(pane.Width, pane.Height)
+			hit := dialogrender.HitTest(opts, msg.X-pane.X, msg.Y-pane.Y, targets)
+			if !hit.Inside || hit.Target < 0 {
+				return nil
+			}
+			if m.editor.customEdit {
+				m.editor.customFocus = hit.Target
+				if hit.Target >= 2 {
+					m.editor.customKey(tea.KeyMsg{Type: tea.KeyEnter})
+				}
+			} else {
+				if hit.Target >= 100000 {
+					m.editor.customIndex = len(m.editor.customFields) + hit.Target - 100000
+				} else {
+					m.editor.customIndex = hit.Target
+				}
+				m.editor.customKey(tea.KeyMsg{Type: tea.KeyEnter})
+			}
+			return nil
+		}
+		return nil
+	}
 	if layer := m.activeLayer(); layer != layerWorkspace {
 		if pointer := m.handlersFor(layer).pointer; pointer != nil {
 			return pointer(msg)
@@ -104,6 +147,8 @@ func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 			m.openEditorTags()
 		case editorFavorite:
 			m.toggleEditorFavorite()
+		case editorCustomFields:
+			m.editor.openCustomFields()
 		}
 
 		return nil

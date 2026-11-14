@@ -412,6 +412,8 @@ func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 		m.openGenerator()
 	case editorTags:
 		m.openEditorTags()
+	case editorCustomFields:
+		m.editor.openCustomFields()
 	case editorFavorite:
 		m.toggleEditorFavorite()
 	}
@@ -430,7 +432,9 @@ func (m *Model) saveEditor() tea.Cmd {
 		m.setNotice("no changes", false)
 		return nil
 	}
-	change := vault.Change{Kind: vault.EditEntry, EntryUUID: m.editor.EntryUUID, GroupUUID: m.editor.GroupUUID, Values: m.editor.values(), PasswordChanged: m.editor.passwordChanged()}
+	customFields := make([]vault.Field, len(m.editor.customFields))
+	copy(customFields, m.editor.customFields)
+	change := vault.Change{Kind: vault.EditEntry, EntryUUID: m.editor.EntryUUID, GroupUUID: m.editor.GroupUUID, Values: m.editor.values(), CustomFields: customFields, PasswordChanged: m.editor.passwordChanged()}
 	if m.editor.isNew {
 		change.Kind = vault.AddEntry
 	}

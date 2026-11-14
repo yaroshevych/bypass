@@ -31,6 +31,16 @@ func validateChange(change Change) error {
 			return ErrUnsupported
 		}
 	}
+	if len(change.CustomFields) > 0 && change.Kind != AddEntry && change.Kind != EditEntry {
+		return ErrUnsupported
+	}
+	seenCustom := map[string]bool{}
+	for _, field := range change.CustomFields {
+		if strings.TrimSpace(field.Name) == "" || strings.ContainsAny(field.Name, "\r\n\x00") || field.Name == "Title" || field.Name == "UserName" || field.Name == "Password" || field.Name == "URL" || field.Name == "Notes" || field.Name == "Tags" || supportedTOTPField(field.Name) || seenCustom[field.Name] {
+			return ErrUnsupported
+		}
+		seenCustom[field.Name] = true
+	}
 	if len(change.Values) > 0 && change.Kind != AddEntry && change.Kind != EditEntry {
 		return ErrUnsupported
 	}

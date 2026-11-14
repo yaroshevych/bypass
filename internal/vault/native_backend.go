@@ -232,6 +232,9 @@ func supportedTOTPField(name string) bool {
 	}
 	return false
 }
+
+// IsTOTPField reports whether a field belongs to a supported TOTP format.
+func IsTOTPField(name string) bool { return supportedTOTPField(name) }
 func protectTOTPFields(db *gok.Database) {
 	var walk func(*gok.Group)
 	var protect func(*gok.Entry)
@@ -1152,6 +1155,9 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		}
 		e := gok.NewEntry()
 		fillNativeValues(&e, change.Values)
+		for _, field := range change.CustomFields {
+			setNativeValue(&e, field.Name, field.Value, field.Protected)
+		}
 		if change.PasswordChanged || len(change.Password) > 0 {
 			setNativeValue(&e, "Password", string(change.Password), true)
 		}
@@ -1165,6 +1171,24 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		snapshot.Histories = nil
 		e.Histories = append(e.Histories, gok.History{Entries: []gok.Entry{snapshot}})
 		fillNativeValues(e, change.Values)
+		if change.CustomFields != nil {
+			for i := range e.Values {
+				key := e.Values[i].Key
+				if key != "Title" && key != "UserName" && key != "Password" && key != "URL" && key != "Notes" && !supportedTOTPField(key) {
+					e.Values[i].Key = ""
+				}
+			}
+			filtered := e.Values[:0]
+			for _, value := range e.Values {
+				if value.Key != "" {
+					filtered = append(filtered, value)
+				}
+			}
+			e.Values = filtered
+			for _, field := range change.CustomFields {
+				setNativeValue(e, field.Name, field.Value, field.Protected)
+			}
+		}
 		if change.PasswordChanged {
 			setNativeValue(e, "Password", string(change.Password), true)
 		}

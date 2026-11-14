@@ -144,7 +144,7 @@ func (m *Model) renderListComponent(rows []listComponentRow, opts listComponentO
 					text = fit(" "+body+" ", opts.width)
 				}
 			} else if row.activeFill && row.selected {
-				rightText := styles.secondary.Foreground(styles.active.GetForeground()).Background(styles.active.GetBackground()).Render(row.right)
+				rightText := row.right
 				available := max(0, opts.width-lipgloss.Width(rightText)-1)
 				if row.classicInset {
 					available = max(0, opts.width-lipgloss.Width(rightText)-3)

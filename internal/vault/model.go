@@ -63,6 +63,7 @@ type Change struct {
 	GroupUUID       string
 	SourceGroupUUID string
 	Values          map[string]string
+	CustomFields    []Field
 	Password        []byte
 	PasswordChanged bool
 	NewName         string

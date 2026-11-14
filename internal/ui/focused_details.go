@@ -103,7 +103,6 @@ func applyEntryDetails(entry *vault.Entry, fields []vault.Field) {
 		for index := range entry.Fields {
 			if entry.Fields[index].Name == value.Name {
 				entry.Fields[index] = value
-				entry.Fields[index].Protected = false
 				goto nextField
 			}
 		}

@@ -211,8 +211,8 @@ func TestEntryEditorNotesArrowKeysLeaveAtFirstAndLastLine(t *testing.T) {
 		t.Fatalf("down within notes: focus=%d cursor=%d", e.focus, e.inputs[editNotes].cursor)
 	}
 	e.key(tea.KeyMsg{Type: tea.KeyDown})
-	if e.focus != editGenerate {
-		t.Fatalf("down from last line: focus=%d, want Generate", e.focus)
+	if e.focus != editCustomFields {
+		t.Fatalf("down from last line: focus=%d, want Custom Fields", e.focus)
 	}
 }
 

@@ -797,7 +797,11 @@ func (m *Model) layoutBody(layout viewLayout) []string {
 			contents[i] = m.entryLines(pane.Width, pane.Height, focused)
 		case 2:
 			if m.editor != nil {
-				contents[i] = m.editor.renderAppearance(pane.Width, pane.Height, m.compactAppearance(), m.settings.ASCII)
+				if m.editor.customOpen {
+					contents[i] = m.customFieldsDialog(pane.Width, pane.Height)
+				} else {
+					contents[i] = m.editor.renderAppearance(pane.Width, pane.Height, m.compactAppearance(), m.settings.ASCII)
+				}
 			} else {
 				contents[i] = m.detailLines(pane.Width, pane.Height, focused)
 			}
@@ -848,6 +852,120 @@ func (m *Model) layoutBody(layout viewLayout) []string {
 		body[row] = joined.String()
 	}
 	return body
+}
+
+func (m *Model) customFieldsDialog(width, height int) []string {
+	opts, _ := m.customFieldsDialogOptions(width, height)
+	return dialogrender.Render(opts)
+}
+
+func (m *Model) customFieldsDialogOptions(width, height int) (dialogrender.Options, []int) {
+	e := m.editor
+	baseEditor := *e
+	baseEditor.customOpen = false
+	backdrop := baseEditor.renderAppearance(width, height, m.compactAppearance(), m.settings.ASCII)
+
+	outer := m.dialogOptions()
+	outer.Mode, outer.Title, outer.Backdrop = dialogrender.Overlay, "Custom Fields", backdrop
+	outer.Width, outer.ScreenWidth, outer.Height, outer.X, outer.Y = min(width-2, 58), width, height, -1, -1
+	innerWidth := m.dialogInnerWidth(outer.Width)
+	capacity := max(1, min(8, height-12))
+	start, end := viewportRange(len(e.customFields), capacity, viewportOffset(e.customIndex, len(e.customFields), capacity, 0))
+	rows := make([]listComponentRow, 0, end-start)
+	for i := start; i < end; i++ {
+		selected := !e.customEdit && i == e.customIndex
+		shortcut := ""
+		label := safe(e.customFields[i].Name)
+		if selected {
+			shortcut = "enter"
+			if m.compactAppearance() {
+				label = " " + label
+				shortcut += " "
+			}
+		}
+		rows = append(rows, listComponentRow{kind: listComponentItem, item: i, text: label, right: shortcut, selected: selected, activeFill: true, pillSelected: true, classicInset: true})
+	}
+	var outerTargets []int
+	if len(rows) == 0 {
+		outer.Body = []string{m.colors().secondary.Render(" No custom fields")}
+		outerTargets = []int{-1}
+	} else {
+		outer.Body, outerTargets = listContent(m.renderListComponent(rows, listComponentOptions{width: innerWidth, compact: m.compactAppearance(), ascii: m.settings.ASCII, focused: !e.customEdit && e.customIndex < len(e.customFields), sidebar: true}))
+	}
+	actionFocus := -1
+	if !e.customEdit && e.customIndex >= len(e.customFields) {
+		actionFocus = e.customIndex - len(e.customFields)
+	}
+	for i, row := range m.dialogActionRows([]dialogAction{{"Add New…", ""}, {"Save", ""}, {"Cancel", "esc"}}, actionFocus, innerWidth) {
+		outer.Actions = append(outer.Actions, dialogrender.Action{Text: row, Target: 100000 + i, Focused: i == actionFocus})
+	}
+	outerBody := dialogrender.Render(outer)
+	if !e.customEdit {
+		return outer, outerTargets
+	}
+
+	inner := m.dialogOptions()
+	inner.Mode, inner.Title, inner.Backdrop = dialogrender.Overlay, "Custom Field", outerBody
+	inner.Width, inner.ScreenWidth, inner.Height, inner.X, inner.Y = min(width-2, 58), width, height, -1, -1
+	innerWidth = m.dialogInnerWidth(inner.Width)
+	inner.Body = m.dialogFields([]inputFieldView{{label: "Field name", value: &e.customName, focused: e.customFocus == 0, indent: 1}}, innerWidth, false)
+	inner.Body = append(inner.Body, "")
+	valueStart := len(inner.Body)
+	valueLabel := " Field value"
+	if e.customFocus == 1 {
+		valueLabel = m.colors().accent.Render(valueLabel)
+	} else {
+		valueLabel = m.colors().secondary.Render(valueLabel)
+	}
+	inner.Body = append(inner.Body, valueLabel)
+	if !strings.Contains(e.customValue.value(), "\n") {
+		inner.Body = append(inner.Body, renderInputBox(inputFieldView{value: &e.customValue, focused: e.customFocus == 1, indent: 1}, innerWidth, m.compactAppearance(), 0, m.colors()))
+	} else {
+		tmp := *e
+		tmp.inputs[editNotes] = e.customValue
+		if e.customFocus == 1 {
+			tmp.focus = editNotes
+		} else {
+			tmp.focus = -1
+		}
+		lines, cursor := tmp.renderValue(editNotes, max(1, innerWidth-1))
+		capacity := max(1, min(5, height-14))
+		start, end := viewportRange(len(lines), capacity, viewportOffset(cursor, len(lines), capacity, 0))
+		for i := start; i < end; i++ {
+			line := lines[i]
+			if e.customFocus == 1 {
+				line = renderEditorMultilineLine(line, i == cursor, innerWidth, m.colors())
+			} else {
+				line = m.colors().secondary.Render(" " + line)
+			}
+			inner.Body = append(inner.Body, line)
+		}
+	}
+	mark := "[ ]"
+	if e.customConcealed {
+		mark = "[x]"
+	}
+	valueEnd := len(inner.Body)
+	inner.Body = append(inner.Body, "")
+	inner.Body = append(inner.Body, renderDialogAction(mark+" Concealed", "space", innerWidth, m.compactAppearance(), m.settings.ASCII, e.customFocus == 2, m.colors()))
+	inner.Error = safe(e.customErr)
+	for i, row := range m.dialogActionRows([]dialogAction{{"Save", ""}, {"Delete", ""}, {"Cancel", "esc"}}, e.customFocus-3, innerWidth) {
+		inner.Actions = append(inner.Actions, dialogrender.Action{Text: row, Target: i + 3, Focused: e.customFocus == i+3})
+	}
+	targets := make([]int, len(inner.Body))
+	for i := range targets {
+		switch {
+		case i < 2:
+			targets[i] = 0
+		case i < valueStart || i == valueEnd:
+			targets[i] = -1
+		case i < valueEnd:
+			targets[i] = 1
+		default:
+			targets[i] = 2
+		}
+	}
+	return inner, targets
 }
 
 func (m *Model) layoutBreadcrumb(layout viewLayout) string {

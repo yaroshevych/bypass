@@ -20,6 +20,7 @@ const (
 	editNotes
 	editGenerate
 	editTags
+	editCustomFields
 	editFavorite
 	editSave
 	editCancel
@@ -35,6 +36,7 @@ const (
 	editorGenerate
 	editorTags
 	editorFavorite
+	editorCustomFields
 )
 
 var editorFields = [...]string{"Title", "UserName", "Password", "URL", "Notes"}
@@ -43,28 +45,39 @@ var editorFields = [...]string{"Title", "UserName", "Password", "URL", "Notes"}
 // an entry. The password is kept in its own rune buffer and never enters the
 // values map.
 type entryEditor struct {
-	styles           *styleSet
-	compact          bool
-	ascii            bool
-	inputs           [5]input
-	original         map[string]string
-	originalPassword []rune
-	readonlyFields   []vault.Field
-	protected        [5]bool
-	protectedEdited  [5]bool
-	validation       string
-	validationFocus  int
-	focus            int
-	hover            int
-	isNew            bool
-	EntryUUID        string
-	GroupUUID        string
-	originalTags     []string
-	tags             []string
-	favorite         bool
-	header           itemHeader
-	headerNow        time.Time
-	err              string
+	styles               *styleSet
+	compact              bool
+	ascii                bool
+	inputs               [5]input
+	original             map[string]string
+	originalPassword     []rune
+	readonlyFields       []vault.Field
+	customFields         []vault.Field
+	originalCustomFields []vault.Field
+	customFieldsSnapshot []vault.Field
+	customOpen           bool
+	customEdit           bool
+	customIndex          int
+	customFocus          int
+	customName           input
+	customValue          input
+	customConcealed      bool
+	customErr            string
+	protected            [5]bool
+	protectedEdited      [5]bool
+	validation           string
+	validationFocus      int
+	focus                int
+	hover                int
+	isNew                bool
+	EntryUUID            string
+	GroupUUID            string
+	originalTags         []string
+	tags                 []string
+	favorite             bool
+	header               itemHeader
+	headerNow            time.Time
+	err                  string
 }
 
 func newEntryEditor(e *vault.Entry, groupUUID string) *entryEditor {
@@ -107,8 +120,12 @@ func newEntryEditor(e *vault.Entry, groupUUID string) *entryEditor {
 		for _, field := range e.Fields {
 			if !isStandardEditorField(field.Name) {
 				editor.readonlyFields = append(editor.readonlyFields, field)
+				if !vault.IsTOTPField(field.Name) {
+					editor.customFields = append(editor.customFields, field)
+				}
 			}
 		}
+		editor.originalCustomFields = append([]vault.Field(nil), editor.customFields...)
 	}
 	return editor
 }
@@ -122,7 +139,19 @@ func (e *entryEditor) dirty() bool {
 			return true
 		}
 	}
-	return !runesEqual(e.inputs[editPassword].text, e.originalPassword) || e.tagsChanged()
+	return !runesEqual(e.inputs[editPassword].text, e.originalPassword) || e.tagsChanged() || !sameVaultFields(e.customFields, e.originalCustomFields)
+}
+
+func sameVaultFields(a, b []vault.Field) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func hasFavoriteTag(tags []string) bool {
@@ -179,7 +208,21 @@ func (e *entryEditor) clear() {
 	for i := range e.readonlyFields {
 		e.readonlyFields[i].Value = ""
 	}
+	for i := range e.customFields {
+		e.customFields[i].Value = ""
+	}
+	e.customName.clear()
+	e.customValue.clear()
 	e.readonlyFields = nil
+	e.customFields = nil
+	for i := range e.originalCustomFields {
+		e.originalCustomFields[i].Value = ""
+	}
+	e.originalCustomFields = nil
+	for i := range e.customFieldsSnapshot {
+		e.customFieldsSnapshot[i].Value = ""
+	}
+	e.customFieldsSnapshot = nil
 	wipebuf.Wipe(e.originalPassword)
 	e.originalPassword = nil
 	for key := range e.original {
@@ -292,6 +335,10 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 		return editorNone
 	}
 	key := k.String()
+	if e.customOpen {
+		e.customKey(k)
+		return editorNone
+	}
 	switch key {
 	case "esc":
 		return editorCancel
@@ -314,6 +361,9 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 				return editorGenerate
 			case editTags:
 				return editorTags
+			case editCustomFields:
+				e.openCustomFields()
+				return editorCustomFields
 			case editFavorite:
 				return editorFavorite
 			case editSave:
@@ -390,6 +440,9 @@ func (e *entryEditor) pointer(row, width, height int, compact, ascii bool) edito
 		return editorGenerate
 	case editTags:
 		return editorTags
+	case editCustomFields:
+		e.openCustomFields()
+		return editorNone
 	case editFavorite:
 		return editorFavorite
 	case editSave:
@@ -402,11 +455,12 @@ func (e *entryEditor) pointer(row, width, height int, compact, ascii bool) edito
 }
 
 func (e *entryEditor) actionFocuses() []int {
-	actions := []int{editGenerate, editTags}
+	actions := []int{editCustomFields, editGenerate, editTags}
 	if !e.isNew {
 		actions = append(actions, editFavorite)
 	}
-	return append(actions, editSave, editCancel)
+	actions = append(actions, editSave, editCancel)
+	return actions
 }
 
 func (e *entryEditor) focusOrder() []int {
@@ -438,6 +492,9 @@ func (e *entryEditor) render(width, height int) []string {
 	if e == nil {
 		return padLines([]string{defaultStyles.secondary.Render("Editor unavailable")}, height)
 	}
+	if e.customOpen {
+		return e.renderCustom(width, height)
+	}
 	lines, offset, total := e.layoutViewport(width, height)
 	out := make([]string, len(lines))
 	for i, line := range lines {
@@ -448,6 +505,221 @@ func (e *entryEditor) render(width, height int) []string {
 		}
 	}
 	return padLines(out, height)
+}
+
+func (e *entryEditor) openCustomFields() {
+	if e.customOpen {
+		return
+	}
+	e.customFieldsSnapshot = append([]vault.Field(nil), e.customFields...)
+	e.customOpen, e.customEdit, e.customIndex = true, false, 0
+}
+
+func (e *entryEditor) closeCustomFields(save bool) {
+	if !save {
+		e.customFields = append(e.customFields[:0], e.customFieldsSnapshot...)
+	}
+	for i := range e.customFieldsSnapshot {
+		e.customFieldsSnapshot[i].Value = ""
+	}
+	e.customFieldsSnapshot = nil
+	e.customOpen = false
+}
+
+func (e *entryEditor) customKey(k tea.KeyMsg) {
+	key := k.String()
+	if e.customEdit {
+		switch key {
+		case "esc":
+			e.customEdit = false
+			e.customName.clear()
+			e.customValue.clear()
+			e.customErr = ""
+		case "tab", "shift+tab":
+			if key == "tab" {
+				e.customFocus = (e.customFocus + 1) % 6
+			} else {
+				e.customFocus = (e.customFocus + 5) % 6
+			}
+		case "ctrl+s":
+			e.saveCustomField()
+		case "enter":
+			if e.customFocus == 1 {
+				insertInputRune(&e.customValue, '\n')
+			} else if e.customFocus == 2 {
+				e.customConcealed = !e.customConcealed
+			} else if e.customFocus == 3 {
+				e.saveCustomField()
+			} else if e.customFocus == 4 {
+				if e.customIndex < len(e.customFields) {
+					copy(e.customFields[e.customIndex:], e.customFields[e.customIndex+1:])
+					e.customFields[len(e.customFields)-1] = vault.Field{}
+					e.customFields = e.customFields[:len(e.customFields)-1]
+					e.customIndex = min(e.customIndex, len(e.customFields))
+				}
+				e.customEdit = false
+				e.customName.clear()
+				e.customValue.clear()
+				e.customErr = ""
+			} else if e.customFocus == 5 {
+				e.customEdit = false
+				e.customName.clear()
+				e.customValue.clear()
+				e.customErr = ""
+			}
+		case "up", "down":
+			if e.customFocus == 1 {
+				tmp := entryEditor{}
+				tmp.inputs[editNotes] = e.customValue
+				delta := 1
+				if key == "up" {
+					delta = -1
+				}
+				if tmp.moveNotesCursor(delta) {
+					e.customValue.cursor = tmp.inputs[editNotes].cursor
+				} else {
+					e.customFocus = min(5, max(0, e.customFocus+delta))
+				}
+			} else {
+				dialogLinearFocus(key, 6, &e.customFocus, false)
+			}
+		default:
+			if e.customFocus == 2 && k.Type == tea.KeySpace {
+				e.customConcealed = !e.customConcealed
+				return
+			}
+			if e.customFocus == 0 {
+				e.customName.update(k)
+				e.customErr = ""
+			} else if e.customFocus == 1 {
+				e.customValue.update(k)
+			}
+		}
+		return
+	}
+	switch key {
+	case "esc":
+		e.closeCustomFields(false)
+	case "up", "down", "tab", "shift+tab":
+		dialogLinearFocus(key, len(e.customFields)+3, &e.customIndex, key == "tab" || key == "shift+tab")
+	case "enter":
+		if e.customIndex == len(e.customFields)+2 {
+			e.closeCustomFields(false)
+		} else if e.customIndex == len(e.customFields)+1 {
+			e.closeCustomFields(true)
+		} else if e.customIndex == len(e.customFields) {
+			e.customEdit = true
+			e.customFocus = 0
+			e.customName.clear()
+			e.customValue.clear()
+			e.customConcealed = false
+		} else {
+			f := e.customFields[e.customIndex]
+			e.customName.set(f.Name)
+			e.customValue.set(f.Value)
+			e.customConcealed = f.Protected
+			e.customEdit = true
+			e.customFocus = 0
+		}
+	case "a":
+		e.customIndex = len(e.customFields)
+		e.customEdit = true
+		e.customFocus = 0
+		e.customName.clear()
+		e.customValue.clear()
+		e.customConcealed = false
+	}
+}
+
+func insertInputRune(i *input, r rune) {
+	if len(i.text) >= 4096 {
+		return
+	}
+	i.text = append(i.text, 0)
+	copy(i.text[i.cursor+1:], i.text[i.cursor:len(i.text)-1])
+	i.text[i.cursor] = r
+	i.cursor++
+}
+
+func (e *entryEditor) saveCustomField() {
+	name := strings.TrimSpace(e.customName.value())
+	if name == "" || strings.ContainsAny(name, "\r\n\x00") {
+		e.customErr = "Field name is required."
+		return
+	}
+	if isStandardEditorField(name) || name == "Tags" || vault.IsTOTPField(name) {
+		e.customErr = "This field name is reserved."
+		return
+	}
+	for i, f := range e.customFields {
+		if f.Name == name && (!e.customEdit || i != e.customIndex) {
+			e.customErr = "Field name already exists."
+			return
+		}
+	}
+	f := vault.Field{Name: name, Value: e.customValue.value(), Protected: e.customConcealed}
+	if e.customIndex < len(e.customFields) {
+		e.customFields[e.customIndex] = f
+	} else {
+		e.customFields = append(e.customFields, f)
+	}
+	e.customIndex = min(len(e.customFields)-1, e.customIndex)
+	e.customEdit = false
+	e.customErr = ""
+	e.customName.clear()
+	e.customValue.clear()
+}
+
+func (e *entryEditor) renderCustom(width, height int) []string {
+	styles := e.styleSet()
+	lines := []string{styles.accent.Render(" CUSTOM FIELDS "), styles.rule(width)}
+	if e.customEdit {
+		nameLabel, valueLabel := " FIELD NAME", " FIELD VALUE"
+		if e.customFocus == 0 {
+			nameLabel = ">" + nameLabel
+		}
+		if e.customFocus == 1 {
+			valueLabel = ">" + valueLabel
+		}
+		lines = append(lines, nameLabel, " "+fit(e.customName.value(), width-2), valueLabel)
+		for _, line := range strings.Split(e.customValue.value(), "\n") {
+			lines = append(lines, " "+fit(line, width-2))
+		}
+		concealed := fmt.Sprintf(" [%s] Concealed", map[bool]string{true: "x", false: " "}[e.customConcealed])
+		if e.customFocus == 2 {
+			concealed = ">" + concealed
+		}
+		lines = append(lines, concealed)
+		save := " Save"
+		cancel := " Cancel (esc)"
+		if e.customFocus == 3 {
+			save = ">" + save
+		}
+		if e.customFocus == 4 {
+			cancel = ">" + cancel
+		}
+		lines = append(lines, save+"   "+cancel)
+		if e.customErr != "" {
+			lines = append(lines, styles.error.Render(e.customErr))
+		}
+	} else {
+		for i, f := range e.customFields {
+			marker := "  "
+			if i == e.customIndex {
+				marker = "> "
+				lines = append(lines, styles.active.Render(marker+safe(f.Name)+" (enter)"))
+			} else {
+				lines = append(lines, styles.secondary.Render(marker+safe(f.Name)))
+			}
+		}
+		if e.customIndex == len(e.customFields) {
+			lines = append(lines, styles.active.Render("> Add"))
+		} else {
+			lines = append(lines, "  Add (a)")
+		}
+		lines = append(lines, "  Close (esc)")
+	}
+	return padLines(lines, height)
 }
 
 func (e *entryEditor) renderAppearance(width, height int, compact, ascii bool) []string {
@@ -584,7 +856,7 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 		label    string
 		index    int
 		shortcut string
-	}{{"Generate Password…", editGenerate, ""}}
+	}{{fmt.Sprintf("Custom Fields (%d)…", len(e.customFields)), editCustomFields, ""}, {"Generate Password…", editGenerate, ""}}
 	actions = append(actions, struct {
 		label    string
 		index    int
@@ -615,10 +887,10 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 			text = styles.inactive.Render(ansi.Strip(text))
 		}
 		lines = append(lines, editorLine{text: text, focus: action.index})
-	}
-	if e.err != "" && e.validation == "" {
-		for _, text := range renderErrorLines(e.err, max(1, width-1), styles) {
-			lines = append(lines, editorLine{text: text, focus: -1, error: true})
+		if action.index == e.focus && e.err != "" && e.validation == "" {
+			for _, text := range renderErrorLines(e.err, max(1, width-1), styles) {
+				lines = append(lines, editorLine{text: text, focus: -1, error: true})
+			}
 		}
 	}
 	return lines
