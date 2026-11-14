@@ -916,12 +916,10 @@ func (m *Model) fieldNames() []string {
 		}
 	}
 	seen := map[string]bool{"TOTP": true, "Title": true, "UserName": true, "Password": true, "URL": true, "Notes": true, "Email": true}
-	if showNonPasswordVaultSecurity {
-		for _, f := range e.Fields {
-			if !seen[f.Name] {
-				names = append(names, f.Name)
-				seen[f.Name] = true
-			}
+	for _, f := range e.Fields {
+		if !seen[f.Name] {
+			names = append(names, f.Name)
+			seen[f.Name] = true
 		}
 	}
 	return names

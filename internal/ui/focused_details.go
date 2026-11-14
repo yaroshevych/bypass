@@ -104,8 +104,11 @@ func applyEntryDetails(entry *vault.Entry, fields []vault.Field) {
 			if entry.Fields[index].Name == value.Name {
 				entry.Fields[index] = value
 				entry.Fields[index].Protected = false
+				goto nextField
 			}
 		}
+		entry.Fields = append(entry.Fields, value)
+	nextField:
 	}
 	entry.DetailsLoaded = true
 }
