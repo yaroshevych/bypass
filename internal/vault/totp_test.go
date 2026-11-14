@@ -120,3 +120,41 @@ func TestCustomFieldEditPreservesTOTPAndProtection(t *testing.T) {
 		t.Fatalf("TOTP settings changed: period=%d digits=%d", result.PeriodSeconds, len(result.Code))
 	}
 }
+
+func TestCustomFieldReplacementAndDeletionPersist(t *testing.T) {
+	path, creds, db, backend := nativeFixture(t)
+	backup := filepath.Join(t.TempDir(), "backups")
+	applyFixtureChange(t, backend, &db, creds, Change{
+		Kind: AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Fields"},
+		CustomFields: []Field{{Name: "First", Value: "secret", Protected: true}, {Name: "Second", Value: "value"}},
+	}, backup)
+	id := db.Entries[0].UUID
+	applyFixtureChange(t, backend, &db, creds, Change{Kind: EditEntry, EntryUUID: id, Values: map[string]string{"Title": "Renamed"}}, backup)
+	fields, err := backend.EntryDetails(context.Background(), db, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]Field{}
+	for _, field := range fields {
+		found[field.Name] = field
+	}
+	if found["First"] != (Field{Name: "First", Value: "secret", Protected: true}) || found["Second"].Value != "value" {
+		t.Fatal("an edit without custom fields did not preserve them")
+	}
+	applyFixtureChange(t, backend, &db, creds, Change{Kind: EditEntry, EntryUUID: id, Values: map[string]string{"Title": "Renamed"}, CustomFields: []Field{}}, backup)
+	db.Clear()
+	opened, err := backend.Open(context.Background(), path, creds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer opened.Clear()
+	fields, err = backend.EntryDetails(context.Background(), opened, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range fields {
+		if field.Name == "First" || field.Name == "Second" {
+			t.Fatalf("deleted field %q survived reopening", field.Name)
+		}
+	}
+}

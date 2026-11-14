@@ -83,6 +83,70 @@ func TestCustomFieldDeleteRespectsListCancel(t *testing.T) {
 	}
 }
 
+func TestCustomFieldKeyboardNavigationAndValidation(t *testing.T) {
+	e := newEntryEditor(&vault.Entry{Fields: []vault.Field{{Name: "Existing", Value: "original"}}}, "root")
+	e.openCustomFields()
+	key := func(k tea.KeyType) { e.key(tea.KeyMsg{Type: k}) }
+	key(tea.KeyDown) // Add New
+	key(tea.KeyEnter)
+	if !e.customEdit {
+		t.Fatal("Add New did not open the field dialog")
+	}
+	key(tea.KeyCtrlS)
+	if e.customErr == "" || !e.customEdit {
+		t.Fatal("empty field name was accepted")
+	}
+	for _, name := range []string{"Existing", "Email", "TOTP Seed"} {
+		e.customName.set(name)
+		key(tea.KeyCtrlS)
+		if e.customErr == "" || !e.customEdit || len(e.customFields) != 1 {
+			t.Fatalf("invalid field name %q was accepted", name)
+		}
+	}
+	e.customName.set("New field")
+	key(tea.KeyTab)
+	e.key(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("first")})
+	key(tea.KeyEnter)
+	e.key(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("second")})
+	key(tea.KeyTab)
+	key(tea.KeySpace)
+	key(tea.KeyTab)
+	key(tea.KeyEnter)
+	if e.customEdit || len(e.customFields) != 2 || e.customFields[1] != (vault.Field{Name: "New field", Value: "first\nsecond", Protected: true}) {
+		t.Fatalf("keyboard edit produced unexpected fields: %+v", e.customFields)
+	}
+	key(tea.KeyDown) // Add New
+	key(tea.KeyDown) // Save
+	key(tea.KeyEnter)
+	if e.customOpen || !e.dirty() {
+		t.Fatal("list Save did not retain keyboard edits")
+	}
+
+	e.openCustomFields()
+	key(tea.KeyEnter)
+	e.customName.set("Discarded")
+	key(tea.KeyEsc)
+	if e.customEdit || e.customFields[0].Name != "Existing" {
+		t.Fatal("nested Cancel did not discard the field draft")
+	}
+	key(tea.KeyEsc)
+}
+
+func TestCustomFieldSelectionHintOnlyOnSelectedRow(t *testing.T) {
+	m := New(Options{})
+	m.editor = newEntryEditor(&vault.Entry{Fields: []vault.Field{{Name: "First"}, {Name: "Second"}}}, "root")
+	m.editor.openCustomFields()
+	for _, selected := range []int{0, 1, 2} {
+		m.editor.customIndex = selected
+		opts, _ := m.customFieldsDialogOptions(70, 25)
+		for i, row := range opts.Body {
+			if got, want := strings.Contains(ansi.Strip(row), "enter"), i == selected; got != want {
+				t.Fatalf("selection %d row %d: enter hint = %v, want %v", selected, i, got, want)
+			}
+		}
+	}
+}
+
 func TestEmailIsStandardFieldAfterURL(t *testing.T) {
 	m, _ := operationModel(t)
 	m.ws.ActiveSession().DB.Entries[0].Fields = append(m.ws.ActiveSession().DB.Entries[0].Fields, vault.Field{Name: "URL", Value: "https://example.test"}, vault.Field{Name: "Email", Value: "person@example.test"}, vault.Field{Name: "Notes", Value: "notes"})
