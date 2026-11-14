@@ -17,6 +17,7 @@ const (
 	editUserName
 	editPassword
 	editURL
+	editEmail
 	editNotes
 	editGenerate
 	editTags
@@ -39,16 +40,16 @@ const (
 	editorCustomFields
 )
 
-var editorFields = [...]string{"Title", "UserName", "Password", "URL", "Notes"}
+var editorFields = [...]string{"Title", "UserName", "Password", "URL", "Email", "Notes"}
 
-// entryEditor edits the five user-facing fields without changing the rest of
+// entryEditor edits the user-facing fields without changing the rest of
 // an entry. The password is kept in its own rune buffer and never enters the
 // values map.
 type entryEditor struct {
 	styles               *styleSet
 	compact              bool
 	ascii                bool
-	inputs               [5]input
+	inputs               [6]input
 	original             map[string]string
 	originalPassword     []rune
 	readonlyFields       []vault.Field
@@ -63,8 +64,8 @@ type entryEditor struct {
 	customValue          input
 	customConcealed      bool
 	customErr            string
-	protected            [5]bool
-	protectedEdited      [5]bool
+	protected            [6]bool
+	protectedEdited      [6]bool
 	validation           string
 	validationFocus      int
 	focus                int
@@ -134,7 +135,7 @@ func (e *entryEditor) dirty() bool {
 	if e == nil {
 		return false
 	}
-	for _, name := range []string{"Title", "UserName", "URL", "Notes"} {
+	for _, name := range []string{"Title", "UserName", "URL", "Email", "Notes"} {
 		if e.inputs[fieldIndex(name)].value() != e.original[name] {
 			return true
 		}
@@ -248,7 +249,7 @@ func (e *entryEditor) values() map[string]string {
 	if e == nil {
 		return values
 	}
-	for _, name := range []string{"Title", "UserName", "URL", "Notes"} {
+	for _, name := range []string{"Title", "UserName", "URL", "Email", "Notes"} {
 		values[name] = e.inputs[fieldIndex(name)].value()
 	}
 	if e.tagsChanged() {
@@ -291,7 +292,7 @@ func (e *entryEditor) validate() error {
 	e.validation, e.err = "", ""
 	e.validationFocus = -1
 	values := e.values()
-	for _, name := range []string{"Title", "UserName", "URL", "Notes"} {
+	for _, name := range []string{"Title", "UserName", "URL", "Email", "Notes"} {
 		if e.original[name] != "" && values[name] == "" {
 			e.validationFocus = fieldIndex(name)
 			e.focus = e.validationFocus
@@ -464,7 +465,7 @@ func (e *entryEditor) actionFocuses() []int {
 }
 
 func (e *entryEditor) focusOrder() []int {
-	order := []int{editTitle, editUserName, editPassword, editURL, editNotes}
+	order := []int{editTitle, editUserName, editPassword, editURL, editEmail, editNotes}
 	return append(order, e.actionFocuses()...)
 }
 

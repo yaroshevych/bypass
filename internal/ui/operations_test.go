@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -491,9 +492,10 @@ func TestLongNotesScrollWithoutMovingFieldFocus(t *testing.T) {
 	s.DB.Entries[0].Fields = append(s.DB.Entries[0].Fields, vault.Field{Name: "Notes", Value: strings.Repeat("long note line\n", 60)})
 	v := m.ws.ActiveView()
 	v.Focus = 2
-	v.FieldIndex = 3
+	v.FieldIndex = slices.Index(m.fieldNames(), "Notes")
+	notesIndex := v.FieldIndex
 	m.Update(tea.KeyMsg{Type: tea.KeyPgDown})
-	if v.DetailOffset == 0 || v.FieldIndex != 3 {
+	if v.DetailOffset == 0 || v.FieldIndex != notesIndex {
 		t.Fatal("long notes cannot be scrolled independently")
 	}
 	m.Update(tea.KeyMsg{Type: tea.KeyTab})
@@ -508,18 +510,19 @@ func TestLongNotesScrollWithArrowKeys(t *testing.T) {
 	s := m.ws.ActiveSession()
 	s.DB.Entries[0].Fields = append(s.DB.Entries[0].Fields, vault.Field{Name: "Notes", Value: strings.Repeat("long note line\n", 60) + "last note line"})
 	v := m.ws.ActiveView()
-	v.Focus, v.FieldIndex = 2, 3
+	v.Focus, v.FieldIndex = 2, slices.Index(m.fieldNames(), "Notes")
+	notesIndex := v.FieldIndex
 	m.adjustViewport()
 	initial := v.DetailOffset
 	for i := 0; i < 100 && !strings.Contains(m.View(), "last note line"); i++ {
 		m.Update(tea.KeyMsg{Type: tea.KeyDown})
 	}
-	if v.DetailOffset <= initial || v.FieldIndex != 3 || !strings.Contains(m.View(), "last note line") {
+	if v.DetailOffset <= initial || v.FieldIndex != notesIndex || !strings.Contains(m.View(), "last note line") {
 		t.Fatal("down did not scroll to the end of the focused notes")
 	}
 	end := v.DetailOffset
 	m.Update(tea.KeyMsg{Type: tea.KeyUp})
-	if v.DetailOffset != end-1 || v.FieldIndex != 3 {
+	if v.DetailOffset != end-1 || v.FieldIndex != notesIndex {
 		t.Fatal("up did not scroll back through the focused notes")
 	}
 }
@@ -530,7 +533,7 @@ func TestLongNotesScrollPastControlToBlankRow(t *testing.T) {
 	m.ws.ActiveSession().DB.Entries[0].Fields = append(m.ws.ActiveSession().DB.Entries[0].Fields,
 		vault.Field{Name: "Notes", Value: strings.Repeat("line\n", 60) + "last note line"})
 	v := m.ws.ActiveView()
-	v.Focus, v.FieldIndex = 2, 3
+	v.Focus, v.FieldIndex = 2, slices.Index(m.fieldNames(), "Notes")
 	m.adjustViewport()
 	for i := 0; i < 100; i++ {
 		if !m.scrollFocusedField(1) {
@@ -556,7 +559,7 @@ func TestHoldingDownAtEndOfLongNotesKeepsScrollPosition(t *testing.T) {
 	m.ws.ActiveSession().DB.Entries[0].Fields = append(m.ws.ActiveSession().DB.Entries[0].Fields,
 		vault.Field{Name: "Notes", Value: strings.Repeat("line\n", 60) + "last note line"})
 	v := m.ws.ActiveView()
-	v.Focus, v.FieldIndex = 2, 3
+	v.Focus, v.FieldIndex = 2, slices.Index(m.fieldNames(), "Notes")
 	m.adjustViewport()
 	for i := 0; i < 100; i++ {
 		m.Update(tea.KeyMsg{Type: tea.KeyDown})

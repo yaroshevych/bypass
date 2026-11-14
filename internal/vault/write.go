@@ -27,7 +27,7 @@ func validateChange(change Change) error {
 	}
 	isAttachmentChange := change.Kind == AddAttachment || change.Kind == ReplaceAttachment || change.Kind == RemoveAttachment
 	for key := range change.Values {
-		if key != "Title" && key != "UserName" && key != "URL" && key != "Notes" && key != "Tags" && !supportedTOTPField(key) {
+		if key != "Title" && key != "UserName" && key != "URL" && key != "Email" && key != "Notes" && key != "Tags" && !supportedTOTPField(key) {
 			return ErrUnsupported
 		}
 	}
@@ -36,7 +36,7 @@ func validateChange(change Change) error {
 	}
 	seenCustom := map[string]bool{}
 	for _, field := range change.CustomFields {
-		if strings.TrimSpace(field.Name) == "" || strings.ContainsAny(field.Name, "\r\n\x00") || field.Name == "Title" || field.Name == "UserName" || field.Name == "Password" || field.Name == "URL" || field.Name == "Notes" || field.Name == "Tags" || supportedTOTPField(field.Name) || seenCustom[field.Name] {
+		if strings.TrimSpace(field.Name) == "" || strings.ContainsAny(field.Name, "\r\n\x00") || field.Name == "Title" || field.Name == "UserName" || field.Name == "Password" || field.Name == "URL" || field.Name == "Email" || field.Name == "Notes" || field.Name == "Tags" || supportedTOTPField(field.Name) || seenCustom[field.Name] {
 			return ErrUnsupported
 		}
 		seenCustom[field.Name] = true

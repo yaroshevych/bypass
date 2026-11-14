@@ -908,15 +908,19 @@ func (m *Model) fieldNames() []string {
 	if e == nil {
 		return nil
 	}
-	names := []string{"UserName", "Password"}
+	var names []string
+	if e.Get("UserName") != "" {
+		names = append(names, "UserName")
+	}
+	if e.HasPassword || e.Get("Password") != "" {
+		names = append(names, "Password")
+	}
 	if e.HasTOTP {
 		names = append(names, "TOTP")
 	}
-	names = append(names, "URL", "Notes")
-	for _, f := range e.Fields {
-		if f.Name == "Email" {
-			names = append(names, "Email")
-			break
+	for _, name := range []string{"URL", "Email", "Notes"} {
+		if e.Get(name) != "" {
+			names = append(names, name)
 		}
 	}
 	seen := map[string]bool{"TOTP": true, "Title": true, "UserName": true, "Password": true, "URL": true, "Notes": true, "Email": true}

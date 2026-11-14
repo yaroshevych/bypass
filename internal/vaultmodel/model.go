@@ -28,6 +28,7 @@ type Entry struct {
 	HistoryCount      int
 	History           []Entry
 	HasTOTP           bool
+	HasPassword       bool
 	TOTPPeriodSeconds int
 }
 

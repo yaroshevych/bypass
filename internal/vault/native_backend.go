@@ -706,6 +706,9 @@ func nativeEntry(e *gok.Entry, gid, path string, recycled, details bool) Entry {
 		out.AttachmentNames = append(out.AttachmentNames, bin.Name)
 	}
 	for _, v := range e.Values {
+		if v.Key == "Password" {
+			out.HasPassword = v.Value.Content != ""
+		}
 		if isTOTPSeedField(v.Key) {
 			out.HasTOTP = v.Value.Content != ""
 		}
@@ -743,7 +746,7 @@ func nativeEntry(e *gok.Entry, gid, path string, recycled, details bool) Entry {
 
 func standardField(key string) bool {
 	switch key {
-	case "Title", "UserName", "URL", "Notes":
+	case "Title", "UserName", "URL", "Email", "Notes":
 		return true
 	}
 	return false
@@ -1174,7 +1177,7 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		if change.CustomFields != nil {
 			for i := range e.Values {
 				key := e.Values[i].Key
-				if key != "Title" && key != "UserName" && key != "Password" && key != "URL" && key != "Notes" && !supportedTOTPField(key) {
+				if key != "Title" && key != "UserName" && key != "Password" && key != "URL" && key != "Email" && key != "Notes" && !supportedTOTPField(key) {
 					e.Values[i].Key = ""
 				}
 			}
@@ -1374,7 +1377,14 @@ func setNativeValue(e *gok.Entry, key, value string, protected bool) {
 func wrapperBool(v bool) (out wrappers.BoolWrapper) { out.Bool = v; return }
 func fillNativeValues(e *gok.Entry, values map[string]string) {
 	for key, val := range values {
-		setNativeValue(e, key, val, false)
+		protected := false
+		for _, existing := range e.Values {
+			if existing.Key == key {
+				protected = existing.Value.Protected.Bool
+				break
+			}
+		}
+		setNativeValue(e, key, val, protected)
 	}
 }
 func removeNativeEntry(g *gok.Group, e *gok.Entry) {

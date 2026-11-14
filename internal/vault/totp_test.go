@@ -77,12 +77,12 @@ func TestCustomFieldEditPreservesTOTPAndProtection(t *testing.T) {
 	backup := filepath.Join(t.TempDir(), "backups")
 	applyFixtureChange(t, backend, &db, creds, Change{
 		Kind: AddEntry, GroupUUID: db.RootUUID,
-		Values: map[string]string{"Title": "Authenticator", "TOTP Seed": "JBSWY3DPEHPK3PXP", "Period": "17", "Digits": "6"},
+		Values:       map[string]string{"Title": "Authenticator", "Email": "old@example.test", "TOTP Seed": "JBSWY3DPEHPK3PXP", "Period": "17", "Digits": "6"},
 		CustomFields: []Field{{Name: "Private", Value: "original", Protected: true}, {Name: "Public", Value: "visible"}},
 	}, backup)
 	entryID := db.Entries[0].UUID
 	applyFixtureChange(t, backend, &db, creds, Change{
-		Kind: EditEntry, EntryUUID: entryID, Values: map[string]string{"Title": "Authenticator"},
+		Kind: EditEntry, EntryUUID: entryID, Values: map[string]string{"Title": "Authenticator", "Email": "new@example.test"},
 		CustomFields: []Field{{Name: "Private", Value: "first line\nsecond line", Protected: true}, {Name: "Public", Value: "updated"}},
 	}, backup)
 	db.Clear()
@@ -100,6 +100,7 @@ func TestCustomFieldEditPreservesTOTPAndProtection(t *testing.T) {
 		byName[field.Name] = field
 	}
 	for _, want := range []Field{
+		{Name: "Email", Value: "new@example.test"},
 		{Name: "TOTP Seed", Value: "JBSWY3DPEHPK3PXP", Protected: true},
 		{Name: "Period", Value: "17"},
 		{Name: "Digits", Value: "6"},

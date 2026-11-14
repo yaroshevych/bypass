@@ -201,8 +201,8 @@ func TestEntryEditorNotesArrowKeysLeaveAtFirstAndLastLine(t *testing.T) {
 		t.Fatalf("up within notes: focus=%d cursor=%d", e.focus, e.inputs[editNotes].cursor)
 	}
 	e.key(tea.KeyMsg{Type: tea.KeyUp})
-	if e.focus != editURL {
-		t.Fatalf("up from first line: focus=%d, want URL", e.focus)
+	if e.focus != editEmail {
+		t.Fatalf("up from first line: focus=%d, want Email", e.focus)
 	}
 	e.focus = editNotes
 	e.inputs[editNotes].cursor = len("first\nsec")
@@ -426,6 +426,7 @@ func TestEntryEditorPointerSharesRenderedFocusMetadata(t *testing.T) {
 		{editSave, editorSave},
 		{editCancel, editorCancel},
 	} {
+		e.focus = actionCase.focus
 		lines := e.layoutLines(65, 22)
 		row := -1
 		for i, line := range lines {
@@ -548,13 +549,13 @@ func TestEntryEditorShowsUnsupportedFieldsReadOnlyAndRevealsSecrets(t *testing.T
 	}
 	e := newEntryEditor(entry, "root")
 	view := strings.Join(e.render(65, 40), "\n")
-	for _, hidden := range []string{"EMAIL (READ ONLY)", "person@example.test", "RECOVERY CODE (READ ONLY)", privateValue} {
+	for _, hidden := range []string{"EMAIL (READ ONLY)", "RECOVERY CODE (READ ONLY)", privateValue} {
 		if strings.Contains(view, hidden) {
 			t.Fatalf("unsupported custom field rendered %q:\n%s", hidden, view)
 		}
 	}
-	if _, ok := e.values()["Email"]; ok {
-		t.Fatal("readonly custom field should not be returned as an editable value")
+	if e.values()["Email"] != "person@example.test" || !strings.Contains(view, "person@example.test") {
+		t.Fatal("email should be displayed and editable as a standard field")
 	}
 	e.clear()
 	if len(e.readonlyFields) != 0 {

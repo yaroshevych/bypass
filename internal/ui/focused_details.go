@@ -4,6 +4,7 @@ import (
 	"bypass/internal/vault"
 	"context"
 	tea "github.com/charmbracelet/bubbletea"
+	"slices"
 )
 
 type entryDetailsReader interface {
@@ -80,7 +81,16 @@ func (m *Model) acceptFocusedDetails(msg focusedDetailsMsg) tea.Cmd {
 	for index := range session.DB.Entries {
 		entry := &session.DB.Entries[index]
 		if entry.UUID == msg.entryID {
+			focused := ""
+			if session == m.ws.ActiveSession() && m.selected() == entry {
+				focused = m.focusedField()
+			}
 			applyEntryDetails(entry, msg.fields)
+			if focused != "" {
+				if i := slices.Index(m.fieldNames(), focused); i >= 0 {
+					m.ws.ActiveView().FieldIndex = i
+				}
+			}
 			break
 		}
 	}
@@ -91,6 +101,7 @@ func (m *Model) acceptFocusedDetails(msg focusedDetailsMsg) tea.Cmd {
 func applyEntryDetails(entry *vault.Entry, fields []vault.Field) {
 	for _, value := range fields {
 		if value.Name == "Password" {
+			entry.HasPassword = value.Value != ""
 			continue
 		}
 		if value.Name == "TOTP" {
