@@ -94,3 +94,41 @@ jobs:
             args+=(--prerelease)
           fi
           gh release create --repo "$GITHUB_REPOSITORY" "$TAG" dist/* "${args[@]}"
+
+  update-homebrew:
+    name: Update Homebrew tap
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+    needs: publish
+    runs-on: ubuntu-latest
+    concurrency:
+      group: homebrew-tap-bypass
+      cancel-in-progress: false
+    steps:
+      - name: Check out Bypass
+        uses: actions/checkout@v6.1.0
+      - name: Check out tap
+        uses: actions/checkout@v6.1.0
+        with:
+          repository: yaroshevych/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+      - name: Download published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release download "$TAG" --repo yaroshevych/bypass --dir release-assets
+      - name: Verify release and update formula
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 scripts/update-homebrew.py "$TAG" release-assets homebrew-tap/Formula/bypass.rb
+          ruby -c homebrew-tap/Formula/bypass.rb
+      - name: Commit and push formula
+        working-directory: homebrew-tap
+        run: |
+          if git diff --quiet -- Formula/bypass.rb; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Formula/bypass.rb
+          git commit -m "Update bypass to ${GITHUB_REF_NAME}"
+          git push
