@@ -204,8 +204,8 @@ entries or vaults match. You can unlock a named vault while approval is pending.
 
 ### Fields and encoding
 
-Standard field names include `password`, `username`, `title`, `url`, and `notes`.
-Arbitrary custom fields and attachments are not currently supported.
+Standard field names include `password`, `username`, `title`, `url`, `email`, and
+`notes`. Custom fields can be referenced by name. Attachments are not supported.
 
 Percent-encode reserved characters within individual names. For example, use
 `%23` for a literal `#` and `%20` for a space. Path separators remain `/`.
