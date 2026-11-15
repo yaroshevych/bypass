@@ -912,6 +912,13 @@ func (m *Model) customFieldsDialogOptions(width, height int) (dialogrender.Optio
 	inner.Body = append(inner.Body, "")
 	valueStart := len(inner.Body)
 	valueLabel := " Field value"
+	if e.customConcealed {
+		if e.customReveal {
+			valueLabel += " (ctrl+r hide)"
+		} else {
+			valueLabel += " (ctrl+r reveal)"
+		}
+	}
 	if e.customFocus == 1 {
 		valueLabel = m.colors().accent.Render(valueLabel)
 	} else {
@@ -919,10 +926,18 @@ func (m *Model) customFieldsDialogOptions(width, height int) (dialogrender.Optio
 	}
 	inner.Body = append(inner.Body, valueLabel)
 	if !strings.Contains(e.customValue.value(), "\n") {
-		inner.Body = append(inner.Body, renderInputBox(inputFieldView{value: &e.customValue, focused: e.customFocus == 1, indent: 1}, innerWidth, m.compactAppearance(), 0, m.colors()))
+		inner.Body = append(inner.Body, renderInputBox(inputFieldView{value: &e.customValue, secret: e.customConcealed && !e.customReveal, focused: e.customFocus == 1, indent: 1}, innerWidth, m.compactAppearance(), 0, m.colors()))
 	} else {
 		tmp := *e
 		tmp.inputs[editNotes] = e.customValue
+		if e.customConcealed && !e.customReveal {
+			tmp.inputs[editNotes].text = append([]rune(nil), e.customValue.text...)
+			for i, r := range tmp.inputs[editNotes].text {
+				if r != '\n' {
+					tmp.inputs[editNotes].text[i] = '•'
+				}
+			}
+		}
 		if e.customFocus == 1 {
 			tmp.focus = editNotes
 		} else {

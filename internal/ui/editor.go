@@ -63,6 +63,7 @@ type entryEditor struct {
 	customName           input
 	customValue          input
 	customConcealed      bool
+	customReveal         bool
 	customErr            string
 	protected            [6]bool
 	protectedEdited      [6]bool
@@ -544,11 +545,16 @@ func (e *entryEditor) customKey(k tea.KeyMsg) {
 			}
 		case "ctrl+s":
 			e.saveCustomField()
+		case "ctrl+r":
+			if e.customConcealed {
+				e.customReveal = !e.customReveal
+			}
 		case "enter":
 			if e.customFocus == 1 {
 				insertInputRune(&e.customValue, '\n')
 			} else if e.customFocus == 2 {
 				e.customConcealed = !e.customConcealed
+				e.customReveal = false
 			} else if e.customFocus == 3 {
 				e.saveCustomField()
 			} else if e.customFocus == 4 {
@@ -587,6 +593,7 @@ func (e *entryEditor) customKey(k tea.KeyMsg) {
 		default:
 			if e.customFocus == 2 && k.Type == tea.KeySpace {
 				e.customConcealed = !e.customConcealed
+				e.customReveal = false
 				return
 			}
 			if e.customFocus == 0 {
@@ -610,6 +617,7 @@ func (e *entryEditor) customKey(k tea.KeyMsg) {
 			e.closeCustomFields(true)
 		} else if e.customIndex == len(e.customFields) {
 			e.customEdit = true
+			e.customReveal = false
 			e.customFocus = 0
 			e.customName.clear()
 			e.customValue.clear()
@@ -619,12 +627,15 @@ func (e *entryEditor) customKey(k tea.KeyMsg) {
 			e.customName.set(f.Name)
 			e.customValue.set(f.Value)
 			e.customConcealed = f.Protected
+			e.customReveal = false
 			e.customEdit = true
+			e.customReveal = false
 			e.customFocus = 0
 		}
 	case "a":
 		e.customIndex = len(e.customFields)
 		e.customEdit = true
+		e.customReveal = false
 		e.customFocus = 0
 		e.customName.clear()
 		e.customValue.clear()

@@ -283,3 +283,25 @@ func TestEmptyStandardFieldsAreHidden(t *testing.T) {
 		t.Fatalf("password presence not reflected: %v", names)
 	}
 }
+
+func TestProtectedCustomFieldEditingMasksAndReveals(t *testing.T) {
+	for _, value := range []string{"private-token", "private-token\nsecond-secret"} {
+		m := New(Options{})
+		m.editor = newEntryEditor(&vault.Entry{Fields: []vault.Field{{Name: "API key", Value: value, Protected: true}}}, "root")
+		m.editor.openCustomFields()
+		m.editor.customKey(tea.KeyMsg{Type: tea.KeyEnter})
+		render := func() string { return ansi.Strip(strings.Join(m.customFieldsDialog(70, 25), "\n")) }
+		if got := render(); strings.Contains(got, "private-token") || strings.Contains(got, "second-secret") {
+			t.Fatal("protected value visible by default")
+		}
+		m.editor.customKey(tea.KeyMsg{Type: tea.KeyCtrlR})
+		if got := render(); !strings.Contains(got, "private-token") {
+			t.Fatal("reveal did not show value")
+		}
+		m.editor.customKey(tea.KeyMsg{Type: tea.KeyEsc})
+		m.editor.customKey(tea.KeyMsg{Type: tea.KeyEnter})
+		if got := render(); strings.Contains(got, "private-token") {
+			t.Fatal("reopening retained reveal")
+		}
+	}
+}
