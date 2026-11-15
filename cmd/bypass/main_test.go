@@ -43,7 +43,10 @@ func TestCLIExitAndHelp(t *testing.T) {
 		}
 		os.Exit(0)
 	}
-	truePath, err := filepath.EvalSymlinks("/usr/bin/true")
+	truePath, err := exec.LookPath("true")
+	if err == nil {
+		truePath, err = filepath.EvalSymlinks(truePath)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
