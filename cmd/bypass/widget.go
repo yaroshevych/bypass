@@ -154,11 +154,14 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 		default:
 			err = errors.New("unknown widget action")
 		}
-		activityMu.Unlock()
 		if err != nil {
 			response.Error = err.Error()
 		}
-		if err := send(response); err != nil {
+		// Keep the response ordered before any idle lock notification. Otherwise
+		// a response computed before locking can restore vault data afterwards.
+		err = send(response)
+		activityMu.Unlock()
+		if err != nil {
 			return err
 		}
 	}
