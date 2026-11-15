@@ -26,6 +26,65 @@ func TestWidgetApprovalRejectsCancelledRequest(t *testing.T) {
 	}
 }
 
+func TestWidgetNotificationWaitsForPendingRequest(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		cancel     bool
+		remove     bool
+		wantNotify bool
+	}{
+		{name: "closed", cancel: true},
+		{name: "decided", remove: true},
+		{name: "still pending", wantNotify: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			p := &runpkg.Pending{Context: ctx}
+			a := &widgetApprovals{pending: map[string]*widgetPending{"1": {pending: p}}}
+			ready := make(chan time.Time, 1)
+			called := make(chan struct{}, 1)
+			finished := make(chan struct{})
+			go func() {
+				a.notifyAfter(ctx, "1", ready, func(context.Context) ([]byte, error) {
+					called <- struct{}{}
+					return nil, nil
+				})
+				close(finished)
+			}()
+			select {
+			case <-called:
+				t.Fatal("notification sent before the grace period")
+			default:
+			}
+			if tc.cancel {
+				cancel()
+			}
+			if tc.remove {
+				a.mu.Lock()
+				delete(a.pending, "1")
+				a.mu.Unlock()
+			}
+			ready <- time.Now()
+			select {
+			case <-finished:
+			case <-time.After(time.Second):
+				t.Fatal("notification did not finish")
+			}
+			select {
+			case <-called:
+				if !tc.wantNotify {
+					t.Fatal("notification sent for a closed request")
+				}
+			default:
+				if tc.wantNotify {
+					t.Fatal("notification missing for pending request")
+				}
+			}
+		})
+	}
+}
+
 func TestWidgetStalledClientDoesNotBlockSecondDecision(t *testing.T) {
 	dir, err := os.MkdirTemp("", "bw-")
 	if err != nil {

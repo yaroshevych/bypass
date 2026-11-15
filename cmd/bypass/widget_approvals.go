@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"sync"
+	"time"
 
 	runpkg "bypass/internal/run"
 	"bypass/internal/widget"
@@ -36,10 +37,11 @@ func (a *widgetApprovals) submit(p *runpkg.Pending) {
 	a.mu.Unlock()
 	_ = a.send(widgetResponse{Action: "request", ID: id})
 	go func() {
-		out, err := exec.CommandContext(p.Context, "notify-send", "--app-name=Bypass", "--action=default=Review", "Bypass", "A secret access request needs review").Output()
-		if err == nil && string(out) == "default\n" && p.Context.Err() == nil {
-			_ = a.send(widgetResponse{Action: "show-request", ID: id})
-		}
+		timer := time.NewTimer(500 * time.Millisecond)
+		defer timer.Stop()
+		a.notifyAfter(p.Context, id, timer.C, func(ctx context.Context) ([]byte, error) {
+			return exec.CommandContext(ctx, "notify-send", "--app-name=Bypass", "--action=default=Review", "Bypass", "A secret access request needs review").Output()
+		})
 	}()
 	go func() {
 		<-p.Context.Done()
@@ -48,6 +50,29 @@ func (a *widgetApprovals) submit(p *runpkg.Pending) {
 		a.mu.Unlock()
 		_ = a.send(widgetResponse{Action: "request-closed", ID: id})
 	}()
+}
+
+func (a *widgetApprovals) notifyAfter(ctx context.Context, id string, ready <-chan time.Time, notify func(context.Context) ([]byte, error)) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-ready:
+	}
+	a.mu.Lock()
+	_, pending := a.pending[id]
+	a.mu.Unlock()
+	if !pending || ctx.Err() != nil {
+		return
+	}
+	out, err := notify(ctx)
+	if err == nil && string(out) == "default\n" && ctx.Err() == nil {
+		a.mu.Lock()
+		_, pending = a.pending[id]
+		a.mu.Unlock()
+		if pending && ctx.Err() == nil {
+			_ = a.send(widgetResponse{Action: "show-request", ID: id})
+		}
+	}
 }
 
 func (a *widgetApprovals) review(ctx context.Context, id string) widgetResponse {
