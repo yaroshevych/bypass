@@ -1170,6 +1170,15 @@ func (m *Model) lockCurrent(all bool) tea.Cmd {
 }
 func (m *Model) lockSession(id string) {
 	if m.runs != nil {
+		for secrets, targets := range m.runs.replies {
+			for _, target := range targets {
+				if target.session == id {
+					secrets.Clear()
+					delete(m.runs.replies, secrets)
+					break
+				}
+			}
+		}
 		for grant := range m.runs.grants {
 			if grant.session == id {
 				delete(m.runs.grants, grant)

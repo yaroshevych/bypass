@@ -44,6 +44,14 @@ type runResult struct {
 	mode            string
 	bulk            bool
 }
+type runReplyResult struct {
+	pending         *runpkg.Pending
+	targets         []runTarget
+	permissionEpoch uint64
+	mode            string
+	accepted        bool
+	secrets         *secretValues
+}
 type runState struct {
 	pending         []*runpkg.Pending
 	visible         bool
@@ -72,6 +80,7 @@ type runState struct {
 	unavailable     string
 	newIdentity     map[*runpkg.Pending]bool
 	grants          map[runSessionGrant]string
+	replies         map[*secretValues][]runTarget
 }
 
 func (m *Model) pruneRunSessionGrants() {
@@ -289,14 +298,34 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 			}
 		}
 
+		response := runpkg.Response{Values: values}
 		if msg.err != nil {
 			message := "could not resolve requested secrets: " + msg.err.Error()
-
-			msg.pending.Reply(runpkg.Response{Error: message})
 			clearRunValues(values)
-		} else {
-			accepted := msg.pending.Reply(runpkg.Response{Values: values})
-			if accepted && msg.mode == "s" {
+			response = runpkg.Response{Error: message}
+		}
+		owned := newSecretValues(msg.pending.Context)
+		for key, value := range response.Values {
+			owned.Put(key, value)
+		}
+		response.Values = nil
+		if r.replies == nil {
+			r.replies = make(map[*secretValues][]runTarget)
+		}
+		r.replies[owned] = msg.targets
+		m.removeRun(msg.pending)
+		return func() tea.Msg {
+			response.Values = owned.Take()
+			if response.Values == nil && response.Error == "" {
+				response.Error = "vault locked or request canceled before secrets were delivered"
+			}
+			accepted := msg.pending.Reply(response)
+			return runReplyResult{pending: msg.pending, targets: msg.targets, permissionEpoch: msg.permissionEpoch, mode: msg.mode, accepted: accepted && response.Error == "", secrets: owned}
+		}, true
+	case runReplyResult:
+		delete(r.replies, msg.secrets)
+		if msg.accepted && msg.mode == "s" && msg.permissionEpoch == r.permissionEpoch {
+			if m.runTargetsCurrent(msg.targets) {
 				if r.grants == nil {
 					r.grants = make(map[runSessionGrant]string)
 				}
@@ -305,10 +334,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 					r.grants[runSessionGrant{target.session, principal, target.entry, target.field}] = msg.pending.Identity.Name
 				}
 			}
-			values = nil // Reply owns the byte slices, including rejected replies.
 		}
-		clearRunValues(values)
-		m.removeRun(msg.pending)
 		return nil, true
 	case tea.KeyMsg:
 		if r.visible && m.activeLayer() == layerTiny {

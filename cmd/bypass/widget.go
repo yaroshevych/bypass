@@ -144,10 +144,16 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 			err = session.CopyReference(ctx, request.ID, request.Field)
 		case "review":
 			response = approvals.review(ctx, request.ID)
-		case "approve":
-			err = approvals.decide(ctx, request.ID, true)
-		case "deny":
-			err = approvals.decide(ctx, request.ID, false)
+		case "approve", "deny":
+			go func(request widgetRequest) {
+				result := widgetResponse{Action: request.Action, ID: request.ID}
+				if err := approvals.decide(ctx, request.ID, request.Action == "approve"); err != nil {
+					result.Error = err.Error()
+				}
+				_ = send(result)
+			}(request)
+			activityMu.Unlock()
+			continue
 		case "lock":
 			err = session.Lock(ctx)
 			unlocked = false

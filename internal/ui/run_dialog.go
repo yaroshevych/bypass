@@ -524,7 +524,7 @@ func (m *Model) activateRunKey(key string) tea.Cmd {
 			m.leaveRunReview()
 		case "d":
 			if p := m.runReviewed(); p != nil {
-				p.Reply(runpkg.Response{Error: "secret request denied"})
+				go p.Reply(runpkg.Response{Error: "secret request denied"})
 				m.removeRun(p)
 			}
 		case "a", "s":
@@ -549,7 +549,7 @@ func (m *Model) activateRunKey(key string) tea.Cmd {
 		m.enterRunReview()
 	case "d":
 		for _, p := range append([]*runpkg.Pending(nil), r.pending...) {
-			p.Reply(runpkg.Response{Error: "secret request denied"})
+			go p.Reply(runpkg.Response{Error: "secret request denied"})
 			m.removeRun(p)
 		}
 	case "a":

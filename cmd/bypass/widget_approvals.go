@@ -75,26 +75,31 @@ func (a *widgetApprovals) review(ctx context.Context, id string) widgetResponse 
 
 func (a *widgetApprovals) decide(ctx context.Context, id string, approve bool) error {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	item := a.pending[id]
 	if item == nil || item.pending.Context.Err() != nil {
+		a.mu.Unlock()
 		return fmt.Errorf("request is no longer available")
 	}
-	if !approve {
-		item.pending.Reply(runpkg.Response{Error: "secret request denied"})
-		delete(a.pending, id)
-		return nil
-	}
-	if len(item.targets) == 0 {
+	if approve && len(item.targets) == 0 {
+		a.mu.Unlock()
 		return fmt.Errorf("review the request before approving")
 	}
-	values, err := a.session.ResolveApproved(ctx, item.targets)
+	delete(a.pending, id)
+	targets := append([]widget.Target(nil), item.targets...)
+	a.mu.Unlock()
+	if !approve {
+		if !item.pending.Reply(runpkg.Response{Error: "secret request denied"}) {
+			return fmt.Errorf("request is no longer available")
+		}
+		return nil
+	}
+	values, err := a.session.ResolveApproved(ctx, targets)
 	if err != nil {
+		item.pending.Reply(runpkg.Response{Error: "could not resolve requested secrets: " + err.Error()})
 		return err
 	}
 	if !item.pending.Reply(runpkg.Response{Values: values}) {
 		return fmt.Errorf("request is no longer available")
 	}
-	delete(a.pending, id)
 	return nil
 }
