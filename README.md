@@ -11,6 +11,13 @@ Beta for Linux and macOS.
 
 https://github.com/user-attachments/assets/5d8a0287-4225-40f2-9566-9e1c9029e827
 
+10 themes supported, including dynamic Omarchy theme.
+
+| <img width="1006" height="579" alt="compact" src="https://github.com/user-attachments/assets/3833abf8-9bb6-4315-8fb6-82a0ca4296d6" /> | <img width="999" height="578" alt="light" src="https://github.com/user-attachments/assets/fedd1743-7315-48ff-8628-216cec0811a1" /> | <img width="1004" height="582" alt="mocha" src="https://github.com/user-attachments/assets/61abd94f-5606-40bf-9e19-2e00fefe0bdb" />
+| --- | --- | --- |
+| Vesper theme with Compact layout | Latte theme with Command palette | Mocha theme with Settings dialog |
+
+
 ## Install
 
 Homebrew (default):
