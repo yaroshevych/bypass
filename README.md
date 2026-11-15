@@ -5,41 +5,33 @@
 Use your KeePass vaults from the terminal. Enjoy a modern, beautiful interface
 where each detail is crafted: navigation, controls, keyboard shortcuts, and themes.
 
-Bypass supports KDBX 3.x and 4.x vaults. YubiKey authentication is unsupported.
-See the [CLI reference](CLI.md) for compatibility and write behavior.
+Bypass supports KDBX 3.x and 4.x vaults. See the [CLI reference](CLI.md) for compatibility and write behavior.
 
 Beta for Linux and macOS.
 
-<img width="2880" height="1800" alt="Bypass terminal vault interface" src="https://github.com/user-attachments/assets/fbd1676b-00a6-439e-9812-50138bdd63ce" />
+https://github.com/user-attachments/assets/5d8a0287-4225-40f2-9566-9e1c9029e827
 
 ## Install
 
-Install with Homebrew (recommended):
-
+Homebrew (default):
 ```sh
 brew install yaroshevych/tap/bypass
 ```
 
-Or install the latest release for your OS and CPU architecture:
-
+Other options:
 ```sh
+# Direct install from GitHub releases
 curl -fsSL https://raw.githubusercontent.com/yaroshevych/bypass/main/install.sh | bash
-```
 
-The installer downloads `bypass`. Set `BINDIR` to change the install directory.
-You can also download Bypass archives from
-[GitHub Releases](https://github.com/yaroshevych/bypass/releases).
+#Same, installing into `~/bin`
+curl -fsSL https://raw.githubusercontent.com/yaroshevych/bypass/main/install.sh | BINDIR="$HOME/bin" bash
 
-For example, use `curl -fsSL https://raw.githubusercontent.com/yaroshevych/bypass/main/install.sh | BINDIR="$HOME/bin" bash` to install into `~/bin`.
-
-To build from source, install Go 1.24+ and Make, then run:
-
-```sh
+# Build and install from source (requires Go 1.24+ and Make)
 make install
-```
 
-This installs to `/usr/local/bin`. For a user installation, run
-`make install PREFIX="$HOME/.local"` and add `~/.local/bin` to your `PATH`.
+#Same, installing into `~/.local/bin`
+make install PREFIX="$HOME/.local"
+```
 
 ## Open a vault
 
