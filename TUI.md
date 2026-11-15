@@ -113,6 +113,9 @@ show fewer panes without changing the vault or selection.
 | Save Entry | `ctrl+s` | Save the active entry draft. |
 | Cancel | `esc` | Leave the entry editor, with a decision for an unsaved draft when needed. |
 
+In the entry editor, select Custom Fields to add, edit, or delete fields. Mark a
+field as concealed to mask its value; press `ctrl+r` to reveal or hide it while editing.
+
 Jump… accepts `p` for Password, `u` for Username, `w` for URL, `n` for Notes,
 and `e` for Email when that field exists. It changes focus without copying or
 revealing the value.

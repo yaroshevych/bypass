@@ -14,7 +14,13 @@ Beta for Linux and macOS.
 
 ## Install
 
-Install the latest release for your OS and CPU architecture:
+Install with Homebrew (recommended):
+
+```sh
+brew install yaroshevych/tap/bypass
+```
+
+Or install the latest release for your OS and CPU architecture:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/yaroshevych/bypass/main/install.sh | bash
@@ -103,6 +109,8 @@ Each vault write produces a backup; Bypass keeps the five newest across all vaul
 If saving would discard unsupported vault information, Bypass explains what will
 be lost and asks for confirmation. Approval applies only to that save, and the
 backup must succeed first.
+
+See [SECURITY.md](SECURITY.md) for security assumptions and limitations.
 
 ## License
 

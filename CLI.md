@@ -109,13 +109,13 @@ bypass run --timeout 2m --env-file .env.deploy -- ./scripts/deploy.sh --verbose
 
 1. Merge the inherited environment with the specified files.
 2. Find references in the resulting environment values.
-3. Ask the running Bypass TUI to resolve and authorize the batch.
+3. Ask the running Bypass TUI or unlocked Omarchy widget to resolve and authorize the batch.
 4. Launch the command with the resolved values in its environment.
 
 All references must resolve and be approved before launch; a batch can span
 vaults. Resolved values never go into environment files or the parent shell.
 References in command arguments and scripts are not resolved. With no environment
-references, Bypass launches the command without contacting the TUI.
+references, Bypass launches the command without requesting approval.
 
 ### Environment precedence
 
@@ -227,7 +227,11 @@ Only the reference portions are replaced. Ordinary text is preserved.
 
 ## Approval and session permissions
 
-Keep the TUI running. Open requests with `shift+s`, then select one and press
+Keep the TUI running or unlock a vault in the Omarchy widget. The widget can
+approve once or deny requests for its unlocked vault. Session permissions and
+requests across multiple vaults require the TUI.
+
+In the TUI, open requests with `shift+s`, then select one and press
 `enter` to review. Approve all once (`a`) asks for confirmation and approves the
 currently resolvable requests. Review session permissions (`r`) opens permissions;
 Clear all (`c`) removes session access without removing pending requests.
