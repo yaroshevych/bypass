@@ -53,6 +53,12 @@ func run(args []string, stdout, stderr io.Writer) error {
 		}
 		return widgetCommand(os.Stdin, stdout)
 	}
+	if len(args) > 0 && args[0] == "widget-recent" {
+		if len(args) != 1 {
+			return errors.New("widget-recent takes no arguments")
+		}
+		return widgetRecent(stdout)
+	}
 	flags := flag.NewFlagSet("bypass", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	showVersion := flags.Bool("version", false, "print version and exit")

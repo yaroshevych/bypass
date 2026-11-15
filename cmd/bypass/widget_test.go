@@ -4,12 +4,38 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"bypass/internal/platform"
 	"bypass/internal/vault"
 )
+
+func TestWidgetRecentCommand(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	paths, err := platform.Resolve()
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "vault.kdbx")
+	if err := platform.NewStore(paths).Remember(path); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := run([]string{"widget-recent"}, &out, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	var response widgetResponse
+	if err := json.NewDecoder(&out).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Action != "recent" || len(response.Recent) != 1 || response.Recent[0] != path {
+		t.Fatalf("unexpected recent response: %#v", response)
+	}
+}
 
 func TestWidgetServiceLockedState(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
@@ -28,6 +54,27 @@ func TestWidgetServiceLockedState(t *testing.T) {
 	}
 	if recent.Action != "recent" || recent.Error != "" || items.Action != "items" || items.Error != "vault is locked" {
 		t.Fatalf("unexpected responses: %#v %#v", recent, items)
+	}
+}
+
+func TestWidgetServiceShutdownStopsProcessing(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	var out bytes.Buffer
+	input := strings.NewReader("{\"action\":\"shutdown\"}\n{\"action\":\"recent\"}\n")
+	if err := widgetCommandWithApprovals(input, &out, false); err != nil {
+		t.Fatal(err)
+	}
+	decoder := json.NewDecoder(&out)
+	var response widgetResponse
+	if err := decoder.Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Action != "shutdown" || response.Error != "" {
+		t.Fatalf("unexpected response: %#v", response)
+	}
+	if decoder.Decode(&response) != io.EOF {
+		t.Fatal("service processed a request after shutdown")
 	}
 }
 

@@ -41,6 +41,18 @@ type widgetResponse struct {
 	Remaining int             `json:"remaining,omitempty"`
 }
 
+func widgetRecent(output io.Writer) error {
+	paths, err := platform.Resolve()
+	if err != nil {
+		return err
+	}
+	recent, err := platform.NewStore(paths).LoadRecent()
+	if err != nil {
+		return err
+	}
+	return json.NewEncoder(output).Encode(widgetResponse{Action: "recent", Recent: recent})
+}
+
 // widgetCommand communicates over the private pipes inherited from the shell.
 // Passwords and copied values are never command-line arguments.
 func widgetCommand(input io.Reader, output io.Writer) error {
@@ -157,6 +169,8 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 		case "lock":
 			err = session.Lock(ctx)
 			unlocked = false
+		case "shutdown":
+			// The response is sent before deferred cleanup closes the service.
 		default:
 			err = errors.New("unknown widget action")
 		}
@@ -169,6 +183,9 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 		activityMu.Unlock()
 		if err != nil {
 			return err
+		}
+		if request.Action == "shutdown" {
+			return nil
 		}
 	}
 	return scanner.Err()
