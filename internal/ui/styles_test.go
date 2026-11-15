@@ -10,10 +10,13 @@ import (
 )
 
 func TestThemeCatalogAndFallback(t *testing.T) {
-	want := []string{"Macchiato", "Mocha", "Frappe", "Latte", "Tokyo Night", "Gruvbox", "Dracula", "Nord", "Vesper", "Omarchy"}
+	want := []string{"Macchiato", "Mocha", "Frappe", "Latte", "Tokyo Night", "Gruvbox", "Dracula", "Nord", "Vesper"}
 	got := themeNames()
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Fatalf("theme catalog = %v", got)
+	}
+	if got := availableThemeNames(true); strings.Join(got, "|") != strings.Join(append(want, "Omarchy"), "|") {
+		t.Fatalf("Omarchy theme catalog = %v", got)
 	}
 	if colorsForTheme("unknown") != colorsForTheme("macchiato") || colorsForTheme("NORD") != colorsForTheme("Nord") || colorsForTheme("tokyo-night") != colorsForTheme("Tokyo Night") {
 		t.Fatal("theme lookup did not preserve its default and case-insensitive behavior")

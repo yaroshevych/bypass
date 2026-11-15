@@ -152,8 +152,9 @@ clipboard after the configured timeout. See the startup options in
 | Change PIN… | None | Set or change the session PIN. Requires at least one unlocked vault. |
 
 Themes: Macchiato, Mocha, Frappe, Latte, Tokyo Night, Gruvbox, Dracula, Nord,
-Vesper, and Omarchy. Omarchy follows system palette changes live. Classic and
-Compact have the same actions and controls.
+and Vesper. On Omarchy, its theme is also available when the active palette
+can be read, and follows system palette changes live. Classic and Compact have
+the same actions and controls.
 
 Set `"watch_omarchy_theme": false` in `~/.config/bypass/config.json` to
 disable live theme watching.

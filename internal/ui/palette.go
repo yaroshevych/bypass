@@ -359,7 +359,7 @@ func (m *Model) paletteChoices() []command {
 	switch p.scope {
 	case "settings":
 		if p.tab == 0 {
-			for _, label := range themeNames() {
+			for _, label := range m.themeNames() {
 				id := strings.ReplaceAll(strings.ToLower(label), " ", "-")
 				choices = append(choices, command{id: "theme:" + id, group: "Themes", label: label, value: id})
 			}
@@ -700,7 +700,7 @@ func (m *Model) paletteContent() (string, []listComponentOutput, string) {
 		body = append(body, listComponentOutput{text: row.text, item: row.choice})
 	}
 	if p.scope == "settings" {
-		visibleRows := min(m.paletteCapacity(), len(themeNames()))
+		visibleRows := min(m.paletteCapacity(), len(m.themeNames()))
 		for i := end - start; i < visibleRows; i++ {
 			body = append(body, listComponentOutput{item: -1})
 		}

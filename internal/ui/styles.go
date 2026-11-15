@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"runtime"
 	"strings"
 
 	"bypass/internal/platform"
@@ -39,7 +40,19 @@ type themeColors struct {
 var defaultStyles = stylesForTheme("macchiato")
 
 func themeNames() []string {
-	return []string{"Macchiato", "Mocha", "Frappe", "Latte", "Tokyo Night", "Gruvbox", "Dracula", "Nord", "Vesper", "Omarchy"}
+	return []string{"Macchiato", "Mocha", "Frappe", "Latte", "Tokyo Night", "Gruvbox", "Dracula", "Nord", "Vesper"}
+}
+
+func (m *Model) themeNames() []string {
+	return availableThemeNames(runtime.GOOS == "linux" && m.omarchyColors.background != "")
+}
+
+func availableThemeNames(omarchyAvailable bool) []string {
+	names := themeNames()
+	if omarchyAvailable {
+		names = append(names, "Omarchy")
+	}
+	return names
 }
 
 func stylesForTheme(name string) styleSet {
