@@ -157,7 +157,7 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 				response.Value = string(value)
 			}
 			clear(value)
-		case "add-favorite":
+		case "add-favorite", "remove-favorite":
 			response.ID = request.ID
 			var consent *[32]byte
 			if request.Consent != "" {
@@ -169,7 +169,7 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 				consent = new([32]byte)
 				copy(consent[:], decoded)
 			}
-			err = session.AddFavorite(ctx, request.ID, consent)
+			err = session.SetFavorite(ctx, request.ID, request.Action == "add-favorite", consent)
 			var loss *vault.DataLossError
 			if errors.As(err, &loss) {
 				response.LossMessage = strings.Join(ui.MetadataLossMessage(loss, "Saving", "An encrypted backup will be created before saving."), "\n\n")

@@ -119,8 +119,8 @@ func (s *Session) Items(ctx context.Context, query string) ([]Item, error) {
 	return items, nil
 }
 
-// AddFavorite adds the Favorite tag and persists the vault with its normal backup safeguards.
-func (s *Session) AddFavorite(ctx context.Context, id string, consent *[32]byte) error {
+// SetFavorite updates the Favorite tag using the normal vault write safeguards.
+func (s *Session) SetFavorite(ctx context.Context, id string, favorite bool, consent *[32]byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.db == nil {
@@ -130,12 +130,21 @@ func (s *Session) AddFavorite(ctx context.Context, id string, consent *[32]byte)
 		if entry.UUID != id || entry.Recycled {
 			continue
 		}
+		tags := make([]string, 0, len(entry.Tags)+1)
+		hasFavorite := false
 		for _, tag := range entry.Tags {
 			if strings.EqualFold(tag, "favorite") {
-				return nil
+				hasFavorite = true
+				continue
 			}
+			tags = append(tags, tag)
 		}
-		tags := append(append([]string(nil), entry.Tags...), "Favorite")
+		if hasFavorite == favorite {
+			return nil
+		}
+		if favorite {
+			tags = append(tags, "Favorite")
+		}
 		change := vault.Change{Kind: vault.EditEntry, EntryUUID: id, Values: map[string]string{"Tags": strings.Join(tags, ", ")}}
 		if consent != nil {
 			change.AllowDataLoss = true

@@ -171,20 +171,30 @@ func TestAddFavoritePersistsAndPreservesTags(t *testing.T) {
 	if err := s.Open(ctx, path, []byte("test master")); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.AddFavorite(ctx, id, nil); err != nil {
+	if err := s.SetFavorite(ctx, id, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.AddFavorite(ctx, id, nil); err != nil {
+	if err := s.SetFavorite(ctx, id, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	items, err := s.Items(ctx, "")
 	if err != nil || len(items) != 1 || !items[0].Favorite {
 		t.Fatalf("favorites: %+v, %v", items, err)
 	}
+	if err := s.SetFavorite(ctx, id, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetFavorite(ctx, id, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	items, err = s.Items(ctx, "")
+	if err != nil || len(items) != 0 {
+		t.Fatalf("favorites after removal: %+v, %v", items, err)
+	}
 	if err := s.Lock(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.AddFavorite(ctx, id, nil); err == nil {
+	if err := s.SetFavorite(ctx, id, true, nil); err == nil {
 		t.Fatal("added favorite while locked")
 	}
 	reopened, err := backend.Open(ctx, path, creds)
@@ -192,7 +202,7 @@ func TestAddFavoritePersistsAndPreservesTags(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reopened.Clear()
-	if got := strings.Join(reopened.Entries[0].Tags, ","); got != "Favorite,Work" {
+	if got := strings.Join(reopened.Entries[0].Tags, ","); got != "Work" {
 		t.Fatalf("tags: %q", got)
 	}
 }
