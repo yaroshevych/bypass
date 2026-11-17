@@ -9,14 +9,15 @@ import (
 
 func TestSearchFavoritesAndFields(t *testing.T) {
 	entries := []vault.Entry{
-		{UUID: "a", GroupPath: "Passwords/Work/Cloud", Tags: []string{"Favorite", "production"}, Fields: []vault.Field{{Name: "Title", Value: "Example"}, {Name: "API Key", Value: "synthetic-value"}}},
-		{UUID: "b", GroupPath: "Passwords/Personal", Fields: []vault.Field{{Name: "Title", Value: "Other"}, {Name: "Notes", Value: "cloud test"}}},
-		{UUID: "c", Recycled: true, Tags: []string{"Favorite"}, Fields: []vault.Field{{Name: "Title", Value: "Example"}}},
+		{UUID: "netflix", GroupPath: "Passwords/Personal", Tags: []string{"Favorite"}, Fields: []vault.Field{{Name: "Title", Value: "Netflix"}}},
+		{UUID: "amazon", GroupPath: "Passwords/Personal", Fields: []vault.Field{{Name: "Title", Value: "Amazon"}, {Name: "UserName", Value: "internetflix@example.com"}, {Name: "Password", Value: "netflix"}}},
+		{UUID: "other", GroupPath: "Passwords/Work", Fields: []vault.Field{{Name: "Title", Value: "Other"}, {Name: "Notes", Value: "netflix"}}},
+		{UUID: "deleted", Recycled: true, Tags: []string{"Favorite"}, Fields: []vault.Field{{Name: "Title", Value: "Netflix"}}},
 	}
 	for query, want := range map[string][]string{
-		"": {"a"}, "#production": {"a"}, "/Work/Cloud/Example#API": {"a"},
-		"synthetic-value": {"a"}, "wrk cld": {"a"}, "cloud": {"a", "b"}, "missing": {},
-		"*": {"a", "b"},
+		"": {"netflix"}, "*": {"netflix", "amazon", "other"},
+		"net": {"netflix", "amazon"}, "netfl": {"netflix", "amazon"},
+		"nflx": {"netflix"}, "title:netfl": {"netflix"}, "missing": {},
 	} {
 		if got := Search(query, entries); !reflect.DeepEqual(got, want) {
 			t.Errorf("query %q: got %v, want %v", query, got, want)

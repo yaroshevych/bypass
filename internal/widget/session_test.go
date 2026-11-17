@@ -46,7 +46,7 @@ func TestSessionVaultLifecycle(t *testing.T) {
 			t.Fatal("password not cleared")
 		}
 	}
-	items, err := s.Items(ctx, "synthetic secret")
+	items, err := s.Items(ctx, "Example")
 	if err != nil || len(items) != 1 {
 		t.Fatalf("search failed: %v, %v", items, err)
 	}

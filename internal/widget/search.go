@@ -2,97 +2,51 @@
 package widget
 
 import (
-	"sort"
 	"strings"
-	"unicode"
 
+	"bypass/internal/search"
 	"bypass/internal/vault"
 )
 
 // Search returns entry IDs in relevance order. The caller supplies loaded field
 // details and retains ownership of the entries and their values.
 func Search(query string, entries []vault.Entry) []string {
-	terms := strings.Fields(strings.ToLower(query))
-	if query == "*" {
-		terms = nil
-	}
-	type match struct {
-		id    string
-		score int
-	}
-	var matches []match
+	var docs []search.Document
+	result := make([]string, 0)
 	for _, entry := range entries {
 		if entry.Recycled {
 			continue
 		}
-		if len(terms) == 0 {
-			if query == "*" {
-				matches = append(matches, match{id: entry.UUID})
-				continue
-			}
+		if query == "*" {
+			result = append(result, entry.UUID)
+			continue
+		}
+		if strings.TrimSpace(query) == "" {
 			for _, tag := range entry.Tags {
 				if strings.EqualFold(tag, "favorite") {
-					matches = append(matches, match{id: entry.UUID})
+					result = append(result, entry.UUID)
 					break
 				}
 			}
 			continue
 		}
-		title := entry.Get("Title")
-		path := "/" + strings.Trim(strings.TrimPrefix(strings.Trim(entry.GroupPath, "/"), "Passwords/"), "/")
-		if path != "/" {
-			path += "/"
-		}
-		path += title
-		values := []string{title, entry.GroupPath, path}
-		for _, tag := range entry.Tags {
-			values = append(values, tag, "#"+tag)
-		}
-		for _, field := range entry.Fields {
-			values = append(values, field.Name, field.Value, path+"#"+field.Name)
-		}
-		score := 0
-		for _, term := range terms {
-			best := 0
-			for _, value := range values {
-				candidate := strings.ToLower(value)
-				if strings.Contains(candidate, term) {
-					best = max(best, 2)
-				} else if subsequence(term, candidate) {
-					best = max(best, 1)
-				}
+		get := func(name string) string {
+			if entry.IsProtected(name) {
+				return ""
 			}
-			if best == 0 {
-				score = -1
-				break
-			}
-			score += best
+			return entry.Get(name)
 		}
-		if score >= 0 {
-			matches = append(matches, match{entry.UUID, score})
-		}
+		docs = append(docs, search.Document{ID: entry.UUID, Title: get("Title"), Username: get("UserName"), URL: get("URL"), Group: entry.GroupPath, Tags: entry.Tags})
 	}
-	sort.SliceStable(matches, func(i, j int) bool { return matches[i].score > matches[j].score })
-	result := make([]string, len(matches))
-	for i := range matches {
-		result[i] = matches[i].id
+	if query == "*" || strings.TrimSpace(query) == "" {
+		return result
+	}
+	matches, err := search.Find(query, docs)
+	if err != nil {
+		return result
+	}
+	for _, match := range matches {
+		result = append(result, match.ID)
 	}
 	return result
-}
-
-func subsequence(needle, text string) bool {
-	query := []rune(needle)
-	if len(query) == 0 {
-		return true
-	}
-	i := 0
-	for _, r := range text {
-		if unicode.ToLower(r) == query[i] {
-			i++
-			if i == len(query) {
-				return true
-			}
-		}
-	}
-	return false
 }
