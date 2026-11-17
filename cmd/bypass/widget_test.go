@@ -122,3 +122,19 @@ func TestWidgetServiceOpensAndSearchesVault(t *testing.T) {
 		t.Fatalf("unexpected results: %#v %#v", opened, items)
 	}
 }
+
+func TestWidgetServiceRejectsInvalidMetadataConsent(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	var out bytes.Buffer
+	if err := widgetCommandWithApprovals(strings.NewReader("{\"action\":\"add-favorite\",\"id\":\"entry\",\"consent\":\"invalid\"}\n"), &out, false); err != nil {
+		t.Fatal(err)
+	}
+	var response widgetResponse
+	if err := json.NewDecoder(&out).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Error != "invalid metadata loss consent" || response.ID != "entry" {
+		t.Fatalf("unexpected response: %#v", response)
+	}
+}

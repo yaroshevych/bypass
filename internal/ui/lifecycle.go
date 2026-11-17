@@ -259,7 +259,7 @@ func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
 		var loss *vault.DataLossError
 		if result.kind == "credentials" && errors.As(result.err, &loss) {
 			if session := m.ws.Sessions[result.sessionID]; session != nil && session.DB != nil && session.DB.Path == loss.Path && session.DB.Revision == loss.Revision && !session.ReadOnly && !session.Stale {
-				m.dialog = &actionDialog{kind: "data-loss", title: "Confirm metadata loss", options: []string{"Cancel", "Change credentials and lose metadata"}, selected: 0, sessionID: result.sessionID, loss: loss, credentials: ptrCredentials(result.credentials), message: metadataLossMessage(loss, "Credential rotation", "An encrypted backup with the old credentials will be created before saving.")}
+				m.dialog = &actionDialog{kind: "data-loss", title: "Confirm metadata loss", options: []string{"Cancel", "Change credentials and lose metadata"}, selected: 0, sessionID: result.sessionID, loss: loss, credentials: ptrCredentials(result.credentials), message: MetadataLossMessage(loss, "Credential rotation", "An encrypted backup with the old credentials will be created before saving.")}
 				return nil, true
 			}
 		}
@@ -340,13 +340,11 @@ func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
 
 func ptrCredentials(c vault.Credentials) *vault.Credentials { copy := c.Clone(); return &copy }
 
-func metadataLossMessage(loss *vault.DataLossError, operation, backup string) []string {
+// MetadataLossMessage describes the metadata that a confirmed save would remove.
+func MetadataLossMessage(loss *vault.DataLossError, operation, backup string) []string {
 	lines := []string{operation + " will remove unsupported XML metadata from this vault."}
 	for _, field := range loss.Fields {
 		lines = append(lines, "Unsupported metadata: "+field+".")
-		if strings.HasPrefix(field, "PreviousParentGroup") {
-			lines = append(lines, "PreviousParentGroup is previous parent group metadata. It does not describe the current group hierarchy.")
-		}
 	}
 	return append(lines, backup)
 }

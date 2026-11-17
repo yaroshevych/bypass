@@ -579,7 +579,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 					change := msg.change
 					change.Password = append([]byte(nil), msg.change.Password...)
 					change.AttachmentData = append([]byte(nil), msg.change.AttachmentData...)
-					message := metadataLossMessage(loss, "Saving", "An encrypted backup will be created before saving.")
+					message := MetadataLossMessage(loss, "Saving", "An encrypted backup will be created before saving.")
 					m.dialog = &actionDialog{kind: "data-loss", title: "Confirm metadata loss", options: []string{"Cancel", "Save and lose metadata"}, selected: 0, sessionID: msg.sessionID, change: change, loss: loss, message: message}
 					m.setNotice("save needs metadata loss confirmation", true)
 					return nil, true

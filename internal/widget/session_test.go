@@ -171,10 +171,10 @@ func TestAddFavoritePersistsAndPreservesTags(t *testing.T) {
 	if err := s.Open(ctx, path, []byte("test master")); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.AddFavorite(ctx, id); err != nil {
+	if err := s.AddFavorite(ctx, id, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.AddFavorite(ctx, id); err != nil {
+	if err := s.AddFavorite(ctx, id, nil); err != nil {
 		t.Fatal(err)
 	}
 	items, err := s.Items(ctx, "")
@@ -184,7 +184,7 @@ func TestAddFavoritePersistsAndPreservesTags(t *testing.T) {
 	if err := s.Lock(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.AddFavorite(ctx, id); err == nil {
+	if err := s.AddFavorite(ctx, id, nil); err == nil {
 		t.Fatal("added favorite while locked")
 	}
 	reopened, err := backend.Open(ctx, path, creds)

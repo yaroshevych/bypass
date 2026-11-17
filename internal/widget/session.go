@@ -120,7 +120,7 @@ func (s *Session) Items(ctx context.Context, query string) ([]Item, error) {
 }
 
 // AddFavorite adds the Favorite tag and persists the vault with its normal backup safeguards.
-func (s *Session) AddFavorite(ctx context.Context, id string) error {
+func (s *Session) AddFavorite(ctx context.Context, id string, consent *[32]byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.db == nil {
@@ -136,7 +136,12 @@ func (s *Session) AddFavorite(ctx context.Context, id string) error {
 			}
 		}
 		tags := append(append([]string(nil), entry.Tags...), "Favorite")
-		updated, err := s.backend.Apply(ctx, s.db, vault.Credentials{}, vault.Change{Kind: vault.EditEntry, EntryUUID: id, Values: map[string]string{"Tags": strings.Join(tags, ", ")}}, s.backupDir)
+		change := vault.Change{Kind: vault.EditEntry, EntryUUID: id, Values: map[string]string{"Tags": strings.Join(tags, ", ")}}
+		if consent != nil {
+			change.AllowDataLoss = true
+			change.DataLossConsent = *consent
+		}
+		updated, err := s.backend.Apply(ctx, s.db, vault.Credentials{}, change, s.backupDir)
 		if err != nil {
 			return err
 		}
