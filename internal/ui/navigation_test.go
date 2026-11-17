@@ -117,7 +117,7 @@ func TestSlashAlwaysSearchesTheEntryList(t *testing.T) {
 		width int
 	}{
 		{name: "wide", width: 140},
-		{name: "narrow", width: 70},
+		{name: "narrow", width: 59},
 	} {
 		for _, initialFocus := range []int{0, 1, 2} {
 			focusName := []string{"sidebar", "entries", "details"}[initialFocus]

@@ -341,7 +341,7 @@ func (m *Model) paneWidths() (int, int, int) {
 	if m.ws != nil {
 		v = m.ws.ActiveView()
 	}
-	return m.widePaneWidths(max(120, m.width), v)
+	return m.widePaneWidths(max(threePaneMinimumWidth, m.width), v)
 }
 
 func (m *Model) workspaceLines() []string {

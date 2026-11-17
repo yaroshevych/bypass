@@ -20,9 +20,10 @@ func TestLayoutResponsiveModesAndZoom(t *testing.T) {
 		breadcrumb bool
 	}{
 		{"wide", 120, 35, 1, false, "wide", 3, 2, false},
-		{"medium list", 100, 24, 1, false, "medium", 2, 1, false},
-		{"medium details", 100, 24, 2, false, "medium", 2, 2, false},
-		{"narrow", 70, 20, 0, false, "narrow", 1, 0, true},
+		{"wide threshold", 90, 24, 1, false, "wide", 3, 2, false},
+		{"medium list", 89, 24, 1, false, "medium", 2, 1, false},
+		{"medium details", 60, 24, 2, false, "medium", 2, 2, false},
+		{"narrow", 59, 20, 0, false, "narrow", 1, 0, true},
 		{"wide zoom", 140, 40, 2, true, "wide", 1, 2, true},
 		{"below minimum width", 37, 20, 1, false, "tiny", 0, 0, false},
 		{"minimum width", 38, 20, 1, false, "narrow", 1, 1, true},
@@ -79,6 +80,20 @@ func TestLayoutRespectsPaneWidthsWithoutMutatingView(t *testing.T) {
 	}
 	if m.searchCache != nil {
 		t.Fatal("rendering populated the search cache")
+	}
+}
+
+func TestTitleOnlyLayoutGivesDetailsMoreSpace(t *testing.T) {
+	m := New(Options{})
+	for _, tt := range []struct{ width, nav, center, detail int }{
+		{90, 20, 25, 43},
+		{119, 27, 33, 57},
+		{120, 27, 46, 45},
+	} {
+		nav, center, detail := m.widePaneWidths(tt.width, nil)
+		if nav != tt.nav || center != tt.center || detail != tt.detail {
+			t.Errorf("width %d: got %d/%d/%d, want %d/%d/%d", tt.width, nav, center, detail, tt.nav, tt.center, tt.detail)
+		}
 	}
 }
 

@@ -7,7 +7,8 @@ import (
 const (
 	minimumTerminalWidth         = 38
 	minimumTerminalHeight        = 16
-	passwordListFullColumnsWidth = 48
+	passwordListFullColumnsWidth = 120
+	threePaneMinimumWidth        = 90
 )
 
 type paneRect struct {
@@ -49,7 +50,7 @@ func (m *Model) layout() viewLayout {
 	}
 	zoomed := v != nil && v.Zoom
 	l.Zoomed = zoomed
-	if w >= 120 {
+	if w >= threePaneMinimumWidth {
 		l.Mode = "wide"
 		nav, center, detail := m.widePaneWidths(w, v)
 		if zoomed {
@@ -64,7 +65,7 @@ func (m *Model) layout() viewLayout {
 		}
 		return l
 	}
-	if w >= 80 {
+	if w >= 60 {
 		l.Mode = "medium"
 		if zoomed {
 			l.Breadcrumb = true
@@ -93,6 +94,9 @@ func (m *Model) widePaneWidths(width int, v *workspace.View) (int, int, int) {
 	// Keep a useful minimum for each pane while respecting user-resized widths.
 	nav := max(18, width*23/100)
 	detail := max(24, width*38/100)
+	if width < passwordListFullColumnsWidth {
+		detail = max(24, width*48/100)
+	}
 	if v != nil {
 		if v.NavWidth > 0 {
 			nav = v.NavWidth

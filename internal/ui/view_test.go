@@ -9,6 +9,21 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+func TestEntryListColumnsFollowTerminalWidth(t *testing.T) {
+	m := New(Options{})
+	m.ws.Open(fixture("/tmp/list-columns.kdbx"))
+	for _, tc := range []struct {
+		width int
+		all   bool
+	}{{89, false}, {90, false}, {119, false}, {120, true}} {
+		m.width, m.height = tc.width, 30
+		heading := ansi.Strip(m.entryLines(80, 5, true)[0])
+		if strings.Contains(heading, "USERNAME") != tc.all || strings.Contains(heading, "WEBSITE") != tc.all {
+			t.Errorf("terminal width %d: unexpected heading %q", tc.width, heading)
+		}
+	}
+}
+
 func TestFocusedDetailFieldUsesCompactPillAndScrollsTopFieldToTop(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 100, 30
