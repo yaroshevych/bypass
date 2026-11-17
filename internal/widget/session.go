@@ -19,18 +19,22 @@ type Session struct {
 	db               *vault.Database
 	clipboard        *clipboard.Manager
 	clipboardTimeout time.Duration
+	backupDir        string
 	searchFields     map[string][]vault.Field
 }
 
-type Item struct{ ID, Title, Group string }
+type Item struct {
+	ID, Title, Group string
+	Favorite         bool
+}
 type Field struct {
 	Group       string `json:"group,omitempty"`
 	Name, Value string
 	Protected   bool
 }
 
-func NewSession(driver clipboard.Driver, timeout time.Duration) *Session {
-	return &Session{backend: vault.NewBackend(), clipboard: clipboard.New(driver), clipboardTimeout: timeout}
+func NewSession(driver clipboard.Driver, timeout time.Duration, backupDir string) *Session {
+	return &Session{backend: vault.NewBackend(), clipboard: clipboard.New(driver), clipboardTimeout: timeout, backupDir: backupDir}
 }
 
 // Open replaces the current vault only after unlocking the new one succeeds.
@@ -103,9 +107,45 @@ func (s *Session) Items(ctx context.Context, query string) ([]Item, error) {
 	items := make([]Item, 0, len(ids))
 	for _, id := range ids {
 		entry := byID[id]
-		items = append(items, Item{ID: id, Title: entry.Get("Title"), Group: entry.GroupPath})
+		favorite := false
+		for _, tag := range entry.Tags {
+			if strings.EqualFold(tag, "favorite") {
+				favorite = true
+				break
+			}
+		}
+		items = append(items, Item{ID: id, Title: entry.Get("Title"), Group: entry.GroupPath, Favorite: favorite})
 	}
 	return items, nil
+}
+
+// AddFavorite adds the Favorite tag and persists the vault with its normal backup safeguards.
+func (s *Session) AddFavorite(ctx context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.db == nil {
+		return errors.New("vault is locked")
+	}
+	for _, entry := range s.db.Entries {
+		if entry.UUID != id || entry.Recycled {
+			continue
+		}
+		for _, tag := range entry.Tags {
+			if strings.EqualFold(tag, "favorite") {
+				return nil
+			}
+		}
+		tags := append(append([]string(nil), entry.Tags...), "Favorite")
+		updated, err := s.backend.Apply(ctx, s.db, vault.Credentials{}, vault.Change{Kind: vault.EditEntry, EntryUUID: id, Values: map[string]string{"Tags": strings.Join(tags, ", ")}}, s.backupDir)
+		if err != nil {
+			return err
+		}
+		s.db.Clear()
+		s.db = updated
+		s.searchFields = nil
+		return nil
+	}
+	return errors.New("entry unavailable")
 }
 
 func (s *Session) Fields(ctx context.Context, id string) ([]Field, error) {

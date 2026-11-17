@@ -69,7 +69,7 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 		return err
 	}
 	store := platform.NewStore(paths)
-	session := widget.NewSession(clipboard.NewSystem(), settings.ClipboardTimeout)
+	session := widget.NewSession(clipboard.NewSystem(), settings.ClipboardTimeout, settings.BackupDir)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	defer session.Lock(context.Background())
@@ -150,6 +150,9 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 				response.Value = string(value)
 			}
 			clear(value)
+		case "add-favorite":
+			response.ID = request.ID
+			err = session.AddFavorite(ctx, request.ID)
 		case "copy":
 			err = session.CopyValue(ctx, request.ID, request.Field)
 		case "copy-reference":

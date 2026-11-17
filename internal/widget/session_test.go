@@ -36,7 +36,7 @@ func TestSessionVaultLifecycle(t *testing.T) {
 	}
 	updated.Clear()
 	driver := &memoryClipboard{}
-	s := NewSession(driver, time.Minute)
+	s := NewSession(driver, time.Minute, filepath.Join(t.TempDir(), "backups"))
 	password := []byte("synthetic master")
 	if err := s.Open(ctx, path, password); err != nil {
 		t.Fatal(err)
@@ -147,5 +147,52 @@ func TestSessionVaultLifecycle(t *testing.T) {
 	}
 	if _, err := s.ResolveApproved(ctx, targets); err == nil {
 		t.Fatal("approved a locked vault")
+	}
+}
+
+func TestAddFavoritePersistsAndPreservesTags(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "vault.kdbx")
+	backend := vault.NewBackend()
+	creds := vault.Credentials{Password: []byte("test master")}
+	db, err := backend.CreateWithOptions(ctx, path, creds, vault.CreateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := backend.Apply(ctx, db, creds, vault.Change{Kind: vault.AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Example", "Tags": "Work"}}, filepath.Join(dir, "seed-backups"))
+	db.Clear()
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := updated.Entries[0].UUID
+	updated.Clear()
+	s := NewSession(&memoryClipboard{}, time.Minute, filepath.Join(dir, "backups"))
+	if err := s.Open(ctx, path, []byte("test master")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddFavorite(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddFavorite(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	items, err := s.Items(ctx, "")
+	if err != nil || len(items) != 1 || !items[0].Favorite {
+		t.Fatalf("favorites: %+v, %v", items, err)
+	}
+	if err := s.Lock(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddFavorite(ctx, id); err == nil {
+		t.Fatal("added favorite while locked")
+	}
+	reopened, err := backend.Open(ctx, path, creds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Clear()
+	if got := strings.Join(reopened.Entries[0].Tags, ","); got != "Favorite,Work" {
+		t.Fatalf("tags: %q", got)
 	}
 }
