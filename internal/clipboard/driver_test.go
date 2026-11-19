@@ -114,3 +114,27 @@ func TestSystemWriteHidesCommandDiagnostics(t *testing.T) {
 		t.Fatalf("write exposed command diagnostics: %v", err)
 	}
 }
+
+func TestLinuxWaylandClipboardMarksSensitive(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux clipboard")
+	}
+	dir := t.TempDir()
+	for _, name := range []string{"wl-copy", "wl-paste"} {
+		script := "#!/bin/sh\nexit 0\n"
+		if name == "wl-copy" {
+			script = "#!/bin/sh\n[ \"$1\" = --sensitive ] || exit 1\nexit 0\n"
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", dir)
+	driver, ok := NewSystem().(systemDriver)
+	if !ok || !SupportsSensitive(driver) || SupportsSensitive(unavailableDriver{}) || SupportsSensitive(systemDriver{writeCommand: "xclip"}) || len(driver.writeArgs) != 1 || driver.writeArgs[0] != "--sensitive" {
+		t.Fatalf("Wayland clipboard is not marked sensitive: %#v", driver)
+	}
+	if err := driver.Write(context.Background(), []byte("synthetic")); err != nil {
+		t.Fatalf("sensitive clipboard write: %v", err)
+	}
+}

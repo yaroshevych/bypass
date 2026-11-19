@@ -24,6 +24,7 @@ type Driver interface {
 }
 
 type systemDriver struct {
+	sensitive    bool
 	writeCommand string
 	writeArgs    []string
 	readCommand  string
@@ -40,7 +41,7 @@ func NewSystem() Driver {
 		_, wlCopyErr := exec.LookPath("wl-copy")
 		_, wlPasteErr := exec.LookPath("wl-paste")
 		if wlCopyErr == nil && wlPasteErr == nil {
-			return systemDriver{writeCommand: "wl-copy", readCommand: "wl-paste", readArgs: []string{"--no-newline"}}
+			return systemDriver{sensitive: true, writeCommand: "wl-copy", writeArgs: []string{"--sensitive"}, readCommand: "wl-paste", readArgs: []string{"--no-newline"}}
 		}
 		if _, err := exec.LookPath("xclip"); err == nil {
 			return systemDriver{
@@ -50,6 +51,12 @@ func NewSystem() Driver {
 		}
 	}
 	return unavailableDriver{}
+}
+
+// SupportsSensitive reports whether the driver marks clipboard writes as sensitive.
+func SupportsSensitive(driver Driver) bool {
+	d, ok := driver.(systemDriver)
+	return ok && d.sensitive
 }
 
 func (unavailableDriver) Write(context.Context, []byte) error  { return ErrUnavailable }

@@ -30,22 +30,23 @@ type widgetRequest struct {
 }
 
 type widgetResponse struct {
-	Action      string          `json:"action"`
-	Error       string          `json:"error,omitempty"`
-	Recent      []string        `json:"recent,omitempty"`
-	Items       []widget.Item   `json:"items,omitempty"`
-	Fields      []widget.Field  `json:"fields,omitempty"`
-	ID          string          `json:"id,omitempty"`
-	Targets     []widget.Target `json:"targets,omitempty"`
-	Command     []string        `json:"command,omitempty"`
-	Directory   string          `json:"directory,omitempty"`
-	Agent       string          `json:"agent,omitempty"`
-	Caller      []string        `json:"caller,omitempty"`
-	Field       string          `json:"field,omitempty"`
-	Value       string          `json:"value,omitempty"`
-	Remaining   int             `json:"remaining,omitempty"`
-	LossMessage string          `json:"lossMessage,omitempty"`
-	Consent     string          `json:"consent,omitempty"`
+	Action             string          `json:"action"`
+	Error              string          `json:"error,omitempty"`
+	Recent             []string        `json:"recent,omitempty"`
+	Items              []widget.Item   `json:"items,omitempty"`
+	Fields             []widget.Field  `json:"fields,omitempty"`
+	ID                 string          `json:"id,omitempty"`
+	Targets            []widget.Target `json:"targets,omitempty"`
+	Command            []string        `json:"command,omitempty"`
+	Directory          string          `json:"directory,omitempty"`
+	Agent              string          `json:"agent,omitempty"`
+	Caller             []string        `json:"caller,omitempty"`
+	Field              string          `json:"field,omitempty"`
+	Value              string          `json:"value,omitempty"`
+	Remaining          int             `json:"remaining,omitempty"`
+	LossMessage        string          `json:"lossMessage,omitempty"`
+	Consent            string          `json:"consent,omitempty"`
+	SensitiveClipboard bool            `json:"sensitiveClipboard,omitempty"`
 }
 
 func widgetRecent(output io.Writer) error {
@@ -76,7 +77,8 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 		return err
 	}
 	store := platform.NewStore(paths)
-	session := widget.NewSession(clipboard.NewSystem(), settings.ClipboardTimeout, settings.BackupDir)
+	clipboardDriver := clipboard.NewSystem()
+	session := widget.NewSession(clipboardDriver, settings.ClipboardTimeout, settings.BackupDir)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	defer session.Lock(context.Background())
@@ -146,6 +148,7 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 		switch request.Action {
 		case "recent":
 			response.Recent, err = store.LoadRecent()
+			response.SensitiveClipboard = clipboard.SupportsSensitive(clipboardDriver)
 		case "open":
 			password := []byte(request.Password)
 			request.Password = ""
