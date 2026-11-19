@@ -114,6 +114,16 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 					unlocked = false
 					_ = send(widgetResponse{Action: "locked"})
 				}
+				if unlocked {
+					changed, reloadErr := session.ReloadIfChanged(ctx)
+					if reloadErr != nil {
+						_ = session.Lock(ctx)
+						unlocked = false
+						_ = send(widgetResponse{Action: "reload-failed"})
+					} else if changed {
+						_ = send(widgetResponse{Action: "reloaded"})
+					}
+				}
 				activityMu.Unlock()
 			case <-ctx.Done():
 				return

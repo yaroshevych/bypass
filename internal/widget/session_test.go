@@ -206,3 +206,50 @@ func TestAddFavoritePersistsAndPreservesTags(t *testing.T) {
 		t.Fatalf("tags: %q", got)
 	}
 }
+
+func TestSessionReloadsChangedVaultWithoutPassword(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "vault.kdbx")
+	backend := vault.NewBackend()
+	creds := vault.Credentials{Password: []byte("synthetic master")}
+	db, err := backend.CreateWithOptions(ctx, path, creds, vault.CreateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { db.Clear(); creds.Clear() }()
+	session := NewSession(&memoryClipboard{}, time.Minute, filepath.Join(t.TempDir(), "backups"))
+	if err := session.Open(ctx, path, []byte("synthetic master")); err != nil {
+		t.Fatal(err)
+	}
+	defer session.Lock(ctx)
+	if changed, err := session.ReloadIfChanged(ctx); err != nil || changed {
+		t.Fatalf("unchanged: %v %v", changed, err)
+	}
+	if _, err := session.Items(ctx, "new entry"); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := backend.Apply(ctx, db, creds, vault.Change{Kind: vault.AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "new entry"}}, filepath.Join(t.TempDir(), "backups"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Clear()
+	db = updated
+	if changed, err := session.ReloadIfChanged(ctx); err != nil || !changed {
+		t.Fatalf("reload: %v %v", changed, err)
+	}
+	items, err := session.Items(ctx, "new entry")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("updated search: %v %v", items, err)
+	}
+	replacement := vault.Credentials{Password: []byte("synthetic new master")}
+	defer replacement.Clear()
+	updated, err = backend.ChangeCredentials(ctx, db, creds, replacement, filepath.Join(t.TempDir(), "backups"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Clear()
+	db = updated
+	if changed, err := session.ReloadIfChanged(ctx); err == nil || changed {
+		t.Fatalf("changed credentials: %v %v", changed, err)
+	}
+}

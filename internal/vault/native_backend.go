@@ -502,24 +502,55 @@ func (b *NativeBackend) Open(ctx context.Context, path string, creds Credentials
 	if creds.NoPassword && creds.KeyFile == "" {
 		return nil, ErrUnlock
 	}
+	nativeCreds, err := nativeCredentials(creds)
+	if err != nil {
+		return nil, ErrUnlock
+	}
+	return b.openWithNativeCredentials(ctx, path, nativeCreds)
+}
+
+// Reload opens the current vault using credentials already held by its unlocked state.
+func (b *NativeBackend) Reload(ctx context.Context, db *Database) (*Database, error) {
+	if db == nil || db.native == nil {
+		return nil, ErrUnlock
+	}
+	state := db.native
+	state.mu.Lock()
+	if state.db == nil || state.db.Credentials == nil {
+		state.mu.Unlock()
+		return nil, ErrUnlock
+	}
+	c := state.db.Credentials
+	creds := &gok.DBCredentials{Passphrase: append([]byte(nil), c.Passphrase...), Key: append([]byte(nil), c.Key...), Windows: append([]byte(nil), c.Windows...)}
+	path := state.path
+	state.mu.Unlock()
+	return b.openWithNativeCredentials(ctx, path, creds)
+}
+
+func (b *NativeBackend) openWithNativeCredentials(ctx context.Context, path string, creds *gok.DBCredentials) (*Database, error) {
+	native := gok.NewDatabase()
+	native.Credentials = creds
 	canonical, err := canonicalPath(path)
 	if err != nil {
+		scrubNativeDatabase(native)
 		return nil, ErrInvalidPath
 	}
 	info, err := os.Stat(canonical)
 	if err != nil || !info.Mode().IsRegular() {
+		scrubNativeDatabase(native)
+		return nil, ErrInvalidPath
+	}
+	before, err := Revision(canonical)
+	if err != nil {
+		scrubNativeDatabase(native)
 		return nil, ErrInvalidPath
 	}
 	file, err := os.Open(canonical)
 	if err != nil {
+		scrubNativeDatabase(native)
 		return nil, ErrInvalidPath
 	}
 	defer file.Close()
-	native := gok.NewDatabase()
-	native.Credentials, err = nativeCredentials(creds)
-	if err != nil {
-		return nil, ErrUnlock
-	}
 	if err := gok.NewDecoder(file).Decode(native); err != nil {
 		scrubNativeDatabase(native)
 		return nil, ErrUnlock
@@ -556,9 +587,12 @@ func (b *NativeBackend) Open(ctx context.Context, path string, creds Credentials
 	}
 	db.Path, db.nativeOwner = canonical, true
 	db.Revision, err = Revision(canonical)
-	if err != nil {
+	if err != nil || before != db.Revision {
 		db.Clear()
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+		return nil, ErrExternalChanged
 	}
 	return db, nil
 }

@@ -55,6 +55,30 @@ func (s *Session) Open(ctx context.Context, path string, password []byte) error 
 	return nil
 }
 
+// ReloadIfChanged refreshes an unlocked vault without retaining its password.
+func (s *Session) ReloadIfChanged(ctx context.Context) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.db == nil {
+		return false, nil
+	}
+	revision, err := vault.Revision(s.db.Path)
+	if err != nil {
+		return false, err
+	}
+	if revision == s.db.Revision {
+		return false, nil
+	}
+	updated, err := s.backend.Reload(ctx, s.db)
+	if err != nil {
+		return false, err
+	}
+	s.db.Clear()
+	s.db = updated
+	s.searchFields = nil
+	return true, nil
+}
+
 func (s *Session) Lock(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
