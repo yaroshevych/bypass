@@ -324,7 +324,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		}, true
 	case runReplyResult:
 		delete(r.replies, msg.secrets)
-		if msg.accepted && msg.mode == "s" && msg.permissionEpoch == r.permissionEpoch {
+		if msg.accepted && msg.mode == "s" && msg.pending != nil && msg.pending.Identity.Digest != "" && msg.permissionEpoch == r.permissionEpoch {
 			if m.runTargetsCurrent(msg.targets) {
 				if r.grants == nil {
 					r.grants = make(map[runSessionGrant]string)

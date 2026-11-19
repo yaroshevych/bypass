@@ -3,34 +3,18 @@ package ui
 import (
 	wipebuf "bypass/internal/secret"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"sort"
-	"strings"
 
 	runpkg "bypass/internal/run"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func runSessionPrincipal(identity runpkg.Identity, targets []runTarget) string {
-	if identity.Name != "" {
-		return "agent:" + identity.Name
+func runSessionPrincipal(identity runpkg.Identity, _ []runTarget) string {
+	if identity.Digest == "" {
+		return ""
 	}
-	items := make([]string, 0, len(targets))
-	for _, target := range targets {
-		items = append(items, target.entry+"\x00"+target.field)
-	}
-	sort.Strings(items)
-	unique := items[:0]
-	for _, item := range items {
-		if len(unique) == 0 || unique[len(unique)-1] != item {
-			unique = append(unique, item)
-		}
-	}
-	sum := sha256.Sum256([]byte(strings.Join(unique, "\x00")))
-	return "items:" + hex.EncodeToString(sum[:])
+	return "identity:" + identity.Digest
 }
 
 func runTargetsHaveSessionGrants(grants map[runSessionGrant]string, principal string, targets []runTarget) bool {
@@ -76,6 +60,10 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 				secrets.Clear()
 			}
 		}()
+		if mode == "s" && runSessionPrincipal(p.Identity, targets) == "" {
+			result.err = fmt.Errorf("identity required for session approval")
+			return result
+		}
 		if mode == "check" && !allowed {
 			result.needsApproval = true
 			return result

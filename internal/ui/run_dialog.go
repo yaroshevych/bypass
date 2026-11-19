@@ -116,7 +116,9 @@ func (m *Model) runReviewActions() []runAction {
 		return []runAction{{"Deny", "d"}, {back, "esc"}}
 	}
 	actions := []runAction{{"Deny", "d"}, {"Approve once", "a"}}
-	actions = append(actions, runAction{"Approve for this session", "s"})
+	if m.runReviewed().Identity.Digest != "" {
+		actions = append(actions, runAction{"Approve for this session", "s"})
+	}
 	return append(actions, runAction{back, "esc"})
 }
 
@@ -536,6 +538,10 @@ func (m *Model) activateRunKey(key string) tea.Cmd {
 			}
 			p := m.runReviewed()
 			if p == nil {
+				return nil
+			}
+			if key == "s" && p.Identity.Digest == "" {
+				r.err = "identity required for session approval"
 				return nil
 			}
 			r.busy = true

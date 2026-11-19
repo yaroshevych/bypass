@@ -28,13 +28,13 @@ func TestRunSessionGrantScopeAndVaultLock(t *testing.T) {
 	db := &vault.Database{Path: "/vault", RootUUID: "root"}
 	m.ws.Open(db)
 	id := m.ws.ActiveSession().ID
-	m.runs = &runState{grants: map[runSessionGrant]string{{id, "agent:dev", "target", "Password"}: "dev"}}
+	m.runs = &runState{grants: map[runSessionGrant]string{{id, "identity:digest", "target", "Password"}: "dev"}}
 	target := runTarget{ref: "reference", session: id, entry: "target", field: "Password", database: db}
 	for _, tc := range []struct {
 		identity runpkg.Identity
 		field    string
 		allowed  bool
-	}{{runpkg.Identity{Name: "dev", Digest: "digest"}, "Password", true}, {runpkg.Identity{Name: "other", Digest: "digest"}, "Password", false}, {runpkg.Identity{}, "Password", false}, {runpkg.Identity{Name: "dev"}, "UserName", false}} {
+	}{{runpkg.Identity{Name: "dev", Digest: "digest"}, "Password", true}, {runpkg.Identity{Name: "dev", Digest: "other-digest"}, "Password", false}, {runpkg.Identity{Name: "other", Digest: "other-digest"}, "Password", false}, {runpkg.Identity{}, "Password", false}, {runpkg.Identity{Name: "dev"}, "UserName", false}} {
 		p := &runpkg.Pending{Context: context.Background(), Identity: tc.identity, Request: runpkg.Request{Command: []string{"/bin/sh"}}}
 		requested := target
 		requested.field = tc.field
@@ -73,31 +73,44 @@ func TestNamedSessionGrantsCombineAcrossRequests(t *testing.T) {
 	for _, target := range append(append([]runTarget(nil), first...), second...) {
 		m.runs.grants[runSessionGrant{target.session, runSessionPrincipal(identity, []runTarget{target}), target.entry, target.field}] = identity.Name
 	}
-	// A rotated bearer with the same agent name can request any combination
-	// drawn from the individually approved fields.
-	identity.Digest = "rotated-token"
+	// Only the exact credential can reuse any combination of approved fields.
 	requested := []runTarget{first[0], second[0]}
 	if !runTargetsHaveSessionGrants(m.runs.grants, runSessionPrincipal(identity, requested), requested) {
 		t.Fatal("combination of approved fields was not authorized")
 	}
+	identity.Digest = "rotated-token"
+	if runTargetsHaveSessionGrants(m.runs.grants, runSessionPrincipal(identity, requested), requested) {
+		t.Fatal("a different token with the same name inherited session approval")
+	}
 }
 
-func TestUnnamedSessionGrantUsesExactItemCombination(t *testing.T) {
-	session := "vault-session"
-	targets := []runTarget{
-		{session: session, entry: "one", field: "Password"},
-		{session: session, entry: "two", field: "Password"},
-	}
+func TestAnonymousRequestsCannotUseSessionGrants(t *testing.T) {
+	targets := []runTarget{{session: "vault", entry: "one", field: "Password"}}
 	principal := runSessionPrincipal(runpkg.Identity{}, targets)
-	grants := map[runSessionGrant]string{
-		{session, principal, "one", "Password"}: "",
-		{session, principal, "two", "Password"}: "",
+	grants := map[runSessionGrant]string{{"vault", "", "one", "Password"}: ""}
+	if principal != "" || runTargetsHaveSessionGrants(grants, principal, targets) {
+		t.Fatal("anonymous requests must not receive session grants")
 	}
-	if !runTargetsHaveSessionGrants(grants, runSessionPrincipal(runpkg.Identity{}, targets), targets) {
-		t.Fatal("same unnamed item combination was not recognized")
+}
+
+func TestAnonymousSessionApprovalIsRejected(t *testing.T) {
+	m := New(Options{Backend: &identityGrantBackend{}})
+	defer m.Close()
+	db := &vault.Database{Path: "/vault", RootUUID: "root"}
+	m.ws.Open(db)
+	p := &runpkg.Pending{Context: context.Background()}
+	m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}}
+	if m.runActionForKey("s") >= 0 {
+		t.Fatal("anonymous request offered session approval")
 	}
-	if runTargetsHaveSessionGrants(grants, runSessionPrincipal(runpkg.Identity{}, targets[:1]), targets[:1]) {
-		t.Fatal("subset of unnamed item combination was authorized")
+	targets := []runTarget{{ref: "reference", session: m.ws.ActiveSession().ID, entry: "target", field: "Password", database: db}}
+	result := m.runGrantJob(p, targets, "s")().(runResult)
+	if result.err == nil {
+		t.Fatal("anonymous session approval succeeded")
+	}
+	if values := result.secrets.Take(); len(values) != 0 {
+		clearRunValues(values)
+		t.Fatal("anonymous session approval resolved a secret")
 	}
 }
 
@@ -107,7 +120,7 @@ func TestRunCheckRetriesWhenSessionApprovalArrivesWhileChecking(t *testing.T) {
 	db := &vault.Database{Path: "/vault", RootUUID: "root"}
 	m.ws.Open(db)
 	session := m.ws.ActiveSession()
-	grant := runSessionGrant{session.ID, "agent:dev", "target", "Password"}
+	grant := runSessionGrant{session.ID, "identity:digest", "target", "Password"}
 	m.runs = &runState{grants: make(map[runSessionGrant]string)}
 	p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "dev", Digest: "digest"}}
 	targets := []runTarget{{ref: "reference", session: session.ID, entry: "target", field: "Password", database: db}}

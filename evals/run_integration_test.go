@@ -268,7 +268,7 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 	e.mustShow("Select entry with up/down")
 	e.key("Tab")
 	e.key("Enter")
-	e.mustShow("Approve for this session")
+	e.mustShow("Approve once")
 	e.key("a")
 	if err := cmd.Wait(); err != nil {
 		t.Fatalf("vault selection failed: %v: %s", err, e.redact(out.String()))

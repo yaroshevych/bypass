@@ -128,16 +128,8 @@ func TestRunIdentityGrantIsolationTmux(t *testing.T) {
 		identity string
 		name     string
 		flag     bool
-		allowed  bool
-	}{{prod, "prod-ro", true, false}, {otherDev, "dev-rw", false, true}, {"", "", false, false}} {
+	}{{prod, "prod-ro", true}, {otherDev, "dev-rw", false}, {"", "", false}} {
 		cmd, out := launch(tc.identity, tc.flag)
-		if tc.allowed {
-			if err := cmd.Wait(); err != nil || out.String() != "approved" {
-				t.Fatal("same agent name did not reuse its approved item")
-			}
-			e.mustShow("No pending requests")
-			continue
-		}
 		e.mustShow("REVIEW REQUEST")
 		if tc.name != "" {
 			e.mustShow(tc.name)

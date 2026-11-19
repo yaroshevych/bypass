@@ -96,7 +96,8 @@ The full identity is a private bearer credential; no registration is needed.
 selects anonymous access. The older `--identity` and `BYPASS_IDENTITY` names
 remain supported. Environment files cannot set either identity variable; Bypass
 removes both from the launched command's environment even when no references are
-used. The approval screen shows only the readable name.
+used. The approval screen shows only the readable name. Session approvals apply to the
+complete identity token; another token with the same name requires approval again.
 
 Prefer the environment variable to avoid exposing the bearer in command
 arguments. Other processes running as the same user may still inspect it.

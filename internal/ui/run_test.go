@@ -561,7 +561,7 @@ func TestRunApprovalActionsRemainVisibleAcrossLayouts(t *testing.T) {
 			m := New(Options{})
 			m.settings.Appearance = appearance
 			m.width, m.height = size[0], size[1]
-			p := &runpkg.Pending{Context: context.Background(), Request: runpkg.Request{Command: []string{"/app"}, Directory: "/project"}}
+			p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "agent", Digest: "digest"}, Request: runpkg.Request{Command: []string{"/app"}, Directory: "/project"}}
 			m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, targets: []runTarget{{ref: "bypass://entry", field: "Password", database: &vault.Database{}}}}
 			view := m.View()
 			for _, label := range []string{"Deny", "Approve once", "Approve for this session", "Back"} {
@@ -683,7 +683,7 @@ func TestRunPaletteEntryAndReloadShortcut(t *testing.T) {
 func TestTinyScreenDoesNotSendKeysToHiddenRequests(t *testing.T) {
 	m := New(Options{})
 	m.width, m.height = 47, 15
-	p := &runpkg.Pending{Context: context.Background()}
+	p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "agent", Digest: "digest"}}
 	m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}, reviewFocus: 2}
 	m.Update(tea.KeyMsg{Type: tea.KeyDown})
 	if !m.runs.review || m.runs.reviewFocus != 2 {
@@ -866,7 +866,7 @@ func TestRunReviewWrapsLongSecretsAndPagesAllLines(t *testing.T) {
 
 func TestRunSessionApprovalShortcut(t *testing.T) {
 	m := New(Options{})
-	p := &runpkg.Pending{Context: context.Background()}
+	p := &runpkg.Pending{Context: context.Background(), Identity: runpkg.Identity{Name: "agent", Digest: "digest"}}
 	m.runs = &runState{visible: true, review: true, reviewed: p, pending: []*runpkg.Pending{p}}
 	if m.runActionForKey("s") < 0 || m.runActionForKey("i") >= 0 {
 		t.Fatal("session approval shortcut must be s")

@@ -54,7 +54,9 @@ with unavailable secrets or unresolved vault selection still need individual rev
 
 Review actions are Deny (`d`), Approve once (`a`), Approve for this session (`s`),
 and Back (`esc`, selected by default). Session approval requires a named identity
-and works with read-only vaults. Tab or arrow keys move between buttons;
+and works with read-only vaults. It applies to the full identity token; a
+different token with the same name needs approval again. Tab or arrow keys move
+between buttons;
 Page Up and Page Down scroll the fields.
 
 Review session permissions shows active permissions. Clear all (`c`) removes
