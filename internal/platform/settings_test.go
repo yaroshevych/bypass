@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -29,6 +30,7 @@ func TestPINIdleTimeoutConfigBoundaries(t *testing.T) {
 }
 
 func TestDefaultSettingsAndMissingFileDoNotWrite(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	paths := Paths{Config: filepath.Join(root, "config"), State: filepath.Join(root, "state")}
 	want := Settings{
@@ -54,6 +56,7 @@ func TestDefaultSettingsAndMissingFileDoNotWrite(t *testing.T) {
 }
 
 func TestLoadSettingsValidConfigAndUnknownFields(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	config := filepath.Join(root, "config")
 	if err := os.Mkdir(config, 0o700); err != nil {
@@ -75,6 +78,7 @@ func TestLoadSettingsValidConfigAndUnknownFields(t *testing.T) {
 }
 
 func TestInvalidSettingsReturnDefaultsWithError(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	config := filepath.Join(root, "config")
 	if err := os.Mkdir(config, 0o700); err != nil {
@@ -116,6 +120,7 @@ func TestInvalidSettingsReturnDefaultsWithError(t *testing.T) {
 }
 
 func TestSaveSettingsPreservesUnknownKeysAndWritesPrivately(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	paths := Paths{Config: filepath.Join(root, "config"), State: filepath.Join(root, "state")}
 	if err := os.MkdirAll(paths.Config, 0o755); err != nil {
@@ -168,6 +173,7 @@ func TestSaveSettingsPreservesUnknownKeysAndWritesPrivately(t *testing.T) {
 }
 
 func TestLoadSettingsRejectsSymlinkedConfigFile(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	config := filepath.Join(root, "config")
 	if err := os.Mkdir(config, 0o700); err != nil {
@@ -184,5 +190,35 @@ func TestLoadSettingsRejectsSymlinkedConfigFile(t *testing.T) {
 	got, err := LoadSettings(paths)
 	if err == nil || got != DefaultSettings(paths) {
 		t.Fatalf("symlink settings = %#v, %v; want defaults and error", got, err)
+	}
+}
+
+func TestLoadSettingsDefaultsToAvailableOmarchyTheme(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Omarchy is available on Linux")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	themeDir := filepath.Join(home, ".local", "state", "omarchy", "current", "theme")
+	if err := os.MkdirAll(themeDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(themeDir, "colors.toml"), []byte("background = '#112233'\nforeground = '#ddeeff'\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	paths := Paths{Config: filepath.Join(home, "config"), State: filepath.Join(home, "state")}
+	for _, tc := range []struct{ config, want string }{{"", "omarchy"}, {`{"ascii":true}`, "omarchy"}, {`{"theme":"nord"}`, "nord"}} {
+		if tc.config != "" {
+			if err := os.MkdirAll(paths.Config, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(paths.Config, "config.json"), []byte(tc.config), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		got, err := LoadSettings(paths)
+		if err != nil || got.Theme != tc.want || got.OmarchyPalette.Background != "#112233" {
+			t.Fatalf("config %q: theme %q, palette %#v, error %v", tc.config, got.Theme, got.OmarchyPalette, err)
+		}
 	}
 }

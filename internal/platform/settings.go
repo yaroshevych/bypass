@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 )
 
@@ -78,6 +79,9 @@ func DefaultSettings(paths Paths) Settings {
 func LoadSettings(paths Paths) (Settings, error) {
 	defaults := DefaultSettings(paths)
 	defaults.OmarchyPalette, _ = LoadOmarchyPalette()
+	if runtime.GOOS == "linux" && defaults.OmarchyPalette.Background != "" {
+		defaults.Theme = "omarchy"
+	}
 	configPath := filepath.Join(paths.Config, "config.json")
 	if info, err := os.Lstat(paths.Config); err == nil && info.Mode()&os.ModeSymlink != 0 {
 		return defaults, errors.New("config path must not be a symlink")
