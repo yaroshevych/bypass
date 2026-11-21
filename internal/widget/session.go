@@ -20,7 +20,6 @@ type Session struct {
 	clipboard        *clipboard.Manager
 	clipboardTimeout time.Duration
 	backupDir        string
-	searchFields     map[string][]vault.Field
 }
 
 type Item struct {
@@ -51,7 +50,6 @@ func (s *Session) Open(ctx context.Context, path string, password []byte) error 
 		s.db.Clear()
 	}
 	s.db = db
-	s.searchFields = nil
 	return nil
 }
 
@@ -75,7 +73,6 @@ func (s *Session) ReloadIfChanged(ctx context.Context) (bool, error) {
 	}
 	s.db.Clear()
 	s.db = updated
-	s.searchFields = nil
 	return true, nil
 }
 
@@ -86,7 +83,6 @@ func (s *Session) Lock(ctx context.Context) error {
 		s.db.Clear()
 		s.db = nil
 	}
-	s.searchFields = nil
 	return s.clipboard.Clear(ctx)
 }
 
@@ -99,27 +95,13 @@ func (s *Session) Items(ctx context.Context, query string) ([]Item, error) {
 	if s.db == nil {
 		return nil, errors.New("vault is locked")
 	}
-	if query != "" && query != "*" && s.searchFields == nil {
-		s.searchFields = make(map[string][]vault.Field, len(s.db.Entries))
-		for _, entry := range s.db.Entries {
-			if entry.Recycled {
-				continue
-			}
-			fields, err := s.backend.EntryDetails(ctx, s.db, entry.UUID)
-			if err != nil {
-				s.searchFields = nil
-				return nil, err
-			}
-			s.searchFields[entry.UUID] = fields
-		}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	entries := make([]vault.Entry, 0, len(s.db.Entries))
 	for _, entry := range s.db.Entries {
 		if entry.Recycled {
 			continue
-		}
-		if query != "" && query != "*" {
-			entry.Fields = s.searchFields[entry.UUID]
 		}
 		entries = append(entries, entry)
 	}
@@ -180,7 +162,6 @@ func (s *Session) SetFavorite(ctx context.Context, id string, favorite bool, con
 		}
 		s.db.Clear()
 		s.db = updated
-		s.searchFields = nil
 		return nil
 	}
 	return errors.New("entry unavailable")

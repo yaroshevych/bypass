@@ -2,6 +2,7 @@ package widget
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,6 +19,29 @@ func (m *memoryClipboard) Write(_ context.Context, value []byte) error {
 }
 func (m *memoryClipboard) Read(context.Context) ([]byte, error) {
 	return append([]byte(nil), m.value...), nil
+}
+
+func TestItemsSearchUsesOnlyProjectedFields(t *testing.T) {
+	s := NewSession(&memoryClipboard{}, time.Minute, t.TempDir())
+	s.db = &vault.Database{Entries: []vault.Entry{
+		{UUID: "netflix", GroupPath: "Passwords/Personal", Fields: []vault.Field{{Name: "Title", Value: "Netflix"}}},
+		{UUID: "amazon", GroupPath: "Passwords/Personal", Fields: []vault.Field{{Name: "Title", Value: "Amazon"}, {Name: "UserName", Value: "internetflix@example.com"}}},
+		{UUID: "deleted", Recycled: true, Fields: []vault.Field{{Name: "Title", Value: "Netflix"}}},
+	}}
+
+	items, err := s.Items(context.Background(), "net")
+	if err != nil {
+		t.Fatalf("search should use the projected entry fields: %v", err)
+	}
+	if len(items) != 2 || items[0].ID != "netflix" || items[1].ID != "amazon" {
+		t.Fatalf("ranked search results: %+v", items)
+	}
+
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := s.Items(canceled, "net"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled search error = %v, want context.Canceled", err)
+	}
 }
 
 func TestSessionVaultLifecycle(t *testing.T) {
