@@ -23,6 +23,21 @@ type lifecycleBackend struct {
 	createOptions vault.CreateOptions
 }
 
+func lifecycleModel(t *testing.T) (*Model, *lifecycleBackend) {
+	t.Helper()
+	b := &lifecycleBackend{}
+	m := New(Options{Backend: b, Settings: platform.Settings{BackupDir: t.TempDir()}})
+	db := fixture("/tmp/ui-lifecycle.kdbx")
+	m.ws.Open(db)
+	s := m.ws.ActiveSession()
+	s.ReadOnly = false
+	m.ws.SetCredentials(s.ID, vault.Credentials{Password: []byte("SESSION-SECRET")})
+	m.normalize()
+	m.ws.ActiveView().Focus = 1
+	t.Cleanup(m.Close)
+	return m, b
+}
+
 func (b *lifecycleBackend) CreateWithOptions(_ context.Context, path string, _ vault.Credentials, opts vault.CreateOptions) (*vault.Database, error) {
 	b.createdPath, b.createOptions = path, opts
 	if b.fail {
@@ -193,9 +208,7 @@ func TestCredentialConfirmationKeepsBothButtonLabelsVisible(t *testing.T) {
 }
 
 func TestCredentialConfirmationAndSharedSessionUpdate(t *testing.T) {
-	m, _ := operationModel(t)
-	b := &lifecycleBackend{}
-	m.backend = b
+	m, b := lifecycleModel(t)
 	m.ws.Duplicate()
 	s := m.ws.ActiveSession()
 	oldBuffer := s.Credentials.Password
@@ -232,8 +245,7 @@ func TestCredentialConfirmationAndSharedSessionUpdate(t *testing.T) {
 }
 
 func TestLockDiscardsLateCredentialResult(t *testing.T) {
-	m, _ := operationModel(t)
-	m.backend = &lifecycleBackend{}
+	m, _ := lifecycleModel(t)
 	m.openCredentials()
 	m.lifecycle.inputs[0].set("NEW-MASTER")
 	m.lifecycle.inputs[1].set("NEW-MASTER")
@@ -256,8 +268,7 @@ func TestLockDiscardsLateCredentialResult(t *testing.T) {
 }
 
 func TestDatabaseInfoHasKeyboardExit(t *testing.T) {
-	m, _ := operationModel(t)
-	m.backend = &lifecycleBackend{}
+	m, _ := lifecycleModel(t)
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Fatal(err)
@@ -281,12 +292,11 @@ func TestDatabaseInfoHasKeyboardExit(t *testing.T) {
 }
 
 func TestUnavailableLifecycleActionsStayDisabled(t *testing.T) {
-	m, _ := operationModel(t)
-	m.backend = &lifecycleBackend{}
-	if !m.canCreateVault() {
+	supported, _ := lifecycleModel(t)
+	if !supported.canCreateVault() {
 		t.Fatal("vault creation API should be available")
 	}
-	m.backend = &operationBackend{}
+	m, _ := operationModel(t)
 	m.openCreateVault()
 	if m.lifecycle != nil || m.canCreateVault() {
 		t.Fatal("vault creation form opened without a create API")

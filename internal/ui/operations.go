@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"bypass/internal/session"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -48,13 +49,6 @@ type copiedMsg struct {
 	label   string
 	expires time.Time
 	err     error
-}
-type resolvedCopyMsg struct {
-	id     uint64
-	label  string
-	value  []byte
-	err    error
-	secret *secretValues
 }
 type resolvedRevealMsg struct {
 	id     uint64
@@ -114,7 +108,7 @@ func (m *Model) writable() bool {
 		m.setNotice("backup folder unavailable", true)
 		return false
 	}
-	if _, ok := m.backend.(vault.Writer); !ok {
+	if !s.Core.CanApply() {
 		m.setNotice("backend does not support writes", true)
 		return false
 	}
@@ -290,11 +284,8 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 
 func (m *Model) prepareEditor(entry vault.Entry) tea.Cmd {
 	session := m.ws.ActiveSession()
-	snapshot := session.DB.Clone()
-	detailReader := m.backend.(entryDetailsReader)
-	resolver := m.backend.(interface {
-		ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
-	})
+	core := session.Core
+	snapshot := core.Snapshot()
 	id := m.beginOperation(session.ID)
 	ctx := m.operationContext()
 	sessionID := session.ID
@@ -304,14 +295,14 @@ func (m *Model) prepareEditor(entry vault.Entry) tea.Cmd {
 			return editorReadyMsg{id: id, sessionID: sessionID, entryID: entry.UUID, err: ctx.Err()}
 		}
 		defer resources.done()
-		fields, err := detailReader.EntryDetails(ctx, snapshot, entry.UUID)
+		fields, err := core.EntryDetails(ctx, snapshot, entry.UUID)
 		if err != nil {
 			return editorReadyMsg{id: id, sessionID: sessionID, entryID: entry.UUID, err: err}
 		}
 		var password []byte
 		for _, field := range fields {
 			if field.Name == "Password" && field.Value != "" {
-				password, err = resolver.ResolveField(ctx, snapshot, vault.Credentials{}, entry.UUID, "Password")
+				password, err = core.ResolveField(ctx, snapshot, entry.UUID, "Password")
 				break
 			}
 		}
@@ -456,16 +447,14 @@ func (m *Model) apply(change vault.Change) tea.Cmd {
 		return nil
 	}
 	s := m.ws.ActiveSession()
-	writer := m.backend.(vault.Writer)
-	snapshot := s.DB.Clone()
-	creds := s.Credentials.Clone()
+	core := s.Core
+	snapshot := core.Snapshot()
 	id := m.beginOperation(s.ID)
 	ctx := m.operationContext()
 	backupDir := m.settings.BackupDir
 	password, attachment := change.Password, change.AttachmentData
 	resources := newJobResources(ctx, func() {
 		snapshot.Clear()
-		creds.Clear()
 		wipebuf.Wipe(password)
 		wipebuf.Wipe(attachment)
 	})
@@ -474,7 +463,7 @@ func (m *Model) apply(change vault.Change) tea.Cmd {
 			return appliedMsg{id: id, sessionID: s.ID, err: ctx.Err()}
 		}
 		defer resources.done()
-		db, err := writer.Apply(ctx, snapshot, creds, change, backupDir)
+		db, err := core.Apply(ctx, snapshot, change, backupDir)
 		resultChange := change
 		resultChange.Password = append([]byte(nil), change.Password...)
 		resultChange.AttachmentData = append([]byte(nil), change.AttachmentData...)
@@ -513,16 +502,15 @@ func (m *Model) reload(id string) tea.Cmd {
 	}
 	request := m.beginOperation(id)
 	ctx := m.operationContext()
-	creds := s.Credentials.Clone()
-	backend := m.backend
-	path := s.Path
-	resources := newJobResources(ctx, creds.Clear)
+	core := s.Core
+	snapshot := core.Snapshot()
+	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
 		if !resources.start() {
 			return reloadedMsg{request, id, nil, ctx.Err()}
 		}
 		defer resources.done()
-		db, err := backend.Open(ctx, path, creds)
+		db, err := core.Reload(ctx, snapshot)
 		return reloadedMsg{request, id, db, err}
 	}
 }
@@ -773,7 +761,11 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		if msg.err != nil {
-			m.setNotice("copy failed · clipboard unavailable", true)
+			if errors.Is(msg.err, session.ErrFieldUnavailable) {
+				m.setNotice("field unavailable · reload if vault changed", true)
+			} else {
+				m.setNotice("copy failed · clipboard unavailable", true)
+			}
 			return nil, true
 		}
 		m.clipboardExpires = msg.expires
@@ -781,18 +773,6 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		id := msg.id
 		delay := max(time.Duration(0), msg.expires.Sub(m.now()))
 		return tea.Tick(delay, func(now time.Time) tea.Msg { return clipboardExpiryMsg{id, now} }), true
-	case resolvedCopyMsg:
-		msg.value = takeSecret(msg.secret, msg.value)
-		if msg.id != m.clipGeneration {
-			wipebuf.Wipe(msg.value)
-			return nil, true
-		}
-		if msg.err != nil {
-			wipebuf.Wipe(msg.value)
-			m.setNotice("field unavailable · reload if vault changed", true)
-			return nil, true
-		}
-		return m.copyValue(msg.value, msg.label), true
 	case resolvedRevealMsg:
 		msg.value = takeSecret(msg.secret, msg.value)
 		defer wipebuf.Wipe(msg.value)
@@ -963,10 +943,8 @@ func (m *Model) copyField(name string) tea.Cmd {
 		label = "Username"
 	}
 	if name == "Password" || name == "TOTP" || strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Unlocked() && name == "Notes" && !e.DetailsLoaded) {
-		resolver, ok := m.backend.(interface {
-			ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
-		})
-		if !ok {
+		core := m.ws.ActiveSession().Core
+		if !core.CanResolveField() {
 			m.setNotice("backend doesn't support field references", true)
 			return nil
 		}
@@ -977,18 +955,18 @@ func (m *Model) copyField(name string) tea.Cmd {
 		m.clipCancel = cancel
 		m.clipGeneration++
 		id := m.clipGeneration
-		s := m.ws.ActiveSession()
-		db := s.DB.Clone()
-		creds := s.Credentials.Clone()
+		snapshot := core.Snapshot()
 		entryID := e.UUID
-		resources := newJobResources(ctx, func() { db.Clear(); creds.Clear() })
+		now, manager, timeout := m.now(), m.clipboard, m.settings.ClipboardTimeout
+		expires := now.Add(timeout)
+		resources := newJobResources(ctx, snapshot.Clear)
 		return func() tea.Msg {
 			if !resources.start() {
-				return resolvedCopyMsg{id: id, label: label, err: ctx.Err()}
+				return copiedMsg{id: id, label: label, err: ctx.Err()}
 			}
 			defer resources.done()
-			value, err := resolver.ResolveField(ctx, db, creds, entryID, name)
-			return resolvedCopyMsg{id: id, label: label, value: value, err: err, secret: holdSecret(ctx, value)}
+			err := core.CopyField(ctx, snapshot, entryID, name, manager, now, timeout)
+			return copiedMsg{id: id, label: label, expires: expires, err: err}
 		}
 	}
 	return m.copyValue([]byte(e.Get(name)), label)
@@ -1076,10 +1054,8 @@ func (m *Model) requestRevealField() tea.Cmd {
 		m.hideReveal()
 		return nil
 	}
-	resolver, ok := m.backend.(interface {
-		ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
-	})
-	if !ok {
+	core := s.Core
+	if !core.CanResolveField() {
 		m.hideReveal()
 		m.setNotice("backend doesn't support field references", true)
 		return nil
@@ -1088,16 +1064,15 @@ func (m *Model) requestRevealField() tea.Cmd {
 	m.revealCancel = cancel
 	m.revealGeneration++
 	id := m.revealGeneration
-	db := s.DB.Clone()
-	creds := s.Credentials.Clone()
+	snapshot := core.Snapshot()
 	entryID := e.UUID
-	resources := newJobResources(ctx, func() { db.Clear(); creds.Clear() })
+	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
 		if !resources.start() {
 			return resolvedRevealMsg{id: id, err: ctx.Err()}
 		}
 		defer resources.done()
-		value, err := resolver.ResolveField(ctx, db, creds, entryID, name)
+		value, err := core.ResolveField(ctx, snapshot, entryID, name)
 		return resolvedRevealMsg{id: id, value: value, err: err, secret: holdSecret(ctx, value)}
 	}
 }
@@ -1327,10 +1302,8 @@ func (m *Model) openGenerator() {
 	m.dialog.input.set("24")
 }
 func (m *Model) generate() tea.Cmd {
-	generator, ok := m.backend.(interface {
-		Generate(context.Context, int) ([]byte, error)
-	})
-	if !ok {
+	service := m.service
+	if !service.CanGeneratePassword() {
 		m.dialog.err = "Password generation unavailable."
 		return nil
 	}
@@ -1341,7 +1314,10 @@ func (m *Model) generate() tea.Cmd {
 	}
 	id := m.beginOperation("")
 	ctx := m.operationContext()
-	return func() tea.Msg { value, err := generator.Generate(ctx, length); return generatedMsg{id, value, err} }
+	return func() tea.Msg {
+		value, err := service.GeneratePassword(ctx, length)
+		return generatedMsg{id, value, err}
+	}
 }
 
 func vaultLabel(path string) string { return safe(filepath.Base(path)) }

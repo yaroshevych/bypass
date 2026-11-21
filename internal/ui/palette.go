@@ -7,7 +7,6 @@ import (
 
 	"bypass/internal/platform"
 	"bypass/internal/search"
-	"bypass/internal/session"
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
@@ -95,7 +94,7 @@ func (m *Model) commands() []command {
 		}
 	}
 	createReason := ""
-	if !session.NewService(m.backend).CanCreateVault() {
+	if !m.service.CanCreateVault() {
 		createReason = "Backend cannot create vaults"
 	}
 	if m.readOnly {
@@ -150,13 +149,13 @@ func (m *Model) commands() []command {
 		readOnlyReason = m.writeRestriction()
 	}
 	infoReason := needVault
-	_, sessionInfo := m.backend.(sessionDatabaseInspector)
+	sessionInfo := s != nil && s.Core != nil && s.Core.CanInspectDatabase()
 	if !sessionInfo {
 		infoReason = "Database information unavailable from this backend"
 	}
 	add("database-info", "Vault", "Database Info…", "", infoReason, "", func() tea.Cmd { return m.leaveEditor(func() tea.Cmd { return m.openDatabaseInfo() }) })
 	credentialsReason := writeReason
-	if _, ok := m.backend.(credentialChanger); !ok {
+	if s == nil || s.Core == nil || !s.Core.CanChangeCredentials() {
 		credentialsReason = "Credential changes unavailable from this backend"
 	}
 	if s != nil && s.Credentials.YubiKey != "" {

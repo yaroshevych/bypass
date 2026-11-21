@@ -36,9 +36,8 @@ func TestPublicCancelOfPendingOpenDropsLateDatabase(t *testing.T) {
 	updateKey(m, key("esc"))
 	close(backend.release)
 	msg := awaitBoundary(t, result)
-	db := msg.(openedMsg).db
 	m.Update(msg)
-	if m.ws.ActiveSession() != nil || len(db.Entries) != 0 || len(db.Groups) != 0 {
+	if m.ws.ActiveSession() != nil || len(backend.result.Entries) != 0 || len(backend.result.Groups) != 0 {
 		t.Fatal("late open result resurrected or retained a canceled database")
 	}
 }
@@ -75,9 +74,8 @@ func TestPublicFullLockDropsPendingSecondaryOpen(t *testing.T) {
 	}
 	close(backend.release)
 	msg := awaitBoundary(t, result)
-	db := msg.(openedMsg).db
 	m.Update(msg)
-	if len(m.ws.Sessions) != 1 || len(db.Entries) != 0 {
+	if len(m.ws.Sessions) != 1 || len(backend.result.Entries) != 0 {
 		t.Fatal("late secondary open resurrected a vault after full lock")
 	}
 }
@@ -245,12 +243,11 @@ func TestPublicFullLockDropsLateReferenceCopy(t *testing.T) {
 	updateKey(m, key("L"))
 	close(backend.resolveRelease)
 	msg := awaitBoundary(t, result)
-	value := msg.(resolvedCopyMsg).value
 	m.Update(msg)
 	if len(driver.value) != 0 {
 		t.Fatal("late copy wrote resolved secret after full lock")
 	}
-	for _, b := range value {
+	for _, b := range backend.resolvedValue {
 		if b != 0 {
 			t.Fatal("late copy result bytes were not cleared")
 		}
@@ -360,6 +357,7 @@ func TestPublicPINProtectionAllowsAuthorizedAttachmentExport(t *testing.T) {
 type boundaryOpenBackend struct {
 	started chan struct{}
 	release chan struct{}
+	result  *vault.Database
 }
 
 type boundaryCreateBackend struct {
@@ -384,13 +382,15 @@ func (b *boundaryCreateBackend) CreateWithOptions(_ context.Context, path string
 func (b *boundaryOpenBackend) Open(context.Context, string, vault.Credentials) (*vault.Database, error) {
 	close(b.started)
 	<-b.release
-	return fixture("/tmp/late-open-result.kdbx"), nil
+	b.result = fixture("/tmp/late-open-result.kdbx")
+	return b.result, nil
 }
 
 type boundaryBackend struct {
 	*operationBackend
 	resolveStarted chan struct{}
 	resolveRelease chan struct{}
+	resolvedValue  []byte
 }
 
 type boundaryCredentialBackend struct {
@@ -404,7 +404,8 @@ func (b *boundaryCredentialBackend) ChangeCredentials(context.Context, *vault.Da
 func (b *boundaryBackend) ResolveField(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error) {
 	close(b.resolveStarted)
 	<-b.resolveRelease
-	return []byte("LATE-RESOLVED-SECRET"), nil
+	b.resolvedValue = []byte("LATE-RESOLVED-SECRET")
+	return b.resolvedValue, nil
 }
 
 func (b *boundaryBackend) Apply(_ context.Context, db *vault.Database, _ vault.Credentials, _ vault.Change, _ string) (*vault.Database, error) {
@@ -518,9 +519,8 @@ func TestCtrlLFullLockCancelsPendingUnlockAndLocksOtherVault(t *testing.T) {
 	}
 	close(backend.release)
 	msg := awaitBoundary(t, result)
-	db := msg.(openedMsg).db
 	m.Update(msg)
-	if len(m.ws.Sessions) != 2 || len(db.Groups) != 0 || current.DB != nil {
+	if len(m.ws.Sessions) != 2 || len(backend.result.Groups) != 0 || current.DB != nil {
 		t.Fatal("canceled unlock resurrected a vault after full lock")
 	}
 }

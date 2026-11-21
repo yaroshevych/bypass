@@ -3,7 +3,6 @@ package ui
 import (
 	wipebuf "bypass/internal/secret"
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -11,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"bypass/internal/session"
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
@@ -39,16 +37,6 @@ type lifecycleMsg struct {
 	err             error
 }
 
-type credentialChanger interface {
-	ChangeCredentials(context.Context, *vault.Database, vault.Credentials, vault.Credentials, string) (*vault.Database, error)
-}
-type credentialLossChanger interface {
-	ChangeCredentialsAllowingMetadataLoss(context.Context, *vault.Database, vault.Credentials, string, [32]byte) (*vault.Database, error)
-}
-type sessionDatabaseInspector interface {
-	InfoDatabase(context.Context, *vault.Database) (vault.DatabaseInfo, error)
-}
-
 func (m *Model) clearLifecycle() {
 	if m.lifecycle == nil {
 		return
@@ -72,7 +60,7 @@ func (m *Model) openCreateVault() tea.Cmd {
 		m.setNotice("restart without --read-only to create a vault", true)
 		return nil
 	}
-	if !session.NewService(m.backend).CanCreateVault() {
+	if !m.service.CanCreateVault() {
 		m.setNotice("backend can't create vaults", true)
 		return nil
 	}
@@ -92,7 +80,7 @@ func (m *Model) openCredentials() tea.Cmd {
 		m.setNotice("backend can't change hardware-factor credentials", true)
 		return nil
 	}
-	if _, ok := m.backend.(credentialChanger); !ok {
+	if s.Core == nil || !s.Core.CanChangeCredentials() {
 		m.setNotice("backend can't change vault credentials", true)
 		return nil
 	}
@@ -106,11 +94,10 @@ func (m *Model) openCredentials() tea.Cmd {
 
 func (m *Model) openDatabaseInfo() tea.Cmd {
 	s := m.ws.ActiveSession()
-	backend, ok := m.backend.(sessionDatabaseInspector)
 	if s == nil || s.DB == nil {
 		return nil
 	}
-	if !ok {
+	if s.Core == nil || !s.Core.CanInspectDatabase() {
 		m.setNotice("database info unavailable", true)
 		return nil
 	}
@@ -121,7 +108,11 @@ func (m *Model) openDatabaseInfo() tea.Cmd {
 	id := m.beginOperation(s.ID)
 	m.lifecycle.request = id
 	ctx := m.operationContext()
-	snapshot := s.DB.Clone()
+	snapshot := s.Core.Snapshot()
+	if snapshot == nil {
+		m.clearLifecycle()
+		return nil
+	}
 	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
 		if !resources.start() {
@@ -129,7 +120,7 @@ func (m *Model) openDatabaseInfo() tea.Cmd {
 		}
 		defer resources.done()
 		msg := lifecycleMsg{id: id, kind: "info", sessionID: s.ID}
-		msg.info, msg.err = backend.InfoDatabase(ctx, snapshot)
+		msg.info, msg.err = s.Core.InfoDatabase(ctx, snapshot)
 		return msg
 	}
 }
@@ -182,7 +173,7 @@ func (m *Model) submitLifecycle() tea.Cmd {
 				return nil
 			}
 		}
-		service := session.NewService(m.backend)
+		service := m.service
 		if !service.CanCreateVault() {
 			creds.Clear()
 			l.err = "Vault creation is unavailable."
@@ -212,24 +203,28 @@ func (m *Model) submitLifecycle() tea.Cmd {
 		l.err = "Unlock and reload a writable vault before changing credentials."
 		return nil
 	}
-	backend, ok := m.backend.(credentialChanger)
-	if !ok {
+	if s.Core == nil || !s.Core.CanChangeCredentials() {
 		creds.Clear()
 		l.err = "Credential changes are unavailable."
 		return nil
 	}
-	db, old := s.DB.Clone(), s.Credentials.Clone()
+	snapshot := s.Core.Snapshot()
+	if snapshot == nil {
+		creds.Clear()
+		l.err = "Unlock and reload a writable vault before changing credentials."
+		return nil
+	}
 	id := m.beginOperation(s.ID)
 	ctx := m.operationContext()
 	l.busy, l.request, l.err = true, id, ""
 	sessionID, backupDir := s.ID, m.settings.BackupDir
-	resources := newJobResources(ctx, func() { db.Clear(); old.Clear(); creds.Clear() })
+	resources := newJobResources(ctx, func() { snapshot.Clear(); creds.Clear() })
 	return func() tea.Msg {
 		if !resources.start() {
 			return lifecycleMsg{id: id, kind: "credentials", sessionID: sessionID, err: ctx.Err()}
 		}
 		defer resources.done()
-		updated, err := backend.ChangeCredentials(ctx, db, old, creds, backupDir)
+		updated, err := s.Core.ChangeCredentials(ctx, snapshot, creds, backupDir)
 		return lifecycleMsg{id: id, kind: "credentials", sessionID: sessionID, db: updated, credentials: creds.Clone(), err: err}
 	}
 }
@@ -349,17 +344,21 @@ func MetadataLossMessage(loss *vault.DataLossError, operation, backup string) []
 
 func (m *Model) rotateCredentialsWithLossConsent(sessionID string, creds vault.Credentials, loss *vault.DataLossError) tea.Cmd {
 	s := m.ws.Sessions[sessionID]
-	changer, ok := m.backend.(credentialLossChanger)
-	if !ok || s == nil || s.DB == nil || s.ReadOnly || s.Stale || loss == nil || s.DB.Path != loss.Path || s.DB.Revision != loss.Revision {
+	if s == nil || s.DB == nil || s.Core == nil || !s.Core.CanChangeCredentialsAllowingMetadataLoss() || s.ReadOnly || s.Stale || loss == nil || s.DB.Path != loss.Path || s.DB.Revision != loss.Revision {
 		creds.Clear()
 		m.setNotice("vault changed · reload before saving", true)
 		return nil
 	}
-	db, old := s.DB.Clone(), s.Credentials.Clone()
+	snapshot := s.Core.Snapshot()
+	if snapshot == nil {
+		creds.Clear()
+		m.setNotice("vault changed · reload before saving", true)
+		return nil
+	}
 	id := m.beginOperation(sessionID)
 	ctx := m.operationContext()
 	backupDir := m.settings.BackupDir
-	resources := newJobResources(ctx, func() { db.Clear(); old.Clear(); creds.Clear() })
+	resources := newJobResources(ctx, func() { snapshot.Clear(); creds.Clear() })
 	if m.lifecycle == nil {
 		m.lifecycle = &lifecycleState{kind: "credentials", sessionID: sessionID}
 	}
@@ -369,7 +368,7 @@ func (m *Model) rotateCredentialsWithLossConsent(sessionID string, creds vault.C
 			return lifecycleMsg{id: id, kind: "credentials", sessionID: sessionID, err: ctx.Err()}
 		}
 		defer resources.done()
-		updated, err := changer.ChangeCredentialsAllowingMetadataLoss(ctx, db, creds, backupDir, loss.Operation)
+		updated, err := s.Core.ChangeCredentialsAllowingMetadataLoss(ctx, snapshot, creds, backupDir, loss.Operation)
 		return lifecycleMsg{id: id, kind: "credentials", sessionID: sessionID, db: updated, credentials: creds.Clone(), err: err}
 	}
 }
@@ -628,5 +627,5 @@ func (m *Model) lifecyclePointer(msg tea.MouseMsg) tea.Cmd {
 }
 
 func (m *Model) canCreateVault() bool {
-	return session.NewService(m.backend).CanCreateVault() && !m.readOnly
+	return m.service.CanCreateVault() && !m.readOnly
 }

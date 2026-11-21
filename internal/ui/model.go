@@ -12,6 +12,7 @@ import (
 	"bypass/internal/clipboard"
 	"bypass/internal/platform"
 	"bypass/internal/privacy"
+	"bypass/internal/session"
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
 	tea "github.com/charmbracelet/bubbletea"
@@ -133,6 +134,7 @@ type Model struct {
 	searchCache                             *entrySearchCache
 	searchOrigin                            *workspace.View
 	backend                                 vault.Backend
+	service                                 *session.Service
 	store                                   RecentStore
 	ctx                                     context.Context
 	ws                                      *workspace.Workspace
@@ -194,6 +196,7 @@ type fileItem struct {
 type openedMsg struct {
 	request     uint64
 	db          *vault.Database
+	core        *session.Session
 	err         error
 	credentials vault.Credentials
 }
@@ -231,7 +234,7 @@ func New(opts Options) *Model {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	m := &Model{backend: opts.Backend, store: opts.Store, ctx: ctx, ws: workspace.New(), width: 100, height: 30}
+	m := &Model{backend: opts.Backend, service: session.NewService(opts.Backend), store: opts.Store, ctx: ctx, ws: workspace.New(), width: 100, height: 30}
 	m.now = opts.Now
 	if m.now == nil {
 		m.now = time.Now
@@ -260,6 +263,11 @@ func New(opts Options) *Model {
 		m.settings.ClipboardTimeout = 10 * time.Second
 	}
 	m.clipboard = opts.Clipboard
+	m.ws.CoreFactory = func(db *vault.Database) *session.Session {
+		core := session.New(m.backend, m.clipboard, m.settings.ClipboardTimeout)
+		core.Adopt(db)
+		return core
+	}
 	m.readOnly = opts.ReadOnly
 	m.notice = compactNotice(opts.Warning)
 	m.checking = make(map[string]bool)
@@ -467,7 +475,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case openedMsg:
 		if msg.request != m.request {
 			msg.credentials.Clear()
-			if msg.db != nil {
+			if msg.core != nil {
+				msg.core.Adopt(nil)
+			} else if msg.db != nil {
 				msg.db.Clear()
 			}
 			break
@@ -480,6 +490,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.err = "Could not unlock. Check credentials, file access and backend support."
 			msg.credentials.Clear()
+			if msg.core != nil {
+				msg.core.Adopt(nil)
+			}
 			if errors.Is(msg.err, vault.ErrUnavailable) {
 				m.err = "Could not unlock. Vault support is unavailable."
 			}
@@ -500,12 +513,16 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			break
 		}
 		if !m.ws.CanOpen(msg.db.Path) {
-			msg.db.Clear()
+			if msg.core != nil {
+				msg.core.Adopt(nil)
+			} else {
+				msg.db.Clear()
+			}
 			msg.credentials.Clear()
 			m.err = "Maximum 9 tabs. Close a tab before opening another vault."
 			break
 		}
-		reused := m.ws.Open(msg.db)
+		reused := m.ws.OpenWithCore(msg.db, msg.core)
 		session := m.ws.ActiveSession()
 		if session != nil {
 			m.ws.SetCredentials(session.ID, msg.credentials)
@@ -941,7 +958,7 @@ func (m *Model) startOpen() tea.Cmd {
 	m.request++
 	id := m.request
 	path := m.path
-	backend := m.backend
+	core := session.New(m.backend, m.clipboard, m.settings.ClipboardTimeout)
 	m.busy = true
 	m.err = ""
 	resources := newJobResources(ctx, creds.Clear)
@@ -950,10 +967,11 @@ func (m *Model) startOpen() tea.Cmd {
 			return openedMsg{request: id, err: vault.ErrCanceled}
 		}
 		defer resources.done()
-		db, err := backend.Open(ctx, path, creds)
-		result := openedMsg{request: id, db: db, err: err}
-		if err == nil && !db.Unlocked() {
-			result.credentials = creds.Clone()
+		err := core.Open(ctx, path, creds)
+		db := core.Database()
+		result := openedMsg{request: id, db: db, core: core, err: err}
+		if err == nil && db != nil && !db.Unlocked() {
+			result.credentials = core.Credentials()
 		}
 		return result
 	}

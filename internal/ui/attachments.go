@@ -137,7 +137,7 @@ func (m *Model) attachmentConfirmation(state *extraState) []string {
 }
 
 func (m *Model) extrasWritable(session *workspace.Session) bool {
-	_, writer := m.backend.(vault.Writer)
+	writer := session.Core.CanApply()
 	return session != nil && session.DB != nil && !session.ReadOnly && !session.Stale && !m.writing && m.settings.BackupDir != "" && writer
 }
 
@@ -371,15 +371,12 @@ func (m *Model) attachmentConfirmKey(k tea.KeyMsg) tea.Cmd {
 }
 
 func (m *Model) startAttachmentExport(state *extraState) tea.Cmd {
-	api, ok := m.backend.(interface {
-		ExportAttachment(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
-	})
-	if !ok {
+	session, entry := m.currentExtraEntry(state)
+	if session == nil || session.Core == nil || !session.Core.CanExportAttachment() {
 		state.err = "Attachment export is not supported by this backend."
 		return nil
 	}
-	session, entry := m.currentExtraEntry(state)
-	if session == nil || entry == nil {
+	if entry == nil {
 		state.err = "Entry is no longer available."
 		return nil
 	}
@@ -391,16 +388,23 @@ func (m *Model) startAttachmentExport(state *extraState) tea.Cmd {
 	state.cancel = cancel
 	state.loading = true
 	state.err = ""
-	db := session.DB.Clone()
-	creds := session.Credentials.Clone()
+	snapshot := session.Core.Snapshot()
+	if snapshot == nil {
+		cancel()
+		state.cancel = nil
+		state.loading = false
+		state.err = "Entry is no longer available."
+		return nil
+	}
 	entryID, name, path := entry.UUID, state.targetName, state.path
-	resources := newJobResources(ctx, func() { db.Clear(); creds.Clear() })
+	core := session.Core
+	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
 		if !resources.start() {
 			return extrasExportMsg{state: state, err: ctx.Err()}
 		}
 		defer resources.done()
-		data, err := api.ExportAttachment(ctx, db, creds, entryID, name)
+		data, err := core.ExportAttachment(ctx, snapshot, entryID, name)
 		if err == nil {
 			if ctx.Err() != nil {
 				err = ctx.Err()

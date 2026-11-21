@@ -7,10 +7,6 @@ import (
 	"slices"
 )
 
-type entryDetailsReader interface {
-	EntryDetails(context.Context, *vault.Database, string) ([]vault.Field, error)
-}
-
 type focusedDetailsMsg struct {
 	request            uint64
 	sessionID, entryID string
@@ -31,7 +27,7 @@ func (m *Model) cancelFocusedDetails() {
 
 func (m *Model) loadFocusedDetails() tea.Cmd {
 	session := m.ws.ActiveSession()
-	if session == nil || session.DB == nil || !session.DB.Unlocked() || m.screen != browse || m.gate.Protected() || m.editor != nil || m.writing {
+	if session == nil || session.Core == nil || session.Core.Database() == nil || !session.Core.Database().Unlocked() || m.screen != browse || m.gate.Protected() || m.editor != nil || m.writing {
 		m.cancelFocusedDetails()
 		return nil
 	}
@@ -43,23 +39,28 @@ func (m *Model) loadFocusedDetails() tea.Cmd {
 	if m.detailDatabase == session.DB && m.detailEntry == entry.UUID && m.detailSession == session.ID {
 		return nil
 	}
-	reader, ok := m.backend.(entryDetailsReader)
-	if !ok {
+	if !session.Core.CanEntryDetails() {
 		return nil
 	}
 	m.cancelFocusedDetails()
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.detailCancel = cancel
-	m.detailDatabase, m.detailSession, m.detailEntry = session.DB, session.ID, entry.UUID
-	request, database, sessionID, entryID := m.detailRequest, session.DB, session.ID, entry.UUID
-	snapshot := database.Clone()
+	database := session.Core.Database()
+	m.detailDatabase, m.detailSession, m.detailEntry = database, session.ID, entry.UUID
+	request, sessionID, entryID := m.detailRequest, session.ID, entry.UUID
+	snapshot := session.Core.Snapshot()
+	if snapshot == nil {
+		m.cancelFocusedDetails()
+		return nil
+	}
+	core := session.Core
 	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
 		if !resources.start() {
 			return focusedDetailsMsg{request: request, sessionID: sessionID, entryID: entryID, database: database, err: ctx.Err()}
 		}
 		defer resources.done()
-		fields, err := reader.EntryDetails(ctx, snapshot, entryID)
+		fields, err := core.EntryDetails(ctx, snapshot, entryID)
 		return focusedDetailsMsg{request, sessionID, entryID, database, fields, err}
 	}
 }

@@ -34,12 +34,7 @@ func TestPasswordCopyResolvesThroughManagedClipboard(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("password field was not resolved")
 	}
-	resolved := cmd().(resolvedCopyMsg)
-	_, copyCmd := m.Update(resolved)
-	if copyCmd == nil {
-		t.Fatal("resolved password was not copied")
-	}
-	_, expiryCmd := m.Update(copyCmd())
+	_, expiryCmd := m.Update(cmd())
 	if expiryCmd == nil || m.clipboardExpires.IsZero() {
 		t.Fatal("password copy did not schedule clipboard expiry")
 	}

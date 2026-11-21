@@ -195,14 +195,12 @@ func (m *Model) extrasTick(now time.Time) tea.Cmd {
 	if state.mode != extraTOTP || state.loading || len(state.totpCode) == 0 || now.Before(state.totpExpires) {
 		return nil
 	}
-	if session, entry := m.currentExtraEntry(state); session == nil || entry == nil {
+	session, entry := m.currentExtraEntry(state)
+	if session == nil || entry == nil {
 		m.clearExtras()
 		return nil
 	}
-	api, ok := m.backend.(interface {
-		TOTP(context.Context, *vault.Database, vault.Credentials, string) (vault.TOTPResult, error)
-	})
-	if !ok {
+	if session.Core == nil || !session.Core.CanTOTP() {
 		wipebuf.Wipe(state.totpCode)
 		state.totpCode = nil
 		state.err = "TOTP is not supported by this backend."
@@ -210,7 +208,7 @@ func (m *Model) extrasTick(now time.Time) tea.Cmd {
 	}
 	wipebuf.Wipe(state.totpCode)
 	state.totpCode = nil
-	return m.requestTOTP(api, state)
+	return m.requestTOTP(session.Core, state)
 }
 
 func (m *Model) extrasKey(k tea.KeyMsg) (tea.Cmd, bool) {
@@ -261,13 +259,11 @@ func (m *Model) extrasKey(k tea.KeyMsg) (tea.Cmd, bool) {
 			}
 			return m.extrasTick(m.now()), true
 		case "r":
-			api, ok := m.backend.(interface {
-				TOTP(context.Context, *vault.Database, vault.Credentials, string) (vault.TOTPResult, error)
-			})
-			if ok {
+			session := m.ws.Sessions[state.sessionID]
+			if session != nil && session.Core != nil && session.Core.CanTOTP() {
 				wipebuf.Wipe(state.totpCode)
 				state.totpCode = nil
-				return m.requestTOTP(api, state), true
+				return m.requestTOTP(session.Core, state), true
 			}
 		}
 		return nil, true

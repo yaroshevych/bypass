@@ -6,11 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"bypass/internal/session"
 	"bypass/internal/vault"
 )
 
 type Session struct {
 	ID           string
+	Core         *session.Session
 	Path         string
 	ActiveViewID string
 	DB           *vault.Database
@@ -48,10 +50,11 @@ type View struct {
 }
 
 type Workspace struct {
-	Sessions map[string]*Session
-	Views    []View
-	Active   int
-	nextID   uint64
+	Sessions    map[string]*Session
+	Views       []View
+	Active      int
+	CoreFactory func(*vault.Database) *session.Session
+	nextID      uint64
 }
 
 const MaxTabs = 9
@@ -75,11 +78,25 @@ func New() *Workspace { return &Workspace{Sessions: make(map[string]*Session)} }
 // resolves to the same file. It creates a view only when the session has none;
 // a locked session is refreshed with db.
 func (w *Workspace) Open(db *vault.Database) (reused bool) {
+	var core *session.Session
+	if w != nil && w.CoreFactory != nil && db != nil {
+		core = w.CoreFactory(db)
+	}
+	return w.OpenWithCore(db, core)
+}
+
+// OpenWithCore activates a database and its owning runtime as one operation.
+// The caller transfers ownership of both arguments to the workspace.
+func (w *Workspace) OpenWithCore(db *vault.Database, core *session.Session) (reused bool) {
 	if db == nil {
 		return false
 	}
 	if !w.CanOpen(db.Path) {
-		db.Clear()
+		if core != nil {
+			core.Adopt(nil)
+		} else {
+			db.Clear()
+		}
 		return false
 	}
 	path := canonicalPath(db.Path)
@@ -93,11 +110,21 @@ func (w *Workspace) Open(db *vault.Database) (reused bool) {
 	if session != nil {
 		reused = true
 		if session.DB == nil {
-			w.ReplaceDatabase(session.ID, db)
+			session.DB = db
+			if session.Core != nil && session.Core != core {
+				session.Core.Adopt(nil)
+			}
+			session.Core = core
+			session.Stale = false
+			session.LastActivity = time.Now()
 		} else if session.DB != db {
 			// The caller may have just decrypted a second copy of the same
 			// vault. Keep one shared database and discard the duplicate plaintext.
-			db.Clear()
+			if core != nil {
+				core.Adopt(nil)
+			} else {
+				db.Clear()
+			}
 		}
 		for i := range w.Views {
 			if w.Views[i].SessionID == session.ID && w.Views[i].ID == session.ActiveViewID {
@@ -112,7 +139,7 @@ func (w *Workspace) Open(db *vault.Database) (reused bool) {
 			}
 		}
 	} else {
-		session = &Session{ID: w.id("session"), Path: path, DB: db, ReadOnly: true, LastActivity: time.Now(), Usage: make(map[string]Access)}
+		session = &Session{ID: w.id("session"), Path: path, DB: db, Core: core, ReadOnly: true, LastActivity: time.Now(), Usage: make(map[string]Access)}
 		w.Sessions[session.ID] = session
 	}
 	w.Views = append(w.Views, View{ID: w.id("view"), SessionID: session.ID, GroupUUID: db.RootUUID})
@@ -208,8 +235,14 @@ func (w *Workspace) ReplaceDatabase(sessionID string, db *vault.Database) bool {
 		return false
 	}
 	if session.DB != nil && session.DB != db {
-		session.DB.TransferBackend(db)
-		session.DB.Clear()
+		if session.Core != nil {
+			session.Core.ReplaceDatabase(db)
+		} else {
+			session.DB.TransferBackend(db)
+			session.DB.Clear()
+		}
+	} else if session.Core != nil && session.DB != db {
+		session.Core.ReplaceDatabase(db)
 	}
 	session.DB = db
 	session.Stale = false
@@ -228,6 +261,9 @@ func (w *Workspace) SetCredentials(sessionID string, credentials vault.Credentia
 	}
 	session.Credentials.Clear()
 	session.Credentials = owned
+	if session.Core != nil {
+		session.Core.SetCredentials(credentials)
+	}
 	session.LastActivity = time.Now()
 	return true
 }
@@ -265,7 +301,11 @@ func (w *Workspace) LockSession(sessionID string) bool {
 		return false
 	}
 	if session.DB != nil {
-		session.DB.Clear()
+		if session.Core != nil {
+			session.Core.Adopt(nil)
+		} else {
+			session.DB.Clear()
+		}
 		session.DB = nil
 	}
 	session.Credentials.Clear()
@@ -298,7 +338,11 @@ func (w *Workspace) CloseVault() bool {
 		return false
 	}
 	if session.DB != nil {
-		session.DB.Clear()
+		if session.Core != nil {
+			session.Core.Adopt(nil)
+		} else {
+			session.DB.Clear()
+		}
 		session.DB = nil
 	}
 	session.Credentials.Clear()
@@ -351,7 +395,11 @@ func (w *Workspace) Close() {
 	for _, session := range w.Sessions {
 		if session != nil {
 			if session.DB != nil {
-				session.DB.Clear()
+				if session.Core != nil {
+					session.Core.Adopt(nil)
+				} else {
+					session.DB.Clear()
+				}
 				session.DB = nil
 			}
 			session.Credentials.Clear()
@@ -371,7 +419,11 @@ func (w *Workspace) cleanupSession(id string) {
 	}
 	if session := w.Sessions[id]; session != nil {
 		if session.DB != nil {
-			session.DB.Clear()
+			if session.Core != nil {
+				session.Core.Adopt(nil)
+			} else {
+				session.DB.Clear()
+			}
 			session.DB = nil
 		}
 		session.Credentials.Clear()

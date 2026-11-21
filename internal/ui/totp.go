@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"bypass/internal/vault"
+	"bypass/internal/session"
 	"context"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,22 +19,17 @@ func (m *Model) openTOTP() tea.Cmd {
 		m.setNotice("no totp for this entry", false)
 		return nil
 	}
-	api, ok := m.backend.(interface {
-		TOTP(context.Context, *vault.Database, vault.Credentials, string) (vault.TOTPResult, error)
-	})
-	if !ok {
+	if session.Core == nil || !session.Core.CanTOTP() {
 		m.setNotice("backend doesn't support totp", true)
 		return nil
 	}
 	m.clearExtras()
 	state := &extraState{mode: extraTOTP, sessionID: session.ID, entryUUID: entry.UUID, groupUUID: entry.GroupUUID, loading: true}
 	m.extras = state
-	return m.requestTOTP(api, state)
+	return m.requestTOTP(session.Core, state)
 }
 
-func (m *Model) requestTOTP(api interface {
-	TOTP(context.Context, *vault.Database, vault.Credentials, string) (vault.TOTPResult, error)
-}, state *extraState) tea.Cmd {
+func (m *Model) requestTOTP(core *session.Session, state *extraState) tea.Cmd {
 	session, entry := m.currentExtraEntry(state)
 	if session == nil || entry == nil {
 		state.loading = false
@@ -50,16 +45,20 @@ func (m *Model) requestTOTP(api interface {
 	requestID := state.requestID
 	state.loading = true
 	state.err = ""
-	db := session.DB.Clone()
-	creds := session.Credentials.Clone()
+	snapshot := core.Snapshot()
+	if snapshot == nil {
+		state.loading = false
+		state.err = "Entry is no longer available."
+		return nil
+	}
 	entryID := entry.UUID
-	resources := newJobResources(ctx, func() { db.Clear(); creds.Clear() })
+	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
 		if !resources.start() {
 			return extrasTOTPMsg{state: state, requestID: requestID, err: ctx.Err()}
 		}
 		defer resources.done()
-		result, err := api.TOTP(ctx, db, creds, entryID)
+		result, err := core.TOTP(ctx, snapshot, entryID)
 		return extrasTOTPMsg{state: state, requestID: requestID, result: result, err: err, secret: holdSecret(ctx, result.Code)}
 	}
 }

@@ -156,7 +156,7 @@ func TestOlderTOTPRequestCannotReplaceNewerCode(t *testing.T) {
 	m := newExtrasTestModel(t, extrasEntryDB("/tmp/extras-totp-generation.kdbx"), backend)
 	first := m.openTOTP()
 	firstMsg := first().(extrasTOTPMsg)
-	second := m.requestTOTP(backend, m.extras)
+	second := m.requestTOTP(m.ws.ActiveSession().Core, m.extras)
 	secondMsg := second().(extrasTOTPMsg)
 	m.updateExtras(firstMsg)
 	if !m.extras.loading || len(m.extras.totpCode) != 0 {
