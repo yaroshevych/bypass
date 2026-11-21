@@ -132,6 +132,15 @@ func (d *Database) Clone() *Database {
 	return &out
 }
 
+// NativeReadView returns a non-owning handle for native backend reads. It
+// carries no presentation model, entry history, or write metadata.
+func (d *Database) NativeReadView() *Database {
+	if d == nil {
+		return nil
+	}
+	return &Database{native: d.native, Path: d.Path}
+}
+
 func cloneEntry(e Entry, includeHistory bool) Entry {
 	out := e
 	out.Fields = append([]Field(nil), e.Fields...)

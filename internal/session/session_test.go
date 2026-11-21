@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -214,6 +215,19 @@ func TestNativeApplyOwnershipTransferAndDiscard(t *testing.T) {
 		t.Fatalf("rotated credentials could not reopen the vault: %v", err)
 	}
 	verifier.Adopt(nil)
+
+	readSnapshot := core.ReadSnapshot()
+	if readSnapshot.complete || len(readSnapshot.db.Entries) != 0 || len(readSnapshot.db.Groups) != 0 {
+		t.Fatal("native read snapshot retained the presentation model")
+	}
+	fields, err = core.EntryDetails(ctx, readSnapshot, entryID)
+	if err != nil || len(fields) == 0 {
+		t.Fatalf("native read snapshot could not resolve details: fields=%v err=%v", fields, err)
+	}
+	if _, err := core.Apply(ctx, readSnapshot, vault.Change{Kind: vault.EditEntry, EntryUUID: entryID}, filepath.Join(dir, "backups")); !errors.Is(err, ErrFullSnapshotRequired) {
+		t.Fatalf("Apply accepted a lean read snapshot: %v", err)
+	}
+	readSnapshot.Clear()
 }
 
 func TestReplaceNilClearsFallbackCredentials(t *testing.T) {

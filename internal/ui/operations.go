@@ -286,7 +286,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 func (m *Model) prepareEditor(entry vault.Entry) tea.Cmd {
 	session := m.ws.ActiveSession()
 	core := session.Core
-	snapshot := core.Snapshot()
+	snapshot := core.ReadSnapshot()
 	id := m.beginOperation(session.ID)
 	ctx := m.operationContext()
 	sessionID := session.ID
@@ -967,7 +967,7 @@ func (m *Model) copyField(name string) tea.Cmd {
 		m.clipCancel = cancel
 		m.clipGeneration++
 		id := m.clipGeneration
-		snapshot := core.Snapshot()
+		snapshot := core.ReadSnapshot()
 		entryID := e.UUID
 		now, manager, timeout := m.now(), m.clipboard, m.settings.ClipboardTimeout
 		expires := now.Add(timeout)
@@ -1080,7 +1080,7 @@ func (m *Model) requestRevealFieldAttempt(retry int) tea.Cmd {
 	m.revealCancel = cancel
 	m.revealGeneration++
 	id := m.revealGeneration
-	snapshot := core.Snapshot()
+	snapshot := core.ReadSnapshot()
 	entryID := e.UUID
 	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {

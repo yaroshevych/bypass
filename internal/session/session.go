@@ -16,6 +16,7 @@ import (
 var ErrLocked = errors.New("vault is locked")
 var ErrChanged = errors.New("vault contents changed during operation")
 var ErrNoDatabase = errors.New("backend returned no database")
+var ErrFullSnapshotRequired = errors.New("operation requires a full database snapshot")
 var ErrFieldUnavailable = errors.New("vault field is unavailable")
 
 type detailsReader interface {
@@ -36,6 +37,7 @@ type attachmentReader interface {
 // Async work should use Snapshot and clear the snapshot when it completes.
 type Session struct {
 	mu        sync.Mutex
+	copyMu    sync.Mutex
 	backend   vault.Backend
 	db        *vault.Database
 	creds     vault.Credentials
@@ -52,6 +54,7 @@ type Snapshot struct {
 	credentials    vault.Credentials
 	generation     uint64
 	lifecycleEpoch uint64
+	complete       bool
 }
 
 func (s *Snapshot) Clear() {
@@ -95,6 +98,8 @@ func (s *Session) Open(ctx context.Context, path string, credentials vault.Crede
 	if db == nil {
 		return ErrNoDatabase
 	}
+	s.copyMu.Lock()
+	defer s.copyMu.Unlock()
 	s.mu.Lock()
 	if s.gen != generation {
 		s.mu.Unlock()
@@ -130,6 +135,8 @@ func (s *Session) Adopt(db *vault.Database) {
 		}
 		return
 	}
+	s.copyMu.Lock()
+	defer s.copyMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.gen++
@@ -216,7 +223,29 @@ func (s *Session) Snapshot() *Snapshot {
 	if s.db == nil {
 		return nil
 	}
-	return &Snapshot{owner: s, db: s.db.Clone(), credentials: s.creds.Clone(), generation: s.gen, lifecycleEpoch: s.lifecycle}
+	return &Snapshot{owner: s, db: s.db.Clone(), credentials: s.creds.Clone(), generation: s.gen, lifecycleEpoch: s.lifecycle, complete: true}
+}
+
+// ReadSnapshot returns a lightweight native handle when the exact native
+// backend is in use. Wrapped and custom backends receive a full model clone.
+func (s *Session) ReadSnapshot() *Snapshot {
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.db == nil {
+		return nil
+	}
+	var db *vault.Database
+	complete := false
+	if _, native := s.backend.(*vault.NativeBackend); native && s.db.Unlocked() {
+		db = s.db.NativeReadView()
+	} else {
+		db = s.db.Clone()
+		complete = true
+	}
+	return &Snapshot{owner: s, db: db, credentials: s.creds.Clone(), generation: s.gen, lifecycleEpoch: s.lifecycle, complete: complete}
 }
 
 func (s *Session) snapshotStateErrorLocked(snapshot *Snapshot) error {
@@ -242,6 +271,16 @@ func (s *Session) snapshotError(ctx context.Context, snapshot *Snapshot) error {
 	return ctx.Err()
 }
 
+func (s *Session) fullSnapshotError(ctx context.Context, snapshot *Snapshot) error {
+	if err := s.snapshotError(ctx, snapshot); err != nil {
+		return err
+	}
+	if !snapshot.complete {
+		return ErrFullSnapshotRequired
+	}
+	return nil
+}
+
 // ReplaceDatabase transfers ownership of a write or reload result.
 func (s *Session) ReplaceDatabase(db *vault.Database) bool {
 	if s == nil {
@@ -250,6 +289,8 @@ func (s *Session) ReplaceDatabase(db *vault.Database) bool {
 		}
 		return false
 	}
+	s.copyMu.Lock()
+	defer s.copyMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if db != nil && s.db == nil {
@@ -427,7 +468,7 @@ func (s *Session) CopyValue(ctx context.Context, id, field string, now time.Time
 	if s == nil {
 		return ErrLocked
 	}
-	snapshot := s.Snapshot()
+	snapshot := s.ReadSnapshot()
 	defer snapshot.Clear()
 	return s.CopyField(ctx, snapshot, id, field, s.clip, now, s.timeout)
 }
@@ -449,11 +490,14 @@ func (s *Session) CopyField(ctx context.Context, snapshot *Snapshot, id, field s
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	s.copyMu.Lock()
+	defer s.copyMu.Unlock()
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if err := s.snapshotStateErrorLocked(snapshot); err != nil {
+		s.mu.Unlock()
 		return err
 	}
+	s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -465,6 +509,8 @@ func (s *Session) Lock(ctx context.Context) error {
 	if s == nil {
 		return nil
 	}
+	s.copyMu.Lock()
+	defer s.copyMu.Unlock()
 	s.mu.Lock()
 	s.gen++
 	s.lifecycle++
@@ -473,9 +519,10 @@ func (s *Session) Lock(ctx context.Context) error {
 		s.db = nil
 	}
 	s.creds.Clear()
-	defer s.mu.Unlock()
-	if s.clip != nil {
-		return s.clip.Clear(ctx)
+	clip := s.clip
+	s.mu.Unlock()
+	if clip != nil {
+		return clip.Clear(ctx)
 	}
 	return nil
 }

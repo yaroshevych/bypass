@@ -391,7 +391,7 @@ func (m *Model) startAttachmentExport(state *extraState) tea.Cmd {
 	state.cancel = cancel
 	state.loading = true
 	state.err = ""
-	snapshot := session.Core.Snapshot()
+	snapshot := session.Core.ReadSnapshot()
 	if snapshot == nil {
 		cancel()
 		state.cancel = nil

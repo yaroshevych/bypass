@@ -27,7 +27,7 @@ func (s *Session) CanChangeCredentials() bool {
 }
 
 func (s *Session) ChangeCredentials(ctx context.Context, snapshot *Snapshot, next vault.Credentials, backupDir string) (*vault.Database, error) {
-	if err := s.snapshotError(ctx, snapshot); err != nil {
+	if err := s.fullSnapshotError(ctx, snapshot); err != nil {
 		return nil, err
 	}
 	changer, ok := s.backend.(credentialChanger)
@@ -48,7 +48,7 @@ func (s *Session) CanChangeCredentialsAllowingMetadataLoss() bool {
 }
 
 func (s *Session) ChangeCredentialsAllowingMetadataLoss(ctx context.Context, snapshot *Snapshot, next vault.Credentials, backupDir string, consent [32]byte) (*vault.Database, error) {
-	if err := s.snapshotError(ctx, snapshot); err != nil {
+	if err := s.fullSnapshotError(ctx, snapshot); err != nil {
 		return nil, err
 	}
 	changer, ok := s.backend.(credentialLossChanger)
@@ -67,7 +67,7 @@ func (s *Session) CanInspectDatabase() bool {
 }
 
 func (s *Session) InfoDatabase(ctx context.Context, snapshot *Snapshot) (vault.DatabaseInfo, error) {
-	if err := s.snapshotError(ctx, snapshot); err != nil {
+	if err := s.fullSnapshotError(ctx, snapshot); err != nil {
 		return vault.DatabaseInfo{}, err
 	}
 	inspector, ok := s.backend.(databaseInspector)
@@ -75,7 +75,7 @@ func (s *Session) InfoDatabase(ctx context.Context, snapshot *Snapshot) (vault.D
 		return vault.DatabaseInfo{}, ErrUnsupported
 	}
 	info, err := inspector.InfoDatabase(ctx, snapshot.db)
-	if invalid := s.snapshotError(ctx, snapshot); invalid != nil {
+	if invalid := s.fullSnapshotError(ctx, snapshot); invalid != nil {
 		return vault.DatabaseInfo{}, invalid
 	}
 	return info, err

@@ -49,7 +49,7 @@ func (m *Model) requestTOTPAttempt(core *session.Session, state *extraState, ret
 	requestID := state.requestID
 	state.loading = true
 	state.err = ""
-	snapshot := core.Snapshot()
+	snapshot := core.ReadSnapshot()
 	if snapshot == nil {
 		state.loading = false
 		state.err = "Entry is no longer available."

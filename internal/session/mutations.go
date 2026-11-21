@@ -17,7 +17,7 @@ func (s *Session) CanApply() bool {
 // Apply returns an updated model for the caller to accept after checking
 // its operation identity. The caller owns the result until acceptance.
 func (s *Session) Apply(ctx context.Context, snapshot *Snapshot, change vault.Change, backupDir string) (*vault.Database, error) {
-	if err := s.snapshotError(ctx, snapshot); err != nil {
+	if err := s.fullSnapshotError(ctx, snapshot); err != nil {
 		return nil, err
 	}
 	writer, ok := s.backend.(vault.Writer)
@@ -30,7 +30,7 @@ func (s *Session) Apply(ctx context.Context, snapshot *Snapshot, change vault.Ch
 // Reload opens the current vault again. The caller owns the result until
 // it is accepted into the session.
 func (s *Session) Reload(ctx context.Context, snapshot *Snapshot) (*vault.Database, error) {
-	if err := s.snapshotError(ctx, snapshot); err != nil {
+	if err := s.fullSnapshotError(ctx, snapshot); err != nil {
 		return nil, err
 	}
 	if snapshot.db.Unlocked() {

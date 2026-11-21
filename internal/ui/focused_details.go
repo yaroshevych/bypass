@@ -55,7 +55,7 @@ func (m *Model) loadFocusedDetailsAttempt(retry int) tea.Cmd {
 	database := session.Core.Database()
 	m.detailDatabase, m.detailSession, m.detailEntry = database, session.ID, entry.UUID
 	request, sessionID, entryID := m.detailRequest, session.ID, entry.UUID
-	snapshot := session.Core.Snapshot()
+	snapshot := session.Core.ReadSnapshot()
 	if snapshot == nil {
 		m.cancelFocusedDetails()
 		return nil

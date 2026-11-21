@@ -45,7 +45,7 @@ func (m *Model) runGrantJob(p *runpkg.Pending, targets []runTarget, mode string)
 			continue
 		}
 		if current := m.ws.Sessions[target.session]; current != nil && current.Database() == target.database && current.Core != nil {
-			snapshots[target.session] = vaultRead{current.Core, current.Core.Snapshot()}
+			snapshots[target.session] = vaultRead{current.Core, current.Core.ReadSnapshot()}
 		}
 	}
 	epoch := uint64(0)
