@@ -238,3 +238,33 @@ func TestReplaceNilClearsFallbackCredentials(t *testing.T) {
 		t.Fatal("nil replacement retained fallback credentials")
 	}
 }
+
+func TestCredentialBytesAreWipedOnLockAndAdoptNil(t *testing.T) {
+	tests := []struct {
+		name   string
+		retire func(*Session)
+	}{
+		{name: "Lock", retire: func(core *Session) { _ = core.Lock(context.Background()) }},
+		{name: "Adopt nil", retire: func(core *Session) { core.Adopt(nil) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			core := New(nil, nil, 0)
+			core.Adopt(&vault.Database{Path: "fixture.kdbx"})
+			core.SetCredentials(vault.Credentials{Password: []byte("synthetic stored credential")})
+			stored := core.creds.Password
+			if len(stored) == 0 {
+				t.Fatal("test did not capture stored credential bytes")
+			}
+
+			tt.retire(core)
+
+			for i, b := range stored {
+				if b != 0 {
+					t.Fatalf("stored credential byte %d was not wiped", i)
+				}
+			}
+		})
+	}
+}
