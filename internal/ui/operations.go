@@ -55,6 +55,7 @@ type resolvedRevealMsg struct {
 	value  []byte
 	err    error
 	secret *secretValues
+	retry  int
 }
 
 func holdSecret(ctx context.Context, value []byte) *secretValues {
@@ -527,7 +528,11 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		m.cancelOperation()
 		if msg.err != nil {
-			m.setNotice("could not load entry · lock and unlock to retry", true)
+			if errors.Is(msg.err, session.ErrChanged) {
+				m.setNotice("vault changed · reopen entry to retry", true)
+			} else {
+				m.setNotice("could not load entry · lock and unlock to retry", true)
+			}
 			return nil, true
 		}
 		session := m.ws.Sessions[msg.sessionID]
@@ -751,7 +756,11 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		if msg.err != nil {
-			if errors.Is(msg.err, session.ErrFieldUnavailable) {
+			if errors.Is(msg.err, session.ErrChanged) {
+				m.setNotice("vault changed · try copy again", true)
+			} else if errors.Is(msg.err, session.ErrLocked) {
+				m.setNotice("vault locked · unlock to copy", true)
+			} else if errors.Is(msg.err, session.ErrFieldUnavailable) {
 				m.setNotice("field unavailable · reload if vault changed", true)
 			} else {
 				m.setNotice("copy failed · clipboard unavailable", true)
@@ -774,8 +783,21 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			m.revealCancel = nil
 		}
 		if msg.err != nil {
+			if errors.Is(msg.err, session.ErrChanged) && msg.retry == 0 {
+				current := m.ws.Sessions[m.revealSession]
+				selected := m.selected()
+				if current != nil && current == m.ws.ActiveSession() && current.Database() != nil && selected != nil && selected.UUID == m.revealEntry {
+					return m.requestRevealFieldAttempt(1), true
+				}
+			}
 			m.hideReveal()
-			m.setNotice("field unavailable · reload if vault changed", true)
+			if errors.Is(msg.err, session.ErrChanged) {
+				m.setNotice("vault changed · try reveal again", true)
+			} else if errors.Is(msg.err, session.ErrLocked) {
+				m.setNotice("vault locked · unlock to reveal", true)
+			} else {
+				m.setNotice("field unavailable · reload if vault changed", true)
+			}
 			return nil, true
 		}
 		wipebuf.Wipe(m.revealValue)
@@ -1039,6 +1061,10 @@ func (m *Model) toggleReveal() tea.Cmd {
 }
 
 func (m *Model) requestRevealField() tea.Cmd {
+	return m.requestRevealFieldAttempt(0)
+}
+
+func (m *Model) requestRevealFieldAttempt(retry int) tea.Cmd {
 	e, s, name := m.selected(), m.ws.ActiveSession(), m.revealField
 	if e == nil || s == nil || e.UUID != m.revealEntry || s.ID != m.revealSession {
 		m.hideReveal()
@@ -1059,11 +1085,11 @@ func (m *Model) requestRevealField() tea.Cmd {
 	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
 		if !resources.start() {
-			return resolvedRevealMsg{id: id, err: ctx.Err()}
+			return resolvedRevealMsg{id: id, err: ctx.Err(), retry: retry}
 		}
 		defer resources.done()
 		value, err := core.ResolveField(ctx, snapshot, entryID, name)
-		return resolvedRevealMsg{id: id, value: value, err: err, secret: holdSecret(ctx, value)}
+		return resolvedRevealMsg{id: id, value: value, err: err, secret: holdSecret(ctx, value), retry: retry}
 	}
 }
 func (m *Model) hideReveal() {

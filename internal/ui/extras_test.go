@@ -168,6 +168,30 @@ func TestOlderTOTPRequestCannotReplaceNewerCode(t *testing.T) {
 	}
 }
 
+func TestTOTPReadRetriesOnceAfterContentReplacement(t *testing.T) {
+	backend := &extrasTestBackend{}
+	m := newExtrasTestModel(t, extrasEntryDB("/tmp/extras-totp-content-retry.kdbx"), backend)
+	t.Cleanup(m.Close)
+	cmd := m.openTOTP()
+	if cmd == nil {
+		t.Fatal("opening TOTP did not start a read")
+	}
+	core := m.ws.ActiveSession().Core
+	core.ReplaceDatabase(core.Database().Clone())
+	changed := cmd().(extrasTOTPMsg)
+	retry, handled := m.updateExtras(changed)
+	if !handled || retry == nil {
+		t.Fatal("content replacement did not schedule one fresh TOTP read")
+	}
+	result := retry().(extrasTOTPMsg)
+	if _, handled := m.updateExtras(result); !handled {
+		t.Fatal("retried TOTP result was not handled")
+	}
+	if backend.totpCalls != 1 || m.extras.loading || string(m.extras.totpCode) != "000001" {
+		t.Fatal("TOTP retry did not resolve against the current session database")
+	}
+}
+
 func TestAttachmentReplaceDefaultsToCancelAndRequiresExplicitConfirm(t *testing.T) {
 	t.Skip("attachment UI is hidden in beta; retain this test for re-enablement")
 	backend := &extrasTestBackend{}

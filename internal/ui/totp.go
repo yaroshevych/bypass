@@ -30,6 +30,10 @@ func (m *Model) openTOTP() tea.Cmd {
 }
 
 func (m *Model) requestTOTP(core *session.Session, state *extraState) tea.Cmd {
+	return m.requestTOTPAttempt(core, state, 0)
+}
+
+func (m *Model) requestTOTPAttempt(core *session.Session, state *extraState, retry int) tea.Cmd {
 	session, entry := m.currentExtraEntry(state)
 	if session == nil || entry == nil {
 		state.loading = false
@@ -55,11 +59,11 @@ func (m *Model) requestTOTP(core *session.Session, state *extraState) tea.Cmd {
 	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
 		if !resources.start() {
-			return extrasTOTPMsg{state: state, requestID: requestID, err: ctx.Err()}
+			return extrasTOTPMsg{state: state, requestID: requestID, err: ctx.Err(), retry: retry}
 		}
 		defer resources.done()
 		result, err := core.TOTP(ctx, snapshot, entryID)
-		return extrasTOTPMsg{state: state, requestID: requestID, result: result, err: err, secret: holdSecret(ctx, result.Code)}
+		return extrasTOTPMsg{state: state, requestID: requestID, retry: retry, result: result, err: err, secret: holdSecret(ctx, result.Code)}
 	}
 }
 

@@ -2,10 +2,12 @@ package ui
 
 import (
 	wipebuf "bypass/internal/secret"
+	"bypass/internal/session"
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
 	"context"
+	"errors"
 	tea "github.com/charmbracelet/bubbletea"
 	"strings"
 	"time"
@@ -57,6 +59,7 @@ type extrasTOTPMsg struct {
 	secret    *secretValues
 	state     *extraState
 	requestID uint64
+	retry     int
 	result    vault.TOTPResult
 	err       error
 }
@@ -135,6 +138,16 @@ func (m *Model) updateExtras(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		if msg.err != nil {
 			wipebuf.Wipe(msg.result.Code)
+			if errors.Is(msg.err, session.ErrChanged) && msg.retry == 0 {
+				current, _ := m.currentExtraEntry(state)
+				if current != nil && current.Core != nil && current.Core.CanTOTP() {
+					return m.requestTOTPAttempt(current.Core, state, 1), true
+				}
+			}
+			if errors.Is(msg.err, session.ErrChanged) {
+				state.err = "Vault changed. Close and reopen TOTP to retry."
+				return nil, true
+			}
 			state.err = "Could not generate a TOTP code."
 			return nil, true
 		}
@@ -162,7 +175,11 @@ func (m *Model) updateExtras(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		state.loading = false
 		if msg.err != nil {
-			state.err = "Attachment export failed. Existing files were not overwritten."
+			if errors.Is(msg.err, session.ErrChanged) {
+				state.err = "Vault changed. Start the export again to retry."
+			} else {
+				state.err = "Attachment export failed. Existing files were not overwritten."
+			}
 			return nil, true
 		}
 		state.phase = ""

@@ -1,8 +1,10 @@
 package ui
 
 import (
+	sessionpkg "bypass/internal/session"
 	"bypass/internal/vault"
 	"context"
+	"errors"
 	tea "github.com/charmbracelet/bubbletea"
 	"slices"
 )
@@ -13,6 +15,7 @@ type focusedDetailsMsg struct {
 	database           *vault.Database
 	fields             []vault.Field
 	err                error
+	retry              int
 }
 
 func (m *Model) cancelFocusedDetails() {
@@ -26,6 +29,10 @@ func (m *Model) cancelFocusedDetails() {
 }
 
 func (m *Model) loadFocusedDetails() tea.Cmd {
+	return m.loadFocusedDetailsAttempt(0)
+}
+
+func (m *Model) loadFocusedDetailsAttempt(retry int) tea.Cmd {
 	session := m.ws.ActiveSession()
 	if session == nil || session.Core == nil || session.Core.Database() == nil || !session.Core.Database().Unlocked() || m.screen != browse || m.gate.Protected() || m.editor != nil || m.writing {
 		m.cancelFocusedDetails()
@@ -57,11 +64,11 @@ func (m *Model) loadFocusedDetails() tea.Cmd {
 	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
 		if !resources.start() {
-			return focusedDetailsMsg{request: request, sessionID: sessionID, entryID: entryID, database: database, err: ctx.Err()}
+			return focusedDetailsMsg{request: request, sessionID: sessionID, entryID: entryID, database: database, err: ctx.Err(), retry: retry}
 		}
 		defer resources.done()
 		fields, err := core.EntryDetails(ctx, snapshot, entryID)
-		return focusedDetailsMsg{request, sessionID, entryID, database, fields, err}
+		return focusedDetailsMsg{request: request, sessionID: sessionID, entryID: entryID, database: database, fields: fields, err: err, retry: retry}
 	}
 }
 
@@ -70,13 +77,23 @@ func (m *Model) acceptFocusedDetails(msg focusedDetailsMsg) tea.Cmd {
 		return nil
 	}
 	session := m.ws.Sessions[msg.sessionID]
+	if errors.Is(msg.err, sessionpkg.ErrChanged) && msg.retry == 0 && session != nil && session == m.ws.ActiveSession() && session.Database() != nil && m.detailSession == msg.sessionID && m.detailEntry == msg.entryID && m.screen == browse && !m.gate.Protected() {
+		selected := m.selected()
+		if selected != nil && selected.UUID == msg.entryID {
+			return m.loadFocusedDetailsAttempt(1)
+		}
+	}
 	if session == nil || session.Database() != msg.database {
 		return nil
 	}
 	if msg.err != nil {
 		// Keep the request identity until focus changes, so a failed field read is
 		// not retried continuously on each terminal tick.
-		m.setNotice("could not load entry details", true)
+		if errors.Is(msg.err, sessionpkg.ErrChanged) {
+			m.setNotice("vault changed · focus entry again to retry", true)
+		} else {
+			m.setNotice("could not load entry details", true)
+		}
 		return nil
 	}
 	for index := range session.Database().Entries {

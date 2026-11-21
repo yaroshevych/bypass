@@ -3,6 +3,7 @@ package ui
 import (
 	wipebuf "bypass/internal/secret"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"sync"
 
 	runpkg "bypass/internal/run"
+	sessionpkg "bypass/internal/session"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -292,8 +294,12 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		values := msg.secrets.Take()
 		for _, target := range msg.targets {
 			session := m.ws.Sessions[target.session]
-			if session == nil || session.Database() != target.database {
-				msg.err = fmt.Errorf("vault locked or changed before secrets were delivered")
+			if session == nil || session.Database() == nil {
+				msg.err = sessionpkg.ErrLocked
+				break
+			}
+			if session.Database() != target.database {
+				msg.err = sessionpkg.ErrChanged
 				break
 			}
 		}
@@ -301,6 +307,11 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		response := runpkg.Response{Values: values}
 		if msg.err != nil {
 			message := "could not resolve requested secrets: " + msg.err.Error()
+			if errors.Is(msg.err, sessionpkg.ErrChanged) {
+				message = "vault changed while resolving requested secrets; retry the request"
+			} else if errors.Is(msg.err, sessionpkg.ErrLocked) {
+				message = "vault locked while resolving requested secrets; unlock and retry the request"
+			}
 			clearRunValues(values)
 			response = runpkg.Response{Error: message}
 		}

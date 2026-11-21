@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"bypass/internal/session"
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
@@ -259,6 +260,10 @@ func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		l.err = "Operation failed. Check file access, credentials and backend support."
 		switch {
+		case errors.Is(result.err, session.ErrChanged):
+			l.err = "Vault changed while reading. Close and reopen this view to retry."
+		case errors.Is(result.err, session.ErrLocked):
+			l.err = "Vault locked before the operation finished. Unlock and retry."
 		case errors.Is(result.err, vault.ErrAlreadyExists):
 			l.err = "That file already exists. Choose a new path."
 		case errors.Is(result.err, vault.ErrExternalChanged):

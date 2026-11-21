@@ -14,6 +14,7 @@ import (
 )
 
 var ErrLocked = errors.New("vault is locked")
+var ErrChanged = errors.New("vault contents changed during operation")
 var ErrNoDatabase = errors.New("backend returned no database")
 var ErrFieldUnavailable = errors.New("vault field is unavailable")
 
@@ -34,21 +35,23 @@ type attachmentReader interface {
 // callers must not clear it directly.
 // Async work should use Snapshot and clear the snapshot when it completes.
 type Session struct {
-	mu      sync.Mutex
-	backend vault.Backend
-	db      *vault.Database
-	creds   vault.Credentials
-	gen     uint64
-	clip    *clipboard.Manager
-	timeout time.Duration
+	mu        sync.Mutex
+	backend   vault.Backend
+	db        *vault.Database
+	creds     vault.Credentials
+	gen       uint64
+	lifecycle uint64
+	clip      *clipboard.Manager
+	timeout   time.Duration
 }
 
 // Snapshot is an isolated database clone for one asynchronous operation.
 type Snapshot struct {
-	owner       *Session
-	db          *vault.Database
-	credentials vault.Credentials
-	generation  uint64
+	owner          *Session
+	db             *vault.Database
+	credentials    vault.Credentials
+	generation     uint64
+	lifecycleEpoch uint64
 }
 
 func (s *Snapshot) Clear() {
@@ -108,6 +111,7 @@ func (s *Session) Open(ctx context.Context, path string, credentials vault.Crede
 	}
 	s.db = db
 	s.gen++
+	s.lifecycle++
 	s.creds.Clear()
 	if !db.Unlocked() {
 		s.creds = credentials.Clone()
@@ -129,6 +133,7 @@ func (s *Session) Adopt(db *vault.Database) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.gen++
+	s.lifecycle++
 	if s.db != nil && s.db != db {
 		if db != nil {
 			s.db.TransferBackend(db)
@@ -211,21 +216,28 @@ func (s *Session) Snapshot() *Snapshot {
 	if s.db == nil {
 		return nil
 	}
-	return &Snapshot{owner: s, db: s.db.Clone(), credentials: s.creds.Clone(), generation: s.gen}
+	return &Snapshot{owner: s, db: s.db.Clone(), credentials: s.creds.Clone(), generation: s.gen, lifecycleEpoch: s.lifecycle}
 }
 
-func (s *Session) validSnapshot(snapshot *Snapshot) bool {
-	if s == nil || snapshot == nil || snapshot.owner != s || snapshot.db == nil {
-		return false
+func (s *Session) snapshotStateErrorLocked(snapshot *Snapshot) error {
+	if s == nil || snapshot == nil || snapshot.owner != s || snapshot.db == nil || s.db == nil || s.lifecycle != snapshot.lifecycleEpoch {
+		return ErrLocked
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.db != nil && s.gen == snapshot.generation
+	if s.gen != snapshot.generation {
+		return ErrChanged
+	}
+	return nil
 }
 
 func (s *Session) snapshotError(ctx context.Context, snapshot *Snapshot) error {
-	if !s.validSnapshot(snapshot) {
+	if s == nil {
 		return ErrLocked
+	}
+	s.mu.Lock()
+	err := s.snapshotStateErrorLocked(snapshot)
+	s.mu.Unlock()
+	if err != nil {
+		return err
 	}
 	return ctx.Err()
 }
@@ -243,12 +255,15 @@ func (s *Session) ReplaceDatabase(db *vault.Database) bool {
 	if db != nil && s.db == nil {
 		return false
 	}
+	if db != nil && db == s.db {
+		return true
+	}
 	s.gen++
 	if db == nil || db.Unlocked() {
 		s.creds.Clear()
 	}
-	if db == s.db {
-		return true
+	if db == nil {
+		s.lifecycle++
 	}
 	if s.db != nil && s.db != db {
 		if db != nil {
@@ -399,9 +414,6 @@ func (s *Session) CopyField(ctx context.Context, snapshot *Snapshot, id, field s
 	if manager == nil {
 		return errors.New("clipboard unavailable")
 	}
-	if !s.validSnapshot(snapshot) {
-		return ErrLocked
-	}
 	value, err := s.ResolveField(ctx, snapshot, id, field)
 	defer clear(value)
 	if err != nil {
@@ -412,8 +424,8 @@ func (s *Session) CopyField(ctx context.Context, snapshot *Snapshot, id, field s
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.db == nil || snapshot.generation != s.gen {
-		return ErrLocked
+	if err := s.snapshotStateErrorLocked(snapshot); err != nil {
+		return err
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -428,6 +440,7 @@ func (s *Session) Lock(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	s.gen++
+	s.lifecycle++
 	if s.db != nil {
 		s.db.Clear()
 		s.db = nil
