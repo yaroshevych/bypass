@@ -137,8 +137,11 @@ func (m *Model) attachmentConfirmation(state *extraState) []string {
 }
 
 func (m *Model) extrasWritable(session *workspace.Session) bool {
+	if session == nil || session.Core == nil {
+		return false
+	}
 	writer := session.Core.CanApply()
-	return session != nil && session.Database() != nil && !session.ReadOnly && !session.Stale && !m.writing && m.settings.BackupDir != "" && writer
+	return session.Database() != nil && !session.ReadOnly && !session.Stale && !m.writing && m.settings.BackupDir != "" && writer
 }
 
 func (m *Model) attachmentListKey(k tea.KeyMsg) tea.Cmd {

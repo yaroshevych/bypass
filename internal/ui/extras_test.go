@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"bypass/internal/vault"
+	"bypass/internal/workspace"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -85,6 +86,16 @@ func extrasEntryDB(path string) *vault.Database {
 	db.Entries[0].Fields = append(db.Entries[0].Fields, vault.Field{Name: "otp", Value: "JBSWY3DPEHPK3PXP", Protected: true})
 	db.Entries[0].AttachmentNames = []string{"document.pdf"}
 	return db
+}
+
+func TestExtrasWritableHandlesMissingSession(t *testing.T) {
+	m := New(Options{})
+	if m.extrasWritable(nil) {
+		t.Fatal("missing workspace session was reported writable")
+	}
+	if m.extrasWritable(&workspace.Session{}) {
+		t.Fatal("workspace session without a core was reported writable")
+	}
 }
 
 func TestTOTPOverlayShowsCodeWithoutSeedAndRefreshes(t *testing.T) {

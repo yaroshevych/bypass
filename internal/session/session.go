@@ -341,10 +341,37 @@ func (s *Session) EntryDetails(ctx context.Context, snapshot *Snapshot, id strin
 	return fields, err
 }
 
-func (s *Session) CanEntryDetails() bool     { _, ok := s.backend.(detailsReader); return ok }
-func (s *Session) CanResolveField() bool     { _, ok := s.backend.(fieldResolver); return ok }
-func (s *Session) CanTOTP() bool             { _, ok := s.backend.(totpResolver); return ok }
-func (s *Session) CanExportAttachment() bool { _, ok := s.backend.(attachmentReader); return ok }
+func (s *Session) CanEntryDetails() bool {
+	if s == nil || s.backend == nil {
+		return false
+	}
+	_, ok := s.backend.(detailsReader)
+	return ok
+}
+
+func (s *Session) CanResolveField() bool {
+	if s == nil || s.backend == nil {
+		return false
+	}
+	_, ok := s.backend.(fieldResolver)
+	return ok
+}
+
+func (s *Session) CanTOTP() bool {
+	if s == nil || s.backend == nil {
+		return false
+	}
+	_, ok := s.backend.(totpResolver)
+	return ok
+}
+
+func (s *Session) CanExportAttachment() bool {
+	if s == nil || s.backend == nil {
+		return false
+	}
+	_, ok := s.backend.(attachmentReader)
+	return ok
+}
 
 func (s *Session) ResolveField(ctx context.Context, snapshot *Snapshot, id, field string) ([]byte, error) {
 	if err := s.snapshotError(ctx, snapshot); err != nil {

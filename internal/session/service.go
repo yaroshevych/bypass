@@ -27,7 +27,7 @@ type Service struct {
 
 func NewService(backend vault.Backend) *Service { return &Service{backend: backend} }
 
-func (s *Service) CanOpen() bool { return s.backend != nil }
+func (s *Service) CanOpen() bool { return s != nil && s.backend != nil }
 
 func (s *Service) NewSession(manager *clipboard.Manager, timeout time.Duration) *Session {
 	return New(s.backend, manager, timeout)

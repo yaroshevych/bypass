@@ -39,6 +39,7 @@ func (s *Session) Reload(ctx context.Context, snapshot *Snapshot) (*vault.Databa
 		}); ok {
 			return backend.Reload(ctx, snapshot.db)
 		}
+		return nil, ErrUnsupported
 	}
 	if s.backend == nil {
 		return nil, ErrUnsupported

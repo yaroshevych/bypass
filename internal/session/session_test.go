@@ -20,6 +20,62 @@ func (m *memoryClipboard) Read(context.Context) ([]byte, error) {
 	return append([]byte(nil), m.value...), nil
 }
 
+type openOnlyBackend struct {
+	native *vault.NativeBackend
+	opens  int
+}
+
+func (b *openOnlyBackend) Open(ctx context.Context, path string, credentials vault.Credentials) (*vault.Database, error) {
+	b.opens++
+	return b.native.Open(ctx, path, credentials)
+}
+
+func TestNilCapabilityChecksAreSafe(t *testing.T) {
+	var core *Session
+	if core.CanEntryDetails() || core.CanResolveField() || core.CanTOTP() || core.CanExportAttachment() {
+		t.Fatal("nil session reported a supported capability")
+	}
+	if New(nil, nil, 0).CanEntryDetails() || New(nil, nil, 0).CanResolveField() || New(nil, nil, 0).CanTOTP() || New(nil, nil, 0).CanExportAttachment() {
+		t.Fatal("session with nil backend reported a supported capability")
+	}
+	var service *Service
+	if service.CanOpen() {
+		t.Fatal("nil service reported that it can open vaults")
+	}
+}
+
+func TestReloadUnlockedBackendWithoutReloadIsUnsupported(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "open-only.kdbx")
+	native := vault.NewBackend()
+	credentials := vault.Credentials{Password: []byte("synthetic open-only master")}
+	defer credentials.Clear()
+	seed, err := native.CreateWithOptions(ctx, path, credentials, vault.CreateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed.Clear()
+
+	backend := &openOnlyBackend{native: native}
+	core := New(backend, nil, time.Minute)
+	if err := core.Open(ctx, path, credentials.Clone()); err != nil {
+		t.Fatal(err)
+	}
+	defer core.Lock(ctx)
+	snapshot := core.Snapshot()
+	defer snapshot.Clear()
+	if !snapshot.db.Unlocked() || len(snapshot.credentials.Password) != 0 {
+		t.Fatal("test did not create an unlocked snapshot without retained credentials")
+	}
+	if _, err := core.Reload(ctx, snapshot); err != ErrUnsupported {
+		t.Fatalf("Reload error = %v, want ErrUnsupported", err)
+	}
+	if backend.opens != 1 {
+		t.Fatalf("Reload attempted Open with empty credentials; Open calls = %d", backend.opens)
+	}
+}
+
 func TestHeadlessUnlockSearchManagedCopyLock(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
