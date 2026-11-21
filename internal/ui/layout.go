@@ -94,6 +94,7 @@ func (m *Model) widePaneWidths(width int, v *workspace.View) (int, int, int) {
 	// Keep a useful minimum for each pane while respecting user-resized widths.
 	nav := max(18, width*23/100)
 	detail := max(24, width*38/100)
+	// Give details more room while the entry list only shows titles.
 	if width < passwordListFullColumnsWidth {
 		detail = max(24, width*48/100)
 	}

@@ -415,12 +415,12 @@ func TestMilestone3PaletteSearchPrivacyAndResponsiveJourney(t *testing.T) {
 	e.mustShow("All Entries", "Eval Entry")
 
 	// The same entry remains reachable in wide, medium, and narrow layouts.
-	e.resize(90, 25)
-	e.mustDimensions(90, 25)
+	e.resize(89, 25)
+	e.mustDimensions(89, 25)
 	e.mustShow("Eval Entry")
 	e.key("Left")
-	e.resize(60, 20)
-	e.mustDimensions(60, 20)
+	e.resize(59, 20)
+	e.mustDimensions(59, 20)
 	e.mustShow("All Entries / Views", "All Entries")
 	e.key("Right")
 	e.mustShow("Eval Entry", "Entries")

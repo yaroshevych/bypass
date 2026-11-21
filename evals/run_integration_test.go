@@ -276,11 +276,15 @@ func TestRunMultiVaultSelectionTmux(t *testing.T) {
 	if out.String() != "approved" {
 		t.Fatal("selected batch did not resolve")
 	}
-	e.key("Escape")
-	e.waitFor("return to vault", func() bool { return !strings.Contains(e.capture(), "Deny all") })
+	// Direct review closes itself. Wait for the vault to render before
+	// starting another request so an Escape can't dismiss the next review.
+	e.waitFor("return to vault after approval", func() bool {
+		screen := e.capture()
+		return strings.Contains(screen, "secret request completed") && !strings.Contains(screen, "REVIEW REQUEST")
+	})
 	cmd, out = launch([]string{"ONE=bypass://second.kdbx/Seed Entry", "TWO=bypass://seed-vault.kdbx/Seed Entry"})
 	e.mustShow("secret request pending")
-	e.mustShow("REVIEW REQUEST")
+	e.mustShow("REVIEW REQUEST", "Approve once")
 	e.key("a")
 	if err := cmd.Wait(); err != nil {
 		t.Fatalf("multi-vault batch failed: %v: %s", err, e.redact(out.String()))

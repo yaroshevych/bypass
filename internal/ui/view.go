@@ -10,7 +10,6 @@ import (
 
 	runpkg "bypass/internal/run"
 	dialogrender "bypass/internal/ui/dialog"
-	"bypass/internal/workspace"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/charmbracelet/lipgloss"
@@ -334,14 +333,6 @@ func (m *Model) activateLandingFocus() tea.Cmd {
 		return m.openCreateVault()
 	}
 	return nil
-}
-
-func (m *Model) paneWidths() (int, int, int) {
-	var v *workspace.View
-	if m.ws != nil {
-		v = m.ws.ActiveView()
-	}
-	return m.widePaneWidths(max(threePaneMinimumWidth, m.width), v)
 }
 
 func (m *Model) workspaceLines() []string {

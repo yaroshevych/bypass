@@ -122,6 +122,7 @@ Run 'bypass help run' for command options.`)
 		saveSettings = func(value platform.Settings) error {
 			preferences := persisted
 			preferences.Theme, preferences.Appearance, preferences.ASCII = value.Theme, value.Appearance, value.ASCII
+			preferences.ThemeExplicit = value.ThemeExplicit
 			return platform.SaveSettings(paths, preferences)
 		}
 	} else {

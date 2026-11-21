@@ -589,6 +589,7 @@ func (m *Model) executePalette() tea.Cmd {
 	if p.scope == "settings" {
 		if p.tab == 0 {
 			m.settings.Theme = choice.value
+			m.settings.ThemeExplicit = true
 			m.styles = stylesForPalette(m.colorsForTheme(choice.value))
 		} else {
 			m.settings.Appearance = choice.value

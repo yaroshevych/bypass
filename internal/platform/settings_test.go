@@ -39,6 +39,7 @@ func TestDefaultSettingsAndMissingFileDoNotWrite(t *testing.T) {
 		ClipboardTimeout:   10 * time.Second,
 		BackupDir:          filepath.Join(paths.State, "backups"),
 		Theme:              "macchiato",
+		themeDefault:       "macchiato",
 		Appearance:         "classic",
 		WatchOmarchyTheme:  true,
 		GrandViewGroupSize: 2,
@@ -71,7 +72,8 @@ func TestLoadSettingsValidConfigAndUnknownFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Settings{IdleTimeout: 15 * time.Minute, PINIdleTimeout: 5 * time.Minute, ClipboardTimeout: 20 * time.Second, BackupDir: backup, Theme: "nord", Appearance: "compact", ASCII: true, WatchOmarchyTheme: true, FullLockTimeout: time.Hour, GrandViewGroupSize: 3}
+	want := Settings{IdleTimeout: 15 * time.Minute, PINIdleTimeout: 5 * time.Minute, ClipboardTimeout: 20 * time.Second, BackupDir: backup, Theme: "nord", ThemeExplicit: true, Appearance: "compact", ASCII: true, WatchOmarchyTheme: true, FullLockTimeout: time.Hour, GrandViewGroupSize: 3}
+	want.themeDefault = "macchiato"
 	if got != want {
 		t.Fatalf("LoadSettings() = %#v, want %#v", got, want)
 	}
@@ -136,6 +138,7 @@ func TestSaveSettingsPreservesUnknownKeysAndWritesPrivately(t *testing.T) {
 	settings.ClipboardTimeout = 12 * time.Second
 	settings.FullLockTimeout = 2 * time.Hour
 	settings.Theme = "dracula"
+	settings.ThemeExplicit = true
 	settings.Appearance = "compact"
 	settings.ASCII = true
 	settings.GrandViewGroupSize = 4
@@ -169,6 +172,73 @@ func TestSaveSettingsPreservesUnknownKeysAndWritesPrivately(t *testing.T) {
 		if info.Mode().Perm() != want {
 			t.Errorf("%s mode = %o, want %o", path, info.Mode().Perm(), want)
 		}
+	}
+}
+
+func TestImplicitThemeIsNotPinnedWhenSavingOtherSettings(t *testing.T) {
+	root := t.TempDir()
+	paths := Paths{Config: filepath.Join(root, "config"), State: filepath.Join(root, "state")}
+	settings := DefaultSettings(paths)
+	settings.Theme = "omarchy"
+	settings.themeDefault = "omarchy"
+	settings.IdleTimeout = 20 * time.Minute
+	if err := SaveSettings(paths, settings); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(paths.Config, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config map[string]json.RawMessage
+	if err := json.Unmarshal(data, &config); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := config["theme"]; ok {
+		t.Fatalf("implicit theme was persisted: %s", config["theme"])
+	}
+}
+
+func TestExplicitThemeRoundTripsEvenWhenItMatchesTheResolvedDefault(t *testing.T) {
+	root := t.TempDir()
+	paths := Paths{Config: filepath.Join(root, "config"), State: filepath.Join(root, "state")}
+	settings := DefaultSettings(paths)
+	settings.Theme = "omarchy"
+	settings.themeDefault = "omarchy"
+	settings.ThemeExplicit = true
+	if err := SaveSettings(paths, settings); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadSettings(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Theme != settings.Theme || !loaded.ThemeExplicit {
+		t.Fatalf("explicit theme did not round-trip: got theme=%q explicit=%v", loaded.Theme, loaded.ThemeExplicit)
+	}
+	data, err := os.ReadFile(filepath.Join(paths.Config, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config map[string]json.RawMessage
+	if err := json.Unmarshal(data, &config); err != nil {
+		t.Fatal(err)
+	}
+	if string(config["theme"]) != `"omarchy"` {
+		t.Fatalf("explicit theme config value = %s", config["theme"])
+	}
+}
+
+func TestDefaultSettingsCanPersistAChangedConcreteTheme(t *testing.T) {
+	root := t.TempDir()
+	paths := Paths{Config: filepath.Join(root, "config"), State: filepath.Join(root, "state")}
+	settings := DefaultSettings(paths)
+	settings.Theme = "nord"
+	if err := SaveSettings(paths, settings); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadSettings(paths)
+	if err != nil || loaded.Theme != "nord" || !loaded.ThemeExplicit {
+		t.Fatalf("changed concrete theme did not persist: %#v, %v", loaded, err)
 	}
 }
 

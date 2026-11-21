@@ -21,12 +21,16 @@ const (
 )
 
 type Settings struct {
-	RunTimeout         time.Duration
-	IdleTimeout        time.Duration
-	PINIdleTimeout     time.Duration
-	ClipboardTimeout   time.Duration
-	BackupDir          string
-	Theme              string
+	RunTimeout       time.Duration
+	IdleTimeout      time.Duration
+	PINIdleTimeout   time.Duration
+	ClipboardTimeout time.Duration
+	BackupDir        string
+	Theme            string
+	ThemeExplicit    bool `json:"-"`
+	// themeDefault records the resolved automatic default so SaveSettings can
+	// distinguish a deliberate theme change from an unrelated settings save.
+	themeDefault       string
 	OmarchyPalette     ThemePalette `json:"-"`
 	Appearance         string
 	ASCII              bool
@@ -62,26 +66,29 @@ func DefaultSettings(paths Paths) Settings {
 			backupDir = absolute
 		}
 	}
-	return Settings{
+	settings := Settings{
 		IdleTimeout:        defaultIdleTimeout,
 		PINIdleTimeout:     defaultPINIdleTimeout,
 		ClipboardTimeout:   defaultClipboardTimeout,
 		BackupDir:          filepath.Clean(backupDir),
 		Theme:              "macchiato",
+		themeDefault:       "macchiato",
 		Appearance:         "classic",
 		WatchOmarchyTheme:  true,
 		GrandViewGroupSize: 2,
 	}
+	settings.OmarchyPalette, _ = LoadOmarchyPalette()
+	if runtime.GOOS == "linux" && settings.OmarchyPalette.Background != "" {
+		settings.Theme = "omarchy"
+		settings.themeDefault = "omarchy"
+	}
+	return settings
 }
 
 // LoadSettings reads config.json without creating directories or files. Any
 // malformed or invalid settings return safe defaults together with an error.
 func LoadSettings(paths Paths) (Settings, error) {
 	defaults := DefaultSettings(paths)
-	defaults.OmarchyPalette, _ = LoadOmarchyPalette()
-	if runtime.GOOS == "linux" && defaults.OmarchyPalette.Background != "" {
-		defaults.Theme = "omarchy"
-	}
 	configPath := filepath.Join(paths.Config, "config.json")
 	if info, err := os.Lstat(paths.Config); err == nil && info.Mode()&os.ModeSymlink != 0 {
 		return defaults, errors.New("config path must not be a symlink")
@@ -150,6 +157,7 @@ func LoadSettings(paths Paths) (Settings, error) {
 	}
 	if file.Theme != nil {
 		settings.Theme = *file.Theme
+		settings.ThemeExplicit = true
 	}
 	if file.Appearance != nil {
 		settings.Appearance = *file.Appearance
@@ -251,10 +259,14 @@ func SaveSettings(paths Paths, settings Settings) error {
 		"clipboard_timeout_seconds": int64(settings.ClipboardTimeout / time.Second),
 		"full_lock_timeout_seconds": int64(settings.FullLockTimeout / time.Second),
 		"backup_dir":                settings.BackupDir,
-		"theme":                     settings.Theme,
 		"appearance":                settings.Appearance,
 		"ascii":                     settings.ASCII,
 		"watch_omarchy_theme":       settings.WatchOmarchyTheme,
+	}
+	if settings.ThemeExplicit || settings.themeDefault == "" || settings.Theme != settings.themeDefault {
+		values["theme"] = settings.Theme
+	} else {
+		delete(fields, "theme")
 	}
 	delete(fields, "favorite_overrides")
 	for key, value := range values {
