@@ -53,7 +53,7 @@ type Workspace struct {
 	Sessions    map[string]*Session
 	Views       []View
 	Active      int
-	CoreFactory func(*vault.Database) *session.Session
+	CoreFactory func() *session.Session
 	nextID      uint64
 }
 
@@ -78,11 +78,7 @@ func New() *Workspace { return &Workspace{Sessions: make(map[string]*Session)} }
 // resolves to the same file. It creates a view only when the session has none;
 // a locked session is refreshed with db.
 func (w *Workspace) Open(db *vault.Database) (reused bool) {
-	var core *session.Session
-	if w != nil && w.CoreFactory != nil && db != nil {
-		core = w.CoreFactory(db)
-	}
-	return w.OpenWithCore(db, core)
+	return w.OpenWithCore(db, nil)
 }
 
 // OpenWithCore activates a database and its owning runtime as one operation.
@@ -106,6 +102,10 @@ func (w *Workspace) OpenWithCore(db *vault.Database, core *session.Session) (reu
 			session = candidate
 			break
 		}
+	}
+	if (session == nil || session.DB == nil) && core == nil && w.CoreFactory != nil {
+		core = w.CoreFactory()
+		core.Adopt(db)
 	}
 	if session != nil {
 		reused = true
@@ -234,15 +234,13 @@ func (w *Workspace) ReplaceDatabase(sessionID string, db *vault.Database) bool {
 	if session == nil || db == nil {
 		return false
 	}
-	if session.DB != nil && session.DB != db {
+	if session.DB != db {
 		if session.Core != nil {
 			session.Core.ReplaceDatabase(db)
-		} else {
+		} else if session.DB != nil {
 			session.DB.TransferBackend(db)
 			session.DB.Clear()
 		}
-	} else if session.Core != nil && session.DB != db {
-		session.Core.ReplaceDatabase(db)
 	}
 	session.DB = db
 	session.Stale = false

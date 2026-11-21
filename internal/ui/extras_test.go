@@ -260,7 +260,10 @@ func TestPlaintextAttachmentExportRequiresConfirmAndUsesPrivateExclusiveFile(t *
 	if err != nil || info.Mode().Perm() != 0600 {
 		t.Fatalf("export permissions = %v, err = %v", info.Mode().Perm(), err)
 	}
-	if err := writePrivateExclusive(context.Background(), dest, []byte("overwrite")); err == nil {
+	core := m.ws.ActiveSession().Core
+	snapshot := core.Snapshot()
+	defer snapshot.Clear()
+	if err := core.ExportAttachmentToFile(context.Background(), snapshot, m.extras.entryUUID, "second.txt", dest); !os.IsExist(err) {
 		t.Fatal("exclusive export overwrote an existing file")
 	}
 	data, _ = os.ReadFile(dest)

@@ -404,60 +404,7 @@ func (m *Model) startAttachmentExport(state *extraState) tea.Cmd {
 			return extrasExportMsg{state: state, err: ctx.Err()}
 		}
 		defer resources.done()
-		data, err := core.ExportAttachment(ctx, snapshot, entryID, name)
-		if err == nil {
-			if ctx.Err() != nil {
-				err = ctx.Err()
-			} else {
-				err = writePrivateExclusive(ctx, path, data)
-			}
-		}
-		wipebuf.Wipe(data)
+		err := core.ExportAttachmentToFile(ctx, snapshot, entryID, name, path)
 		return extrasExportMsg{state: state, err: err}
 	}
-}
-
-func writePrivateExclusive(ctx context.Context, path string, data []byte) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err != nil {
-		return err
-	}
-	created := true
-	defer func() {
-		if created {
-			_ = os.Remove(path)
-		}
-	}()
-	for start := 0; start < len(data); {
-		if err := ctx.Err(); err != nil {
-			_ = file.Close()
-			return err
-		}
-		end := min(len(data), start+64*1024)
-		n, err := file.Write(data[start:end])
-		if err != nil {
-			_ = file.Close()
-			return err
-		}
-		if n != end-start {
-			_ = file.Close()
-			return io.ErrShortWrite
-		}
-		start = end
-	}
-	if err := file.Sync(); err != nil {
-		_ = file.Close()
-		return err
-	}
-	if err := file.Close(); err != nil {
-		return err
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	created = false
-	return nil
 }

@@ -1255,8 +1255,9 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 			path := s.Path
 			expected := s.DB.Revision
 			sessionID := id
+			service := m.service
 			cmds = append(cmds, func() tea.Msg {
-				actual, err := vault.Revision(path)
+				actual, err := service.ReadRevision(path)
 				return revisionMsg{sessionID, expected, actual, err}
 			})
 		}

@@ -133,7 +133,6 @@ type Model struct {
 	dragStartX                              int
 	searchCache                             *entrySearchCache
 	searchOrigin                            *workspace.View
-	backend                                 vault.Backend
 	service                                 *session.Service
 	store                                   RecentStore
 	ctx                                     context.Context
@@ -234,7 +233,7 @@ func New(opts Options) *Model {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	m := &Model{backend: opts.Backend, service: session.NewService(opts.Backend), store: opts.Store, ctx: ctx, ws: workspace.New(), width: 100, height: 30}
+	m := &Model{service: session.NewService(opts.Backend), store: opts.Store, ctx: ctx, ws: workspace.New(), width: 100, height: 30}
 	m.now = opts.Now
 	if m.now == nil {
 		m.now = time.Now
@@ -263,10 +262,8 @@ func New(opts Options) *Model {
 		m.settings.ClipboardTimeout = 10 * time.Second
 	}
 	m.clipboard = opts.Clipboard
-	m.ws.CoreFactory = func(db *vault.Database) *session.Session {
-		core := session.New(m.backend, m.clipboard, m.settings.ClipboardTimeout)
-		core.Adopt(db)
-		return core
+	m.ws.CoreFactory = func() *session.Session {
+		return m.service.NewSession(m.clipboard, m.settings.ClipboardTimeout)
 	}
 	m.readOnly = opts.ReadOnly
 	m.notice = compactNotice(opts.Warning)
@@ -938,7 +935,7 @@ func (m *Model) startOpen() tea.Cmd {
 		m.err = "Maximum 9 tabs. Close a tab before opening another vault."
 		return nil
 	}
-	if m.backend == nil {
+	if !m.service.CanOpen() {
 		m.err = "Could not unlock. Vault support is unavailable."
 		return nil
 	}
@@ -958,7 +955,7 @@ func (m *Model) startOpen() tea.Cmd {
 	m.request++
 	id := m.request
 	path := m.path
-	core := session.New(m.backend, m.clipboard, m.settings.ClipboardTimeout)
+	core := m.service.NewSession(m.clipboard, m.settings.ClipboardTimeout)
 	m.busy = true
 	m.err = ""
 	resources := newJobResources(ctx, creds.Clear)

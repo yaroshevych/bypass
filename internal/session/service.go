@@ -1,11 +1,11 @@
-// Package session exposes reusable capabilities that are not tied to one
-// already-open vault session.
 package session
 
 import (
 	"context"
 	"errors"
+	"time"
 
+	"bypass/internal/clipboard"
 	"bypass/internal/vault"
 )
 
@@ -26,6 +26,15 @@ type Service struct {
 }
 
 func NewService(backend vault.Backend) *Service { return &Service{backend: backend} }
+
+func (s *Service) CanOpen() bool { return s.backend != nil }
+
+func (s *Service) NewSession(manager *clipboard.Manager, timeout time.Duration) *Session {
+	return New(s.backend, manager, timeout)
+}
+
+// ReadRevision fingerprints the encrypted vault on disk without opening it.
+func (s *Service) ReadRevision(path string) ([32]byte, error) { return vault.Revision(path) }
 
 func (s *Service) CanCreateVault() bool {
 	if s == nil {

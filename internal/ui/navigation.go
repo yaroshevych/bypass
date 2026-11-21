@@ -296,37 +296,14 @@ func (m *Model) filterEntries(nav navItem, query string) []vault.Entry {
 	if query == "" {
 		return entries
 	}
-	var docs []search.Document
-	byID := map[string]vault.Entry{}
+	byID := make(map[string]vault.Entry, len(entries))
 	for _, e := range entries {
 		byID[e.UUID] = e
 	}
-	if s.Core != nil {
-		ids := s.Core.SearchEntries(query, entries)
-		entries = nil
-		for _, id := range ids {
-			if entry, ok := byID[id]; ok {
-				entries = append(entries, entry)
-			}
-		}
-		return entries
-	}
-	for _, e := range entries {
-		get := func(name string) string {
-			if e.IsProtected(name) || name == "Password" || (s.DB.Unlocked() && name == "Notes") {
-				return ""
-			}
-			return e.Get(name)
-		}
-		docs = append(docs, search.Document{ID: e.UUID, Title: get("Title"), Username: get("UserName"), URL: get("URL"), Notes: get("Notes"), Group: e.GroupPath, Tags: e.Tags})
-	}
-	results, err := search.Find(query, docs)
-	if err != nil {
-		return nil
-	}
+	ids := s.Core.SearchEntries(query, entries)
 	entries = nil
-	for _, result := range results {
-		entries = append(entries, byID[result.ID])
+	for _, id := range ids {
+		entries = append(entries, byID[id])
 	}
 	return entries
 }

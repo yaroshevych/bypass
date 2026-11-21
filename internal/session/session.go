@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -79,6 +78,9 @@ func (s *Session) Open(ctx context.Context, path string, credentials vault.Crede
 	s.mu.Unlock()
 	db, err := s.backend.Open(ctx, path, credentials)
 	if err != nil {
+		if db != nil {
+			db.Clear()
+		}
 		return err
 	}
 	if err := ctx.Err(); err != nil {
@@ -95,6 +97,11 @@ func (s *Session) Open(ctx context.Context, path string, credentials vault.Crede
 		s.mu.Unlock()
 		db.Clear()
 		return ErrLocked
+	}
+	if err := ctx.Err(); err != nil {
+		s.mu.Unlock()
+		db.Clear()
+		return err
 	}
 	if s.db != nil && s.db != db {
 		s.db.Clear()
@@ -183,6 +190,13 @@ func (s *Session) validSnapshot(snapshot *Snapshot) bool {
 	return s.db != nil && s.gen == snapshot.generation
 }
 
+func (s *Session) snapshotError(ctx context.Context, snapshot *Snapshot) error {
+	if !s.validSnapshot(snapshot) {
+		return ErrLocked
+	}
+	return ctx.Err()
+}
+
 // ReplaceDatabase transfers ownership of a write or reload result.
 func (s *Session) ReplaceDatabase(db *vault.Database) {
 	if s == nil {
@@ -201,8 +215,7 @@ func (s *Session) ReplaceDatabase(db *vault.Database) {
 	s.db = db
 }
 
-// Search ranks entries using the shared search engine and excludes secret
-// fields. The caller supplies entries already filtered for its current view.
+// Search ranks the current vault's entries using non-secret search fields.
 func (s *Session) Search(query string) ([]string, error) {
 	if s == nil {
 		return nil, ErrLocked
@@ -212,20 +225,23 @@ func (s *Session) Search(query string) ([]string, error) {
 	if s.db == nil {
 		return nil, ErrLocked
 	}
-	return s.searchEntries(query, s.db.Entries, s.db.Unlocked(), true), nil
+	return searchEntries(query, s.db.Entries, s.db.Unlocked(), true)
 }
 
 // SearchEntries ranks a caller-filtered subset while preserving the TUI's
 // group and tab ordering decisions.
 func (s *Session) SearchEntries(query string, entries []vault.Entry) []string {
-	db := s.Database()
-	return s.searchEntries(query, entries, db != nil && db.Unlocked(), false)
+	unlocked := false
+	if s != nil {
+		s.mu.Lock()
+		unlocked = s.db.Unlocked()
+		s.mu.Unlock()
+	}
+	ids, _ := searchEntries(query, entries, unlocked, false)
+	return ids
 }
 
-func (s *Session) searchEntries(query string, entries []vault.Entry, unlocked, skipRecycled bool) []string {
-	if strings.TrimSpace(query) == "" {
-		return nil
-	}
+func searchEntries(query string, entries []vault.Entry, unlocked, skipRecycled bool) ([]string, error) {
 	docs := make([]search.Document, 0, len(entries))
 	for _, entry := range entries {
 		if skipRecycled && entry.Recycled {
@@ -241,28 +257,25 @@ func (s *Session) searchEntries(query string, entries []vault.Entry, unlocked, s
 	}
 	matches, err := search.Find(query, docs)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	ids := make([]string, 0, len(matches))
 	for _, match := range matches {
 		ids = append(ids, match.ID)
 	}
-	return ids
+	return ids, nil
 }
 
 func (s *Session) EntryDetails(ctx context.Context, snapshot *Snapshot, id string) ([]vault.Field, error) {
+	if err := s.snapshotError(ctx, snapshot); err != nil {
+		return nil, err
+	}
 	reader, ok := s.backend.(detailsReader)
 	if !ok {
 		return nil, ErrUnsupported
 	}
-	if !s.validSnapshot(snapshot) {
-		return nil, ErrLocked
-	}
 	fields, err := reader.EntryDetails(ctx, snapshot.db, id)
-	if !s.validSnapshot(snapshot) {
-		return nil, ErrLocked
-	}
-	if err := ctx.Err(); err != nil {
+	if err := s.snapshotError(ctx, snapshot); err != nil {
 		return nil, err
 	}
 	return fields, err
@@ -274,58 +287,49 @@ func (s *Session) CanTOTP() bool             { _, ok := s.backend.(totpResolver)
 func (s *Session) CanExportAttachment() bool { _, ok := s.backend.(attachmentReader); return ok }
 
 func (s *Session) ResolveField(ctx context.Context, snapshot *Snapshot, id, field string) ([]byte, error) {
+	if err := s.snapshotError(ctx, snapshot); err != nil {
+		return nil, err
+	}
 	resolver, ok := s.backend.(fieldResolver)
 	if !ok {
 		return nil, ErrUnsupported
 	}
-	if !s.validSnapshot(snapshot) {
-		return nil, ErrLocked
-	}
 	value, err := resolver.ResolveField(ctx, snapshot.db, snapshot.credentials, id, field)
-	if !s.validSnapshot(snapshot) || ctx.Err() != nil {
+	if err := s.snapshotError(ctx, snapshot); err != nil {
 		clear(value)
-		if !s.validSnapshot(snapshot) {
-			return nil, ErrLocked
-		}
-		return nil, ctx.Err()
+		return nil, err
 	}
 	return value, err
 }
 
 func (s *Session) TOTP(ctx context.Context, snapshot *Snapshot, id string) (vault.TOTPResult, error) {
+	if err := s.snapshotError(ctx, snapshot); err != nil {
+		return vault.TOTPResult{}, err
+	}
 	resolver, ok := s.backend.(totpResolver)
 	if !ok {
 		return vault.TOTPResult{}, ErrUnsupported
 	}
-	if !s.validSnapshot(snapshot) {
-		return vault.TOTPResult{}, ErrLocked
-	}
 	result, err := resolver.TOTP(ctx, snapshot.db, snapshot.credentials, id)
-	if !s.validSnapshot(snapshot) || ctx.Err() != nil {
+	if err := s.snapshotError(ctx, snapshot); err != nil {
 		clear(result.Code)
-		if !s.validSnapshot(snapshot) {
-			return vault.TOTPResult{}, ErrLocked
-		}
-		return vault.TOTPResult{}, ctx.Err()
+		return vault.TOTPResult{}, err
 	}
 	return result, err
 }
 
 func (s *Session) ExportAttachment(ctx context.Context, snapshot *Snapshot, id, name string) ([]byte, error) {
+	if err := s.snapshotError(ctx, snapshot); err != nil {
+		return nil, err
+	}
 	reader, ok := s.backend.(attachmentReader)
 	if !ok {
 		return nil, ErrUnsupported
 	}
-	if !s.validSnapshot(snapshot) {
-		return nil, ErrLocked
-	}
 	data, err := reader.ExportAttachment(ctx, snapshot.db, snapshot.credentials, id, name)
-	if !s.validSnapshot(snapshot) || ctx.Err() != nil {
+	if err := s.snapshotError(ctx, snapshot); err != nil {
 		clear(data)
-		if !s.validSnapshot(snapshot) {
-			return nil, ErrLocked
-		}
-		return nil, ctx.Err()
+		return nil, err
 	}
 	return data, err
 }
@@ -354,10 +358,10 @@ func (s *Session) CopyField(ctx context.Context, snapshot *Snapshot, id, field s
 		return ErrLocked
 	}
 	value, err := s.ResolveField(ctx, snapshot, id, field)
-	if err != nil {
-		return fmt.Errorf("%w: %v", ErrFieldUnavailable, err)
-	}
 	defer clear(value)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrFieldUnavailable, err)
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
