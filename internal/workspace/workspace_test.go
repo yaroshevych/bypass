@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"bypass/internal/session"
 	"bypass/internal/vault"
 )
 
@@ -83,7 +84,7 @@ func TestOpenDeduplicatesCanonicalPathAndSeparatesSameBasename(t *testing.T) {
 	if w.Open(database(secondPath, "second", "root-b")) {
 		t.Fatal("different path unexpectedly reused a session")
 	}
-	if len(w.Sessions) != 2 || w.ActiveSession().DB.Name != "second" {
+	if len(w.Sessions) != 2 || w.ActiveSession().Database().Name != "second" {
 		t.Fatalf("different same-basename vaults were not independent: %#v", w.Sessions)
 	}
 }
@@ -100,13 +101,13 @@ func TestOpenLockedSessionRefreshesAndDuplicateCopiesView(t *testing.T) {
 	if len(w.Views) != 2 || w.Views[0].ID == w.Views[1].ID || w.Views[0].Query != w.Views[1].Query {
 		t.Fatalf("duplicate did not copy view state with new identity: %#v", w.Views)
 	}
-	if !w.Open(db) || len(w.Views) != 2 || w.Active != 1 || w.ActiveSession().DB != db {
+	if !w.Open(db) || len(w.Views) != 2 || w.Active != 1 || w.ActiveSession().Database() != db {
 		t.Fatal("reopening the same DB did not switch views without clearing the shared pointer")
 	}
 	if !w.LockActive() {
 		t.Fatal("LockActive failed")
 	}
-	if w.ActiveSession().DB != nil || len(db.Entries) != 0 {
+	if w.ActiveSession().Database() != nil || len(db.Entries) != 0 {
 		t.Fatal("lock retained database secrets")
 	}
 	for _, v := range w.Views {
@@ -122,7 +123,7 @@ func TestOpenLockedSessionRefreshesAndDuplicateCopiesView(t *testing.T) {
 	if !w.Open(refreshed) || len(w.Sessions) != 1 || len(w.Views) != 2 {
 		t.Fatal("opening locked path did not refresh existing session")
 	}
-	if w.ActiveSession().DB != refreshed || w.ActiveSession().Stale {
+	if w.ActiveSession().Database() != refreshed || w.ActiveSession().Stale {
 		t.Fatal("locked session was not refreshed with supplied database")
 	}
 }
@@ -199,17 +200,13 @@ func TestSetCredentialsClonesAndReplacingCredentialsClearsOldCopy(t *testing.T) 
 		t.Fatal("SetCredentials failed")
 	}
 	input.Password[0] = 'X'
-	if string(session.Credentials.Password) != "first-secret" {
+	if string(session.Credentials().Password) != "first-secret" {
 		t.Fatal("session retained caller-owned password bytes")
 	}
-	oldPassword := session.Credentials.Password
 	if !w.SetCredentials(session.ID, vault.Credentials{Password: []byte("next-secret")}) {
 		t.Fatal("replacing credentials failed")
 	}
-	if string(oldPassword) != string(make([]byte, len(oldPassword))) {
-		t.Fatal("replaced credential bytes were not cleared")
-	}
-	if string(session.Credentials.Password) != "next-secret" {
+	if string(session.Credentials().Password) != "next-secret" {
 		t.Fatal("replacement credentials were not cloned")
 	}
 }
@@ -230,7 +227,7 @@ func TestReplaceDatabasePreservesViewUUIDsAndClearsOldDatabase(t *testing.T) {
 	if !w.ReplaceDatabase(session.ID, second) {
 		t.Fatal("ReplaceDatabase failed")
 	}
-	if len(first.Entries) != 0 || session.DB != second || session.Stale {
+	if len(first.Entries) != 0 || session.Database() != second || session.Stale {
 		t.Fatal("database was not replaced and old content cleared")
 	}
 	for _, view := range w.Views {
@@ -243,6 +240,37 @@ func TestReplaceDatabasePreservesViewUUIDsAndClearsOldDatabase(t *testing.T) {
 	}
 }
 
+func TestReplaceDatabaseCannotResurrectLockedSession(t *testing.T) {
+	w := New()
+	first := database(filepath.Join(t.TempDir(), "locked.kdbx"), "locked", "root")
+	w.Open(first)
+	session := w.ActiveSession()
+	if !w.LockSession(session.ID) {
+		t.Fatal("LockSession failed")
+	}
+	late := database(first.Path, "late result", "root")
+	if w.ReplaceDatabase(session.ID, late) {
+		t.Fatal("ReplaceDatabase resurrected a locked session")
+	}
+	if session.Database() != nil || len(late.Entries) == 0 {
+		t.Fatal("rejected replacement changed the locked session or consumed caller data")
+	}
+	late.Clear()
+}
+
+func TestOpenWithNilDatabaseReleasesCore(t *testing.T) {
+	w := New()
+	db := database(filepath.Join(t.TempDir(), "transferred.kdbx"), "transferred", "root")
+	core := session.New(nil, nil, 0)
+	core.Adopt(db)
+	if w.OpenWithCore(nil, core) {
+		t.Fatal("OpenWithCore accepted a nil database")
+	}
+	if core.Database() != nil || len(db.Entries) != 0 {
+		t.Fatal("OpenWithCore retained transferred database ownership")
+	}
+}
+
 func TestLockSessionAndLockAllClearCredentialsAcrossViews(t *testing.T) {
 	w := New()
 	first := database(filepath.Join(t.TempDir(), "one.kdbx"), "one", "root-one")
@@ -251,7 +279,6 @@ func TestLockSessionAndLockAllClearCredentialsAcrossViews(t *testing.T) {
 	firstSession := w.ActiveSession()
 	firstID := firstSession.ID
 	w.SetCredentials(firstID, vault.Credentials{Password: []byte("one-secret")})
-	firstPassword := firstSession.Credentials.Password
 	for i := range w.Views {
 		w.Views[i].Query = "search term"
 		w.Views[i].DetailOffset = 3
@@ -262,7 +289,7 @@ func TestLockSessionAndLockAllClearCredentialsAcrossViews(t *testing.T) {
 	if !w.LockSession(firstID) {
 		t.Fatal("LockSession failed")
 	}
-	if firstSession.DB != nil || len(first.Entries) != 0 || len(firstPassword) == 0 || string(firstPassword) != string(make([]byte, len(firstPassword))) {
+	if firstSession.Database() != nil || len(first.Entries) != 0 || len(firstSession.Credentials().Password) != 0 {
 		t.Fatal("LockSession did not clear DB and credential bytes")
 	}
 	for _, view := range w.Views {
@@ -275,12 +302,11 @@ func TestLockSessionAndLockAllClearCredentialsAcrossViews(t *testing.T) {
 	w.Open(second)
 	secondSession := w.ActiveSession()
 	w.SetCredentials(secondSession.ID, vault.Credentials{Password: []byte("two-secret")})
-	secondPassword := secondSession.Credentials.Password
 	w.LockAll()
-	if secondSession.DB != nil || len(second.Entries) != 0 || string(secondPassword) != string(make([]byte, len(secondPassword))) {
+	if secondSession.Database() != nil || len(second.Entries) != 0 || len(secondSession.Credentials().Password) != 0 {
 		t.Fatal("LockAll did not clear independent session data")
 	}
-	if firstSession.Credentials.Password != nil || secondSession.Credentials.Password != nil {
+	if firstSession.Credentials().Password != nil || secondSession.Credentials().Password != nil {
 		t.Fatal("LockAll retained credentials")
 	}
 	if !firstSession.ReadOnly || !secondSession.ReadOnly {
@@ -297,8 +323,7 @@ func TestRemovedSessionsClearCredentials(t *testing.T) {
 	w.Open(db)
 	session := w.ActiveSession()
 	w.SetCredentials(session.ID, vault.Credentials{Password: []byte("close-secret")})
-	password := session.Credentials.Password
-	if !w.CloseVault() || session.Credentials.Password != nil || string(password) != string(make([]byte, len(password))) {
+	if !w.CloseVault() || len(session.Credentials().Password) != 0 {
 		t.Fatal("CloseVault retained removed-session credentials")
 	}
 
@@ -306,9 +331,8 @@ func TestRemovedSessionsClearCredentials(t *testing.T) {
 	w.Open(db)
 	session = w.ActiveSession()
 	w.SetCredentials(session.ID, vault.Credentials{Password: []byte("shutdown-secret")})
-	password = session.Credentials.Password
 	w.Close()
-	if session.Credentials.Password != nil || string(password) != string(make([]byte, len(password))) {
+	if len(session.Credentials().Password) != 0 {
 		t.Fatal("Close retained removed-session credentials")
 	}
 }
@@ -324,7 +348,7 @@ func TestActivityTimestampChangesOnCredentialAndDatabaseOperations(t *testing.T)
 	if session.LastActivity.Before(initial) {
 		t.Fatalf("activity timestamp moved backwards: %s < %s", session.LastActivity.Format(time.RFC3339Nano), initial.Format(time.RFC3339Nano))
 	}
-	old := session.DB
+	old := session.Database()
 	if !w.ReplaceDatabase(session.ID, database(session.Path, "reloaded", "root")) || old.Entries != nil {
 		t.Fatal("database activity did not replace and clear previous database")
 	}

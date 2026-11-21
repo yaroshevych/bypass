@@ -89,7 +89,7 @@ func (m *Model) pruneRunSessionGrants() {
 	}
 	for grant := range m.runs.grants {
 		session := m.ws.Sessions[grant.session]
-		if session == nil || session.DB == nil {
+		if session == nil || session.Database() == nil {
 			delete(m.runs.grants, grant)
 		}
 	}
@@ -216,7 +216,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 	if !r.busy {
 		for _, target := range r.targets {
 			session := m.ws.Sessions[target.session]
-			if session == nil || session.DB != target.database {
+			if session == nil || session.Database() != target.database {
 				r.targets = nil
 				r.choices = nil
 				r.err = "vault changed; unlock it and review the request again"
@@ -292,7 +292,7 @@ func (m *Model) updateRun(msg tea.Msg) (tea.Cmd, bool) {
 		values := msg.secrets.Take()
 		for _, target := range msg.targets {
 			session := m.ws.Sessions[target.session]
-			if session == nil || session.DB != target.database {
+			if session == nil || session.Database() != target.database {
 				msg.err = fmt.Errorf("vault locked or changed before secrets were delivered")
 				break
 			}
@@ -551,7 +551,7 @@ func (m *Model) resolveRunTargets(p *runpkg.Pending) ([]runTarget, error) {
 		}
 		var matches []runTarget
 		for id, s := range m.ws.Sessions {
-			if s.DB == nil {
+			if s.Database() == nil {
 				continue
 			}
 			components := ref.Components
@@ -580,7 +580,7 @@ func (m *Model) resolveRunTargets(p *runpkg.Pending) ([]runTarget, error) {
 			if len(components) == 0 {
 				continue
 			}
-			for _, entry := range s.DB.Entries {
+			for _, entry := range s.Database().Entries {
 				if entry.Recycled || entry.Get("Title") != components[len(components)-1] {
 					continue
 				}
@@ -600,7 +600,7 @@ func (m *Model) resolveRunTargets(p *runpkg.Pending) ([]runTarget, error) {
 				case "notes":
 					field = "Notes"
 				}
-				matches = append(matches, runTarget{text, id, entry.UUID, field, s.DB})
+				matches = append(matches, runTarget{text, id, entry.UUID, field, s.Database()})
 			}
 		}
 		sort.Slice(matches, func(i, j int) bool { return matches[i].database.Path < matches[j].database.Path })
@@ -667,11 +667,11 @@ func (m *Model) openRunPermissions() {
 	if m.runs != nil {
 		for grant, agent := range m.runs.grants {
 			session := m.ws.Sessions[grant.session]
-			if session == nil || session.DB == nil {
+			if session == nil || session.Database() == nil {
 				continue
 			}
 			name := grant.entry
-			for _, entry := range session.DB.Entries {
+			for _, entry := range session.Database().Entries {
 				if entry.UUID == grant.entry {
 					name = entry.Get("Title")
 					break

@@ -670,7 +670,7 @@ func (m *Model) runReviewed() *runpkg.Pending {
 func (m *Model) runTargetsCurrent(targets []runTarget) bool {
 	for _, target := range targets {
 		session := m.ws.Sessions[target.session]
-		if session == nil || session.DB != target.database {
+		if session == nil || session.Database() != target.database {
 			return false
 		}
 	}

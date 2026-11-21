@@ -105,12 +105,12 @@ func TestRedrawKeepsDraftAndAltLLocks(t *testing.T) {
 	m.startEditor(nil, "root")
 	m.editor.inputs[editTitle].set("unsaved draft")
 	_, redraw := m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
-	if redraw == nil || m.editor == nil || m.editor.inputs[editTitle].value() != "unsaved draft" || m.ws.ActiveSession().DB == nil {
+	if redraw == nil || m.editor == nil || m.editor.inputs[editTitle].value() != "unsaved draft" || m.ws.ActiveSession().Database() == nil {
 		t.Fatal("redraw changed the editor draft or locked the vault")
 	}
 	m.editor.focus = editGenerate
 	m.Update(key("L"))
-	if m.editor == nil || m.ws.ActiveSession().DB == nil || m.dialog == nil || m.dialog.kind != "unsaved" {
+	if m.editor == nil || m.ws.ActiveSession().Database() == nil || m.dialog == nil || m.dialog.kind != "unsaved" {
 		t.Fatal("shift+l did not prompt before locking the dirty draft")
 	}
 }
@@ -590,7 +590,7 @@ func TestCtrlLLocksAllAndCurrentVaultRemainsInPalette(t *testing.T) {
 	m.ws.Open(fixture("/tmp/lock-all-second.kdbx"))
 	m.normalize()
 	second := m.ws.ActiveSession()
-	if first.ID == second.ID || first.DB == nil || second.DB == nil {
+	if first.ID == second.ID || first.Database() == nil || second.Database() == nil {
 		t.Fatal("test requires two unlocked vaults")
 	}
 	header := ansi.Strip(m.workspaceLines()[0])
@@ -612,7 +612,7 @@ func TestCtrlLLocksAllAndCurrentVaultRemainsInPalette(t *testing.T) {
 		t.Fatalf("lock command bindings: current=%+v all=%+v", current, all)
 	}
 	m.key(key("L"))
-	if first.DB != nil || second.DB != nil {
+	if first.Database() != nil || second.Database() != nil {
 		t.Fatal("shift+l did not lock all open vaults")
 	}
 
@@ -635,7 +635,7 @@ func TestCtrlLLocksAllAndCurrentVaultRemainsInPalette(t *testing.T) {
 	if cmd := lockCurrent(); cmd != nil {
 		cmd()
 	}
-	if first.DB == nil || second.DB != nil {
+	if first.Database() == nil || second.Database() != nil {
 		t.Fatal("command palette did not lock only the current vault")
 	}
 }
@@ -695,7 +695,7 @@ func TestGlobalLockWorksFromModalAndTinyScreens(t *testing.T) {
 				m.width, m.height = 47, 15
 			}
 			m.Update(key("L"))
-			if m.ws.ActiveSession().DB != nil {
+			if m.ws.ActiveSession().Database() != nil {
 				t.Fatal("shift+l did not lock the vault")
 			}
 			if m.palette != nil || m.help {

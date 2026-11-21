@@ -28,7 +28,7 @@ func TestPINIdleProtectionUsesDefaultAndConfiguredTimeout(t *testing.T) {
 				t.Fatal("PIN screen protected before its deadline")
 			}
 			m.onTick(base.Add(timeout))
-			if !m.gate.Protected() || session.DB == nil {
+			if !m.gate.Protected() || session.Database() == nil {
 				t.Fatal("PIN deadline should cover the UI and keep the vault unlocked")
 			}
 		})
@@ -50,13 +50,13 @@ func TestConfiguredPINProtectsOnlyWhenEveryUnlockedSessionIsIdle(t *testing.T) {
 	second.LastActivity = now.Add(-time.Minute)
 
 	m.onTick(now)
-	if m.gate.Protected() || first.DB == nil || second.DB == nil {
+	if m.gate.Protected() || first.Database() == nil || second.Database() == nil {
 		t.Fatal("an active session did not keep the global screen unprotected")
 	}
 
 	second.LastActivity = now.Add(-16 * time.Minute)
 	m.onTick(now)
-	if !m.gate.Protected() || first.DB == nil || second.DB == nil {
+	if !m.gate.Protected() || first.Database() == nil || second.Database() == nil {
 		t.Fatal("idle sessions were not screen protected while remaining unlocked")
 	}
 }
@@ -116,14 +116,14 @@ func TestFullLockTimeoutLocksSessionsWhilePINProtected(t *testing.T) {
 	second.LastActivity = base
 
 	m.onTick(base.Add(11 * time.Minute))
-	if !m.gate.Protected() || first.DB == nil || second.DB == nil {
+	if !m.gate.Protected() || first.Database() == nil || second.Database() == nil {
 		t.Fatal("idle timeout should protect the screen and leave sessions unlocked")
 	}
 	m.onTick(base.Add(31 * time.Minute))
-	if first.DB != nil || second.DB != nil || m.gate.Protected() || m.gate.Configured() {
+	if first.Database() != nil || second.Database() != nil || m.gate.Protected() || m.gate.Configured() {
 		t.Fatal("full lock timeout did not clear sessions and synchronize privacy state")
 	}
-	if len(first.Credentials.Password) != 0 || len(second.Credentials.Password) != 0 {
+	if len(first.Credentials().Password) != 0 || len(second.Credentials().Password) != 0 {
 		t.Fatal("full lock timeout retained session credentials")
 	}
 }
@@ -141,7 +141,7 @@ func TestMouseActivityDoesNotRefreshProtectedSession(t *testing.T) {
 	if !session.LastActivity.Equal(activity) {
 		t.Fatal("mouse input while screen protected refreshed session activity")
 	}
-	if session.DB == nil {
+	if session.Database() == nil {
 		t.Fatal("mouse input while protected unexpectedly locked the vault")
 	}
 }
@@ -153,10 +153,10 @@ func TestNoPINIdleTimeoutStillFullLocks(t *testing.T) {
 	m.settings.IdleTimeout = time.Minute
 
 	m.onTick(activity.Add(time.Minute))
-	if session.DB != nil {
+	if session.Database() != nil {
 		t.Fatal("without a configured PIN, idle timeout did not full lock the session")
 	}
-	if len(session.Credentials.Password) != 0 {
+	if len(session.Credentials().Password) != 0 {
 		t.Fatal("idle full lock retained credentials")
 	}
 }

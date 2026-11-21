@@ -15,7 +15,7 @@ func TestTOTPFieldMaskedRevealRefreshAndLock(t *testing.T) {
 			m.settings.Appearance = appearance
 			now := m.now()
 			m.now = func() time.Time { return now }
-			entry := &m.ws.ActiveSession().DB.Entries[0]
+			entry := &m.ws.ActiveSession().Database().Entries[0]
 			applyEntryDetails(entry, []vault.Field{{Name: "TOTP", Protected: true}})
 			m.searchCache = nil
 			names := m.fieldNames()

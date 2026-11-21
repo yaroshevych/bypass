@@ -792,11 +792,11 @@ func TestNumberKeysSwitchViewsIncludingLockedVault(t *testing.T) {
 	}
 	m.ws.LockActive()
 	m.key(key("1"))
-	if m.ws.ActiveSession().DB == nil {
+	if m.ws.ActiveSession().Database() == nil {
 		t.Fatal("could not leave locked vault with number key")
 	}
 	m.key(key("2"))
-	if m.ws.ActiveSession().DB != nil {
+	if m.ws.ActiveSession().Database() != nil {
 		t.Fatal("number key did not select locked vault")
 	}
 	m.key(key("9"))
@@ -860,7 +860,7 @@ func TestWorkspaceDeleteRequiresConfirmation(t *testing.T) {
 			if m.dialog == nil {
 				t.Fatal("delete shortcut did not request confirmation")
 			}
-			if len(m.ws.ActiveSession().DB.Entries) == 0 {
+			if len(m.ws.ActiveSession().Database().Entries) == 0 {
 				t.Fatal("delete shortcut removed an entry without confirmation")
 			}
 		})

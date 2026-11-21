@@ -12,7 +12,7 @@ func TestJumpCapturesGlobalShortcuts(t *testing.T) {
 			m, _ := operationModel(t)
 			m.jump = true
 			m.key(msg)
-			if !m.jump || m.ws.ActiveSession().DB == nil || m.palette != nil || m.gate.Protected() {
+			if !m.jump || m.ws.ActiveSession().Database() == nil || m.palette != nil || m.gate.Protected() {
 				t.Fatal("shortcut escaped the Jump overlay")
 			}
 		})
@@ -28,7 +28,7 @@ func TestPrintableShortcutsRemainTextInEditor(t *testing.T) {
 	for _, ch := range []string{"P", "L", "S"} {
 		m.Update(key(ch))
 	}
-	if got := m.editor.inputs[editTitle].value(); got != "PLS" || m.gate.Protected() || m.ws.ActiveSession().DB == nil || (m.runs != nil && m.runs.visible) {
+	if got := m.editor.inputs[editTitle].value(); got != "PLS" || m.gate.Protected() || m.ws.ActiveSession().Database() == nil || (m.runs != nil && m.runs.visible) {
 		t.Fatalf("printable shortcuts interrupted text entry: %q", got)
 	}
 }
@@ -49,7 +49,7 @@ func TestRemovedShortcutsDoNotActivate(t *testing.T) {
 		{Type: tea.KeyCtrlPgDown},
 	} {
 		m.Update(msg)
-		if m.ws.Active != before || m.ws.ActiveSession().DB == nil || (m.runs != nil && m.runs.visible) {
+		if m.ws.Active != before || m.ws.ActiveSession().Database() == nil || (m.runs != nil && m.runs.visible) {
 			t.Fatalf("removed shortcut %q changed state", msg.String())
 		}
 	}

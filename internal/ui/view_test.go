@@ -67,7 +67,7 @@ func TestScrollbarsShowOverflowAndPosition(t *testing.T) {
 	m, _ := operationModel(t)
 	m.width, m.height = 100, 24
 	m.settings.ASCII = true
-	m.ws.ActiveSession().DB.Entries[0].Fields = append(m.ws.ActiveSession().DB.Entries[0].Fields, vault.Field{Name: "Notes", Value: strings.Repeat("line\n", 60)})
+	m.ws.ActiveSession().Database().Entries[0].Fields = append(m.ws.ActiveSession().Database().Entries[0].Fields, vault.Field{Name: "Notes", Value: strings.Repeat("line\n", 60)})
 	v := m.ws.ActiveView()
 	v.Focus = 2
 	lines := m.detailLines(40, 10, true)

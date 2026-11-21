@@ -18,9 +18,9 @@ func focusGrandPassword(m *Model) {
 
 func setGrandPassword(t *testing.T, m *Model, value string) {
 	t.Helper()
-	for i := range m.ws.ActiveSession().DB.Entries[0].Fields {
-		if m.ws.ActiveSession().DB.Entries[0].Fields[i].Name == "Password" {
-			m.ws.ActiveSession().DB.Entries[0].Fields[i].Value = value
+	for i := range m.ws.ActiveSession().Database().Entries[0].Fields {
+		if m.ws.ActiveSession().Database().Entries[0].Fields[i].Name == "Password" {
+			m.ws.ActiveSession().Database().Entries[0].Fields[i].Value = value
 			return
 		}
 	}
@@ -177,7 +177,7 @@ func TestPINAndFullLockCloseGrandView(t *testing.T) {
 		m.key(key("G"))
 		backing := m.revealValue
 		m.key(key("L"))
-		if m.grand || len(m.revealValue) != 0 || m.ws.ActiveSession().DB != nil {
+		if m.grand || len(m.revealValue) != 0 || m.ws.ActiveSession().Database() != nil {
 			t.Fatal("full lock did not close Grand View and lock the vault")
 		}
 		for _, b := range backing {

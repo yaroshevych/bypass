@@ -85,11 +85,11 @@ func (m *Model) sidebarViewport(height int) ([]sidebarRow, int) {
 func (m *Model) allNavigation() []navItem {
 	items := []navItem{{label: "All Entries", kind: "all", key: "all"}, {label: "Favorites", kind: "favorites", key: "favorites"}, {label: "Recent", kind: "recent", key: "recent"}, {label: "Bin", kind: "trash", key: "trash"}}
 	s := m.ws.ActiveSession()
-	if s == nil || s.DB == nil {
+	if s == nil || s.Database() == nil {
 		return items
 	}
 	tags := map[string]bool{}
-	for _, e := range s.DB.Entries {
+	for _, e := range s.Database().Entries {
 		if !e.Recycled {
 			for _, tag := range e.Tags {
 				tag = strings.TrimSpace(tag)
@@ -109,7 +109,7 @@ func (m *Model) allNavigation() []navItem {
 	}
 	byID := make(map[string]vault.Group)
 	children := make(map[string][]vault.Group)
-	for _, g := range s.DB.Groups {
+	for _, g := range s.Database().Groups {
 		byID[g.UUID] = g
 		children[g.ParentUUID] = append(children[g.ParentUUID], g)
 	}
@@ -129,7 +129,7 @@ func (m *Model) allNavigation() []navItem {
 		if visited[g.UUID] {
 			return
 		}
-		if g.Recycled || g.UUID == s.DB.RecycleBinUUID || s.DB.RecycleBinEnabled && !s.DB.RecycleBinVerified && strings.EqualFold(g.Name, "Recycle Bin") {
+		if g.Recycled || g.UUID == s.Database().RecycleBinUUID || s.Database().RecycleBinEnabled && !s.Database().RecycleBinVerified && strings.EqualFold(g.Name, "Recycle Bin") {
 			skipBranch(g)
 			return
 		}
@@ -139,12 +139,12 @@ func (m *Model) allNavigation() []navItem {
 			visit(child, depth+1)
 		}
 	}
-	for _, g := range s.DB.Groups {
+	for _, g := range s.Database().Groups {
 		if _, hasParent := byID[g.ParentUUID]; !hasParent {
 			visit(g, 0)
 		}
 	}
-	for _, g := range s.DB.Groups {
+	for _, g := range s.Database().Groups {
 		visit(g, 0)
 	}
 	return items
@@ -212,22 +212,22 @@ func (m *Model) remapNav() {
 }
 func (m *Model) filterEntries(nav navItem, query string) []vault.Entry {
 	s := m.ws.ActiveSession()
-	if s == nil || s.DB == nil {
+	if s == nil || s.Database() == nil {
 		return nil
 	}
 	if nav.kind == "none" {
 		return nil
 	}
 	cacheKey := nav.key + "\x00" + query
-	if query != "" && m.searchCache != nil && m.searchCache.db == s.DB && m.searchCache.key == cacheKey {
+	if query != "" && m.searchCache != nil && m.searchCache.db == s.Database() && m.searchCache.key == cacheKey {
 		return m.searchCache.entries
 	}
 	searchable := map[string]bool{}
-	for _, g := range s.DB.Groups {
+	for _, g := range s.Database().Groups {
 		searchable[g.UUID] = g.SearchEnabled
 	}
 	var entries []vault.Entry
-	for _, e := range s.DB.Entries {
+	for _, e := range s.Database().Entries {
 		if (nav.kind == "trash") != e.Recycled {
 			continue
 		}
@@ -267,8 +267,8 @@ func (m *Model) filterEntries(nav navItem, query string) []vault.Entry {
 		entries = append(entries, e)
 	}
 	if nav.kind == "trash" {
-		for _, group := range s.DB.Groups {
-			if group.Recycled && group.UUID != s.DB.RecycleBinUUID && group.ParentUUID == s.DB.RecycleBinUUID {
+		for _, group := range s.Database().Groups {
+			if group.Recycled && group.UUID != s.Database().RecycleBinUUID && group.ParentUUID == s.Database().RecycleBinUUID {
 				entries = append(entries, vault.Entry{UUID: group.UUID, GroupUUID: group.ParentUUID, Recycled: true, OpaqueGroup: true, Fields: []vault.Field{{Name: "Title", Value: group.Name + "/"}}})
 			}
 		}
@@ -310,13 +310,13 @@ func (m *Model) filterEntries(nav navItem, query string) []vault.Entry {
 
 func (m *Model) refreshSearchCache() {
 	s, v := m.ws.ActiveSession(), m.ws.ActiveView()
-	if s == nil || s.DB == nil || v == nil || v.Query == "" || m.gate.Protected() {
+	if s == nil || s.Database() == nil || v == nil || v.Query == "" || m.gate.Protected() {
 		return
 	}
 	nav := m.currentNav()
 	key := nav.key + "\x00" + v.Query
-	if m.searchCache == nil || m.searchCache.db != s.DB || m.searchCache.key != key {
-		m.searchCache = &entrySearchCache{db: s.DB, key: key, entries: m.filterEntries(nav, v.Query)}
+	if m.searchCache == nil || m.searchCache.db != s.Database() || m.searchCache.key != key {
+		m.searchCache = &entrySearchCache{db: s.Database(), key: key, entries: m.filterEntries(nav, v.Query)}
 	}
 }
 

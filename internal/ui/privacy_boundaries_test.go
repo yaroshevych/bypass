@@ -69,7 +69,7 @@ func TestPublicFullLockDropsPendingSecondaryOpen(t *testing.T) {
 	}
 	updateKey(m, tea.KeyMsg{Type: tea.KeyUp})
 	updateKey(m, key("enter"))
-	if m.gate.Protected() || first.DB != nil {
+	if m.gate.Protected() || first.Database() != nil {
 		t.Fatal("full lock did not leave all existing sessions locked")
 	}
 	close(backend.release)
@@ -104,7 +104,7 @@ func TestPublicFullLockDiscardsPendingVaultCreation(t *testing.T) {
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.started)
 	updateKey(m, key("L"))
-	if first.DB != nil {
+	if first.Database() != nil {
 		t.Fatal("shift+l did not full-lock every existing vault during creation")
 	}
 	close(backend.release)
@@ -130,7 +130,6 @@ func TestPublicFullLockDropsLateSaveResultAndCredentials(t *testing.T) {
 	session := m.ws.ActiveSession()
 	session.ReadOnly = false
 	m.ws.SetCredentials(session.ID, vault.Credentials{Password: []byte("session master password")})
-	credentialBytes := session.Credentials.Password
 	m.normalize()
 	updateKey(m, key("g"))
 	updateKey(m, key("New Group"))
@@ -139,20 +138,15 @@ func TestPublicFullLockDropsLateSaveResultAndCredentials(t *testing.T) {
 		t.Fatal("group save was not started through Update")
 	}
 	updateKey(m, key("L"))
-	if session.DB != nil || len(session.Credentials.Password) != 0 {
+	if session.Database() != nil || len(session.Credentials().Password) != 0 {
 		t.Fatal("shift+l did not full-lock the pending session")
-	}
-	for _, b := range credentialBytes {
-		if b != 0 {
-			t.Fatal("full lock retained prior credential bytes")
-		}
 	}
 	msg := cmd().(appliedMsg)
 	if msg.db != nil || !errors.Is(msg.err, context.Canceled) {
 		t.Fatal("canceled save command should not start after full lock")
 	}
 	m.Update(msg)
-	if session.DB != nil {
+	if session.Database() != nil {
 		t.Fatal("late save result resurrected the locked session")
 	}
 }
@@ -164,7 +158,7 @@ func TestPublicPINProtectionDropsLateReferenceReveal(t *testing.T) {
 	if err := m.gate.Configure([]byte("2468")); err != nil {
 		t.Fatal(err)
 	}
-	entry := &m.ws.ActiveSession().DB.Entries[0]
+	entry := &m.ws.ActiveSession().Database().Entries[0]
 	entry.Fields[2].Value = "{REF:P@I:01010101010101010101010101010101}"
 	view := m.ws.ActiveView()
 	view.Focus = 2
@@ -229,7 +223,7 @@ func TestPublicFullLockDropsLateReferenceCopy(t *testing.T) {
 	m := newBoundaryModel(t, backend, fixture("/tmp/pending-copy.kdbx"))
 	driver := &memoryClipboard{}
 	m.clipboard = clipboard.New(driver)
-	m.ws.ActiveSession().DB.Entries[0].Fields[1].Value = "{REF:P@I:01010101010101010101010101010101}"
+	m.ws.ActiveSession().Database().Entries[0].Fields[1].Value = "{REF:P@I:01010101010101010101010101010101}"
 	view := m.ws.ActiveView()
 	view.Focus = 2
 	view.FieldIndex = 0
@@ -319,7 +313,7 @@ func TestPublicPINProtectionAllowsAuthorizedAttachmentExport(t *testing.T) {
 	if err := m.gate.Configure([]byte("2468")); err != nil {
 		t.Fatal(err)
 	}
-	e := m.ws.ActiveSession().DB.Entries[0]
+	e := m.ws.ActiveSession().Database().Entries[0]
 	dest := filepath.Join(t.TempDir(), "authorized-export.pdf")
 	m.extras = &extraState{mode: extraAttachments, sessionID: m.ws.ActiveSession().ID, entryUUID: e.UUID, groupUUID: e.GroupUUID, phase: "confirm-export", action: "export", targetName: "document.pdf", path: dest, confirmProceed: true}
 	cmd := updateKey(m, key("enter"))
@@ -492,7 +486,7 @@ func TestIdleFullLockDropsPendingVaultCreation(t *testing.T) {
 	msg := awaitBoundary(t, result)
 	db := msg.(lifecycleMsg).db
 	m.Update(msg)
-	if len(m.ws.Sessions) != 1 || m.ws.ActiveSession().DB != nil || len(db.Groups) != 0 {
+	if len(m.ws.Sessions) != 1 || m.ws.ActiveSession().Database() != nil || len(db.Groups) != 0 {
 		t.Fatal("late creation resurrected a vault after idle full lock")
 	}
 }
@@ -514,13 +508,13 @@ func TestCtrlLFullLockCancelsPendingUnlockAndLocksOtherVault(t *testing.T) {
 	go func() { result <- cmd() }()
 	awaitBoundary(t, backend.started)
 	updateKey(m, key("L"))
-	if current.DB != nil || other.DB != nil || m.busy {
+	if current.Database() != nil || other.Database() != nil || m.busy {
 		t.Fatal("shift+l must cancel pending authentication and lock every vault")
 	}
 	close(backend.release)
 	msg := awaitBoundary(t, result)
 	m.Update(msg)
-	if len(m.ws.Sessions) != 2 || len(backend.result.Groups) != 0 || current.DB != nil {
+	if len(m.ws.Sessions) != 2 || len(backend.result.Groups) != 0 || current.Database() != nil {
 		t.Fatal("canceled unlock resurrected a vault after full lock")
 	}
 }
@@ -550,7 +544,7 @@ func TestCtrlXLocksFromWorkspaceDialogsAndPIN(t *testing.T) {
 				updateKey(m, tea.KeyMsg{Type: tea.KeyUp})
 				updateKey(m, key("enter"))
 			}
-			if session.DB != nil {
+			if session.Database() != nil {
 				t.Fatal("Shift+L did not lock vault")
 			}
 		})

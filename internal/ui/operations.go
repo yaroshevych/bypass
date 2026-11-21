@@ -88,7 +88,7 @@ func nextTick() tea.Cmd {
 
 func (m *Model) writable() bool {
 	s := m.ws.ActiveSession()
-	if s == nil || s.DB == nil {
+	if s == nil || s.Database() == nil {
 		return false
 	}
 	if s.Stale {
@@ -129,7 +129,7 @@ func (m *Model) writeRestriction() string {
 
 func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 	s := m.ws.ActiveSession()
-	if s == nil || s.DB == nil {
+	if s == nil || s.Database() == nil {
 		return nil, false
 	}
 	if view := m.ws.ActiveView(); view != nil && view.Focus == 0 {
@@ -166,9 +166,9 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 				return nil, true
 			}
 		}
-		group := s.DB.RootUUID
+		group := s.Database().RootUUID
 		if v := m.ws.ActiveView(); v != nil && v.GroupUUID != "" {
-			for _, g := range s.DB.Groups {
+			for _, g := range s.Database().Groups {
 				if g.UUID == v.GroupUUID && !g.Recycled {
 					group = g.UUID
 				}
@@ -189,7 +189,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 				return nil, true
 			}
 			if nav.kind == "group" {
-				if nav.group == s.DB.RecycleBinUUID {
+				if nav.group == s.Database().RecycleBinUUID {
 					m.setNotice("the recycle bin group can't be renamed", true)
 					return nil, true
 				}
@@ -200,7 +200,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 			}
 		}
 		if e := m.selected(); e != nil {
-			if s.DB.Unlocked() {
+			if s.Database().Unlocked() {
 				return m.prepareEditor(*e), true
 			}
 			m.startEditor(e, e.GroupUUID)
@@ -210,7 +210,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		if !m.writable() {
 			return nil, true
 		}
-		group := s.DB.RootUUID
+		group := s.Database().RootUUID
 		if nav := m.currentNav(); nav.kind == "group" {
 			group = nav.group
 		}
@@ -228,11 +228,11 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		if view := m.ws.ActiveView(); view != nil && view.Focus == 0 {
 			if nav := m.currentNav(); nav.kind == "group" {
-				if nav.group == s.DB.RootUUID || nav.group == s.DB.RecycleBinUUID {
+				if nav.group == s.Database().RootUUID || nav.group == s.Database().RecycleBinUUID {
 					m.setNotice("the root and recycle bin groups can't be moved", true)
 					return nil, true
 				}
-				for _, group := range s.DB.Groups {
+				for _, group := range s.Database().Groups {
 					if group.UUID == nav.group {
 						m.chooseGroupDestination(group)
 						return nil, true
@@ -241,7 +241,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 			}
 		}
 		if entry := m.selectedRow(); entry != nil && entry.OpaqueGroup {
-			for _, group := range s.DB.Groups {
+			for _, group := range s.Database().Groups {
 				if group.UUID == entry.UUID {
 					m.chooseGroupDestination(group)
 					return nil, true
@@ -357,8 +357,8 @@ func (m *Model) openEditorTags() {
 			tags = append(tags, tag)
 		}
 	}
-	if session := m.ws.Sessions[m.editorSession]; session != nil && session.DB != nil {
-		for _, entry := range session.DB.Entries {
+	if session := m.ws.Sessions[m.editorSession]; session != nil && session.Database() != nil {
+		for _, entry := range session.Database().Entries {
 			for _, tag := range entry.Tags {
 				add(tag)
 			}
@@ -497,7 +497,7 @@ func (m *Model) cancelOperation() {
 
 func (m *Model) reload(id string) tea.Cmd {
 	s := m.ws.Sessions[id]
-	if s == nil || s.DB == nil {
+	if s == nil || s.Database() == nil {
 		return nil
 	}
 	request := m.beginOperation(id)
@@ -531,11 +531,11 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		session := m.ws.Sessions[msg.sessionID]
-		if session == nil || session.DB == nil || m.editor != nil {
+		if session == nil || session.Database() == nil || m.editor != nil {
 			return nil, true
 		}
-		for index := range session.DB.Entries {
-			entry := &session.DB.Entries[index]
+		for index := range session.Database().Entries {
+			entry := &session.Database().Entries[index]
 			if entry.UUID == msg.entryID {
 				applyEntryDetails(entry, msg.fields)
 				m.startEditor(entry, entry.GroupUUID)
@@ -550,20 +550,16 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		defer wipebuf.Wipe(msg.change.Password)
 		defer wipebuf.Wipe(msg.change.AttachmentData)
 		if msg.id != m.operation {
-			if msg.db != nil {
-				msg.db.Clear()
-			}
+			m.discardDatabase(msg.sessionID, msg.db)
 			return nil, true
 		}
 		m.cancelOperation()
 		if msg.err != nil {
-			if msg.db != nil {
-				msg.db.Clear()
-			}
+			m.discardDatabase(msg.sessionID, msg.db)
 			text := writeError(msg.err)
 			var loss *vault.DataLossError
 			if errors.As(msg.err, &loss) {
-				if session := m.ws.Sessions[msg.sessionID]; session != nil && session.DB != nil && session.DB.Path == loss.Path && session.DB.Revision == loss.Revision && !session.ReadOnly && !session.Stale {
+				if session := m.ws.Sessions[msg.sessionID]; session != nil && session.Database() != nil && session.Database().Path == loss.Path && session.Database().Revision == loss.Revision && !session.ReadOnly && !session.Stale {
 					change := msg.change
 					change.Password = append([]byte(nil), msg.change.Password...)
 					change.AttachmentData = append([]byte(nil), msg.change.AttachmentData...)
@@ -595,9 +591,9 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		renamed := ""
 		if msg.change.Kind == vault.MoveEntry && msg.db != nil {
-			if session := m.ws.Sessions[msg.sessionID]; session != nil && session.DB != nil {
+			if session := m.ws.Sessions[msg.sessionID]; session != nil && session.Database() != nil {
 				oldTitle := ""
-				for _, entry := range session.DB.Entries {
+				for _, entry := range session.Database().Entries {
 					if entry.UUID == msg.change.EntryUUID {
 						oldTitle = entry.Get("Title")
 						break
@@ -616,9 +612,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			previousSelection = view.SelectedUUID
 		}
 		if !m.ws.ReplaceDatabase(msg.sessionID, msg.db) {
-			if msg.db != nil {
-				msg.db.Clear()
-			}
+			m.discardDatabase(msg.sessionID, msg.db)
 			return nil, true
 		}
 		if msg.change.Kind == vault.RenameTag {
@@ -714,9 +708,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		return nil, true
 	case reloadedMsg:
 		if msg.id != m.operation {
-			if msg.db != nil {
-				msg.db.Clear()
-			}
+			m.discardDatabase(msg.sessionID, msg.db)
 			return nil, true
 		}
 		m.cancelOperation()
@@ -728,9 +720,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			m.clearExtras()
 		}
 		if !m.ws.ReplaceDatabase(msg.sessionID, msg.db) {
-			if msg.db != nil {
-				msg.db.Clear()
-			}
+			m.discardDatabase(msg.sessionID, msg.db)
 			return nil, true
 		}
 		m.ws.Sessions[msg.sessionID].LastActivity = m.now()
@@ -823,7 +813,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 	case revisionMsg:
 		delete(m.checking, msg.sessionID)
 		s := m.ws.Sessions[msg.sessionID]
-		if s != nil && s.DB != nil && !s.Stale && s.DB.Revision == msg.expected && (msg.err != nil || msg.actual != msg.expected) {
+		if s != nil && s.Database() != nil && !s.Stale && s.Database().Revision == msg.expected && (msg.err != nil || msg.actual != msg.expected) {
 			s.Stale = true
 			s.ReadOnly = true
 			if m.dialog == nil && !m.writing {
@@ -861,11 +851,11 @@ func writeError(err error) string {
 func (m *Model) selectResult(change vault.Change) {
 	s := m.ws.ActiveSession()
 	v := m.ws.ActiveView()
-	if s == nil || s.DB == nil || v == nil {
+	if s == nil || s.Database() == nil || v == nil {
 		return
 	}
 	if change.Kind == vault.CreateGroup {
-		for _, g := range s.DB.Groups {
+		for _, g := range s.Database().Groups {
 			if g.ParentUUID == change.GroupUUID && g.Name == change.NewName {
 				v.GroupUUID = g.UUID
 				v.NavKey = "group:" + g.UUID
@@ -880,7 +870,7 @@ func (m *Model) selectResult(change vault.Change) {
 		v.NavKey = "all"
 		v.GroupUUID = ""
 		v.Query = ""
-		for _, e := range s.DB.Entries {
+		for _, e := range s.Database().Entries {
 			if (change.Kind == vault.MoveEntry && e.UUID == change.EntryUUID) || (change.Kind == vault.AddEntry && e.GroupUUID == change.GroupUUID && e.Get("Title") == change.Values["Title"]) {
 				v.SelectedUUID = e.UUID
 				break
@@ -942,7 +932,7 @@ func (m *Model) copyField(name string) tea.Cmd {
 	if label == "UserName" {
 		label = "Username"
 	}
-	if name == "Password" || name == "TOTP" || strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Unlocked() && name == "Notes" && !e.DetailsLoaded) {
+	if name == "Password" || name == "TOTP" || strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().Database().Unlocked() && name == "Notes" && !e.DetailsLoaded) {
 		core := m.ws.ActiveSession().Core
 		if !core.CanResolveField() {
 			m.setNotice("backend doesn't support field references", true)
@@ -1039,7 +1029,7 @@ func (m *Model) toggleReveal() tea.Cmd {
 	m.revealEntry = e.UUID
 	m.revealField = name
 	m.revealSession = s.ID
-	if name == "TOTP" || strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().DB.Unlocked() && (name == "Password" || (name == "Notes" && !e.DetailsLoaded))) {
+	if name == "TOTP" || strings.Contains(e.Get(name), "{") || (m.ws.ActiveSession().Database().Unlocked() && (name == "Password" || (name == "Notes" && !e.DetailsLoaded))) {
 		return m.requestRevealField()
 	}
 	wipebuf.Wipe(m.revealValue)
@@ -1107,7 +1097,7 @@ func (m *Model) revealed(uuid, name string) bool {
 }
 
 func (m *Model) requestReload(id string) tea.Cmd {
-	if session := m.ws.Sessions[id]; session != nil && session.DB.Unlocked() {
+	if session := m.ws.Sessions[id]; session != nil && session.Database().Unlocked() {
 		m.setNotice("lock and unlock to reload", true)
 		return nil
 	}
@@ -1160,7 +1150,7 @@ func (m *Model) lockSession(id string) {
 			}
 		}
 	}
-	if session := m.ws.Sessions[id]; session != nil && m.searchCache != nil && m.searchCache.db == session.DB {
+	if session := m.ws.Sessions[id]; session != nil && m.searchCache != nil && m.searchCache.db == session.Database() {
 		m.searchCache = nil
 	}
 	if m.detailSession == id {
@@ -1228,7 +1218,7 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 	hasUnlocked := false
 	locked := false
 	for id, s := range m.ws.Sessions {
-		if s.DB == nil {
+		if s.Database() == nil {
 			continue
 		}
 		hasUnlocked = true
@@ -1250,10 +1240,10 @@ func (m *Model) onTick(now time.Time) tea.Cmd {
 			locked = true
 			continue
 		}
-		if !s.DB.Unlocked() && m.ticks%2 == 0 && !m.checking[id] && !m.writing {
+		if !s.Database().Unlocked() && m.ticks%2 == 0 && !m.checking[id] && !m.writing {
 			m.checking[id] = true
 			path := s.Path
-			expected := s.DB.Revision
+			expected := s.Database().Revision
 			sessionID := id
 			service := m.service
 			cmds = append(cmds, func() tea.Msg {

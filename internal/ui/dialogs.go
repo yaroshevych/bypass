@@ -78,7 +78,7 @@ func (m *Model) showExternal(id string) {
 func (m *Model) confirmDelete() tea.Cmd {
 	s := m.ws.ActiveSession()
 	v := m.ws.ActiveView()
-	if s == nil || s.DB == nil || v == nil {
+	if s == nil || s.Database() == nil || v == nil {
 		return nil
 	}
 	if v.Focus == 0 && m.currentNav().kind != "group" {
@@ -87,10 +87,10 @@ func (m *Model) confirmDelete() tea.Cmd {
 	}
 	change := vault.Change{Kind: vault.DeleteEntry}
 	name := ""
-	permanent := !s.DB.RecycleBinEnabled
+	permanent := !s.Database().RecycleBinEnabled
 	if v.Focus == 0 && m.currentNav().kind == "group" {
 		groupID := m.currentNav().group
-		if groupID == s.DB.RootUUID || groupID == s.DB.RecycleBinUUID {
+		if groupID == s.Database().RootUUID || groupID == s.Database().RecycleBinUUID {
 			m.setNotice("can't delete root or bin groups here", true)
 			return nil
 		}
@@ -99,7 +99,7 @@ func (m *Model) confirmDelete() tea.Cmd {
 		descendants := map[string]bool{groupID: true}
 		for changed := true; changed; {
 			changed = false
-			for _, g := range s.DB.Groups {
+			for _, g := range s.Database().Groups {
 				if descendants[g.ParentUUID] && !descendants[g.UUID] {
 					descendants[g.UUID] = true
 					changed = true
@@ -111,7 +111,7 @@ func (m *Model) confirmDelete() tea.Cmd {
 			}
 		}
 		count := 0
-		for _, e := range s.DB.Entries {
+		for _, e := range s.Database().Entries {
 			if descendants[e.GroupUUID] {
 				count++
 			}
@@ -137,7 +137,7 @@ func (m *Model) confirmDelete() tea.Cmd {
 		action = "Delete Permanently"
 		message = "This permanently deletes the item. Recovery requires a backup."
 	}
-	if s.DB.Unlocked() && !permanent {
+	if s.Database().Unlocked() && !permanent {
 		action = "Delete"
 		message = "The vault moves the item to its recycle bin when enabled. Items already in the bin are deleted permanently."
 	}
@@ -145,7 +145,7 @@ func (m *Model) confirmDelete() tea.Cmd {
 		action = "Delete Permanently"
 		message = "Permanently deletes this group and all its contents. Recovery requires a backup."
 	}
-	if change.Kind == vault.DeleteGroup && s.DB.Unlocked() && s.DB.RecycleBinEnabled && !permanent {
+	if change.Kind == vault.DeleteGroup && s.Database().Unlocked() && s.Database().RecycleBinEnabled && !permanent {
 		change.Kind = vault.PrepareDeleteGroup
 		return m.apply(change)
 	}
@@ -165,18 +165,18 @@ func (m *Model) chooseDestination(e *vault.Entry) {
 	}
 	m.hideReveal()
 	m.dialog = &actionDialog{kind: "destination", title: title, sessionID: s.ID, entryUUID: e.UUID}
-	m.dialog.groups = destinationGroups(s.DB, s.Destinations)
+	m.dialog.groups = destinationGroups(s.Database(), s.Destinations)
 }
 
 func (m *Model) chooseGroupDestination(group vault.Group) {
 	s := m.ws.ActiveSession()
-	if s == nil || s.DB == nil {
+	if s == nil || s.Database() == nil {
 		return
 	}
 	excluded := map[string]bool{group.UUID: true}
 	for changed := true; changed; {
 		changed = false
-		for _, candidate := range s.DB.Groups {
+		for _, candidate := range s.Database().Groups {
 			if excluded[candidate.ParentUUID] && !excluded[candidate.UUID] {
 				excluded[candidate.UUID] = true
 				changed = true
@@ -186,7 +186,7 @@ func (m *Model) chooseGroupDestination(group vault.Group) {
 	if group.ParentUUID != "" {
 		excluded[group.ParentUUID] = true
 	}
-	groups := destinationGroups(s.DB, s.Destinations)
+	groups := destinationGroups(s.Database(), s.Destinations)
 	filtered := groups[:0]
 	for _, candidate := range groups {
 		if !excluded[candidate.UUID] {
@@ -464,7 +464,7 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 		case "data-loss":
 			if choice == 1 {
 				s := m.ws.Sessions[d.sessionID]
-				if s == nil || s.DB == nil || s.ReadOnly || s.Stale || d.loss == nil || s.DB.Path != d.loss.Path || s.DB.Revision != d.loss.Revision {
+				if s == nil || s.Database() == nil || s.ReadOnly || s.Stale || d.loss == nil || s.Database().Path != d.loss.Path || s.Database().Revision != d.loss.Revision {
 					m.clearDialog()
 					m.setNotice("vault changed · reload before saving", true)
 					return nil

@@ -38,12 +38,9 @@ func TestVaultRuntimeUnlockDropsCredentialsAndResolvesOnDemand(t *testing.T) {
 	if msg.err != nil {
 		t.Fatal(msg.err)
 	}
-	if len(msg.credentials.Password) != 0 {
-		t.Fatal("unlock result retained master password")
-	}
 	_, detailCmd := m.Update(msg)
 	session := m.ws.ActiveSession()
-	if session == nil || !session.DB.Unlocked() || len(session.Credentials.Password) != 0 {
+	if session == nil || !session.Database().Unlocked() || len(session.Credentials().Password) != 0 {
 		t.Fatal("workspace retained credentials or lost unlocked vault state")
 	}
 	if detailCmd == nil {
@@ -64,12 +61,12 @@ func TestVaultRuntimeUnlockDropsCredentialsAndResolvesOnDemand(t *testing.T) {
 	m.searchCache = nil
 	readyDetails := detailCmd().(focusedDetailsMsg)
 	m.Update(readyDetails)
-	if session.DB.Entries[0].Get("Notes") != "visible notes\nsecond line" || !session.DB.Entries[0].DetailsLoaded {
+	if session.Database().Entries[0].Get("Notes") != "visible notes\nsecond line" || !session.Database().Entries[0].DetailsLoaded {
 		t.Fatal("focused notes did not load")
 	}
 	// Defensive SetCredentials must never reintroduce a password for this backend.
 	m.ws.SetCredentials(session.ID, vault.Credentials{Password: master})
-	if len(session.Credentials.Password) != 0 {
+	if len(session.Credentials().Password) != 0 {
 		t.Fatal("workspace accepted retained master password")
 	}
 	if strings.Contains(m.View(), "synthetic UI entry password") {
@@ -134,7 +131,7 @@ func TestVaultRuntimeUnlockDropsCredentialsAndResolvesOnDemand(t *testing.T) {
 			t.Fatal("late editor password was not cleared")
 		}
 	}
-	if session.DB != nil || len(session.Credentials.Password) != 0 {
+	if session.Database() != nil || len(session.Credentials().Password) != 0 {
 		t.Fatal("full lock retained session")
 	}
 }

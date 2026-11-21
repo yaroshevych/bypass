@@ -36,7 +36,7 @@ func (m *Model) loadFocusedDetails() tea.Cmd {
 		m.cancelFocusedDetails()
 		return nil
 	}
-	if m.detailDatabase == session.DB && m.detailEntry == entry.UUID && m.detailSession == session.ID {
+	if m.detailDatabase == session.Database() && m.detailEntry == entry.UUID && m.detailSession == session.ID {
 		return nil
 	}
 	if !session.Core.CanEntryDetails() {
@@ -70,7 +70,7 @@ func (m *Model) acceptFocusedDetails(msg focusedDetailsMsg) tea.Cmd {
 		return nil
 	}
 	session := m.ws.Sessions[msg.sessionID]
-	if session == nil || session.DB != msg.database {
+	if session == nil || session.Database() != msg.database {
 		return nil
 	}
 	if msg.err != nil {
@@ -79,8 +79,8 @@ func (m *Model) acceptFocusedDetails(msg focusedDetailsMsg) tea.Cmd {
 		m.setNotice("could not load entry details", true)
 		return nil
 	}
-	for index := range session.DB.Entries {
-		entry := &session.DB.Entries[index]
+	for index := range session.Database().Entries {
+		entry := &session.Database().Entries[index]
 		if entry.UUID == msg.entryID {
 			focused := ""
 			if session == m.ws.ActiveSession() && m.selected() == entry {

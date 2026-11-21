@@ -70,7 +70,7 @@ func TestVaultRuntimeFocusedDetailsRejectLateSelectionAndLockResults(t *testing.
 	}
 	session := m.ws.ActiveSession()
 	var second string
-	for _, entry := range session.DB.Entries {
+	for _, entry := range session.Database().Entries {
 		if entry.Get("Title") == "Second" {
 			second = entry.UUID
 		}
@@ -100,7 +100,7 @@ func TestVaultRuntimeFocusedDetailsRejectLateSelectionAndLockResults(t *testing.
 	m.lockCurrent(true)
 	m.Update(firstMessage)
 	m.Update(secondResult)
-	if session.DB != nil {
+	if session.Database() != nil {
 		t.Fatal("late details resurrected locked data")
 	}
 }

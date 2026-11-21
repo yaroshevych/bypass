@@ -30,8 +30,8 @@ type attachmentReader interface {
 	ExportAttachment(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
 }
 
-// Session owns one decrypted database. Database returns a borrowed pointer for
-// the TUI's current workspace migration; callers must not clear it directly.
+// Session owns one decrypted database. Database returns a borrowed pointer;
+// callers must not clear it directly.
 // Async work should use Snapshot and clear the snapshot when it completes.
 type Session struct {
 	mu      sync.Mutex
@@ -116,7 +116,9 @@ func (s *Session) Open(ctx context.Context, path string, credentials vault.Crede
 	return nil
 }
 
-// Adopt transfers ownership of db to the session and clears any prior DB.
+// Adopt transfers ownership of db to the session. If db shares backend state
+// with the current database, ownership is transferred before the old model is
+// cleared.
 func (s *Session) Adopt(db *vault.Database) {
 	if s == nil {
 		if db != nil {
@@ -128,13 +130,17 @@ func (s *Session) Adopt(db *vault.Database) {
 	defer s.mu.Unlock()
 	s.gen++
 	if s.db != nil && s.db != db {
+		if db != nil {
+			s.db.TransferBackend(db)
+		}
 		s.db.Clear()
 	}
 	s.db = db
 	s.creds.Clear()
 }
 
-// Database returns the current database as a borrowed pointer.
+// Database returns a borrowed presentation model. The caller must serialize
+// its use with session lifecycle changes. Background work uses Snapshot.
 func (s *Session) Database() *vault.Database {
 	if s == nil {
 		return nil
@@ -144,7 +150,23 @@ func (s *Session) Database() *vault.Database {
 	return s.db
 }
 
-// Credentials returns a caller-owned copy for legacy workspace adapters.
+// DiscardDatabase clears a rejected result. Native results produced from
+// snapshots borrow the live backend until accepted by ReplaceDatabase.
+func (s *Session) DiscardDatabase(db *vault.Database) {
+	if db == nil {
+		return
+	}
+	if s != nil {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if db == s.db {
+			return
+		}
+	}
+	db.Clear()
+}
+
+// Credentials returns a caller-owned copy. The caller must clear it after use.
 func (s *Session) Credentials() vault.Credentials {
 	if s == nil {
 		return vault.Credentials{}
@@ -152,6 +174,17 @@ func (s *Session) Credentials() vault.Credentials {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.creds.Clone()
+}
+
+// CredentialMetadata returns non-secret credential selectors without copying
+// the password bytes into workspace/UI code.
+func (s *Session) CredentialMetadata() (keyFile, yubiKey string) {
+	if s == nil {
+		return "", ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.creds.KeyFile, s.creds.YubiKey
 }
 
 // SetCredentials stores only the fallback credentials required by backends
@@ -198,21 +231,33 @@ func (s *Session) snapshotError(ctx context.Context, snapshot *Snapshot) error {
 }
 
 // ReplaceDatabase transfers ownership of a write or reload result.
-func (s *Session) ReplaceDatabase(db *vault.Database) {
+func (s *Session) ReplaceDatabase(db *vault.Database) bool {
 	if s == nil {
 		if db != nil {
 			db.Clear()
 		}
-		return
+		return false
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if db != nil && s.db == nil {
+		return false
+	}
 	s.gen++
+	if db == nil || db.Unlocked() {
+		s.creds.Clear()
+	}
+	if db == s.db {
+		return true
+	}
 	if s.db != nil && s.db != db {
-		s.db.TransferBackend(db)
+		if db != nil {
+			s.db.TransferBackend(db)
+		}
 		s.db.Clear()
 	}
 	s.db = db
+	return true
 }
 
 // Search ranks the current vault's entries using non-secret search fields.

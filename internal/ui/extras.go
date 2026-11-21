@@ -68,7 +68,7 @@ type extrasExportMsg struct {
 
 func (m *Model) extraTarget() (*workspace.Session, *vault.Entry) {
 	session := m.ws.ActiveSession()
-	if session == nil || session.DB == nil {
+	if session == nil || session.Database() == nil {
 		return nil, nil
 	}
 	entry := m.selected()
@@ -84,11 +84,11 @@ func (m *Model) currentExtraEntry(state *extraState) (*workspace.Session, *vault
 	}
 	session := m.ws.Sessions[state.sessionID]
 	active := m.ws.ActiveSession()
-	if session == nil || session.DB == nil || active == nil || active.ID != state.sessionID {
+	if session == nil || session.Database() == nil || active == nil || active.ID != state.sessionID {
 		return nil, nil
 	}
-	for i := range session.DB.Entries {
-		entry := &session.DB.Entries[i]
+	for i := range session.Database().Entries {
+		entry := &session.Database().Entries[i]
 		if entry.UUID == state.entryUUID && entry.GroupUUID == state.groupUUID {
 			return session, entry
 		}

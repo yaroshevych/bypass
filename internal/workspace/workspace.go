@@ -15,13 +15,27 @@ type Session struct {
 	Core         *session.Session
 	Path         string
 	ActiveViewID string
-	DB           *vault.Database
-	Credentials  vault.Credentials
 	ReadOnly     bool
 	Stale        bool
 	LastActivity time.Time
 	Usage        map[string]Access
 	Destinations []string
+}
+
+// Database returns the borrowed database owned by Core.
+func (s *Session) Database() *vault.Database {
+	if s == nil || s.Core == nil {
+		return nil
+	}
+	return s.Core.Database()
+}
+
+// Credentials returns a caller-owned copy of credentials retained by Core.
+func (s *Session) Credentials() vault.Credentials {
+	if s == nil || s.Core == nil {
+		return vault.Credentials{}
+	}
+	return s.Core.Credentials()
 }
 
 type Access struct {
@@ -85,14 +99,28 @@ func (w *Workspace) Open(db *vault.Database) (reused bool) {
 // The caller transfers ownership of both arguments to the workspace.
 func (w *Workspace) OpenWithCore(db *vault.Database, core *session.Session) (reused bool) {
 	if db == nil {
+		if core != nil {
+			core.Adopt(nil)
+		}
+		return false
+	}
+	if core == nil {
+		if w.CoreFactory != nil {
+			core = w.CoreFactory()
+		}
+		if core == nil {
+			core = session.New(nil, nil, 0)
+		}
+		core.Adopt(db)
+	} else if current := core.Database(); current == nil {
+		core.Adopt(db)
+	} else if current != db {
+		core.Adopt(nil)
+		db.Clear()
 		return false
 	}
 	if !w.CanOpen(db.Path) {
-		if core != nil {
-			core.Adopt(nil)
-		} else {
-			db.Clear()
-		}
+		core.Adopt(nil)
 		return false
 	}
 	path := canonicalPath(db.Path)
@@ -103,28 +131,19 @@ func (w *Workspace) OpenWithCore(db *vault.Database, core *session.Session) (reu
 			break
 		}
 	}
-	if (session == nil || session.DB == nil) && core == nil && w.CoreFactory != nil {
-		core = w.CoreFactory()
-		core.Adopt(db)
-	}
 	if session != nil {
 		reused = true
-		if session.DB == nil {
-			session.DB = db
+		if session.Database() == nil {
 			if session.Core != nil && session.Core != core {
 				session.Core.Adopt(nil)
 			}
 			session.Core = core
 			session.Stale = false
 			session.LastActivity = time.Now()
-		} else if session.DB != db {
+		} else if session.Database() != db {
 			// The caller may have just decrypted a second copy of the same
 			// vault. Keep one shared database and discard the duplicate plaintext.
-			if core != nil {
-				core.Adopt(nil)
-			} else {
-				db.Clear()
-			}
+			core.Adopt(nil)
 		}
 		for i := range w.Views {
 			if w.Views[i].SessionID == session.ID && w.Views[i].ID == session.ActiveViewID {
@@ -139,7 +158,7 @@ func (w *Workspace) OpenWithCore(db *vault.Database, core *session.Session) (reu
 			}
 		}
 	} else {
-		session = &Session{ID: w.id("session"), Path: path, DB: db, Core: core, ReadOnly: true, LastActivity: time.Now(), Usage: make(map[string]Access)}
+		session = &Session{ID: w.id("session"), Path: path, Core: core, ReadOnly: true, LastActivity: time.Now(), Usage: make(map[string]Access)}
 		w.Sessions[session.ID] = session
 	}
 	w.Views = append(w.Views, View{ID: w.id("view"), SessionID: session.ID, GroupUUID: db.RootUUID})
@@ -234,15 +253,14 @@ func (w *Workspace) ReplaceDatabase(sessionID string, db *vault.Database) bool {
 	if session == nil || db == nil {
 		return false
 	}
-	if session.DB != db {
-		if session.Core != nil {
-			session.Core.ReplaceDatabase(db)
-		} else if session.DB != nil {
-			session.DB.TransferBackend(db)
-			session.DB.Clear()
+	if session.Core == nil || session.Database() == nil {
+		return false
+	}
+	if session.Database() != db {
+		if !session.Core.ReplaceDatabase(db) {
+			return false
 		}
 	}
-	session.DB = db
 	session.Stale = false
 	session.LastActivity = time.Now()
 	return true
@@ -253,12 +271,6 @@ func (w *Workspace) SetCredentials(sessionID string, credentials vault.Credentia
 	if session == nil {
 		return false
 	}
-	owned := vault.Credentials{}
-	if session.DB == nil || !session.DB.Unlocked() {
-		owned = credentials.Clone()
-	}
-	session.Credentials.Clear()
-	session.Credentials = owned
 	if session.Core != nil {
 		session.Core.SetCredentials(credentials)
 	}
@@ -268,11 +280,15 @@ func (w *Workspace) SetCredentials(sessionID string, credentials vault.Credentia
 
 func (w *Workspace) RecordAccess(sessionID, entryUUID string, now time.Time) bool {
 	session := w.Sessions[sessionID]
-	if session == nil || session.DB == nil || entryUUID == "" {
+	if session == nil || entryUUID == "" {
+		return false
+	}
+	db := session.Database()
+	if db == nil {
 		return false
 	}
 	found := false
-	for _, entry := range session.DB.Entries {
+	for _, entry := range db.Entries {
 		if entry.UUID == entryUUID {
 			found = true
 			break
@@ -298,15 +314,9 @@ func (w *Workspace) LockSession(sessionID string) bool {
 	if session == nil {
 		return false
 	}
-	if session.DB != nil {
-		if session.Core != nil {
-			session.Core.Adopt(nil)
-		} else {
-			session.DB.Clear()
-		}
-		session.DB = nil
+	if session.Core != nil {
+		session.Core.Adopt(nil)
 	}
-	session.Credentials.Clear()
 	for i := range w.Views {
 		if w.Views[i].SessionID == sessionID {
 			w.Views[i].Query = ""
@@ -335,15 +345,9 @@ func (w *Workspace) CloseVault() bool {
 	if session == nil {
 		return false
 	}
-	if session.DB != nil {
-		if session.Core != nil {
-			session.Core.Adopt(nil)
-		} else {
-			session.DB.Clear()
-		}
-		session.DB = nil
+	if session.Core != nil {
+		session.Core.Adopt(nil)
 	}
-	session.Credentials.Clear()
 	clearSessionMemory(session)
 	oldLen := len(w.Views)
 	kept := w.Views[:0]
@@ -392,15 +396,9 @@ func (w *Workspace) Close() {
 	}
 	for _, session := range w.Sessions {
 		if session != nil {
-			if session.DB != nil {
-				if session.Core != nil {
-					session.Core.Adopt(nil)
-				} else {
-					session.DB.Clear()
-				}
-				session.DB = nil
+			if session.Core != nil {
+				session.Core.Adopt(nil)
 			}
-			session.Credentials.Clear()
 			clearSessionMemory(session)
 		}
 	}
@@ -416,15 +414,9 @@ func (w *Workspace) cleanupSession(id string) {
 		}
 	}
 	if session := w.Sessions[id]; session != nil {
-		if session.DB != nil {
-			if session.Core != nil {
-				session.Core.Adopt(nil)
-			} else {
-				session.DB.Clear()
-			}
-			session.DB = nil
+		if session.Core != nil {
+			session.Core.Adopt(nil)
 		}
-		session.Credentials.Clear()
 		clearSessionMemory(session)
 		delete(w.Sessions, id)
 	}

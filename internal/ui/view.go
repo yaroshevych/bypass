@@ -354,12 +354,12 @@ func (m *Model) workspaceLines() []string {
 	if !s.ReadOnly {
 		status = "Unlocked"
 	}
-	if s.DB == nil {
+	if s.Database() == nil {
 		status = "Vault locked"
 	}
 	right := status
-	if s.DB != nil {
-		right = fmt.Sprintf("%d entries · shift+l lock", len(s.DB.Entries))
+	if s.Database() != nil {
+		right = fmt.Sprintf("%d entries · shift+l lock", len(s.Database().Entries))
 		if s.Stale {
 			right = "Changed externally · ctrl+r reload · shift+l lock"
 		}
@@ -450,7 +450,7 @@ func (m *Model) workspaceLines() []string {
 	if !compact {
 		lines = append(lines, m.tabRule(w, false))
 	}
-	if s.DB == nil {
+	if s.Database() == nil {
 		home, _ := os.UserHomeDir()
 		lines = append(lines, "", accent.Render("  Vault locked"), secondary.Render("  "+displayVaultPath(s.Path, home)), "", secondary.Render("  enter to unlock"), secondary.Render("  o open another vault"))
 		footerHeight := 1
@@ -1021,7 +1021,7 @@ func (m *Model) visibleTabIndexes() []int {
 	}
 	firstBySession := make(map[string]int)
 	for i, view := range m.ws.Views {
-		if s := m.ws.Sessions[view.SessionID]; s != nil && s.DB == nil {
+		if s := m.ws.Sessions[view.SessionID]; s != nil && s.Database() == nil {
 			if _, ok := firstBySession[view.SessionID]; !ok {
 				firstBySession[view.SessionID] = i
 			}
@@ -1040,16 +1040,16 @@ func (m *Model) visibleTabIndexes() []int {
 		}
 	}
 	if active := m.ws.ActiveView(); active != nil {
-		if s := m.ws.Sessions[active.SessionID]; s != nil && s.DB == nil {
+		if s := m.ws.Sessions[active.SessionID]; s != nil && s.Database() == nil {
 			representative[active.SessionID] = m.ws.Active
 		}
 	}
 	indexes := make([]int, 0, len(m.ws.Views))
 	for i, view := range m.ws.Views {
-		if s := m.ws.Sessions[view.SessionID]; s != nil && s.DB == nil && firstBySession[view.SessionID] != i {
+		if s := m.ws.Sessions[view.SessionID]; s != nil && s.Database() == nil && firstBySession[view.SessionID] != i {
 			continue
 		}
-		if s := m.ws.Sessions[view.SessionID]; s != nil && s.DB == nil {
+		if s := m.ws.Sessions[view.SessionID]; s != nil && s.Database() == nil {
 			indexes = append(indexes, representative[view.SessionID])
 		} else {
 			indexes = append(indexes, i)
@@ -1083,10 +1083,10 @@ func (m *Model) tabLabels() []string {
 				break
 			}
 		}
-		if s.DB == nil {
+		if s.Database() == nil {
 			// A single vault tab represents every preserved view while locked.
 		} else {
-			for _, entry := range s.DB.Entries {
+			for _, entry := range s.Database().Entries {
 				if entry.UUID == view.SelectedUUID {
 					if title := visibleField(entry, "Title"); title != "" {
 						label = fmt.Sprintf("%d %s", position+1, title)

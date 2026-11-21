@@ -239,7 +239,7 @@ func TestCustomFieldDialogFitsDetailsPane(t *testing.T) {
 
 func TestEmailIsStandardFieldAfterURL(t *testing.T) {
 	m, _ := operationModel(t)
-	m.ws.ActiveSession().DB.Entries[0].Fields = append(m.ws.ActiveSession().DB.Entries[0].Fields, vault.Field{Name: "URL", Value: "https://example.test"}, vault.Field{Name: "Email", Value: "person@example.test"}, vault.Field{Name: "Notes", Value: "notes"})
+	m.ws.ActiveSession().Database().Entries[0].Fields = append(m.ws.ActiveSession().Database().Entries[0].Fields, vault.Field{Name: "URL", Value: "https://example.test"}, vault.Field{Name: "Email", Value: "person@example.test"}, vault.Field{Name: "Notes", Value: "notes"})
 	names := m.fieldNames()
 	urlIndex, emailIndex, notesIndex := -1, -1, -1
 	for i, name := range names {
@@ -255,7 +255,7 @@ func TestEmailIsStandardFieldAfterURL(t *testing.T) {
 	if emailIndex != urlIndex+1 || notesIndex != emailIndex+1 {
 		t.Fatalf("unexpected view field order: %v", names)
 	}
-	e := newEntryEditor(&m.ws.ActiveSession().DB.Entries[0], "root")
+	e := newEntryEditor(&m.ws.ActiveSession().Database().Entries[0], "root")
 	if fieldIndex("Email") != fieldIndex("URL")+1 || e.values()["Email"] != "person@example.test" {
 		t.Fatalf("email was not loaded as a standard editor field: %+v", e.customFields)
 	}
@@ -272,7 +272,7 @@ func TestEmailIsStandardFieldAfterURL(t *testing.T) {
 
 func TestEmptyStandardFieldsAreHidden(t *testing.T) {
 	m, _ := operationModel(t)
-	e := &m.ws.ActiveSession().DB.Entries[0]
+	e := &m.ws.ActiveSession().Database().Entries[0]
 	e.Fields = []vault.Field{{Name: "Title", Value: "Entry"}, {Name: "UserName"}, {Name: "URL"}, {Name: "Email"}, {Name: "Notes"}}
 	e.HasPassword = false
 	if names := m.fieldNames(); len(names) != 0 {

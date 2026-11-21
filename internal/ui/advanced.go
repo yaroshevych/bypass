@@ -38,7 +38,7 @@ func (m *Model) persistPreferences() tea.Cmd {
 }
 func (m *Model) anyUnlocked() bool {
 	for _, s := range m.ws.Sessions {
-		if s.DB != nil {
+		if s.Database() != nil {
 			return true
 		}
 	}
@@ -221,7 +221,7 @@ func (m *Model) pinKey(k tea.KeyMsg) tea.Cmd {
 		}
 		m.pinError = ""
 		for _, s := range m.ws.Sessions {
-			if s.DB != nil {
+			if s.Database() != nil {
 				s.LastActivity = m.now()
 			}
 		}

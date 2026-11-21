@@ -76,7 +76,11 @@ func (m *Model) openCredentials() tea.Cmd {
 		return nil
 	}
 	s := m.ws.ActiveSession()
-	if s.Credentials.YubiKey != "" {
+	if s == nil || s.Core == nil {
+		return nil
+	}
+	_, yubiKey := s.Core.CredentialMetadata()
+	if yubiKey != "" {
 		m.setNotice("backend can't change hardware-factor credentials", true)
 		return nil
 	}
@@ -88,13 +92,14 @@ func (m *Model) openCredentials() tea.Cmd {
 	m.clearExtras()
 	m.clearLifecycle()
 	m.lifecycle = &lifecycleState{kind: "credentials", sessionID: s.ID, inputs: make([]input, 3)}
-	m.lifecycle.inputs[2].set(s.Credentials.KeyFile)
+	keyFile, _ := s.Core.CredentialMetadata()
+	m.lifecycle.inputs[2].set(keyFile)
 	return nil
 }
 
 func (m *Model) openDatabaseInfo() tea.Cmd {
 	s := m.ws.ActiveSession()
-	if s == nil || s.DB == nil {
+	if s == nil || s.Database() == nil {
 		return nil
 	}
 	if s.Core == nil || !s.Core.CanInspectDatabase() {
@@ -198,7 +203,7 @@ func (m *Model) submitLifecycle() tea.Cmd {
 		return nil
 	}
 	s := m.ws.Sessions[l.sessionID]
-	if s == nil || s.DB == nil || s.ReadOnly || s.Stale {
+	if s == nil || s.Database() == nil || s.ReadOnly || s.Stale {
 		creds.Clear()
 		l.err = "Unlock and reload a writable vault before changing credentials."
 		return nil
@@ -237,21 +242,17 @@ func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
 	defer result.credentials.Clear()
 	l := m.lifecycle
 	if l == nil || l.request != result.id || result.id != m.operation {
-		if result.db != nil {
-			result.db.Clear()
-		}
+		m.discardDatabase(result.sessionID, result.db)
 		return nil, true
 	}
 	m.cancelOperation()
 	l.busy = false
 	if result.err != nil {
-		if result.db != nil {
-			result.db.Clear()
-		}
+		m.discardDatabase(result.sessionID, result.db)
 		l.confirm = false
 		var loss *vault.DataLossError
 		if result.kind == "credentials" && errors.As(result.err, &loss) {
-			if session := m.ws.Sessions[result.sessionID]; session != nil && session.DB != nil && session.DB.Path == loss.Path && session.DB.Revision == loss.Revision && !session.ReadOnly && !session.Stale {
+			if session := m.ws.Sessions[result.sessionID]; session != nil && session.Database() != nil && session.Database().Path == loss.Path && session.Database().Revision == loss.Revision && !session.ReadOnly && !session.Stale {
 				m.dialog = &actionDialog{kind: "data-loss", title: "Confirm metadata loss", options: []string{"Cancel", "Change credentials and lose metadata"}, selected: 0, sessionID: result.sessionID, loss: loss, credentials: ptrCredentials(result.credentials), message: MetadataLossMessage(loss, "Credential rotation", "An encrypted backup with the old credentials will be created before saving.")}
 				return nil, true
 			}
@@ -301,7 +302,7 @@ func (m *Model) updateLifecycle(msg tea.Msg) (tea.Cmd, bool) {
 		m.screen = browse
 	} else {
 		if !m.ws.ReplaceDatabase(result.sessionID, result.db) {
-			result.db.Clear()
+			m.discardDatabase(result.sessionID, result.db)
 			m.clearLifecycle()
 			return nil, true
 		}
@@ -344,7 +345,7 @@ func MetadataLossMessage(loss *vault.DataLossError, operation, backup string) []
 
 func (m *Model) rotateCredentialsWithLossConsent(sessionID string, creds vault.Credentials, loss *vault.DataLossError) tea.Cmd {
 	s := m.ws.Sessions[sessionID]
-	if s == nil || s.DB == nil || s.Core == nil || !s.Core.CanChangeCredentialsAllowingMetadataLoss() || s.ReadOnly || s.Stale || loss == nil || s.DB.Path != loss.Path || s.DB.Revision != loss.Revision {
+	if s == nil || s.Database() == nil || s.Core == nil || !s.Core.CanChangeCredentialsAllowingMetadataLoss() || s.ReadOnly || s.Stale || loss == nil || s.Database().Path != loss.Path || s.Database().Revision != loss.Revision {
 		creds.Clear()
 		m.setNotice("vault changed · reload before saving", true)
 		return nil

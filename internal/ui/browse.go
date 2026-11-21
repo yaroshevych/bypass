@@ -233,7 +233,7 @@ func (m *Model) updateEditorHover(x, y int) {
 }
 
 func (m *Model) footerActionAt(x, y int) string {
-	if m.screen != browse || m.ws.ActiveSession() == nil || m.ws.ActiveSession().DB == nil || y != m.height-1 {
+	if m.screen != browse || m.ws.ActiveSession() == nil || m.ws.ActiveSession().Database() == nil || y != m.height-1 {
 		return ""
 	}
 	lines := m.workspaceLines()
@@ -271,7 +271,7 @@ func (m *Model) welcomePointer(msg tea.MouseMsg) tea.Cmd {
 
 func (m *Model) canAddTab() bool {
 	s := m.ws.ActiveSession()
-	return s != nil && s.DB != nil && len(m.ws.Views) < workspace.MaxTabs
+	return s != nil && s.Database() != nil && len(m.ws.Views) < workspace.MaxTabs
 }
 
 func (m *Model) switchTabPosition(position int) bool {
@@ -299,7 +299,7 @@ func (m *Model) moveTab(delta int) bool {
 
 func (m *Model) duplicateTab() tea.Cmd {
 	s := m.ws.ActiveSession()
-	if s == nil || s.DB == nil {
+	if s == nil || s.Database() == nil {
 		return nil
 	}
 	if !m.ws.Duplicate() && len(m.ws.Views) >= workspace.MaxTabs {
@@ -428,7 +428,7 @@ func (m *Model) selectedRow() *vault.Entry {
 
 func (m *Model) normalize() {
 	v := m.ws.ActiveView()
-	if v == nil || m.ws.ActiveSession() == nil || m.ws.ActiveSession().DB == nil {
+	if v == nil || m.ws.ActiveSession() == nil || m.ws.ActiveSession().Database() == nil {
 		return
 	}
 	m.remapNav()
@@ -532,7 +532,7 @@ func (m *Model) mouse(msg tea.MouseMsg) {
 	}
 	v := m.ws.ActiveView()
 	session := m.ws.ActiveSession()
-	if v == nil || session == nil || session.DB == nil {
+	if v == nil || session == nil || session.Database() == nil {
 		return
 	}
 	var target *paneRect
@@ -665,7 +665,7 @@ func (m *Model) selectTagView(tag string) {
 
 func (m *Model) restoreGroup() {
 	s := m.ws.ActiveSession()
-	if s == nil || s.DB == nil {
+	if s == nil || s.Database() == nil {
 		return
 	}
 	for i := range m.ws.Views {
@@ -692,7 +692,7 @@ func (m *Model) adjustViewport() {
 	}
 	v := m.ws.ActiveView()
 	session := m.ws.ActiveSession()
-	if v == nil || session == nil || session.DB == nil {
+	if v == nil || session == nil || session.Database() == nil {
 		return
 	}
 	m.remapNav()

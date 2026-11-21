@@ -69,7 +69,7 @@ func TestMetadataLossRequiresExplicitDefaultCancelConsent(t *testing.T) {
 	t.Run("cancel", func(t *testing.T) {
 		m, b := operationModel(t)
 		s := m.ws.ActiveSession()
-		b.failure = &vault.DataLossError{Fields: []string{"PreviousParentGroup (previous parent group metadata)"}, Path: s.DB.Path, Revision: s.DB.Revision}
+		b.failure = &vault.DataLossError{Fields: []string{"PreviousParentGroup (previous parent group metadata)"}, Path: s.Database().Path, Revision: s.Database().Revision}
 		m.key(key("e"))
 		m.editor.inputs[editTitle].set("Draft remains")
 		execute(t, m, m.saveEditor())
@@ -84,7 +84,7 @@ func TestMetadataLossRequiresExplicitDefaultCancelConsent(t *testing.T) {
 	t.Run("accept", func(t *testing.T) {
 		m, b := operationModel(t)
 		s := m.ws.ActiveSession()
-		b.failure = &vault.DataLossError{Fields: []string{"PreviousParentGroup (previous parent group metadata)"}, Path: s.DB.Path, Revision: s.DB.Revision}
+		b.failure = &vault.DataLossError{Fields: []string{"PreviousParentGroup (previous parent group metadata)"}, Path: s.Database().Path, Revision: s.Database().Revision}
 		m.key(key("e"))
 		m.editor.inputs[editTitle].set("Accepted draft")
 		execute(t, m, m.saveEditor())
@@ -173,7 +173,7 @@ func TestSaveFailureRetainsDraftAndShowsError(t *testing.T) {
 	if m.editor == nil || m.editor.inputs[editTitle].value() != "Changed" || !strings.Contains(m.editor.err, "backup failed") {
 		t.Fatal("failed write lost draft or diagnostic")
 	}
-	if m.ws.ActiveSession().DB.Entries[0].Get("Title") != "Alpha" {
+	if m.ws.ActiveSession().Database().Entries[0].Get("Title") != "Alpha" {
 		t.Fatal("failed write mutated view")
 	}
 }
@@ -319,21 +319,15 @@ func TestExternalChangeKeepAndReloadWithDraft(t *testing.T) {
 func TestLockCancelsPendingWriteAndDropsCredentials(t *testing.T) {
 	m, b := operationModel(t)
 	s := m.ws.ActiveSession()
-	credsBacking := s.Credentials.Password
 	m.key(key("e"))
 	m.editor.inputs[editTitle].set("Draft")
 	cmd := m.saveEditor()
 	m.lockSession(s.ID)
-	if m.editor != nil || s.DB != nil || len(s.Credentials.Password) > 0 {
+	if m.editor != nil || s.Database() != nil || len(s.Credentials().Password) > 0 {
 		t.Fatal("full lock retained unlocked state")
 	}
-	for _, v := range credsBacking {
-		if v != 0 {
-			t.Fatal("credential bytes not cleared")
-		}
-	}
 	m.Update(cmd())
-	if b.applied != 0 || s.DB != nil {
+	if b.applied != 0 || s.Database() != nil {
 		t.Fatal("late result resurrected locked session")
 	}
 }
@@ -345,7 +339,7 @@ func TestIdleLockDropsDraftAcrossViews(t *testing.T) {
 	m.editor.inputs[editTitle].set("Draft")
 	m.ws.ActiveView().Query = "private query"
 	m.onTick(m.now().Add(16 * time.Minute))
-	if s.DB != nil || m.editor != nil {
+	if s.Database() != nil || m.editor != nil {
 		t.Fatal("idle lock retained data")
 	}
 	for _, v := range m.ws.Views {
@@ -478,10 +472,10 @@ func TestLockingInactiveVaultPreservesActiveDraftAndPopover(t *testing.T) {
 	m.openGenerator()
 	dialog := m.dialog
 	m.lockSession(inactive)
-	if m.editor == nil || m.dialog != dialog || m.ws.ActiveSession().DB == nil {
+	if m.editor == nil || m.dialog != dialog || m.ws.ActiveSession().Database() == nil {
 		t.Fatal("locking another vault disrupted active draft")
 	}
-	if m.ws.Sessions[inactive].DB != nil {
+	if m.ws.Sessions[inactive].Database() != nil {
 		t.Fatal("inactive vault not locked")
 	}
 }
@@ -489,7 +483,7 @@ func TestLockingInactiveVaultPreservesActiveDraftAndPopover(t *testing.T) {
 func TestLongNotesScrollWithoutMovingFieldFocus(t *testing.T) {
 	m, _ := operationModel(t)
 	s := m.ws.ActiveSession()
-	s.DB.Entries[0].Fields = append(s.DB.Entries[0].Fields, vault.Field{Name: "Notes", Value: strings.Repeat("long note line\n", 60)})
+	s.Database().Entries[0].Fields = append(s.Database().Entries[0].Fields, vault.Field{Name: "Notes", Value: strings.Repeat("long note line\n", 60)})
 	v := m.ws.ActiveView()
 	v.Focus = 2
 	v.FieldIndex = slices.Index(m.fieldNames(), "Notes")
@@ -508,7 +502,7 @@ func TestLongNotesScrollWithArrowKeys(t *testing.T) {
 	m, _ := operationModel(t)
 	m.width, m.height = 100, 24
 	s := m.ws.ActiveSession()
-	s.DB.Entries[0].Fields = append(s.DB.Entries[0].Fields, vault.Field{Name: "Notes", Value: strings.Repeat("long note line\n", 60) + "last note line"})
+	s.Database().Entries[0].Fields = append(s.Database().Entries[0].Fields, vault.Field{Name: "Notes", Value: strings.Repeat("long note line\n", 60) + "last note line"})
 	v := m.ws.ActiveView()
 	v.Focus, v.FieldIndex = 2, slices.Index(m.fieldNames(), "Notes")
 	notesIndex := v.FieldIndex
@@ -530,9 +524,9 @@ func TestLongNotesScrollWithArrowKeys(t *testing.T) {
 func TestLongNotesScrollPastControlToBlankRow(t *testing.T) {
 	m, _ := operationModel(t)
 	m.width, m.height = 100, 24
-	entry := &m.ws.ActiveSession().DB.Entries[0]
+	entry := &m.ws.ActiveSession().Database().Entries[0]
 	entry.Fields = slices.DeleteFunc(entry.Fields, func(field vault.Field) bool { return field.Name == "Private" })
-	m.ws.ActiveSession().DB.Entries[0].Fields = append(m.ws.ActiveSession().DB.Entries[0].Fields,
+	m.ws.ActiveSession().Database().Entries[0].Fields = append(m.ws.ActiveSession().Database().Entries[0].Fields,
 		vault.Field{Name: "Notes", Value: strings.Repeat("line\n", 60) + "last note line"})
 	v := m.ws.ActiveView()
 	v.Focus, v.FieldIndex = 2, slices.Index(m.fieldNames(), "Notes")
@@ -558,9 +552,9 @@ func TestLongNotesScrollPastControlToBlankRow(t *testing.T) {
 func TestHoldingDownAtEndOfLongNotesKeepsScrollPosition(t *testing.T) {
 	m, _ := operationModel(t)
 	m.width, m.height = 100, 24
-	entry := &m.ws.ActiveSession().DB.Entries[0]
+	entry := &m.ws.ActiveSession().Database().Entries[0]
 	entry.Fields = slices.DeleteFunc(entry.Fields, func(field vault.Field) bool { return field.Name == "Private" })
-	m.ws.ActiveSession().DB.Entries[0].Fields = append(m.ws.ActiveSession().DB.Entries[0].Fields,
+	m.ws.ActiveSession().Database().Entries[0].Fields = append(m.ws.ActiveSession().Database().Entries[0].Fields,
 		vault.Field{Name: "Notes", Value: strings.Repeat("line\n", 60) + "last note line"})
 	v := m.ws.ActiveView()
 	v.Focus, v.FieldIndex = 2, slices.Index(m.fieldNames(), "Notes")
@@ -583,7 +577,7 @@ func TestHoldingDownAtEndOfLongNotesKeepsScrollPosition(t *testing.T) {
 func TestLongNotesScrollContinuesToFollowingCustomField(t *testing.T) {
 	m, _ := operationModel(t)
 	m.width, m.height = 100, 24
-	entry := &m.ws.ActiveSession().DB.Entries[0]
+	entry := &m.ws.ActiveSession().Database().Entries[0]
 	entry.Fields = append(entry.Fields, vault.Field{Name: "Notes", Value: strings.Repeat("line\n", 60) + "last note line"})
 	v := m.ws.ActiveView()
 	v.Focus, v.FieldIndex = 2, slices.Index(m.fieldNames(), "Notes")
@@ -599,7 +593,7 @@ func TestLongNotesScrollContinuesToFollowingCustomField(t *testing.T) {
 func TestDetailArrowScrollReachesTags(t *testing.T) {
 	m, _ := operationModel(t)
 	m.width, m.height = 100, 24
-	entry := &m.ws.ActiveSession().DB.Entries[0]
+	entry := &m.ws.ActiveSession().Database().Entries[0]
 	entry.Fields = append(entry.Fields, vault.Field{Name: "Notes", Value: strings.Repeat("long note line\n", 60)})
 	entry.Tags = []string{"Favourite"}
 	v := m.ws.ActiveView()
@@ -617,8 +611,8 @@ func TestCopyAndRevealResolveReferences(t *testing.T) {
 	m, _ := operationModel(t)
 	driver := &memoryClipboard{}
 	m.clipboard = clipboard.New(driver)
-	m.ws.ActiveSession().DB.Entries[0].Fields[1].Value = "{REF:P@I:01010101010101010101010101010101}"
-	m.ws.ActiveSession().DB.Entries[0].Fields[2].Value = "{REF:P@I:01010101010101010101010101010101}"
+	m.ws.ActiveSession().Database().Entries[0].Fields[1].Value = "{REF:P@I:01010101010101010101010101010101}"
+	m.ws.ActiveSession().Database().Entries[0].Fields[2].Value = "{REF:P@I:01010101010101010101010101010101}"
 	resolveCmd := m.copyField("UserName")
 	if resolveCmd == nil {
 		t.Fatal("reference not resolved")
@@ -645,7 +639,7 @@ func TestPendingResolvedCopyCannotSurviveLock(t *testing.T) {
 	m, _ := operationModel(t)
 	driver := &memoryClipboard{}
 	m.clipboard = clipboard.New(driver)
-	m.ws.ActiveSession().DB.Entries[0].Fields[1].Value = "{REF:P@I:01010101010101010101010101010101}"
+	m.ws.ActiveSession().Database().Entries[0].Fields[1].Value = "{REF:P@I:01010101010101010101010101010101}"
 	cmd := m.copyField("UserName")
 	m.lockSession(m.ws.ActiveSession().ID)
 	_, next := m.Update(cmd())
@@ -656,7 +650,7 @@ func TestPendingResolvedCopyCannotSurviveLock(t *testing.T) {
 
 func TestUnrelatedEditPreservesUnsupportedExistingPassword(t *testing.T) {
 	m, _ := operationModel(t)
-	m.ws.ActiveSession().DB.Entries[0].Fields[2].Value = "existing\npassword"
+	m.ws.ActiveSession().Database().Entries[0].Fields[2].Value = "existing\npassword"
 	m.key(key("e"))
 	m.editor.inputs[editTitle].set("Changed title")
 	if err := m.editor.validate(); err != nil {

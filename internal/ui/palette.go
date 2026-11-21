@@ -42,7 +42,7 @@ type paletteRow struct {
 
 func (m *Model) writeReason() string {
 	s := m.ws.ActiveSession()
-	if s == nil || s.DB == nil {
+	if s == nil || s.Database() == nil {
 		return "Unlock a vault first"
 	}
 	if s.ReadOnly {
@@ -60,7 +60,7 @@ func (m *Model) commands() []command {
 	s := m.ws.ActiveSession()
 	v := m.ws.ActiveView()
 	entry := m.selected()
-	auth := s != nil && s.DB != nil
+	auth := s != nil && s.Database() != nil
 	needVault := ""
 	if !auth {
 		needVault = "Unlock a vault first"
@@ -158,8 +158,11 @@ func (m *Model) commands() []command {
 	if s == nil || s.Core == nil || !s.Core.CanChangeCredentials() {
 		credentialsReason = "Credential changes unavailable from this backend"
 	}
-	if s != nil && s.Credentials.YubiKey != "" {
-		credentialsReason = "Hardware-factor credential changes unsupported"
+	if s != nil && s.Core != nil {
+		_, yubiKey := s.Core.CredentialMetadata()
+		if yubiKey != "" {
+			credentialsReason = "Hardware-factor credential changes unsupported"
+		}
 	}
 	add("credentials", "Vault", "Change Password…", "", credentialsReason, "", func() tea.Cmd { return m.leaveEditor(m.openCredentials) })
 	add("read-only", "Vault", readLabel, "", readOnlyReason, "", invoke(keyReadOnly))
@@ -167,8 +170,8 @@ func (m *Model) commands() []command {
 	add("edit", "Entry", "Edit Entry…", "", editReason, "", invoke("e"))
 	add("group", "Entry", "New Group…", "", writeReason, "", func() tea.Cmd { return m.leaveEditor(invoke("g")) })
 	moveGroupID := ""
-	if view := m.ws.ActiveView(); s != nil && s.DB != nil && view != nil && view.Focus == 0 {
-		if nav := m.currentNav(); nav.kind == "group" && nav.group != s.DB.RootUUID && nav.group != s.DB.RecycleBinUUID {
+	if view := m.ws.ActiveView(); s != nil && s.Database() != nil && view != nil && view.Focus == 0 {
+		if nav := m.currentNav(); nav.kind == "group" && nav.group != s.Database().RootUUID && nav.group != s.Database().RecycleBinUUID {
 			moveGroupID = nav.group
 		}
 	}
@@ -184,7 +187,7 @@ func (m *Model) commands() []command {
 	}
 	add("move", "Entry", "Move Entry…", "", moveReason, "", func() tea.Cmd {
 		if moveGroupID != "" {
-			for _, group := range s.DB.Groups {
+			for _, group := range s.Database().Groups {
 				if group.UUID == moveGroupID {
 					m.chooseGroupDestination(group)
 					return nil
@@ -241,7 +244,7 @@ func (m *Model) commands() []command {
 	add("jump", "Entry", "Jump…", "", needEntry, "", m.beginJump)
 	add("zoom", "View", "Zoom", "", needVault, "", func() tea.Cmd { v.Zoom = !v.Zoom; return nil })
 	newTabReason := closeReason
-	if s == nil || s.DB == nil {
+	if s == nil || s.Database() == nil {
 		newTabReason = needVault
 	}
 	add("duplicate", "Tabs", "New Tab", "", newTabReason, "", func() tea.Cmd { return m.leaveEditor(m.duplicateTab) })

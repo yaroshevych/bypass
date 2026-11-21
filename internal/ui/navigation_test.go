@@ -25,7 +25,7 @@ func TestSidebarOmitsEmptyTagsSectionAndFavoriteTag(t *testing.T) {
 		}
 	}
 
-	m.ws.ActiveSession().DB.Entries[0].Tags = []string{"Favorite", "Work"}
+	m.ws.ActiveSession().Database().Entries[0].Tags = []string{"Favorite", "Work"}
 	foundWork, foundTagsSection := false, false
 	for _, item := range m.navigation() {
 		if item.kind == "tag" {
@@ -49,8 +49,8 @@ func TestJumpSelectsEmailWhenPresent(t *testing.T) {
 	if e == nil {
 		t.Fatal("expected selected entry")
 	}
-	for i := range m.ws.ActiveSession().DB.Entries {
-		entry := &m.ws.ActiveSession().DB.Entries[i]
+	for i := range m.ws.ActiveSession().Database().Entries {
+		entry := &m.ws.ActiveSession().Database().Entries[i]
 		if entry.UUID == e.UUID {
 			entry.Fields = append(entry.Fields, vault.Field{Name: "Email", Value: "user@example.test"})
 		}

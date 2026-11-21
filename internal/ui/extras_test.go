@@ -73,7 +73,7 @@ func newExtrasTestModel(t *testing.T, db *vault.Database, backend *extrasTestBac
 	m.settings.BackupDir = t.TempDir()
 	m.ws.Open(db)
 	m.ws.ActiveSession().ReadOnly = false
-	m.ws.ActiveSession().Credentials = vault.Credentials{NoPassword: true}
+	m.ws.SetCredentials(m.ws.ActiveSession().ID, vault.Credentials{NoPassword: true})
 	m.normalize()
 	return m
 }

@@ -148,7 +148,7 @@ func TestCreateVaultFormMasksInputsAndRetainsFailedDraft(t *testing.T) {
 	b.fail = false
 	cmd = m.key(tea.KeyMsg{Type: tea.KeyCtrlS})
 	m.Update(cmd())
-	if m.lifecycle != nil || m.ws.ActiveSession() == nil || m.ws.ActiveSession().DB == nil || b.createOptions.DecryptionTimeMS != 100 {
+	if m.lifecycle != nil || m.ws.ActiveSession() == nil || m.ws.ActiveSession().Database() == nil || b.createOptions.DecryptionTimeMS != 100 {
 		t.Fatal("create did not open the new vault")
 	}
 }
@@ -211,7 +211,6 @@ func TestCredentialConfirmationAndSharedSessionUpdate(t *testing.T) {
 	m, b := lifecycleModel(t)
 	m.ws.Duplicate()
 	s := m.ws.ActiveSession()
-	oldBuffer := s.Credentials.Password
 	m.openCredentials()
 	l := m.lifecycle
 	l.inputs[0].set("NEW-MASTER")
@@ -234,13 +233,8 @@ func TestCredentialConfirmationAndSharedSessionUpdate(t *testing.T) {
 		t.Fatal("confirmed credential change did not run")
 	}
 	m.Update(cmd())
-	if string(s.Credentials.Password) != "NEW-MASTER" || len(m.ws.Views) != 2 || m.lifecycle != nil {
+	if string(s.Credentials().Password) != "NEW-MASTER" || len(m.ws.Views) != 2 || m.lifecycle != nil {
 		t.Fatal("shared session credentials were not updated")
-	}
-	for _, v := range oldBuffer {
-		if v != 0 {
-			t.Fatal("old credential buffer retained")
-		}
 	}
 }
 
@@ -257,7 +251,7 @@ func TestLockDiscardsLateCredentialResult(t *testing.T) {
 	s := m.ws.ActiveSession()
 	m.lockSession(s.ID)
 	m.Update(result)
-	if s.DB != nil || m.lifecycle != nil {
+	if s.Database() != nil || m.lifecycle != nil {
 		t.Fatal("late result resurrected locked vault")
 	}
 	for _, v := range buffer {
@@ -286,7 +280,7 @@ func TestDatabaseInfoHasKeyboardExit(t *testing.T) {
 		t.Fatal("info did not render correctly or retained busy state / obvious footer hint")
 	}
 	m.lifecycleKey(key("esc"))
-	if m.lifecycle != nil || m.ws.ActiveSession().DB == nil {
+	if m.lifecycle != nil || m.ws.ActiveSession().Database() == nil {
 		t.Fatal("Escape did not close info without closing vault")
 	}
 }

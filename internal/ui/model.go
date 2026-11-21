@@ -193,11 +193,10 @@ type fileItem struct {
 	dir        bool
 }
 type openedMsg struct {
-	request     uint64
-	db          *vault.Database
-	core        *session.Session
-	err         error
-	credentials vault.Credentials
+	request uint64
+	db      *vault.Database
+	core    *session.Session
+	err     error
 }
 type recentMsg struct {
 	paths []string
@@ -362,6 +361,17 @@ func (m *Model) Close() {
 	m.ws.Close()
 }
 
+func (m *Model) discardDatabase(sessionID string, db *vault.Database) {
+	if db == nil {
+		return
+	}
+	if current := m.ws.Sessions[sessionID]; current != nil && current.Core != nil {
+		current.Core.DiscardDatabase(db)
+		return
+	}
+	db.Clear()
+}
+
 // clearTransientUI tears down overlays and their pending work before locking
 // every session or closing the application.
 func (m *Model) clearTransientUI() {
@@ -471,7 +481,6 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case openedMsg:
 		if msg.request != m.request {
-			msg.credentials.Clear()
 			if msg.core != nil {
 				msg.core.Adopt(nil)
 			} else if msg.db != nil {
@@ -486,7 +495,6 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.err != nil {
 			m.err = "Could not unlock. Check credentials, file access and backend support."
-			msg.credentials.Clear()
 			if msg.core != nil {
 				msg.core.Adopt(nil)
 			}
@@ -505,7 +513,6 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			break
 		}
 		if msg.db == nil {
-			msg.credentials.Clear()
 			m.err = "Could not unlock. Backend returned no database."
 			break
 		}
@@ -515,14 +522,12 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				msg.db.Clear()
 			}
-			msg.credentials.Clear()
 			m.err = "Maximum 9 tabs. Close a tab before opening another vault."
 			break
 		}
 		reused := m.ws.OpenWithCore(msg.db, msg.core)
 		session := m.ws.ActiveSession()
 		if session != nil {
-			m.ws.SetCredentials(session.ID, msg.credentials)
 			session.LastActivity = m.now()
 			if !reused {
 				session.ReadOnly = m.readOnly
@@ -531,7 +536,6 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
-		msg.credentials.Clear()
 		m.screen, m.err, m.notice = browse, "", ""
 		if info, err := os.Stat(msg.db.Path); err == nil && info.Mode().Perm()&0077 != 0 {
 			m.setNotice("vault file accessible to other users · check permissions", true)
@@ -572,7 +576,7 @@ func (m *Model) touchActive() {
 	if m.gate.Configured() && !m.gate.Protected() {
 		m.pinLastActivity = m.now()
 	}
-	if s := m.ws.ActiveSession(); s != nil && s.DB != nil && m.screen == browse && !m.gate.Protected() {
+	if s := m.ws.ActiveSession(); s != nil && s.Database() != nil && m.screen == browse && !m.gate.Protected() {
 		s.LastActivity = m.now()
 	}
 }
@@ -644,7 +648,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	if key != keyReveal {
 		m.hideReveal()
 	}
-	if s := m.ws.ActiveSession(); s != nil && s.DB != nil && m.screen == browse {
+	if s := m.ws.ActiveSession(); s != nil && s.Database() != nil && m.screen == browse {
 		s.LastActivity = m.now()
 	}
 	if key == "ctrl+c" {
@@ -671,7 +675,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	switch key {
 	case keyNewVault:
-		if m.ws.ActiveSession() == nil || m.ws.ActiveSession().DB == nil {
+		if m.ws.ActiveSession() == nil || m.ws.ActiveSession().Database() == nil {
 			return m.openCreateVault()
 		}
 		cmd, _ := m.operationKey(k)
@@ -728,7 +732,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	}
-	if session.DB == nil {
+	if session.Database() == nil {
 		if key == "enter" {
 			m.beginUnlock(session.Path)
 		}
@@ -825,7 +829,7 @@ func (m *Model) beginUnlock(path string) {
 			canonical = resolved
 		}
 		for _, session := range m.ws.Sessions {
-			if session.Path != canonical || session.DB == nil {
+			if session.Path != canonical || session.Database() == nil {
 				continue
 			}
 			for i, v := range m.ws.Views {
@@ -967,9 +971,6 @@ func (m *Model) startOpen() tea.Cmd {
 		err := core.Open(ctx, path, creds)
 		db := core.Database()
 		result := openedMsg{request: id, db: db, core: core, err: err}
-		if err == nil && db != nil && !db.Unlocked() {
-			result.credentials = core.Credentials()
-		}
 		return result
 	}
 }
