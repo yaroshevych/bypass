@@ -7,6 +7,7 @@ import (
 
 	"bypass/internal/platform"
 	"bypass/internal/search"
+	"bypass/internal/session"
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
@@ -94,7 +95,7 @@ func (m *Model) commands() []command {
 		}
 	}
 	createReason := ""
-	if _, ok := m.backend.(vaultCreator); !ok {
+	if !session.NewService(m.backend).CanCreateVault() {
 		createReason = "Backend cannot create vaults"
 	}
 	if m.readOnly {

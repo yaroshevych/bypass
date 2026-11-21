@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"bypass/internal/session"
 	dialogrender "bypass/internal/ui/dialog"
 	"bypass/internal/vault"
 	"bypass/internal/workspace"
@@ -38,9 +39,6 @@ type lifecycleMsg struct {
 	err             error
 }
 
-type vaultCreator interface {
-	CreateWithOptions(context.Context, string, vault.Credentials, vault.CreateOptions) (*vault.Database, error)
-}
 type credentialChanger interface {
 	ChangeCredentials(context.Context, *vault.Database, vault.Credentials, vault.Credentials, string) (*vault.Database, error)
 }
@@ -74,7 +72,7 @@ func (m *Model) openCreateVault() tea.Cmd {
 		m.setNotice("restart without --read-only to create a vault", true)
 		return nil
 	}
-	if _, ok := m.backend.(vaultCreator); !ok {
+	if !session.NewService(m.backend).CanCreateVault() {
 		m.setNotice("backend can't create vaults", true)
 		return nil
 	}
@@ -184,8 +182,8 @@ func (m *Model) submitLifecycle() tea.Cmd {
 				return nil
 			}
 		}
-		backend, ok := m.backend.(vaultCreator)
-		if !ok {
+		service := session.NewService(m.backend)
+		if !service.CanCreateVault() {
 			creds.Clear()
 			l.err = "Vault creation is unavailable."
 			return nil
@@ -199,7 +197,7 @@ func (m *Model) submitLifecycle() tea.Cmd {
 				return lifecycleMsg{id: id, kind: "create", err: ctx.Err()}
 			}
 			defer resources.done()
-			db, err := backend.CreateWithOptions(ctx, path, creds, options)
+			db, err := service.CreateVault(ctx, path, creds, options)
 			return lifecycleMsg{id: id, kind: "create", db: db, credentials: creds.Clone(), err: err}
 		}
 	}
@@ -630,6 +628,5 @@ func (m *Model) lifecyclePointer(msg tea.MouseMsg) tea.Cmd {
 }
 
 func (m *Model) canCreateVault() bool {
-	_, ok := m.backend.(vaultCreator)
-	return ok && !m.readOnly
+	return session.NewService(m.backend).CanCreateVault() && !m.readOnly
 }
