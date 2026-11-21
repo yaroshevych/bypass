@@ -67,7 +67,7 @@ type Workspace struct {
 	Sessions    map[string]*Session
 	Views       []View
 	Active      int
-	CoreFactory func() *session.Session
+	coreFactory func() *session.Session
 	nextID      uint64
 }
 
@@ -86,7 +86,12 @@ func (w *Workspace) CanOpen(path string) bool {
 	return false
 }
 
-func New() *Workspace { return &Workspace{Sessions: make(map[string]*Session)} }
+func New(coreFactory func() *session.Session) *Workspace {
+	if coreFactory == nil {
+		panic("workspace: session factory is required")
+	}
+	return &Workspace{Sessions: make(map[string]*Session), coreFactory: coreFactory}
+}
 
 // Open activates a view for db, sharing an existing session when its path
 // resolves to the same file. It creates a view only when the session has none;
@@ -105,11 +110,14 @@ func (w *Workspace) OpenWithCore(db *vault.Database, core *session.Session) (reu
 		return false
 	}
 	if core == nil {
-		if w.CoreFactory != nil {
-			core = w.CoreFactory()
+		if w == nil || w.coreFactory == nil {
+			db.Clear()
+			return false
 		}
+		core = w.coreFactory()
 		if core == nil {
-			core = session.New(nil, nil, 0)
+			db.Clear()
+			return false
 		}
 		core.Adopt(db)
 	} else if current := core.Database(); current == nil {

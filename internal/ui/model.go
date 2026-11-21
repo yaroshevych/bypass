@@ -232,7 +232,7 @@ func New(opts Options) *Model {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	m := &Model{service: session.NewService(opts.Backend), store: opts.Store, ctx: ctx, ws: workspace.New(), width: 100, height: 30}
+	m := &Model{service: session.NewService(opts.Backend), store: opts.Store, ctx: ctx, width: 100, height: 30}
 	m.now = opts.Now
 	if m.now == nil {
 		m.now = time.Now
@@ -261,9 +261,9 @@ func New(opts Options) *Model {
 		m.settings.ClipboardTimeout = 10 * time.Second
 	}
 	m.clipboard = opts.Clipboard
-	m.ws.CoreFactory = func() *session.Session {
+	m.ws = workspace.New(func() *session.Session {
 		return m.service.NewSession(m.clipboard, m.settings.ClipboardTimeout)
-	}
+	})
 	m.readOnly = opts.ReadOnly
 	m.notice = compactNotice(opts.Warning)
 	m.checking = make(map[string]bool)

@@ -10,8 +10,12 @@ import (
 	"bypass/internal/vault"
 )
 
+func newWorkspace() *Workspace {
+	return New(func() *session.Session { return session.New(vault.NewBackend(), nil, 0) })
+}
+
 func TestNineTabLimitAllowsExistingVaultAndRejectsNewVault(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	path := filepath.Join(t.TempDir(), "existing.kdbx")
 	w.Open(database(path, "existing", "root"))
 	for len(w.Views) < MaxTabs {
@@ -63,7 +67,7 @@ func TestOpenDeduplicatesCanonicalPathAndSeparatesSameBasename(t *testing.T) {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
 
-	w := New()
+	w := newWorkspace()
 	firstDB := database(firstPath, "first", "root-a")
 	if w.Open(firstDB) {
 		t.Fatal("first open unexpectedly reused a session")
@@ -90,7 +94,7 @@ func TestOpenDeduplicatesCanonicalPathAndSeparatesSameBasename(t *testing.T) {
 }
 
 func TestOpenLockedSessionRefreshesAndDuplicateCopiesView(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	db := database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root")
 	w.Open(db)
 	view := w.ActiveView()
@@ -129,7 +133,7 @@ func TestOpenLockedSessionRefreshesAndDuplicateCopiesView(t *testing.T) {
 }
 
 func TestCloseViewCleansLastSessionAndCloseVaultRemovesAllSharedViews(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	db := database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root")
 	w.Open(db)
 	w.Duplicate()
@@ -149,7 +153,7 @@ func TestCloseViewCleansLastSessionAndCloseVaultRemovesAllSharedViews(t *testing
 }
 
 func TestCloseOperationsZeroRemovedViewSlots(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	db := database(filepath.Join(t.TempDir(), "first.kdbx"), "first", "root")
 	w.Open(db)
 	w.ActiveView().Query = "query secret"
@@ -180,7 +184,7 @@ func TestCloseOperationsZeroRemovedViewSlots(t *testing.T) {
 }
 
 func TestCloseClearsEverySession(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	first := database(filepath.Join(t.TempDir(), "one.kdbx"), "one", "root")
 	second := database(filepath.Join(t.TempDir(), "two.kdbx"), "two", "root")
 	w.Open(first)
@@ -192,7 +196,7 @@ func TestCloseClearsEverySession(t *testing.T) {
 }
 
 func TestSetCredentialsClonesAndReplacingCredentialsClearsOldCopy(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	w.Open(database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root"))
 	session := w.ActiveSession()
 	input := vault.Credentials{Password: []byte("first-secret"), KeyFile: "/keys/first"}
@@ -212,7 +216,7 @@ func TestSetCredentialsClonesAndReplacingCredentialsClearsOldCopy(t *testing.T) 
 }
 
 func TestReplaceDatabasePreservesViewUUIDsAndClearsOldDatabase(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	first := database(filepath.Join(t.TempDir(), "vault.kdbx"), "old", "root")
 	w.Open(first)
 	w.Duplicate()
@@ -241,7 +245,7 @@ func TestReplaceDatabasePreservesViewUUIDsAndClearsOldDatabase(t *testing.T) {
 }
 
 func TestReplaceDatabaseCannotResurrectLockedSession(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	first := database(filepath.Join(t.TempDir(), "locked.kdbx"), "locked", "root")
 	w.Open(first)
 	session := w.ActiveSession()
@@ -259,7 +263,7 @@ func TestReplaceDatabaseCannotResurrectLockedSession(t *testing.T) {
 }
 
 func TestOpenWithNilDatabaseReleasesCore(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	db := database(filepath.Join(t.TempDir(), "transferred.kdbx"), "transferred", "root")
 	core := session.New(nil, nil, 0)
 	core.Adopt(db)
@@ -271,8 +275,19 @@ func TestOpenWithNilDatabaseReleasesCore(t *testing.T) {
 	}
 }
 
+func TestOpenClearsDatabaseWhenFactoryReturnsNil(t *testing.T) {
+	w := New(func() *session.Session { return nil })
+	db := database(filepath.Join(t.TempDir(), "factory.kdbx"), "factory", "root")
+	if w.Open(db) {
+		t.Fatal("Open accepted a database without a session")
+	}
+	if len(w.Sessions) != 0 || len(w.Views) != 0 || len(db.Entries) != 0 {
+		t.Fatal("failed session construction retained workspace state or database secrets")
+	}
+}
+
 func TestLockSessionAndLockAllClearCredentialsAcrossViews(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	first := database(filepath.Join(t.TempDir(), "one.kdbx"), "one", "root-one")
 	w.Open(first)
 	w.Duplicate()
@@ -318,7 +333,7 @@ func TestLockSessionAndLockAllClearCredentialsAcrossViews(t *testing.T) {
 }
 
 func TestRemovedSessionsClearCredentials(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	db := database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root")
 	w.Open(db)
 	session := w.ActiveSession()
@@ -338,7 +353,7 @@ func TestRemovedSessionsClearCredentials(t *testing.T) {
 }
 
 func TestActivityTimestampChangesOnCredentialAndDatabaseOperations(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	w.Open(database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root"))
 	session := w.ActiveSession()
 	initial := session.LastActivity
@@ -355,7 +370,7 @@ func TestActivityTimestampChangesOnCredentialAndDatabaseOperations(t *testing.T)
 }
 
 func TestPreviewSettingsDuplicateIndependently(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	w.Open(database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root"))
 	view := w.ActiveView()
 	view.NavKey = "favorites"
@@ -378,7 +393,7 @@ func TestPreviewSettingsDuplicateIndependently(t *testing.T) {
 }
 
 func TestUsageAndLockCleanup(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	db := database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root")
 	db.Entries = append(db.Entries, vault.Entry{UUID: "entry-two"})
 	w.Open(db)
@@ -408,7 +423,7 @@ func TestUsageAndLockCleanup(t *testing.T) {
 }
 
 func TestRefreshPreservesUsage(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	db := database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root")
 	w.Open(db)
 	session := w.ActiveSession()
@@ -420,7 +435,7 @@ func TestRefreshPreservesUsage(t *testing.T) {
 }
 
 func TestActivityCountSaturates(t *testing.T) {
-	w := New()
+	w := newWorkspace()
 	w.Open(database(filepath.Join(t.TempDir(), "vault.kdbx"), "vault", "root"))
 	session := w.ActiveSession()
 	session.Usage = map[string]Access{"entry": {Count: int(^uint(0) >> 1)}}

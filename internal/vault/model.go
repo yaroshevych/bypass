@@ -211,19 +211,6 @@ func (d *Database) TransferBackend(other *Database) {
 	}
 }
 
-// BorrowBackendOwnership marks an update as borrowed while the workspace session
-// retains ownership of the unlocked data. Callers
-// must use this only on private results, never on a live workspace database.
-func (d *Database) BorrowBackendOwnership() {
-	if d == nil || d.native == nil {
-		return
-	}
-	state := d.native
-	state.mu.Lock()
-	d.nativeOwner = false
-	state.mu.Unlock()
-}
-
 // Unlocked reports whether this model has an unlocked backing database.
 func (d *Database) Unlocked() bool { return d != nil && d.native != nil }
 
