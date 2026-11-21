@@ -51,6 +51,60 @@ func TestCustomDataModificationTimeSurvivesSave(t *testing.T) {
 	}
 }
 
+func TestDiscardedApplyResultPreservesLiveDatabase(t *testing.T) {
+	_, creds, db, backend := nativeFixture(t)
+	defer db.Clear()
+	snapshot := db.Clone()
+	defer snapshot.Clear()
+
+	updated, err := backend.Apply(context.Background(), snapshot, creds, Change{
+		Kind: AddEntry, GroupUUID: snapshot.RootUUID,
+		Values: map[string]string{"Title": "Committed entry"},
+	}, filepath.Join(t.TempDir(), "backups"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entryID := updated.Entries[0].UUID
+
+	// A session may reject a completed result after another UI operation wins.
+	// Results from borrowed snapshots must remain non-owning, so clearing one
+	// cannot tear down the live database's native state.
+	updated.Clear()
+	if !db.Unlocked() {
+		t.Fatal("discarding the result cleared the live database")
+	}
+	fields, err := backend.EntryDetails(context.Background(), db, entryID)
+	if err != nil {
+		t.Fatalf("live database stopped working after result discard: %v", err)
+	}
+	if len(fields) == 0 {
+		t.Fatal("live database returned no entry details after result discard")
+	}
+}
+
+func TestDiscardedCredentialChangeResultPreservesLiveDatabase(t *testing.T) {
+	_, creds, db, backend := nativeFixture(t)
+	t.Cleanup(func() { db.Clear() })
+	applyFixtureChange(t, backend, &db, creds, Change{
+		Kind: AddEntry, GroupUUID: db.RootUUID,
+		Values: map[string]string{"Title": "Credential entry"},
+	}, filepath.Join(t.TempDir(), "backups"))
+
+	snapshot := db.Clone()
+	defer snapshot.Clear()
+	nextCredentials := Credentials{Password: []byte("replacement native fixture master")}
+	defer nextCredentials.Clear()
+	updated, err := backend.ChangeCredentials(context.Background(), snapshot, creds, nextCredentials, filepath.Join(t.TempDir(), "backups"))
+	if err != nil {
+		t.Fatalf("change credentials from borrowed snapshot: %v", err)
+	}
+	entryID := updated.Entries[0].UUID
+	updated.Clear()
+	if _, err := backend.EntryDetails(context.Background(), db, entryID); err != nil {
+		t.Fatalf("discarding credential-change result cleared the live database: %v", err)
+	}
+}
+
 func TestNativeModelInheritsGroupSearchSetting(t *testing.T) {
 	db := gok.NewDatabase()
 	root := gok.NewGroup()

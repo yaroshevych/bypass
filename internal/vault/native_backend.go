@@ -1383,7 +1383,11 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		return nil, ErrWrite
 	}
 	fresh.Path = s.path
-	fresh.nativeOwner = true
+	// The returned model inherits ownership from its input. Session snapshots
+	// borrow native state, so a result built from one must also remain borrowed
+	// until the live session accepts it. Direct writers pass the owning model and
+	// continue transferring ownership to the result.
+	fresh.nativeOwner = db.nativeOwner
 	db.nativeOwner = false
 	return fresh, nil
 }
@@ -1624,7 +1628,7 @@ func (b *NativeBackend) ChangeCredentialsAllowingMetadataLoss(ctx context.Contex
 	if err != nil {
 		return nil, ErrWrite
 	}
-	fresh.nativeOwner = true
+	fresh.nativeOwner = db.nativeOwner
 	db.nativeOwner = false
 	return fresh, nil
 }
