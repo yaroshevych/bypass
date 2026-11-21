@@ -47,6 +47,7 @@ type widgetResponse struct {
 	LossMessage        string          `json:"lossMessage,omitempty"`
 	Consent            string          `json:"consent,omitempty"`
 	SensitiveClipboard bool            `json:"sensitiveClipboard,omitempty"`
+	FieldCopyAllowed   *bool           `json:"fieldCopyAllowed,omitempty"`
 }
 
 func widgetRecent(output io.Writer) error {
@@ -157,6 +158,8 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 		case "recent":
 			response.Recent, err = store.LoadRecent()
 			response.SensitiveClipboard = clipboard.SupportsSensitive(clipboardDriver)
+			fieldCopyAllowed := clipboard.CanCopySensitive(clipboardDriver)
+			response.FieldCopyAllowed = &fieldCopyAllowed
 		case "open":
 			password := []byte(request.Password)
 			request.Password = ""
@@ -199,11 +202,7 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 				response.Consent = hex.EncodeToString(loss.Operation[:])
 			}
 		case "copy":
-			if !clipboard.SupportsSensitive(clipboardDriver) {
-				err = clipboard.ErrSensitiveUnavailable
-			} else {
-				err = session.CopyValue(ctx, request.ID, request.Field)
-			}
+			err = session.CopyValue(ctx, request.ID, request.Field)
 		case "copy-reference":
 			err = session.CopyReference(ctx, request.ID, request.Field)
 		case "review":

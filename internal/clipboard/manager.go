@@ -52,7 +52,7 @@ func (m *Manager) copy(ctx context.Context, value []byte, now time.Time, timeout
 	if err := contextError(ctx); err != nil {
 		return err
 	}
-	if sensitive && RequiresSensitive(m.driver) && !SupportsSensitive(m.driver) {
+	if sensitive && !CanCopySensitive(m.driver) {
 		return ErrSensitiveUnavailable
 	}
 	m.mu.Lock()

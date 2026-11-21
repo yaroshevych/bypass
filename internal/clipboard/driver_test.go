@@ -142,6 +142,12 @@ func TestLinuxWaylandClipboardProbesSensitiveSupport(t *testing.T) {
 			if SupportsSensitive(unavailableDriver{}) || SupportsSensitive(systemDriver{writeCommand: "xclip"}) {
 				t.Fatal("non-sensitive clipboard driver advertised sensitive support")
 			}
+			if CanCopySensitive(systemDriver{writeCommand: "xclip"}) != true {
+				t.Fatal("xclip should allow a field copy when sensitivity is optional")
+			}
+			if CanCopySensitive(driver) != supported {
+				t.Fatalf("Wayland field-copy policy = %t, want %t", CanCopySensitive(driver), supported)
+			}
 
 			manager := New(driver)
 			if err := manager.Copy(context.Background(), []byte("public"), time.Now(), time.Minute); err != nil {

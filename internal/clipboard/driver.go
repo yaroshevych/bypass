@@ -71,6 +71,12 @@ func RequiresSensitive(driver Driver) bool {
 	return ok && d.RequiresSensitive()
 }
 
+// CanCopySensitive reports whether a sensitive copy can be performed under the
+// driver's policy: either it supports sensitive writes or does not require them.
+func CanCopySensitive(driver Driver) bool {
+	return !RequiresSensitive(driver) || SupportsSensitive(driver)
+}
+
 func (d systemDriver) SupportsSensitive() bool { return d.sensitiveSupported }
 func (d systemDriver) RequiresSensitive() bool { return d.sensitiveRequired }
 

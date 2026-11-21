@@ -198,6 +198,9 @@ func TestWidgetReportsSensitiveClipboardAndRejectsSecretCopyWhenUnsupported(t *t
 	if recent.SensitiveClipboard {
 		t.Fatal("old wl-copy was advertised as sensitive-capable")
 	}
+	if recent.FieldCopyAllowed == nil || *recent.FieldCopyAllowed {
+		t.Fatalf("old wl-copy field-copy policy = %v, want explicit false", recent.FieldCopyAllowed)
+	}
 	if opened.Error != "" || items.Error != "" || len(items.Items) != 1 {
 		t.Fatalf("unsupported sensitive clipboard prevented browsing: open=%#v items=%#v", opened, items)
 	}
