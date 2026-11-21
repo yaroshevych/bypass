@@ -14,8 +14,9 @@ const operationTimeout = time.Second
 const maxClipboardBytes = 1 << 20
 
 var (
-	ErrUnavailable = errors.New("system clipboard is unavailable")
-	ErrOperation   = errors.New("system clipboard operation failed")
+	ErrUnavailable          = errors.New("system clipboard is unavailable")
+	ErrOperation            = errors.New("system clipboard operation failed")
+	ErrSensitiveUnavailable = errors.New("secure clipboard copying is unavailable; use a clipboard driver that supports sensitive writes (wl-copy --sensitive on Wayland)")
 )
 
 type Driver interface {
@@ -24,24 +25,29 @@ type Driver interface {
 }
 
 type systemDriver struct {
-	sensitive    bool
-	writeCommand string
-	writeArgs    []string
-	readCommand  string
-	readArgs     []string
+	sensitiveSupported bool
+	sensitiveRequired  bool
+	writeCommand       string
+	writeArgs          []string
+	readCommand        string
+	readArgs           []string
 }
 
 type unavailableDriver struct{}
 
 func NewSystem() Driver {
-	switch runtime.GOOS {
+	return newSystemForOS(runtime.GOOS)
+}
+
+func newSystemForOS(goos string) Driver {
+	switch goos {
 	case "darwin":
 		return systemDriver{writeCommand: "pbcopy", readCommand: "pbpaste"}
 	case "linux":
-		_, wlCopyErr := exec.LookPath("wl-copy")
+		wlCopy, wlCopyErr := exec.LookPath("wl-copy")
 		_, wlPasteErr := exec.LookPath("wl-paste")
 		if wlCopyErr == nil && wlPasteErr == nil {
-			return systemDriver{sensitive: true, writeCommand: "wl-copy", writeArgs: []string{"--sensitive"}, readCommand: "wl-paste", readArgs: []string{"--no-newline"}}
+			return systemDriver{sensitiveSupported: supportsWlCopySensitive(wlCopy), sensitiveRequired: true, writeCommand: wlCopy, readCommand: "wl-paste", readArgs: []string{"--no-newline"}}
 		}
 		if _, err := exec.LookPath("xclip"); err == nil {
 			return systemDriver{
@@ -53,22 +59,66 @@ func NewSystem() Driver {
 	return unavailableDriver{}
 }
 
-// SupportsSensitive reports whether the driver marks clipboard writes as sensitive.
+// SupportsSensitive reports whether the driver can mark a write as sensitive.
 func SupportsSensitive(driver Driver) bool {
-	d, ok := driver.(systemDriver)
-	return ok && d.sensitive
+	d, ok := driver.(interface{ SupportsSensitive() bool })
+	return ok && d.SupportsSensitive()
+}
+
+// RequiresSensitive reports whether secret writes must be marked sensitive.
+func RequiresSensitive(driver Driver) bool {
+	d, ok := driver.(interface{ RequiresSensitive() bool })
+	return ok && d.RequiresSensitive()
+}
+
+func (d systemDriver) SupportsSensitive() bool { return d.sensitiveSupported }
+func (d systemDriver) RequiresSensitive() bool { return d.sensitiveRequired }
+
+func supportsWlCopySensitive(command string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, command, "--help")
+	cmd.WaitDelay = 250 * time.Millisecond
+	const helpLimit = 64 << 10
+	var stdout, stderr limitedBuffer
+	stdout.limit, stderr.limit = helpLimit, helpLimit
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil || stdout.exceeded || stderr.exceeded {
+		stdout.wipe()
+		stderr.wipe()
+		return false
+	}
+	supported := bytes.Contains(stdout.Bytes(), []byte("--sensitive")) || bytes.Contains(stderr.Bytes(), []byte("--sensitive"))
+	stdout.wipe()
+	stderr.wipe()
+	return supported
 }
 
 func (unavailableDriver) Write(context.Context, []byte) error  { return ErrUnavailable }
 func (unavailableDriver) Read(context.Context) ([]byte, error) { return nil, ErrUnavailable }
 
 func (d systemDriver) Write(ctx context.Context, value []byte) error {
+	args := d.writeArgs
+	if d.sensitiveSupported {
+		args = append(append([]string(nil), args...), "--sensitive")
+	}
+	return d.write(ctx, args, value)
+}
+
+func (d systemDriver) WriteSensitive(ctx context.Context, value []byte) error {
+	if d.sensitiveRequired && !d.sensitiveSupported {
+		return ErrSensitiveUnavailable
+	}
+	return d.Write(ctx, value)
+}
+
+func (d systemDriver) write(ctx context.Context, args []string, value []byte) error {
 	if d.writeCommand == "" {
 		return ErrUnavailable
 	}
 	bounded, cancel := boundedContext(ctx)
 	defer cancel()
-	cmd := exec.CommandContext(bounded, d.writeCommand, d.writeArgs...)
+	cmd := exec.CommandContext(bounded, d.writeCommand, args...)
 	cmd.WaitDelay = 250 * time.Millisecond
 	cmd.Stdin = bytes.NewReader(value)
 	if err := cmd.Run(); err != nil {

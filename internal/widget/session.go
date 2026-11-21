@@ -3,6 +3,7 @@ package widget
 import (
 	"context"
 	"errors"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -20,6 +21,25 @@ type Session struct {
 	clipboard        *clipboard.Manager
 	clipboardTimeout time.Duration
 	backupDir        string
+	fileStamp        fileStamp
+}
+
+type fileStamp struct {
+	size    int64
+	modTime time.Time
+	info    os.FileInfo
+}
+
+func stamp(path string) (fileStamp, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fileStamp{}, err
+	}
+	return fileStamp{size: info.Size(), modTime: info.ModTime(), info: info}, nil
+}
+
+func sameStamp(a, b fileStamp) bool {
+	return a.size == b.size && a.modTime.Equal(b.modTime) && a.info != nil && b.info != nil && os.SameFile(a.info, b.info)
 }
 
 type Item struct {
@@ -50,6 +70,9 @@ func (s *Session) Open(ctx context.Context, path string, password []byte) error 
 		s.db.Clear()
 	}
 	s.db = db
+	// The file may have changed while Open was reading it. Force one initial
+	// revision check before caching metadata.
+	s.fileStamp = fileStamp{}
 	return nil
 }
 
@@ -60,16 +83,30 @@ func (s *Session) ReloadIfChanged(ctx context.Context) (bool, error) {
 	if s.db == nil {
 		return false, nil
 	}
+	currentStamp, err := stamp(s.db.Path)
+	if err != nil {
+		return false, err
+	}
+	if sameStamp(currentStamp, s.fileStamp) {
+		return false, nil
+	}
 	revision, err := vault.Revision(s.db.Path)
 	if err != nil {
 		return false, err
 	}
 	if revision == s.db.Revision {
+		s.fileStamp = currentStamp
 		return false, nil
 	}
 	updated, err := s.backend.Reload(ctx, s.db)
 	if err != nil {
 		return false, err
+	}
+	loadedStamp, stampErr := stamp(updated.Path)
+	if stampErr == nil && sameStamp(currentStamp, loadedStamp) {
+		s.fileStamp = loadedStamp
+	} else {
+		s.fileStamp = fileStamp{}
 	}
 	s.db.Clear()
 	s.db = updated
@@ -105,7 +142,10 @@ func (s *Session) Items(ctx context.Context, query string) ([]Item, error) {
 		}
 		entries = append(entries, entry)
 	}
-	ids := Search(query, entries)
+	ids, err := Search(query, entries)
+	if err != nil {
+		return nil, err
+	}
 	byID := make(map[string]vault.Entry, len(entries))
 	for _, entry := range entries {
 		byID[entry.UUID] = entry
@@ -276,7 +316,7 @@ func (s *Session) CopyValue(ctx context.Context, id, field string) error {
 		return err
 	}
 	defer clear(value)
-	return s.clipboard.Copy(ctx, value, time.Now(), s.clipboardTimeout)
+	return s.clipboard.CopySensitive(ctx, value, time.Now(), s.clipboardTimeout)
 }
 
 // CopyReference copies a reference only when it uniquely identifies the entry.

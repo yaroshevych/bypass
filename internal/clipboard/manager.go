@@ -32,6 +32,17 @@ func (m *Manager) Forget() {
 }
 
 func (m *Manager) Copy(ctx context.Context, value []byte, now time.Time, timeout time.Duration) error {
+	return m.copy(ctx, value, now, timeout, false)
+}
+
+// CopySensitive requests that the driver mark the value as sensitive when it
+// supports that capability. Drivers without an explicit sensitive-write API
+// retain their legacy behavior.
+func (m *Manager) CopySensitive(ctx context.Context, value []byte, now time.Time, timeout time.Duration) error {
+	return m.copy(ctx, value, now, timeout, true)
+}
+
+func (m *Manager) copy(ctx context.Context, value []byte, now time.Time, timeout time.Duration, sensitive bool) error {
 	if m == nil {
 		return ErrUnavailable
 	}
@@ -40,6 +51,9 @@ func (m *Manager) Copy(ctx context.Context, value []byte, now time.Time, timeout
 	}
 	if err := contextError(ctx); err != nil {
 		return err
+	}
+	if sensitive && RequiresSensitive(m.driver) && !SupportsSensitive(m.driver) {
+		return ErrSensitiveUnavailable
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -52,7 +66,18 @@ func (m *Manager) Copy(ctx context.Context, value []byte, now time.Time, timeout
 	}
 	owned := bytes.Clone(value)
 	toWrite := bytes.Clone(owned)
-	err := m.driver.Write(ctx, toWrite)
+	var err error
+	if sensitive {
+		if writer, ok := m.driver.(interface {
+			WriteSensitive(context.Context, []byte) error
+		}); ok {
+			err = writer.WriteSensitive(ctx, toWrite)
+		} else {
+			err = m.driver.Write(ctx, toWrite)
+		}
+	} else {
+		err = m.driver.Write(ctx, toWrite)
+	}
 	if err != nil {
 		matched, cleanupErr := m.clearIfMatchesAfterWriteError(owned)
 		wipebuf.Wipe(toWrite)

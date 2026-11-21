@@ -86,6 +86,7 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 	var activityMu sync.Mutex
 	lastActivity := time.Now()
 	unlocked := false
+	reloadFailures := 0
 	encoder := json.NewEncoder(output)
 	send := func(response widgetResponse) error {
 		outMu.Lock()
@@ -119,11 +120,18 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 				if unlocked {
 					changed, reloadErr := session.ReloadIfChanged(ctx)
 					if reloadErr != nil {
-						_ = session.Lock(ctx)
-						unlocked = false
-						_ = send(widgetResponse{Action: "reload-failed"})
-					} else if changed {
-						_ = send(widgetResponse{Action: "reloaded"})
+						reloadFailures++
+						if reloadFailures >= 2 {
+							_ = session.Lock(ctx)
+							unlocked = false
+							reloadFailures = 0
+							_ = send(widgetResponse{Action: "reload-failed"})
+						}
+					} else {
+						reloadFailures = 0
+						if changed {
+							_ = send(widgetResponse{Action: "reloaded"})
+						}
 					}
 				}
 				activityMu.Unlock()
@@ -155,12 +163,14 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 			err = session.Open(ctx, request.Path, password)
 			if err == nil {
 				unlocked = true
+				reloadFailures = 0
 				_ = store.Remember(request.Path)
 			}
 		case "items":
 			response.Items, err = session.Items(ctx, request.Query)
 		case "fields":
 			response.Fields, err = session.Fields(ctx, request.ID)
+			response.ID = request.ID
 		case "reveal":
 			var value []byte
 			value, response.Remaining, err = session.Reveal(ctx, request.ID, request.Field)
@@ -189,7 +199,11 @@ func widgetCommandWithApprovals(input io.Reader, output io.Writer, listen bool) 
 				response.Consent = hex.EncodeToString(loss.Operation[:])
 			}
 		case "copy":
-			err = session.CopyValue(ctx, request.ID, request.Field)
+			if !clipboard.SupportsSensitive(clipboardDriver) {
+				err = clipboard.ErrSensitiveUnavailable
+			} else {
+				err = session.CopyValue(ctx, request.ID, request.Field)
+			}
 		case "copy-reference":
 			err = session.CopyReference(ctx, request.ID, request.Field)
 		case "review":

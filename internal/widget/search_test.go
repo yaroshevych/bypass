@@ -1,6 +1,7 @@
 package widget
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -19,8 +20,21 @@ func TestSearchFavoritesAndFields(t *testing.T) {
 		"net": {"netflix", "amazon"}, "netfl": {"netflix", "amazon"},
 		"nflx": {"netflix"}, "title:netfl": {"netflix"}, "missing": {},
 	} {
-		if got := Search(query, entries); !reflect.DeepEqual(got, want) {
+		got, err := Search(query, entries)
+		if err != nil {
+			t.Errorf("query %q: unexpected error: %v", query, err)
+			continue
+		}
+		if !reflect.DeepEqual(got, want) {
 			t.Errorf("query %q: got %v, want %v", query, got, want)
+		}
+	}
+}
+
+func TestSearchRejectsInvalidQueries(t *testing.T) {
+	for _, query := range []string{"foo:bar", "-", `title:"unfinished`} {
+		if got, err := Search(query, nil); !errors.Is(err, ErrInvalidSearch) || len(got) != 0 {
+			t.Errorf("query %q: got %v, err %v; want invalid search", query, got, err)
 		}
 	}
 }

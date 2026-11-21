@@ -501,7 +501,7 @@ func (s *Session) CopyField(ctx context.Context, snapshot *Snapshot, id, field s
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return manager.Copy(ctx, value, now, timeout)
+	return manager.CopySensitive(ctx, value, now, timeout)
 }
 
 // Lock clears decrypted data and the shared managed clipboard.

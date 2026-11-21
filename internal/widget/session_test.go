@@ -3,6 +3,7 @@ package widget
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -275,5 +276,54 @@ func TestSessionReloadsChangedVaultWithoutPassword(t *testing.T) {
 	db = updated
 	if changed, err := session.ReloadIfChanged(ctx); err == nil || changed {
 		t.Fatalf("changed credentials: %v %v", changed, err)
+	}
+}
+
+func TestReloadDetectsAtomicReplacementWithSameSizeAndMtime(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "vault.kdbx")
+	replacementPath := filepath.Join(dir, "replacement.kdbx")
+	backend := vault.NewBackend()
+	creds := vault.Credentials{Password: []byte("synthetic master")}
+	defer creds.Clear()
+	db, err := backend.CreateWithOptions(ctx, path, creds, vault.CreateOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Clear()
+	session := NewSession(&memoryClipboard{}, time.Minute, filepath.Join(dir, "backups"))
+	if err := session.Open(ctx, path, []byte("synthetic master")); err != nil {
+		t.Fatal(err)
+	}
+	defer session.Lock(ctx)
+	if changed, err := session.ReloadIfChanged(ctx); err != nil || changed {
+		t.Fatalf("initial vault check: changed=%v, err=%v", changed, err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Corrupt the signature to make the reload observable without depending
+	// on independent encrypted fixtures having identical lengths.
+	data[0] ^= 0xff
+	if err := os.WriteFile(replacementPath, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(replacementPath, info.ModTime(), info.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(replacementPath, path); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := session.ReloadIfChanged(ctx); err == nil || changed {
+		t.Fatalf("expected a reload failure for the replacement: changed=%v, err=%v", changed, err)
+	}
+	if _, err := session.Items(ctx, "*"); err != nil {
+		t.Fatalf("transient reload failure locked the session: %v", err)
 	}
 }

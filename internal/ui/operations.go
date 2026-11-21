@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"bypass/internal/clipboard"
 	"bypass/internal/session"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
@@ -762,6 +763,8 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 				m.setNotice("vault locked · unlock to copy", true)
 			} else if errors.Is(msg.err, session.ErrFieldUnavailable) {
 				m.setNotice("field unavailable · reload if vault changed", true)
+			} else if errors.Is(msg.err, clipboard.ErrSensitiveUnavailable) {
+				m.setNotice(clipboard.ErrSensitiveUnavailable.Error(), true)
 			} else {
 				m.setNotice("copy failed · clipboard unavailable", true)
 			}
@@ -1007,7 +1010,7 @@ func (m *Model) copyValue(value []byte, label string) tea.Cmd {
 			return copiedMsg{id: id, label: label, expires: expires, err: ctx.Err()}
 		}
 		defer resources.done()
-		err := manager.Copy(ctx, value, now, timeout)
+		err := manager.CopySensitive(ctx, value, now, timeout)
 		return copiedMsg{id, label, expires, err}
 	}
 }

@@ -115,26 +115,66 @@ func TestSystemWriteHidesCommandDiagnostics(t *testing.T) {
 	}
 }
 
-func TestLinuxWaylandClipboardMarksSensitive(t *testing.T) {
-	if runtime.GOOS != "linux" {
-		t.Skip("Linux clipboard")
-	}
-	dir := t.TempDir()
-	for _, name := range []string{"wl-copy", "wl-paste"} {
-		script := "#!/bin/sh\nexit 0\n"
-		if name == "wl-copy" {
-			script = "#!/bin/sh\n[ \"$1\" = --sensitive ] || exit 1\nexit 0\n"
-		}
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0700); err != nil {
-			t.Fatal(err)
-		}
-	}
-	t.Setenv("PATH", dir)
-	driver, ok := NewSystem().(systemDriver)
-	if !ok || !SupportsSensitive(driver) || SupportsSensitive(unavailableDriver{}) || SupportsSensitive(systemDriver{writeCommand: "xclip"}) || len(driver.writeArgs) != 1 || driver.writeArgs[0] != "--sensitive" {
-		t.Fatalf("Wayland clipboard is not marked sensitive: %#v", driver)
-	}
-	if err := driver.Write(context.Background(), []byte("synthetic")); err != nil {
-		t.Fatalf("sensitive clipboard write: %v", err)
+func TestLinuxWaylandClipboardProbesSensitiveSupport(t *testing.T) {
+	for _, supported := range []bool{false, true} {
+		t.Run(map[bool]string{false: "old wl-copy", true: "new wl-copy"}[supported], func(t *testing.T) {
+			dir := t.TempDir()
+			argsPath := filepath.Join(dir, "args")
+			inputPath := filepath.Join(dir, "input")
+			help := "echo 'Usage: wl-copy'\n"
+			if supported {
+				help = "echo 'Usage: wl-copy [--sensitive]'\n"
+			}
+			copyScript := "#!/bin/sh\nif [ \"$1\" = --help ]; then\n" + help + "exit 0\nfi\nprintf '%s' \"$*\" > '" + argsPath + "'\nexec /bin/cat > '" + inputPath + "'\n"
+			for name, script := range map[string]string{
+				"wl-copy":  copyScript,
+				"wl-paste": "#!/bin/sh\nexit 0\n",
+			} {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Setenv("PATH", dir)
+			driver, ok := newSystemForOS("linux").(systemDriver)
+			if !ok || SupportsSensitive(driver) != supported || !RequiresSensitive(driver) {
+				t.Fatalf("Wayland capability mismatch: %#v", driver)
+			}
+			if SupportsSensitive(unavailableDriver{}) || SupportsSensitive(systemDriver{writeCommand: "xclip"}) {
+				t.Fatal("non-sensitive clipboard driver advertised sensitive support")
+			}
+
+			manager := New(driver)
+			if err := manager.Copy(context.Background(), []byte("public"), time.Now(), time.Minute); err != nil {
+				t.Fatalf("ordinary write: %v", err)
+			}
+			args, err := os.ReadFile(argsPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if supported && string(args) != "--sensitive" {
+				t.Fatalf("supported wl-copy args = %q, want --sensitive", args)
+			}
+			if !supported && len(args) != 0 {
+				t.Fatalf("old wl-copy args = %q, want no options", args)
+			}
+
+			err = manager.CopySensitive(context.Background(), []byte("synthetic secret"), time.Now(), time.Minute)
+			if supported {
+				if err != nil {
+					t.Fatalf("sensitive write on supported wl-copy: %v", err)
+				}
+				args, err = os.ReadFile(argsPath)
+				if err != nil || string(args) != "--sensitive" {
+					t.Fatalf("sensitive wl-copy args = %q, err=%v", args, err)
+				}
+			} else if !errors.Is(err, ErrSensitiveUnavailable) {
+				t.Fatalf("unsupported sensitive write error = %v", err)
+			} else {
+				input, readErr := os.ReadFile(inputPath)
+				if readErr != nil || string(input) != "public" || !manager.hasOwned {
+					t.Fatalf("refused secret write disturbed prior clipboard: input=%q owned=%t err=%v", input, manager.hasOwned, readErr)
+				}
+			}
+		})
 	}
 }
