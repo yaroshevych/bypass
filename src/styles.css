@@ -161,9 +161,7 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .vault-menu { @apply fixed inset-auto m-0 rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10; }
 .vault-menu [data-slot="dropdown-menu-label"] { @apply px-1.5 py-1 text-xs font-medium text-muted-foreground; }
 .vault-menu [data-slot="dropdown-menu-separator"] { @apply -mx-1 my-1 border-0 border-t border-border; }
-.vault-menu button { @apply flex h-10 w-full justify-start gap-2 rounded-md border-0 bg-transparent p-2 text-left font-normal shadow-none hover:bg-accent focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:ring-0; }
-.vault-menu-icon { @apply grid size-6 shrink-0 place-items-center rounded-md border border-border; }
-.vault-menu-icon svg { @apply size-3.5; }
+.vault-menu button { @apply flex h-7 w-full cursor-default justify-between gap-2 rounded-md border-0 bg-transparent px-1.5 py-1 text-left font-normal shadow-none hover:bg-accent focus:bg-accent focus:text-accent-foreground focus-visible:ring-0; }
 .vault-info-dialog { @apply m-auto w-[calc(100%-2rem)] max-w-sm rounded-xl border-0 bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10; }
 .vault-info-dialog[open] { @apply grid gap-4; }
 .vault-info-dialog::backdrop { @apply bg-black/50; }
