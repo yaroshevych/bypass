@@ -21,9 +21,17 @@ A read-only KeePass viewer with keyboard workflows from Bypass. Download the bui
 | `o`, `Shift+L` | Open or lock the vault |
 | Esc | Dismiss an overlay or leave search |
 
-The viewer keeps the vault in memory while unlocked. Locking clears the session and its views. Copied secrets may remain on the system clipboard after locking. Entry URLs open when you follow them. The viewer supports Argon2d and Argon2id version 1.3.
-
 The sidebar includes All Entries, Favorites, Recent, Bin, Tags, and Groups. Recent uses vault modification dates and activity from the current unlocked session. The viewer adapts the [shadcn/ui Base Nova sidebar demo](https://ui.shadcn.com/docs/components/base/sidebar) to native HTML and embeds Geist and Geist Mono. It follows your system appearance until you choose a mode with the header switch.
+
+## Security
+
+**Bypass Web is a read-only viewer: it does not modify or save the vault file.**
+
+The built HTML file runs locally and does not need a server or network connection. Vault decryption happens on your device. Entry URLs open when you follow them.
+
+The viewer uses [kdbxweb](https://github.com/keeweb/kdbxweb) to read and decrypt KeePass vaults and [hash-wasm](https://github.com/Daninet/hash-wasm) for Argon2d and Argon2id version 1.3 key derivation.
+
+The vault remains in memory while unlocked. Locking clears the session and its views; copied secrets may remain on the system clipboard after locking.
 
 ## Build and verify
 
