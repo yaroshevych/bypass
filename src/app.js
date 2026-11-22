@@ -36,7 +36,7 @@ let largeReturnFocus = null;
 let searchOrigin = null;
 
 const panes = [groups.closest('.pane'), entries.closest('.pane'), detail];
-const sidebarTriggers = [...document.querySelectorAll('[data-slot="sidebar-trigger"]')];
+const sidebarTrigger = document.querySelector('[data-slot="sidebar-trigger"]');
 const vaultSwitcher = byId('vault-switcher');
 const vaultMenu = byId('vault-menu');
 const commandsTrigger = byId('commands');
@@ -79,18 +79,12 @@ function moveVaultMenuFocus(event) {
 vaultMenu.addEventListener('keydown', moveVaultMenuFocus);
 vaultSwitcher.addEventListener('keydown', moveVaultMenuFocus);
 
-function setSidebar(trigger, open) {
-  const panel = byId(trigger.getAttribute('aria-controls'));
-  trigger.setAttribute('aria-expanded', String(open));
-  panel.hidden = !open;
+function setSidebar(open) {
+  sidebarTrigger.setAttribute('aria-expanded', String(open));
+  byId('navigation-sidebar').hidden = !open;
 }
 
-for (const trigger of sidebarTriggers) {
-  trigger.addEventListener('click', () => {
-    const open = trigger.getAttribute('aria-expanded') !== 'true';
-    setSidebar(trigger, open);
-  });
-}
+sidebarTrigger.addEventListener('click', () => setSidebar(sidebarTrigger.getAttribute('aria-expanded') !== 'true'));
 
 function saveView(captureScroll = false) {
   const view = views[activeView];
@@ -278,7 +272,7 @@ form.addEventListener('submit', async event => {
     database = await Kdbx.load(data, credentials);
     workspace = vaultWorkspace(database);
     vaultFileInfo = { name, size: file.size, modified: file.lastModified };
-    for (const trigger of sidebarTriggers) setSidebar(trigger, true);
+    setSidebar(true);
     views = [{ group: null, selected: null, query: '' }]; activeView = 0;
     byId('vault-name').textContent = database.meta.name || name;
     renderGroups();
