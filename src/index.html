@@ -39,6 +39,7 @@
   <header class="vault-header justify-between">
     <h1 id="vault-name"></h1>
     <div class="toolbar">
+      <button data-slot="button" id="commands" type="button">Commands</button>
       <div class="flex items-center gap-2"><span class="muted" id="theme-label">Dark mode</span><button data-slot="switch" id="theme" class="theme-switch" type="button" role="switch" aria-checked="false" aria-labelledby="theme-label"><span data-slot="switch-thumb" aria-hidden="true"></span></button></div>
       <button data-slot="button" id="lock" type="button">Lock Vault</button>
     </div>
@@ -77,12 +78,8 @@
     </section>
     <aside class="pane sidebar stack" id="detail" data-slot="sidebar" data-side="right" aria-label="Entry details"></aside>
   </div>
-  <footer class="workspace-footer">
-    <button data-slot="button" id="commands" type="button">Commands <kbd>Ctrl+P</kbd></button>
-    <span class="muted"><kbd>/</kbd> Filter</span>
-    <p id="copy-status" role="status"></p>
-    <p id="result-count" class="muted ms-auto" role="status"></p>
-  </footer>
+  <p id="copy-status" class="sr-only" role="status"></p>
+  <p id="result-count" class="sr-only" role="status"></p>
   <section id="palette" class="overlay" role="dialog" aria-modal="true" aria-labelledby="palette-title" hidden>
     <div class="overlay-card" data-slot="dialog-content">
       <div class="palette-header" data-slot="dialog-header">

@@ -97,15 +97,14 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .inline { display: flex; gap: .5rem; align-items: center; }
 .primary { @apply border-transparent bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground; }
 #error { color: var(--error); }
-#error:empty, #progress:empty, #copy-status:empty { display: none; }
-.viewer { @apply grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)_auto] px-3 pt-3 sm:px-5; }
-.vault-header, .workspace-bar, .workspace-footer, .toolbar, #tabs {
+#error:empty, #progress:empty { display: none; }
+.viewer { @apply grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)] px-3 pt-3 sm:px-5; }
+.vault-header, .workspace-bar, .toolbar, #tabs {
   @apply flex flex-wrap items-center gap-2;
 }
 .vault-header h1 { @apply text-lg; }
 .workspace-bar { padding: .45rem 0; justify-content: space-between; }
-.workspace-footer { padding-block: .45rem; border-top: 1px solid var(--line); }
-.toolbar button:not(.theme-switch), .workspace-footer button { @apply h-8 px-3; }
+.toolbar button:not(.theme-switch) { @apply h-8 px-3; }
 #tabs { @apply w-fit gap-0.5 rounded-lg bg-muted p-[3px]; }
 #tabs button { @apply block h-7 max-w-52 truncate rounded-md border-transparent bg-transparent px-2 py-1 text-muted-foreground shadow-none hover:text-foreground; }
 #tabs button[aria-selected="true"] { @apply bg-background text-foreground shadow-sm; }
@@ -188,6 +187,6 @@ dd button { @apply h-8 px-3; }
   .layout:has(#groups[hidden]) .entry-pane { grid-column: 1 / -1; }
   .sidebar[data-side="right"] { grid-column: 1 / -1; grid-row: 2; border-inline-start: 0; border-top: 1px solid var(--line); max-height: none; }
   .pane { max-height: 37vh; }
-  .viewer { height: auto; min-height: 100dvh; grid-template-rows: auto auto 1fr auto; }
+  .viewer { height: auto; min-height: 100dvh; grid-template-rows: auto auto 1fr; }
   .entry-table :is(th, td):last-child { display: none; }
 }
