@@ -727,7 +727,7 @@ vaultInfoDialog.addEventListener('close', () => {
   if (database) vaultSwitcher.focus();
 });
 installDialogDismissal(document.querySelectorAll('dialog'), dialog => {
-  if (dialog === vaultInfoDialog) dialog.close();
+  if (dialog === vaultInfoDialog || dialog.id === 'about-dialog') dialog.close();
   else closeOverlays();
 });
 byId('open-another').addEventListener('click', () => {
@@ -809,7 +809,7 @@ function commandGroups() {
     [['Search', '/', searchAllEntries], ['Jump to field', 'Shift+J', openFieldJump, needsEntry],
       ['Copy focused field', 'c', copyFocusedField, needsEntry], ['Reveal focused field', 'v', revealFocusedField, needsEntry],
       ['Large View', 'Shift+G', openLargeView, needsEntry]],
-    [['Toggle dark mode', '', () => byId('theme').click()]],
+    [['Toggle dark mode', '', () => byId('theme').click()], ['About', '', () => byId('about-dialog').showModal()]],
   ];
 }
 
@@ -961,7 +961,7 @@ function moveWithinPane(event) {
 }
 
 document.addEventListener('keydown', event => {
-  if (vaultInfoDialog.open) return;
+  if (vaultInfoDialog.open || byId('about-dialog').open) return;
   if (vaultMenu.matches(':popover-open')) return;
   const target = event.target;
   const editing = target.matches('input, textarea, select, [contenteditable="true"]');

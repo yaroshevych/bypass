@@ -121,6 +121,14 @@
     </div>
     <dl id="vault-info-fields"></dl>
   </dialog>
+  <dialog id="about-dialog" class="vault-info-dialog" aria-labelledby="about-title">
+    <div data-slot="dialog-header">
+      <h2 id="about-title" tabindex="-1" autofocus>About</h2>
+      <form method="dialog"><button data-slot="dialog-close" type="submit" aria-label="Close"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m18 6-12 12M6 6l12 12"></path></svg></button></form>
+    </div>
+    <p>Bypass Web - KeePass viewer in a single offline HTML file</p>
+    <a href="https://github.com/yaroshevych/bypass-web" target="_blank" rel="noopener noreferrer">bypass-web on GitHub</a>
+  </dialog>
   <p id="copy-status" class="sr-only" role="status"></p>
   <p id="result-count" class="sr-only" role="status"></p>
   <div id="palette" class="commands-menu" data-slot="menubar-content" role="menu" aria-labelledby="commands" popover></div>
