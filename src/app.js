@@ -296,7 +296,7 @@ function renderGroups() {
       node.dataset.slot = 'sidebar-menu-button';
       if (item === (group ?? workspace.builtIn[0])) node.setAttribute('aria-current', 'true');
       node.tabIndex = node.hasAttribute('aria-current') ? 0 : -1;
-      node.style.paddingInlineStart = `${0.55 + (item.depth ?? 0) * 0.8}rem`;
+      if (item.depth) node.style.paddingInlineStart = `${0.5 + item.depth * 0.8}rem`;
       node.append(element('span', item.name), element('small', String(item.rows.length), 'count'));
       row.append(node);
       list.append(row);

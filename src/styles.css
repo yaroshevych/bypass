@@ -98,12 +98,13 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .primary { @apply border-transparent bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground; }
 #error { color: var(--error); }
 #error:empty, #progress:empty { display: none; }
-.viewer { @apply grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)] px-3 pt-3 sm:px-5; }
+.viewer { @apply grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)] pt-3; }
 .vault-header, .workspace-bar, .toolbar, #tabs {
   @apply flex flex-wrap items-center gap-2;
 }
 .vault-header h1 { @apply text-lg; }
-.workspace-bar { padding: .45rem 0; justify-content: space-between; }
+.vault-header, .workspace-bar { @apply px-2; }
+.workspace-bar { padding-block: .45rem; justify-content: space-between; }
 .toolbar button:not(.theme-switch) { @apply h-8 px-3; }
 #tabs { @apply w-fit gap-0.5 rounded-lg bg-muted p-[3px]; }
 #tabs button { @apply block h-7 max-w-52 truncate rounded-md border-transparent bg-transparent px-2 py-1 text-muted-foreground shadow-none hover:text-foreground; }
@@ -140,9 +141,10 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 [data-slot="sidebar-group-content"] { @apply w-full text-sm; }
 [data-slot="sidebar-menu"] { @apply m-0 flex w-full min-w-0 list-none flex-col gap-1 p-0; }
 [data-slot="sidebar-menu-item"] { @apply relative; }
-[data-slot="sidebar-menu-button"] { @apply flex h-auto min-h-8 w-full justify-between gap-2 rounded-md border-transparent bg-transparent p-2 text-left whitespace-normal shadow-none transition-none; overflow-wrap: anywhere; }
+[data-slot="sidebar-menu-button"] { @apply flex h-8 w-full items-center justify-between gap-2 overflow-hidden rounded-md border-0 bg-transparent p-2 text-left shadow-none transition-none; }
+[data-slot="sidebar-menu-button"] span { @apply min-w-0 truncate; }
 [data-slot="sidebar-menu-button"][aria-current="true"] { @apply bg-accent font-medium text-accent-foreground; }
-.count { color: inherit; opacity: .8; font-variant-numeric: tabular-nums; }
+.count { @apply shrink-0 tabular-nums; color: inherit; opacity: .8; }
 .entry-pane { @apply col-start-2 row-start-1 pt-0 pb-12; }
 .entry-table { @apply w-full table-fixed caption-bottom text-sm; }
 .entry-table thead { @apply sticky top-0 z-10 bg-card; }
