@@ -213,6 +213,9 @@ dd.inline > :first-child { flex: 1 1 10rem; min-width: 0; }
 dd button { @apply h-8 px-3; }
 dd button.field-action { @apply size-8 shrink-0 p-2; }
 .field-action svg { width: 100%; height: 100%; }
+#detail dd .field-action { opacity: 0; }
+#detail dd:hover .field-action, #detail dd:focus-within .field-action { opacity: 1; }
+@media (hover: none) { #detail dd .field-action { opacity: 1; } }
 .otp { display: grid; gap: .35rem; }
 .otp-code { font: 400 1.35rem "Geist Mono", ui-monospace, monospace; letter-spacing: .08em; }
 .otp progress { @apply h-2 w-full overflow-hidden rounded-full bg-primary/20; appearance: none; accent-color: var(--primary); }

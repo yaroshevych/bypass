@@ -222,7 +222,7 @@ test('uses the palette and keyboard to search, copy, reveal, and lock', async ({
   await page.keyboard.press('v');
   await expect(page.getByText('entry-secret', { exact: true })).toBeVisible();
   await page.keyboard.press('Shift+g');
-  await expect(page.getByRole('dialog').getByText('entry-secret', { exact: true })).toBeVisible();
+  await expect(page.locator('#large-content')).toHaveAttribute('aria-label', 'entry-secret');
   await page.keyboard.press('Shift+l');
   await expect(master).toBeVisible();
   await expect(page.getByText('entry-secret', { exact: true })).toHaveCount(0);
