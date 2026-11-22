@@ -36,6 +36,21 @@ let zoomed = false;
 let searchOrigin = null;
 
 const panes = [groups.closest('.pane'), entries.closest('.pane'), detail];
+const sidebarTriggers = [...document.querySelectorAll('[data-slot="sidebar-trigger"]')];
+
+function setSidebar(trigger, open) {
+  const panel = byId(trigger.getAttribute('aria-controls'));
+  trigger.setAttribute('aria-expanded', String(open));
+  panel.hidden = !open;
+}
+
+for (const trigger of sidebarTriggers) {
+  trigger.addEventListener('click', () => {
+    const open = trigger.getAttribute('aria-expanded') !== 'true';
+    if (!open && trigger.getAttribute('aria-controls') === 'detail') hideReveals();
+    setSidebar(trigger, open);
+  });
+}
 
 function saveView() {
   const view = views[activeView];
@@ -211,6 +226,7 @@ form.addEventListener('submit', async event => {
     credentials = new Credentials(password, keyBytes);
     database = await Kdbx.load(data, credentials);
     workspace = vaultWorkspace(database);
+    for (const trigger of sidebarTriggers) setSidebar(trigger, true);
     views = [{ group: null, selected: null, query: '', zoomed: false }]; activeView = 0;
     byId('vault-name').textContent = database.meta.name || name;
     renderGroups();
@@ -687,7 +703,14 @@ function hideReveals() {
 }
 function fieldNode(key) { return [...detail.querySelectorAll('[data-field-key]')].find(node => node.dataset.fieldKey.toLowerCase() === key.toLowerCase()); }
 function fieldValueNode(key) { return [...detail.querySelectorAll('[data-field-value-key]')].find(node => node.dataset.fieldValueKey.toLowerCase() === key.toLowerCase()); }
-function focusField(key) { const node = fieldNode(key); if (!node) return false; node.tabIndex = 0; node.focus(); node.scrollIntoView({ block: 'nearest' }); return true; }
+function focusField(key) {
+  const node = fieldNode(key);
+  if (!node) return;
+  if (detail.hidden) setSidebar(sidebarTriggers.find(trigger => trigger.getAttribute('aria-controls') === detail.id), true);
+  node.tabIndex = 0;
+  node.focus();
+  node.scrollIntoView({ block: 'nearest' });
+}
 function actionNode(key, action) { return detail.querySelector(`[data-field-action="${action}"][data-field-key="${CSS.escape(key)}"]`); }
 function copyFocusedField() {
   const key = activeField() || (selected && selected.fields.has('Password') ? 'Password' : selected && selected.fields.has('UserName') ? 'UserName' : null);

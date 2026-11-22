@@ -200,8 +200,12 @@ test('uses the palette and keyboard to search, copy, reveal, and lock', async ({
   await page.keyboard.press('ArrowDown');
   await expect(page.getByRole('button', { name: /Example login/ })).toBeFocused();
   await page.keyboard.press('Enter');
+  const detailsSidebar = page.getByRole('button', { name: 'Details', exact: true });
+  await detailsSidebar.click();
+  await expect(detailsSidebar).toHaveAttribute('aria-expanded', 'false');
   await page.keyboard.press('Shift+j');
   await page.keyboard.press('p');
+  await expect(detailsSidebar).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('dd[data-field-key="Password"]')).toBeFocused();
   await expect(page.getByText('••••••••', { exact: true })).toBeVisible();
   await page.keyboard.press('c');
@@ -265,6 +269,11 @@ test('opens with a selected entry and navigates TUI views, tags, and groups', as
   await openFile(page, fixtures.get('KDBX 3'));
   await unlock(page);
   const nav = page.getByRole('navigation');
+  const navigationSidebar = page.getByRole('button', { name: 'Navigation', exact: true });
+  await navigationSidebar.click();
+  await expect(nav).toBeHidden();
+  await navigationSidebar.click();
+  await expect(nav).toBeVisible();
   const list = page.getByRole('region', { name: 'Entries', exact: true });
   const entries = list.getByRole('button');
   await expect(entries.first()).toHaveAttribute('aria-current', 'true');

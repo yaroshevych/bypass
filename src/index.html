@@ -44,13 +44,15 @@
     </div>
   </header>
   <div class="workspace-bar">
+    <button data-slot="sidebar-trigger" type="button" aria-controls="groups" aria-expanded="true">Navigation</button>
     <div id="tabs" data-slot="tabs-list" role="tablist" aria-label="Vault views"></div>
     <label class="search-control"><span class="sr-only">Search entries</span>
       <input data-slot="input" id="search" type="search" placeholder="Filter entries" autocomplete="off" spellcheck="false">
     </label>
+    <button data-slot="sidebar-trigger" type="button" aria-controls="detail" aria-expanded="true">Details</button>
   </div>
   <div class="layout min-h-0">
-    <nav id="groups" class="pane tree" aria-label="Vault views, tags and groups"></nav>
+    <nav id="groups" class="pane sidebar tree" data-slot="sidebar" data-side="left" aria-label="Vault views, tags and groups"></nav>
     <section class="pane entry-pane" aria-label="Entries">
       <table class="entry-table" data-slot="table" aria-label="Vault entries">
         <thead data-slot="table-header">
@@ -63,7 +65,7 @@
         <tbody id="entries" data-slot="table-body"></tbody>
       </table>
     </section>
-    <section class="pane stack" id="detail" aria-label="Entry details"></section>
+    <aside class="pane sidebar stack" id="detail" data-slot="sidebar" data-side="right" aria-label="Entry details"></aside>
   </div>
   <footer class="workspace-footer">
     <button data-slot="button" id="commands" type="button">Commands <kbd>Ctrl+P</kbd></button>
