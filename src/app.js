@@ -33,7 +33,6 @@ let activeView = 0;
 let paletteReturnFocus = null;
 let fieldJumpReturnFocus = null;
 let largeReturnFocus = null;
-let zoomed = false;
 let searchOrigin = null;
 
 const panes = [groups.closest('.pane'), entries.closest('.pane'), detail];
@@ -97,7 +96,7 @@ for (const trigger of sidebarTriggers) {
 function saveView(captureScroll = false) {
   const view = views[activeView];
   if (!view) return;
-  Object.assign(view, { group, selected, query: search.value, zoomed });
+  Object.assign(view, { group, selected, query: search.value });
   if (captureScroll) view.scroll = panes.map(pane => pane.scrollTop);
 }
 
@@ -137,9 +136,8 @@ function switchView(index, saveCurrent = true) {
   if (saveCurrent) saveView(true);
   activeView = (index + views.length) % views.length;
   const view = views[activeView];
-  ({ group, selected, zoomed } = view);
+  ({ group, selected } = view);
   search.value = view.query;
-  byId('viewer').classList.toggle('zoomed', zoomed);
   renderGroups();
   renderEntries();
   syncViews();
@@ -282,7 +280,7 @@ form.addEventListener('submit', async event => {
     workspace = vaultWorkspace(database);
     vaultFileInfo = { name, size: file.size, modified: file.lastModified };
     for (const trigger of sidebarTriggers) setSidebar(trigger, true);
-    views = [{ group: null, selected: null, query: '', zoomed: false }]; activeView = 0;
+    views = [{ group: null, selected: null, query: '' }]; activeView = 0;
     byId('vault-name').textContent = database.meta.name || name;
     renderGroups();
     renderEntries();
@@ -705,7 +703,7 @@ function clearVault() {
   byId('result-count').textContent = '';
   byId('large-content').textContent = '';
   commandsMenu.replaceChildren();
-  byId('tabs').replaceChildren(); byId('viewer').classList.remove('zoomed');
+  byId('tabs').replaceChildren();
 }
 
 search.addEventListener('focus', rememberSearch);
@@ -720,7 +718,6 @@ function lockVault(preserveFile = null) {
   closeOverlays();
   views = [];
   activeView = 0;
-  zoomed = false;
   clearVault();
   resetCredentials();
   if (preserveFile) chooseFile(preserveFile);
@@ -812,7 +809,7 @@ function commandGroups() {
     [['Search', '/', searchAllEntries], ['Jump to field', 'Shift+J', openFieldJump, needsEntry],
       ['Copy focused field', 'c', copyFocusedField, needsEntry], ['Reveal focused field', 'v', revealFocusedField, needsEntry],
       ['Large View', 'Shift+G', openLargeView, needsEntry]],
-    [['Toggle zoom', 'z', toggleZoom], ['Toggle dark mode', '', () => byId('theme').click()]],
+    [['Toggle dark mode', '', () => byId('theme').click()]],
   ];
 }
 
@@ -908,7 +905,6 @@ function openLargeView() {
   byId('large-close').focus();
 }
 byId('large-close').addEventListener('click', closeOverlays);
-function toggleZoom() { zoomed = !zoomed; byId('viewer').classList.toggle('zoomed', zoomed); saveView(); }
 function openFieldJump() {
   if (!selected) return;
   fieldJumpReturnFocus = document.activeElement;
@@ -997,7 +993,6 @@ document.addEventListener('keydown', event => {
   else if (event.key.toLowerCase() === 'o') openVault();
   else if (event.key.toLowerCase() === 'c') copyFocusedField();
   else if (event.key.toLowerCase() === 'v') revealFocusedField();
-  else if (event.key.toLowerCase() === 'z') toggleZoom();
   else if (event.key.toLowerCase() === 't') newView();
   else if (event.key === '[') switchView(activeView - 1);
   else if (event.key === ']') switchView(activeView + 1);

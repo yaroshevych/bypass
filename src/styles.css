@@ -130,7 +130,6 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
   @apply grid h-dvh grid-rows-[auto_minmax(0,1fr)];
   grid-template-columns: var(--left-width) minmax(0, 1.4fr) var(--right-width);
 }
-.viewer.zoomed { --right-width: minmax(16rem, 2.5fr); }
 .viewer:has(#navigation-sidebar[hidden]) { --left-width: 0px; }
 .viewer:has(#detail[hidden]) { --right-width: 0px; }
 .vault-header { @apply col-start-2 col-end-4 row-start-1 flex min-w-0 items-center gap-2 overflow-x-auto border-b border-border p-2; }

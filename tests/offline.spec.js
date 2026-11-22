@@ -191,7 +191,7 @@ test('uses the palette and keyboard to search, copy, reveal, and lock', async ({
   const search = page.getByRole('searchbox', { name: 'Search entries' });
   await search.fill('find me');
   await page.keyboard.press('Control+p');
-  const palette = page.getByRole('menu', { name: 'Commands' });
+  const palette = page.getByRole('menu', { name: 'Menu' });
   await expect(palette).toBeVisible();
   await expect(palette.getByRole('menuitem', { name: 'Open vault' })).toBeFocused();
   await expect(palette.getByRole('searchbox')).toHaveCount(0);
@@ -247,8 +247,8 @@ test('keeps tab selection and search independent across switching and closing', 
   await page.keyboard.press('2');
   await expect(search).toHaveValue('other login');
 
-  const commands = page.getByRole('button', { name: 'Commands' });
-  const menu = page.getByRole('menu', { name: 'Commands' });
+  const commands = page.getByRole('button', { name: 'Menu' });
+  const menu = page.getByRole('menu', { name: 'Menu' });
   await commands.click();
   await expect(menu).toBeVisible();
   const triggerBox = await commands.boundingBox();

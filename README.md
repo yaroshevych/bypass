@@ -7,11 +7,11 @@ A read-only KeePass viewer with keyboard workflows from Bypass. Download the bui
 | Keys | Action |
 | --- | --- |
 | `Ctrl+P` or `?` | Open Commands. Use the Commands button if the browser handles `Ctrl+P`. |
-| `/` | Filter the current view. Choose Search in Commands to search All Entries. |
+| `/` | Filter the current view. Choose Search in Menu to search All Entries. |
 | Arrows, Tab, Enter | Navigate panes, groups, entries, fields, and commands |
 | `Shift+J` | Jump to a field |
 | `c`, `v` | Copy or reveal the focused field |
-| `Shift+G`, `z` | Open Large View or toggle zoom |
+| `Shift+G` | Open Large View |
 | `t`, `[`, `]`, `1`–`9` | Open or switch workspace tabs. Find Close Tab in Commands. |
 | `o`, `Shift+L` | Open or lock the vault |
 | Esc | Dismiss an overlay or leave search |
