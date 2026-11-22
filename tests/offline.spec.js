@@ -143,6 +143,7 @@ test('shows and copies a live OTP without exposing its seed or rendering entry H
   await expect(page.getByRole('link', { name: 'javascript:alert(1)' })).toHaveCount(0);
   await page.getByRole('button', { name: /Other login/ }).click();
   await expect(page.getByText('359152', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Test vault', exact: true }).click();
   await page.getByRole('button', { name: 'Lock Vault' }).click();
   await expect(page.getByText('359152', { exact: true })).toHaveCount(0);
 });
@@ -250,9 +251,16 @@ test('keeps tab selection and search independent across switching and closing', 
 test('opens another vault from the keyboard after a file is selected', async ({ page }) => {
   await openFile(page, fixtures.get('KDBX 3'));
   await unlock(page);
-  await page.keyboard.press('Escape');
+  const switcher = page.getByRole('button', { name: 'Test vault', exact: true });
+  await switcher.press('Enter');
+  const openAnother = page.getByRole('button', { name: 'Open another…' });
+  await expect(openAnother).toBeFocused();
+  const menuBox = await page.locator('#vault-menu').boundingBox();
+  const triggerBox = await switcher.boundingBox();
+  expect(menuBox.x).toBeGreaterThan(triggerBox.x + triggerBox.width);
+  expect(menuBox.y).toBe(triggerBox.y);
   const picker = page.waitForEvent('filechooser');
-  await page.keyboard.press('o');
+  await openAnother.press('Enter');
   const chooser = await picker;
   await expect(page.getByRole('heading', { name: 'Test vault' })).toBeVisible();
   await chooser.setFiles({

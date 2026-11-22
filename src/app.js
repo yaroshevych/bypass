@@ -37,6 +37,29 @@ let searchOrigin = null;
 
 const panes = [groups.closest('.pane'), entries.closest('.pane'), detail];
 const sidebarTriggers = [...document.querySelectorAll('[data-slot="sidebar-trigger"]')];
+const vaultSwitcher = byId('vault-switcher');
+const vaultMenu = byId('vault-menu');
+
+vaultMenu.addEventListener('beforetoggle', event => {
+  const open = event.newState === 'open';
+  vaultSwitcher.setAttribute('aria-expanded', String(open));
+  if (!open) return;
+  const trigger = vaultSwitcher.getBoundingClientRect();
+  const menuWidth = parseFloat(getComputedStyle(vaultMenu).width);
+  const beside = trigger.right + menuWidth + 16 <= document.documentElement.clientWidth;
+  const left = beside ? trigger.right + 8 : Math.max(8, Math.min(trigger.left, document.documentElement.clientWidth - menuWidth - 8));
+  vaultMenu.style.left = `${left}px`;
+  vaultMenu.style.top = `${beside ? trigger.top : trigger.bottom + 4}px`;
+});
+
+vaultMenu.addEventListener('keydown', event => {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+  event.preventDefault();
+  const items = [...vaultMenu.querySelectorAll('button')];
+  const current = items.indexOf(document.activeElement);
+  const direction = event.key === 'ArrowDown' ? 1 : -1;
+  items[(current + direction + items.length) % items.length].focus();
+});
 
 function setSidebar(trigger, open) {
   const panel = byId(trigger.getAttribute('aria-controls'));
@@ -653,6 +676,7 @@ search.addEventListener('input', () => {
   if (database) renderEntries();
 });
 function lockVault(preserveFile = null) {
+  if (vaultMenu.matches(':popover-open')) vaultMenu.hidePopover();
   closeOverlays();
   views = [];
   activeView = 0;
@@ -665,6 +689,10 @@ function lockVault(preserveFile = null) {
   vaultFile.focus();
 }
 byId('lock').addEventListener('click', () => lockVault());
+byId('open-another').addEventListener('click', () => {
+  vaultMenu.hidePopover();
+  openVault();
+});
 
 function openPalette() {
   if (!byId('large-view').hidden) closeOverlays();
@@ -839,6 +867,7 @@ function moveWithinPane(event) {
 }
 
 document.addEventListener('keydown', event => {
+  if (vaultMenu.matches(':popover-open')) return;
   const target = event.target;
   const editing = target.matches('input, textarea, select, [contenteditable="true"]');
   if (!byId('palette').hidden) {
