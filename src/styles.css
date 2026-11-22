@@ -131,7 +131,6 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
   grid-template-columns: var(--left-width) minmax(0, 1.4fr) var(--right-width);
 }
 .viewer:has(#navigation-sidebar[hidden]) { --left-width: 0px; }
-.viewer:has(#detail[hidden]) { --right-width: 0px; }
 .vault-header { @apply col-start-2 col-end-4 row-start-1 flex min-w-0 items-center gap-2 overflow-x-auto border-b border-border p-2; }
 #tabs { @apply flex w-fit min-w-0 items-center gap-0.5 overflow-x-auto rounded-lg bg-muted p-[3px]; }
 #tabs button { @apply block h-7 max-w-52 shrink-0 truncate rounded-md border-transparent bg-transparent px-2 py-1 text-muted-foreground shadow-none hover:text-foreground; }

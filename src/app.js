@@ -88,7 +88,6 @@ function setSidebar(trigger, open) {
 for (const trigger of sidebarTriggers) {
   trigger.addEventListener('click', () => {
     const open = trigger.getAttribute('aria-expanded') !== 'true';
-    if (!open && trigger.getAttribute('aria-controls') === 'detail') hideReveals();
     setSidebar(trigger, open);
   });
 }
@@ -894,7 +893,6 @@ function fieldValueNode(key) { return [...detail.querySelectorAll('[data-field-v
 function focusField(key) {
   const node = fieldNode(key);
   if (!node) return;
-  if (detail.hidden) setSidebar(sidebarTriggers.find(trigger => trigger.getAttribute('aria-controls') === detail.id), true);
   node.tabIndex = 0;
   node.focus();
   node.scrollIntoView({ block: 'nearest' });
