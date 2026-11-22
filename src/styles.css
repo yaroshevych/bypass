@@ -159,11 +159,16 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .sidebar-content { @apply min-h-0 flex-1 bg-transparent p-0; }
 .vault-menu { @apply fixed inset-auto m-0 w-48 rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10; }
 .vault-menu button { @apply flex h-7 w-full justify-start gap-1.5 rounded-md border-0 bg-transparent px-1.5 py-1 shadow-none focus:bg-accent focus:text-accent-foreground; }
-.vault-info-dialog { @apply m-auto w-[calc(100%-2rem)] max-w-lg rounded-lg border border-border bg-background p-6 text-foreground shadow-lg; }
+.vault-info-dialog { @apply m-auto w-[calc(100%-2rem)] max-w-sm rounded-xl border-0 bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10; }
+.vault-info-dialog[open] { @apply grid gap-4; }
 .vault-info-dialog::backdrop { @apply bg-black/50; }
-.vault-info-dialog dl { @apply mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2; }
+.vault-info-dialog [data-slot="dialog-header"] { @apply flex min-h-5 items-center pe-8; }
+.vault-info-dialog h2 { @apply text-base leading-none font-medium; }
+.vault-info-dialog dl { @apply grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2; }
 .vault-info-dialog dd { @apply m-0 wrap-anywhere; }
-.vault-info-dialog form { @apply m-0 mt-4 flex justify-end; }
+.vault-info-dialog form { @apply absolute end-2 top-2 m-0; }
+.vault-info-dialog [data-slot="dialog-close"] { @apply size-7 border-transparent bg-transparent p-0 text-muted-foreground shadow-none hover:bg-muted hover:text-foreground; }
+.vault-info-dialog svg { @apply size-4; }
 .sidebar[data-side="right"] { @apply col-start-3 row-start-2 border-s border-sidebar-border; }
 .entry-sidebar-controls { @apply pointer-events-none z-20 col-start-2 row-start-2 flex items-end justify-between gap-2 self-end p-2; }
 [data-slot="sidebar-trigger"] { @apply pointer-events-auto size-8 p-0 shadow-sm; }

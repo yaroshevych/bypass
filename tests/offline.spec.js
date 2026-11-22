@@ -301,7 +301,10 @@ test('shows file metadata and vault counts from the Info menu', async ({ page })
   await expect(value('Favorites')).toHaveText('1');
   await expect(value('Tags')).toHaveText('1');
   await expect(value('Entries in Bin')).toHaveText('1');
-  await info.getByRole('button', { name: 'Close' }).click();
+  const close = info.getByRole('button', { name: 'Close' });
+  await expect(close).toBeFocused();
+  await expect(close).toHaveText('');
+  await close.click();
   await expect(info).toBeHidden();
   await expect(switcher).toBeFocused();
 });

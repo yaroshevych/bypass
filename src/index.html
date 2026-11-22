@@ -105,9 +105,17 @@
     <button id="lock" data-slot="dropdown-menu-item" type="button">Lock Vault</button>
   </div>
   <dialog id="vault-info-dialog" class="vault-info-dialog" data-slot="dialog-content" aria-labelledby="vault-info-title">
-    <h2 id="vault-info-title">Vault information</h2>
+    <div data-slot="dialog-header">
+      <h2 id="vault-info-title" data-slot="dialog-title">Vault information</h2>
+      <form method="dialog">
+        <button data-slot="dialog-close" type="submit" aria-label="Close" autofocus>
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="m18 6-12 12M6 6l12 12"></path>
+          </svg>
+        </button>
+      </form>
+    </div>
     <dl id="vault-info-fields"></dl>
-    <form method="dialog"><button type="submit" autofocus>Close</button></form>
   </dialog>
   <p id="copy-status" class="sr-only" role="status"></p>
   <p id="result-count" class="sr-only" role="status"></p>
