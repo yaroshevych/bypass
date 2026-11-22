@@ -211,8 +211,11 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 dt { font-size: .84rem; color: var(--muted-foreground); font-weight: 600; }
 dd { margin: 0 0 .85rem; overflow-wrap: anywhere; white-space: pre-wrap; }
 dd .value { flex: 1 1 10rem; }
-dd.inline { flex-wrap: wrap; }
+dd.inline { display: flex; flex-wrap: wrap; gap: .25rem; }
+dd.inline > :first-child { flex: 1 1 10rem; min-width: 0; }
 dd button { @apply h-8 px-3; }
+dd button.field-action { @apply size-8 shrink-0 p-2; }
+.field-action svg { width: 100%; height: 100%; }
 .otp { display: grid; gap: .35rem; }
 .otp-code { font: 400 1.35rem "Geist Mono", ui-monospace, monospace; letter-spacing: .08em; }
 .otp progress { @apply h-2 w-full overflow-hidden rounded-full bg-primary/20; appearance: none; accent-color: var(--primary); }

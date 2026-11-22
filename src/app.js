@@ -455,8 +455,18 @@ function resetCopyStatus() {
   copyStatus.textContent = '';
 }
 
-function copyButton(readValue, label, caption = 'Copy') {
-  const node = button(caption, async () => {
+const actionIcons = {
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  check: '<path d="m5 12 4 4L19 6"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="m3 3 18 18M10.6 5.1A11 11 0 0 1 12 5c6.5 0 10 7 10 7a16 16 0 0 1-3 3.7M6.2 6.2A16 16 0 0 0 2 12s3.5 7 10 7a10 10 0 0 0 4.2-.9M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'
+};
+function setActionIcon(node, name) {
+  node.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${actionIcons[name]}</svg>`;
+}
+
+function copyButton(readValue, label) {
+  const node = button(undefined, async () => {
     const value = readValue();
     if (value == null) return;
     const attempt = ++copyAttempt;
@@ -477,17 +487,20 @@ function copyButton(readValue, label, caption = 'Copy') {
     }
     if (attempt !== copyAttempt) return;
     if (message === 'Copied!') workspace?.recordUse(selected);
-    node.textContent = message;
+    setActionIcon(node, message === 'Copied!' ? 'check' : 'copy');
     copyStatus.textContent = message;
     clearTimeout(copyTimers.get(node));
     copyTimers.set(node, setTimeout(() => {
-      node.textContent = caption;
+      setActionIcon(node, 'copy');
       copyTimers.delete(node);
     }, 1500));
     clearTimeout(copyStatusTimer);
     copyStatusTimer = setTimeout(() => { copyStatus.textContent = ''; }, 1500);
   });
   node.setAttribute('aria-label', 'Copy ' + label);
+  node.title = 'Copy ' + label;
+  node.classList.add('field-action');
+  setActionIcon(node, 'copy');
   return node;
 }
 
@@ -631,11 +644,14 @@ function renderDetails() {
       const visible = toggle.getAttribute('aria-pressed') === 'true';
       value.textContent = visible ? '••••••••' : field(entry, key);
       if (!visible) workspace.recordUse(entry);
-      toggle.textContent = visible ? 'Reveal' : 'Hide';
+      setActionIcon(toggle, visible ? 'eye' : 'eyeOff');
       toggle.setAttribute('aria-pressed', String(!visible));
     });
     toggle.setAttribute('aria-pressed', 'false');
     toggle.setAttribute('aria-label', 'Reveal or hide ' + label);
+    toggle.title = 'Reveal or hide ' + label;
+    toggle.classList.add('field-action');
+    setActionIcon(toggle, 'eye');
     toggle.dataset.fieldKey = key; toggle.dataset.fieldAction = 'reveal';
     add(label, value, toggle, ...(copy ? [copyButton(() => field(entry, key), label)] : []));
   }
