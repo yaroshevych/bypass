@@ -329,7 +329,8 @@ test('opens with a selected entry and navigates TUI views, tags, and groups', as
   const table = list.getByRole('table', { name: 'Vault entries' });
   await expect(table.getByRole('columnheader')).toHaveText(['Title', 'Username', 'Website']);
   await table.getByRole('cell', { name: 'example-user', exact: true }).click();
-  await expect(table.getByRole('button', { name: 'Example login' })).toBeFocused();
+  await expect(table.getByRole('button', { name: 'Example login' })).toHaveAttribute('aria-current', 'true');
+  await expect(table.getByRole('button', { name: 'Example login' })).not.toBeFocused();
   await expect(table.getByRole('button', { name: 'Example login' })).toHaveAttribute('aria-current', 'true');
   await nav.getByRole('button', { name: /All Entries/ }).press('ArrowDown');
   await expect(nav.getByRole('button', { name: /Favorites/ })).toHaveAttribute('aria-current', 'true');

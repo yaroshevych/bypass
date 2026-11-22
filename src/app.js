@@ -279,7 +279,7 @@ form.addEventListener('submit', async event => {
     resetCredentials();
     byId('unlock-screen').hidden = true;
     byId('viewer').hidden = false;
-    (entries.querySelector('[aria-current]') ?? search).focus();
+    search.focus();
   } catch (error) {
     clearVault();
     byId('error').textContent = unlockError(error);
@@ -404,9 +404,9 @@ function renderEntries() {
     const url = element('td', website(field(entry, 'URL')));
     for (const cell of [title, username, url]) cell.dataset.slot = 'table-cell';
     row.append(title, username, url);
+    row.addEventListener('mousedown', event => event.preventDefault());
     row.addEventListener('click', event => {
       if (node.contains(event.target)) return;
-      node.focus({ preventScroll: true });
       node.click();
     });
     fragment.append(row);
