@@ -289,6 +289,8 @@ test('shows file metadata and vault counts from the Info menu', async ({ page })
   await unlock(page);
   const switcher = page.getByRole('button', { name: 'Test vault', exact: true });
   await switcher.click();
+  await expect(page.locator('#vault-menu')).toBeVisible();
+  await expect(page.locator('#vault-menu :focus')).toHaveCount(0);
   await page.getByRole('button', { name: 'Info', exact: true }).click();
   const info = page.getByRole('dialog', { name: 'Vault information' });
   await expect(info).toBeVisible();

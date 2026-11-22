@@ -58,14 +58,25 @@ vaultMenu.addEventListener('beforetoggle', event => {
   vaultMenu.style.top = `${beside ? trigger.top : trigger.bottom + 4}px`;
 });
 
-vaultMenu.addEventListener('keydown', event => {
-  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+vaultSwitcher.addEventListener('click', event => {
+  if (event.detail !== 0 || vaultMenu.matches(':popover-open')) return;
+  requestAnimationFrame(() => {
+    if (vaultMenu.matches(':popover-open')) byId('open-another').focus();
+  });
+});
+
+function moveVaultMenuFocus(event) {
+  if (!vaultMenu.matches(':popover-open') || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return;
   event.preventDefault();
   const items = [...vaultMenu.querySelectorAll('button')];
   const current = items.indexOf(document.activeElement);
   const direction = event.key === 'ArrowDown' ? 1 : -1;
-  items[(current + direction + items.length) % items.length].focus();
-});
+  const next = current < 0 ? (direction > 0 ? 0 : items.length - 1) : (current + direction + items.length) % items.length;
+  items[next].focus();
+}
+
+vaultMenu.addEventListener('keydown', moveVaultMenuFocus);
+vaultSwitcher.addEventListener('keydown', moveVaultMenuFocus);
 
 function setSidebar(trigger, open) {
   const panel = byId(trigger.getAttribute('aria-controls'));
