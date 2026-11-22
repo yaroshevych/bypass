@@ -45,22 +45,10 @@
     </div>
   </header>
   <div class="workspace-bar">
-    <button data-slot="sidebar-trigger" type="button" aria-controls="groups" aria-expanded="true" aria-label="Toggle navigation sidebar" title="Toggle navigation sidebar">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-        <path d="M9 3v18"></path>
-      </svg>
-    </button>
     <div id="tabs" data-slot="tabs-list" role="tablist" aria-label="Vault views"></div>
     <label class="search-control"><span class="sr-only">Search entries</span>
       <input data-slot="input" id="search" type="search" placeholder="Filter entries" autocomplete="off" spellcheck="false">
     </label>
-    <button data-slot="sidebar-trigger" type="button" aria-controls="detail" aria-expanded="true" aria-label="Toggle details sidebar" title="Toggle details sidebar">
-      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-        <path d="M15 3v18"></path>
-      </svg>
-    </button>
   </div>
   <div class="layout min-h-0">
     <nav id="groups" class="pane sidebar" data-slot="sidebar" data-side="left" aria-label="Vault views, tags and groups"></nav>
@@ -76,6 +64,20 @@
         <tbody id="entries" data-slot="table-body"></tbody>
       </table>
     </section>
+    <div class="entry-sidebar-controls">
+      <button data-slot="sidebar-trigger" type="button" aria-controls="groups" aria-expanded="true" aria-label="Toggle navigation sidebar" title="Toggle navigation sidebar">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+          <path d="M9 3v18"></path>
+        </svg>
+      </button>
+      <button data-slot="sidebar-trigger" type="button" aria-controls="detail" aria-expanded="true" aria-label="Toggle details sidebar" title="Toggle details sidebar">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+          <path d="M15 3v18"></path>
+        </svg>
+      </button>
+    </div>
     <aside class="pane sidebar stack" id="detail" data-slot="sidebar" data-side="right" aria-label="Entry details"></aside>
   </div>
   <p id="copy-status" class="sr-only" role="status"></p>
