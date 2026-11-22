@@ -48,9 +48,12 @@ vaultMenu.addEventListener('beforetoggle', event => {
   vaultSwitcher.setAttribute('aria-expanded', String(open));
   if (!open) return;
   const trigger = vaultSwitcher.getBoundingClientRect();
-  const menuWidth = parseFloat(getComputedStyle(vaultMenu).width);
-  const beside = trigger.right + menuWidth + 16 <= document.documentElement.clientWidth;
-  const left = beside ? trigger.right + 8 : Math.max(8, Math.min(trigger.left, document.documentElement.clientWidth - menuWidth - 8));
+  const viewportWidth = document.documentElement.clientWidth;
+  const minimumWidth = 14 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+  const menuWidth = Math.min(Math.max(trigger.width, minimumWidth), viewportWidth - 16);
+  const beside = viewportWidth > 740 && trigger.right + menuWidth + 12 <= viewportWidth;
+  const left = beside ? trigger.right + 4 : Math.max(8, Math.min(trigger.left, viewportWidth - menuWidth - 8));
+  vaultMenu.style.width = `${menuWidth}px`;
   vaultMenu.style.left = `${left}px`;
   vaultMenu.style.top = `${beside ? trigger.top : trigger.bottom + 4}px`;
 });

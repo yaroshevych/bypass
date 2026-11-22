@@ -99,10 +99,25 @@
     </button>
   </div>
   <aside class="pane sidebar stack" id="detail" data-slot="sidebar" data-side="right" aria-label="Entry details"></aside>
-  <div id="vault-menu" class="vault-menu" data-slot="dropdown-menu-content" popover aria-label="Vault actions">
-    <button id="open-another" data-slot="dropdown-menu-item" type="button" autofocus>Open another…</button>
-    <button id="vault-info" data-slot="dropdown-menu-item" type="button">Info</button>
-    <button id="lock" data-slot="dropdown-menu-item" type="button">Lock Vault</button>
+  <div id="vault-menu" class="vault-menu" data-slot="dropdown-menu-content" popover aria-labelledby="vault-menu-label">
+    <div data-slot="dropdown-menu-group">
+      <p id="vault-menu-label" data-slot="dropdown-menu-label">Vault</p>
+      <button id="vault-info" data-slot="dropdown-menu-item" type="button">
+        <span class="vault-menu-icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4m0-4h.01"></path></svg></span>
+        Info
+      </button>
+    </div>
+    <hr data-slot="dropdown-menu-separator">
+    <div data-slot="dropdown-menu-group">
+      <button id="open-another" data-slot="dropdown-menu-item" type="button" autofocus>
+        <span class="vault-menu-icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
+        Open another…
+      </button>
+      <button id="lock" data-slot="dropdown-menu-item" type="button">
+        <span class="vault-menu-icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></span>
+        Lock Vault
+      </button>
+    </div>
   </div>
   <dialog id="vault-info-dialog" class="vault-info-dialog" data-slot="dialog-content" aria-labelledby="vault-info-title">
     <div data-slot="dialog-header">
