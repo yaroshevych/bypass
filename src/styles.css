@@ -153,10 +153,11 @@ dd button { @apply h-8 px-3; }
 .overlay { @apply fixed inset-0 z-50 grid place-items-center overflow-auto bg-black/50 p-4; }
 .overlay-card { @apply grid w-full max-w-lg gap-4 overflow-auto rounded-lg border border-border bg-background p-6 shadow-lg; max-height: 85dvh; }
 .overlay-card h2 { @apply text-lg leading-none font-semibold; }
-#palette .overlay-card { @apply gap-0 bg-popover p-0 text-popover-foreground; }
-#palette h2 { @apply px-4 pt-4 pb-2; }
-#palette-search { @apply h-12 rounded-none border-0 border-b border-border bg-transparent px-4 shadow-none; }
-.command-list { @apply max-h-75 overflow-auto p-1; }
+.palette-header { @apply flex items-center justify-between gap-4; }
+#palette-close { @apply size-8 border-transparent bg-transparent p-0 text-xl text-muted-foreground shadow-none hover:bg-accent hover:text-foreground; }
+.palette-command { @apply min-w-0 rounded-md border border-border bg-popover text-popover-foreground; }
+#palette-search { @apply h-10 rounded-b-none border-0 border-b border-border bg-transparent px-3 shadow-none; }
+.command-list { @apply max-h-[min(300px,40dvh)] overflow-auto p-1; }
 .command { @apply flex h-auto w-full cursor-default justify-between rounded-sm border-transparent bg-transparent px-2 py-1.5 text-left shadow-none; }
 .command[aria-current="true"] { @apply bg-accent text-accent-foreground; }
 .command[aria-disabled="true"] { @apply opacity-50; }

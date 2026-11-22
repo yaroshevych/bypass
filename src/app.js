@@ -671,6 +671,7 @@ function renderPalette(query) {
   host.querySelector('button')?.setAttribute('aria-current', 'true');
 }
 byId('commands').addEventListener('click', openPalette);
+byId('palette-close').addEventListener('click', closeOverlays);
 byId('palette-search').addEventListener('input', event => renderPalette(event.target.value));
 function activeField() { return document.activeElement?.closest('[data-field-key]')?.dataset.fieldKey; }
 function hideReveals() {
@@ -723,6 +724,7 @@ function jumpField(letter) {
 
 function handlePaletteKey(event) {
   const input = byId('palette-search');
+  const close = byId('palette-close');
   const options = [...byId('palette-items').querySelectorAll('button')];
   const index = options.findIndex(option => option.hasAttribute('aria-current'));
   const { key, shiftKey, ctrlKey, metaKey, altKey } = event;
@@ -730,18 +732,29 @@ function handlePaletteKey(event) {
   if (key === 'Escape') {
     event.preventDefault();
     closeOverlays();
-  } else if (key === 'Enter') {
+  } else if (key === 'Enter' && event.target !== close) {
     event.preventDefault();
     options[index]?.click();
-  } else if (['ArrowDown', 'ArrowUp', 'Tab'].includes(key)) {
+  } else if (key === 'Tab') {
+    event.preventDefault();
+    const controls = [close, input, ...options];
+    const direction = shiftKey ? -1 : 1;
+    const current = controls.indexOf(event.target);
+    const next = controls[(current + direction + controls.length) % controls.length];
+    if (options.includes(next)) {
+      options[index]?.removeAttribute('aria-current');
+      next.setAttribute('aria-current', 'true');
+    }
+    next.focus();
+  } else if (key === 'ArrowDown' || key === 'ArrowUp') {
     event.preventDefault();
     if (!options.length) return;
-    const direction = key === 'ArrowUp' || (key === 'Tab' && shiftKey) ? -1 : 1;
+    const direction = key === 'ArrowUp' ? -1 : 1;
     const next = options[(index + direction + options.length) % options.length];
     options[index]?.removeAttribute('aria-current');
     next.setAttribute('aria-current', 'true');
     next.focus();
-  } else if (event.target !== input && !ctrlKey && !metaKey && !altKey && (key.length === 1 || key === 'Backspace')) {
+  } else if (options.includes(event.target) && !ctrlKey && !metaKey && !altKey && (key.length === 1 || key === 'Backspace')) {
     event.preventDefault();
     input.value = key === 'Backspace' ? input.value.slice(0, -1) : input.value + key;
     renderPalette(input.value);

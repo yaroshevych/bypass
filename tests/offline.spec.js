@@ -183,6 +183,12 @@ test('uses the palette and keyboard to search, copy, reveal, and lock', async ({
   const palette = page.getByRole('dialog', { name: 'Command palette' });
   await expect(palette).toBeVisible();
   await expect(palette.getByPlaceholder('Search commands')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(palette.getByRole('button', { name: 'Close command palette' })).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(palette).toBeHidden();
+  await expect(search).toBeFocused();
+  await page.keyboard.press('Control+p');
   await page.keyboard.press('Escape');
   await expect(search).toBeFocused();
   await expect(search).toHaveValue('find me');
