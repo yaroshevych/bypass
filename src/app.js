@@ -269,10 +269,18 @@ function renderGroups() {
   for (const [label, items] of [['Views', workspace.builtIn], ['Tags', workspace.tags], ['Groups', workspace.groups]]) {
     if (!items.length) continue;
     const section = element('section');
+    section.dataset.slot = 'sidebar-group';
+    const heading = element('h2', label);
+    heading.dataset.slot = 'sidebar-group-label';
+    const content = element('div');
+    content.dataset.slot = 'sidebar-group-content';
     const list = element('ul');
-    section.append(element('h2', label), list);
+    list.dataset.slot = 'sidebar-menu';
+    content.append(list);
+    section.append(heading, content);
     for (const item of items) {
       const row = element('li');
+      row.dataset.slot = 'sidebar-menu-item';
       const node = button(undefined, () => {
         group = item === workspace.builtIn[0] ? null : item;
         search.value = '';
@@ -285,6 +293,7 @@ function renderGroups() {
         renderEntries();
         panes[1].scrollTop = 0;
       });
+      node.dataset.slot = 'sidebar-menu-button';
       if (item === (group ?? workspace.builtIn[0])) node.setAttribute('aria-current', 'true');
       node.tabIndex = node.hasAttribute('aria-current') ? 0 : -1;
       node.style.paddingInlineStart = `${0.55 + (item.depth ?? 0) * 0.8}rem`;

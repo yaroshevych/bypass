@@ -200,7 +200,7 @@ test('uses the palette and keyboard to search, copy, reveal, and lock', async ({
   await page.keyboard.press('ArrowDown');
   await expect(page.getByRole('button', { name: /Example login/ })).toBeFocused();
   await page.keyboard.press('Enter');
-  const detailsSidebar = page.getByRole('button', { name: 'Details', exact: true });
+  const detailsSidebar = page.getByRole('button', { name: 'Toggle details sidebar' });
   await detailsSidebar.click();
   await expect(detailsSidebar).toHaveAttribute('aria-expanded', 'false');
   await page.keyboard.press('Shift+j');
@@ -269,7 +269,7 @@ test('opens with a selected entry and navigates TUI views, tags, and groups', as
   await openFile(page, fixtures.get('KDBX 3'));
   await unlock(page);
   const nav = page.getByRole('navigation');
-  const navigationSidebar = page.getByRole('button', { name: 'Navigation', exact: true });
+  const navigationSidebar = page.getByRole('button', { name: 'Toggle navigation sidebar' });
   await navigationSidebar.click();
   await expect(nav).toBeHidden();
   await navigationSidebar.click();

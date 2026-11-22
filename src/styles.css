@@ -130,20 +130,18 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .pane { @apply min-w-0 overflow-auto bg-card p-2.5; }
 .sidebar { @apply bg-neutral-50 p-3; }
 :root[data-theme="dark"] .sidebar { @apply bg-neutral-900; }
-.sidebar[data-side="left"] { @apply col-start-1 row-start-1 border-e border-border; }
+.sidebar[data-side="left"] { @apply col-start-1 row-start-1 border-e border-border p-0; }
 .sidebar[data-side="right"] { @apply col-start-3 row-start-1 border-s border-border; }
-[data-slot="sidebar-trigger"] { @apply h-8 border-transparent bg-transparent px-2 shadow-none; }
-[data-slot="sidebar-trigger"][aria-expanded="true"] { @apply bg-muted text-foreground; }
+[data-slot="sidebar-trigger"] { @apply size-7 border-transparent bg-transparent p-0 shadow-none; }
+[data-slot="sidebar-trigger"] svg { @apply pointer-events-none size-4; }
 .stack { @apply grid content-start gap-2.5; }
-.tree ul { @apply m-0 flex list-none flex-col gap-1 p-0; }
-.tree section + section { margin-top: 1rem; }
-.tree h2 { color: var(--muted-foreground); font-size: .76rem; text-transform: uppercase; letter-spacing: .07em; }
-.tree h2 { display: flex; align-items: center; gap: .45rem; margin-bottom: .18rem; }
-.tree h2::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
-.tree button { width: 100%; text-align: left; border-color: transparent; border-radius: .375rem; padding: .16rem .45rem; background: transparent; height: auto; min-height: 1.9rem; box-shadow: none; white-space: normal; }
-.tree button { @apply flex justify-between gap-2 transition-none; overflow-wrap: anywhere; }
-.tree button:hover { background: var(--soft); }
-.tree button[aria-current=true] { @apply bg-accent font-semibold; }
+[data-slot="sidebar-group"] { @apply relative flex w-full min-w-0 flex-col p-2; }
+[data-slot="sidebar-group-label"] { @apply flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-muted-foreground; }
+[data-slot="sidebar-group-content"] { @apply w-full text-sm; }
+[data-slot="sidebar-menu"] { @apply m-0 flex w-full min-w-0 list-none flex-col gap-1 p-0; }
+[data-slot="sidebar-menu-item"] { @apply relative; }
+[data-slot="sidebar-menu-button"] { @apply flex h-auto min-h-8 w-full justify-between gap-2 rounded-md border-transparent bg-transparent p-2 text-left whitespace-normal shadow-none transition-none; overflow-wrap: anywhere; }
+[data-slot="sidebar-menu-button"][aria-current="true"] { @apply bg-accent font-medium text-accent-foreground; }
 .count { color: inherit; opacity: .8; font-variant-numeric: tabular-nums; }
 .entry-pane { @apply col-start-2 row-start-1 pt-0; }
 .entry-table { @apply w-full table-fixed caption-bottom text-sm; }
