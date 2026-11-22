@@ -18,7 +18,7 @@ A read-only KeePass viewer with keyboard workflows from Bypass. Download the bui
 
 The viewer keeps the vault in memory while unlocked. Locking clears the session and its views. Copied secrets may remain on the system clipboard after locking. Entry URLs open when you follow them. The viewer supports Argon2d and Argon2id version 1.3.
 
-The sidebar includes All Entries, Favorites, Recent, Bin, Tags, and Groups. Recent uses vault modification dates and activity from the current unlocked session. The Tailwind theme follows your system preference until you choose light or dark with the header switch.
+The sidebar includes All Entries, Favorites, Recent, Bin, Tags, and Groups. Recent uses vault modification dates and activity from the current unlocked session. The light and dark controls adapt the [shadcn/ui New York registry](https://ui.shadcn.com/docs/components) and its Neutral theme to native HTML. The viewer follows your system preference until you choose a mode with the header switch.
 
 ## Build and verify
 

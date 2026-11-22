@@ -9,26 +9,26 @@
 </head>
 <body>
 <main id="unlock-screen" class="unlock">
-  <section class="card" aria-labelledby="unlock-title">
+  <section class="card" data-slot="card" aria-labelledby="unlock-title">
     <h1 id="unlock-title">bypass-web</h1>
     <p class="muted">Open a KeePass database on this device.</p>
     <form id="unlock-form" autocomplete="off">
       <fieldset id="credentials">
         <label class="drop" id="drop">KeePass database
-          <input id="vault-file" type="file" accept=".kdbx">
+          <input data-slot="input" id="vault-file" type="file" accept=".kdbx">
           <small id="file-hint">Choose or drop a .kdbx file</small>
         </label>
         <div class="stack">
           <label for="master">Master password</label>
           <div class="inline">
-            <input id="master" type="password" autocomplete="off" spellcheck="false">
-            <button id="show-master" type="button" aria-controls="master" aria-label="Show master password" aria-pressed="false">Show</button>
+            <input data-slot="input" id="master" type="password" autocomplete="off" spellcheck="false">
+            <button data-slot="button" id="show-master" type="button" aria-controls="master" aria-label="Show master password" aria-pressed="false">Show</button>
           </div>
         </div>
         <label>Keyfile <small>Optional</small>
-          <input id="key-file" type="file">
+          <input data-slot="input" id="key-file" type="file">
         </label>
-        <button class="primary" id="unlock-button" type="submit">Unlock vault</button>
+        <button data-slot="button" class="primary" id="unlock-button" type="submit">Unlock vault</button>
       </fieldset>
       <p id="progress" role="status"></p>
       <p id="error" role="alert"></p>
@@ -39,14 +39,14 @@
   <header class="vault-header justify-between">
     <h1 id="vault-name"></h1>
     <div class="toolbar">
-      <div class="flex items-center gap-2"><span class="muted" id="theme-label">Dark mode</span><button id="theme" class="theme-switch" type="button" role="switch" aria-checked="false" aria-labelledby="theme-label"><span aria-hidden="true"></span></button></div>
-      <button id="lock" type="button">Lock Vault</button>
+      <div class="flex items-center gap-2"><span class="muted" id="theme-label">Dark mode</span><button data-slot="switch" id="theme" class="theme-switch" type="button" role="switch" aria-checked="false" aria-labelledby="theme-label"><span data-slot="switch-thumb" aria-hidden="true"></span></button></div>
+      <button data-slot="button" id="lock" type="button">Lock Vault</button>
     </div>
   </header>
   <div class="workspace-bar">
-    <div id="tabs" role="tablist" aria-label="Vault views"></div>
+    <div id="tabs" data-slot="tabs-list" role="tablist" aria-label="Vault views"></div>
     <label class="search-control"><span class="sr-only">Search entries</span>
-      <input id="search" type="search" placeholder="Filter entries" autocomplete="off" spellcheck="false">
+      <input data-slot="input" id="search" type="search" placeholder="Filter entries" autocomplete="off" spellcheck="false">
     </label>
   </div>
   <div class="layout min-h-0">
@@ -58,14 +58,14 @@
     <section class="pane stack" id="detail" aria-label="Entry details"></section>
   </div>
   <footer class="workspace-footer">
-    <button id="commands" type="button">Commands <kbd>Ctrl+P</kbd></button>
+    <button data-slot="button" id="commands" type="button">Commands <kbd>Ctrl+P</kbd></button>
     <span class="muted"><kbd>/</kbd> Filter</span>
     <p id="copy-status" role="status"></p>
     <p id="result-count" class="muted ms-auto" role="status"></p>
   </footer>
-  <section id="palette" class="overlay" role="dialog" aria-modal="true" aria-labelledby="palette-title" hidden><div class="overlay-card"><h2 id="palette-title">Command palette</h2><input id="palette-search" type="search" placeholder="Search commands" autocomplete="off"><div id="palette-items" class="command-list"></div></div></section>
-  <section id="field-jump" class="overlay" role="dialog" aria-modal="true" aria-labelledby="jump-title" tabindex="-1" hidden><div class="overlay-card"><h2 id="jump-title">Jump to field</h2><p>p Password · u Username · w URL · n Notes · e Email</p></div></section>
-  <section id="large-view" class="overlay" role="dialog" aria-modal="true" aria-labelledby="large-title" hidden><div class="overlay-card"><h2 id="large-title">Large View</h2><pre id="large-content"></pre><button id="large-close" type="button">Close</button></div></section>
+  <section id="palette" class="overlay" role="dialog" aria-modal="true" aria-labelledby="palette-title" hidden><div class="overlay-card" data-slot="dialog-content"><h2 id="palette-title">Command palette</h2><input data-slot="command-input" id="palette-search" type="search" placeholder="Search commands" autocomplete="off"><div id="palette-items" data-slot="command-list" class="command-list"></div></div></section>
+  <section id="field-jump" class="overlay" role="dialog" aria-modal="true" aria-labelledby="jump-title" tabindex="-1" hidden><div class="overlay-card" data-slot="dialog-content"><h2 id="jump-title">Jump to field</h2><p>p Password · u Username · w URL · n Notes · e Email</p></div></section>
+  <section id="large-view" class="overlay" role="dialog" aria-modal="true" aria-labelledby="large-title" hidden><div class="overlay-card" data-slot="dialog-content"><h2 id="large-title">Large View</h2><pre id="large-content"></pre><button data-slot="button" id="large-close" type="button">Close</button></div></section>
 </main>
 <script type="module" src="./app.js"></script>
 </body>

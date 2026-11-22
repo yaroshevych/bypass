@@ -50,6 +50,7 @@ function syncViews() {
   views.forEach((view, index) => {
     const title = view.selected ? field(view.selected, 'Title') : '';
     const tab = button(title ? `${index + 1} ${title}` : String(index + 1), () => switchView(index));
+    tab.dataset.slot = 'tabs-trigger';
     tab.setAttribute('role', 'tab');
     tab.setAttribute('aria-selected', String(index === activeView));
     tab.setAttribute('aria-label', `Tab ${index + 1}${view.selected ? ': ' + (field(view.selected, 'Title') || 'Untitled entry') : ''}`);
@@ -99,6 +100,7 @@ function element(tag, text, className) {
 function button(text, action) {
   const node = element('button', text);
   node.type = 'button';
+  node.dataset.slot = 'button';
   node.addEventListener('click', action);
   return node;
 }
@@ -415,6 +417,7 @@ function otpDisplay(entry) {
   code.dataset.fieldKey = 'otp';
   const countdown = element('small');
   const progress = element('progress');
+  progress.dataset.slot = 'progress';
   progress.max = period;
   progress.setAttribute('aria-label', 'Time remaining for this code');
   const stepMs = period * 1000;
@@ -499,7 +502,11 @@ function renderDetails() {
   const summary = element('div', undefined, 'detail-summary');
   const title = field(entry, 'Title') || 'Untitled entry';
   const tags = element('div', undefined, 'tags');
-  for (const tag of entry.tags) tags.append(element('span', tag));
+  for (const tag of entry.tags) {
+    const badge = element('span', tag);
+    badge.dataset.slot = 'badge';
+    tags.append(badge);
+  }
   const heading = element('div', undefined, 'detail-heading');
   heading.append(element('h2', title), tags);
   summary.append(heading);
@@ -653,6 +660,7 @@ function renderPalette(query) {
       run();
     });
     row.className = 'command';
+    row.dataset.slot = 'command-item';
     if (keys) row.append(element('small', keys));
     if (disabledReason) {
       row.setAttribute('aria-disabled', 'true');
