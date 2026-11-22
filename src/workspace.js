@@ -42,6 +42,14 @@ export function vaultWorkspace(database) {
   ];
   return {
     builtIn,
+    counts: {
+      entries: active.length,
+      favorites: favorites.length,
+      recycled: bin.length,
+      groups: groups.length,
+      tags: byTag.size,
+      attachments: active.reduce((total, { entry }) => total + entry.binaries.size, 0),
+    },
     tags: [...byTag.keys()].sort().map(name => ({ name, rows: byTag.get(name) })),
     groups: groups.map(({ name, depth, group }) => ({
       name, depth, rows: byGroup.get(group)

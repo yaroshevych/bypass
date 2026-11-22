@@ -96,8 +96,14 @@
   <aside class="pane sidebar stack" id="detail" data-slot="sidebar" data-side="right" aria-label="Entry details"></aside>
   <div id="vault-menu" class="vault-menu" data-slot="dropdown-menu-content" popover aria-label="Vault actions">
     <button id="open-another" data-slot="dropdown-menu-item" type="button" autofocus>Open another…</button>
+    <button id="vault-info" data-slot="dropdown-menu-item" type="button">Info</button>
     <button id="lock" data-slot="dropdown-menu-item" type="button">Lock Vault</button>
   </div>
+  <dialog id="vault-info-dialog" class="vault-info-dialog" data-slot="dialog-content" aria-labelledby="vault-info-title">
+    <h2 id="vault-info-title">Vault information</h2>
+    <dl id="vault-info-fields"></dl>
+    <form method="dialog"><button type="submit" autofocus>Close</button></form>
+  </dialog>
   <p id="copy-status" class="sr-only" role="status"></p>
   <p id="result-count" class="sr-only" role="status"></p>
   <section id="palette" class="overlay" role="dialog" aria-modal="true" aria-labelledby="palette-title" hidden>

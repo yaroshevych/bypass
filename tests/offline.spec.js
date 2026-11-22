@@ -283,6 +283,29 @@ test('opens another vault from the keyboard after a file is selected', async ({ 
   await unlock(page);
 });
 
+test('shows file metadata and vault counts from the Info menu', async ({ page }) => {
+  const fixture = fixtures.get('KDBX 3');
+  await openFile(page, fixture);
+  await unlock(page);
+  const switcher = page.getByRole('button', { name: 'Test vault', exact: true });
+  await switcher.click();
+  await page.getByRole('button', { name: 'Info', exact: true }).click();
+  const info = page.getByRole('dialog', { name: 'Vault information' });
+  await expect(info).toBeVisible();
+  const value = label => info.getByText(label, { exact: true }).locator('xpath=following-sibling::dd[1]');
+  await expect(value('File')).toHaveText('fixture.kdbx');
+  await expect(value('File size')).toHaveText(new Intl.NumberFormat().format(fixture.length) + ' bytes');
+  await expect(value('File last modified')).not.toHaveText('Unavailable');
+  await expect(value('Format')).toHaveText(/^KDBX 3\./);
+  await expect(value('Entries')).toHaveText('4');
+  await expect(value('Favorites')).toHaveText('1');
+  await expect(value('Tags')).toHaveText('1');
+  await expect(value('Entries in Bin')).toHaveText('1');
+  await info.getByRole('button', { name: 'Close' }).click();
+  await expect(info).toBeHidden();
+  await expect(switcher).toBeFocused();
+});
+
 test('opens with a selected entry and navigates TUI views, tags, and groups', async ({ page }) => {
   await openFile(page, fixtures.get('KDBX 3'));
   await unlock(page);

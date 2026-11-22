@@ -20,6 +20,7 @@ const otpFields = new Set(['otp', 'TimeOtp-Secret-Base32', 'TimeOtp-Length', 'Ti
 let file = null;
 let database = null;
 let workspace = null;
+let vaultFileInfo = null;
 let group = null;
 let selected = null;
 let unlocking = false;
@@ -39,6 +40,8 @@ const panes = [groups.closest('.pane'), entries.closest('.pane'), detail];
 const sidebarTriggers = [...document.querySelectorAll('[data-slot="sidebar-trigger"]')];
 const vaultSwitcher = byId('vault-switcher');
 const vaultMenu = byId('vault-menu');
+const vaultInfoDialog = byId('vault-info-dialog');
+const vaultInfoFields = byId('vault-info-fields');
 
 vaultMenu.addEventListener('beforetoggle', event => {
   const open = event.newState === 'open';
@@ -261,6 +264,7 @@ form.addEventListener('submit', async event => {
     credentials = new Credentials(password, keyBytes);
     database = await Kdbx.load(data, credentials);
     workspace = vaultWorkspace(database);
+    vaultFileInfo = { name, size: file.size, modified: file.lastModified };
     for (const trigger of sidebarTriggers) setSidebar(trigger, true);
     views = [{ group: null, selected: null, query: '', zoomed: false }]; activeView = 0;
     byId('vault-name').textContent = database.meta.name || name;
@@ -651,6 +655,9 @@ function renderDetails() {
 }
 
 function clearVault() {
+  vaultInfoDialog.close();
+  vaultInfoFields.replaceChildren();
+  vaultFileInfo = null;
   clearOtp();
   database = null;
   workspace = null;
@@ -689,6 +696,11 @@ function lockVault(preserveFile = null) {
   vaultFile.focus();
 }
 byId('lock').addEventListener('click', () => lockVault());
+byId('vault-info').addEventListener('click', showVaultInfo);
+vaultInfoDialog.addEventListener('close', () => {
+  vaultInfoFields.replaceChildren();
+  if (database) vaultSwitcher.focus();
+});
 byId('open-another').addEventListener('click', () => {
   vaultMenu.hidePopover();
   openVault();
@@ -703,6 +715,32 @@ function openPalette() {
 }
 function openVault() {
   vaultFile.click();
+}
+
+function showVaultInfo() {
+  if (!database || !vaultFileInfo) return;
+  if (vaultMenu.matches(':popover-open')) vaultMenu.hidePopover();
+  const { name, size, modified } = vaultFileInfo;
+  const counts = workspace.counts;
+  const number = new Intl.NumberFormat();
+  const date = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  const fields = [
+    ['File', name],
+    ['File size', `${number.format(size)} bytes`],
+    ['File last modified', modified ? date.format(modified) : 'Unavailable'],
+    ['Format', `KDBX ${database.header.versionMajor}.${database.header.versionMinor}`],
+    ['Entries', counts.entries],
+    ['Favorites', counts.favorites],
+    ['Groups', counts.groups],
+    ['Tags', counts.tags],
+    ['Attachments', counts.attachments],
+    ['Entries in Bin', counts.recycled],
+  ];
+  vaultInfoFields.replaceChildren(...fields.flatMap(([label, value]) => [
+    element('dt', label),
+    element('dd', typeof value === 'number' ? number.format(value) : value),
+  ]));
+  vaultInfoDialog.showModal();
 }
 
 function closeOverlays() {
@@ -867,6 +905,7 @@ function moveWithinPane(event) {
 }
 
 document.addEventListener('keydown', event => {
+  if (vaultInfoDialog.open) return;
   if (vaultMenu.matches(':popover-open')) return;
   const target = event.target;
   const editing = target.matches('input, textarea, select, [contenteditable="true"]');
