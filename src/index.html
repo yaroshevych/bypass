@@ -132,8 +132,8 @@
   <p id="copy-status" class="sr-only" role="status"></p>
   <p id="result-count" class="sr-only" role="status"></p>
   <div id="palette" class="commands-menu" data-slot="menubar-content" role="menu" aria-labelledby="commands" popover></div>
-  <section id="field-jump" class="overlay" role="dialog" aria-modal="true" aria-labelledby="jump-title" tabindex="-1" hidden><div class="overlay-card" data-slot="dialog-content"><h2 id="jump-title">Jump to field</h2><p>p Password · u Username · w URL · n Notes · e Email</p></div></section>
-  <section id="large-view" class="overlay" role="dialog" aria-modal="true" aria-labelledby="large-title" hidden><div class="overlay-card" data-slot="dialog-content"><h2 id="large-title">Large View</h2><pre id="large-content"></pre><button data-slot="button" id="large-close" type="button">Close</button></div></section>
+  <section id="field-jump" class="overlay" role="dialog" aria-modal="true" aria-labelledby="jump-title" tabindex="-1" hidden><div class="overlay-card" data-slot="dialog-content"><h2 id="jump-title">Jump to field</h2><button class="overlay-close" type="button" aria-label="Close">×</button><p>p Password · u Username · w URL · n Notes · e Email</p></div></section>
+  <section id="large-view" class="overlay" role="dialog" aria-modal="true" aria-labelledby="large-title" hidden><div class="overlay-card" data-slot="dialog-content"><h2 id="large-title">Large View</h2><button class="overlay-close" id="large-close" type="button" aria-label="Close">×</button><div id="large-content"></div><div id="large-actions"></div></div></section>
 </main>
 <script type="module" src="./app.js"></script>
 </body>

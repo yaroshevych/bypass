@@ -463,7 +463,7 @@ function setActionIcon(node, name) {
   node.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${actionIcons[name]}</svg>`;
 }
 
-function copyButton(readValue, label) {
+function copyButton(readValue, label, caption = null) {
   const node = button(undefined, async () => {
     const value = readValue();
     if (value == null) return;
@@ -485,11 +485,13 @@ function copyButton(readValue, label) {
     }
     if (attempt !== copyAttempt) return;
     if (message === 'Copied!') workspace?.recordUse(selected);
-    setActionIcon(node, message === 'Copied!' ? 'check' : 'copy');
+    if (caption) node.textContent = message;
+    else setActionIcon(node, message === 'Copied!' ? 'check' : 'copy');
     copyStatus.textContent = message;
     clearTimeout(copyTimers.get(node));
     copyTimers.set(node, setTimeout(() => {
-      setActionIcon(node, 'copy');
+      if (caption) node.textContent = caption;
+      else setActionIcon(node, 'copy');
       copyTimers.delete(node);
     }, 1500));
     clearTimeout(copyStatusTimer);
@@ -497,8 +499,8 @@ function copyButton(readValue, label) {
   });
   node.setAttribute('aria-label', 'Copy ' + label);
   node.title = 'Copy ' + label;
-  node.classList.add('field-action');
-  setActionIcon(node, 'copy');
+  if (caption) node.textContent = caption;
+  else { node.classList.add('field-action'); setActionIcon(node, 'copy'); }
   return node;
 }
 
@@ -731,6 +733,14 @@ vaultInfoDialog.addEventListener('close', () => {
   vaultInfoFields.replaceChildren();
   if (database) vaultSwitcher.focus();
 });
+vaultInfoDialog.addEventListener('click', event => {
+  if (event.target === vaultInfoDialog) vaultInfoDialog.close();
+});
+for (const overlay of document.querySelectorAll('.overlay')) {
+  overlay.addEventListener('click', event => {
+    if (event.target === overlay || event.target.closest('.overlay-close')) closeOverlays();
+  });
+}
 byId('open-another').addEventListener('click', () => {
   vaultMenu.hidePopover();
   openVault();
@@ -899,12 +909,22 @@ function openLargeView() {
   hideReveals();
   const text = actionNode(key, 'reveal') ? field(selected, key) : fieldValueNode(key)?.textContent;
   byId('large-title').textContent = key;
-  byId('large-content').textContent = text || '—';
+  const content = byId('large-content');
+  content.replaceChildren();
+  const characters = Array.from(text || '—');
+  content.setAttribute('aria-label', text || 'Empty');
+  characters.forEach((character, index) => {
+    const cell = element('span', undefined, 'large-character');
+    cell.setAttribute('aria-hidden', 'true');
+    cell.append(element('span', character === ' ' ? ' ' : character), element('small', String(index + 1)));
+    content.append(cell);
+  });
+  const copy = copyButton(() => text, key, 'Copy');
+  byId('large-actions').replaceChildren(copy);
   largeReturnFocus = document.activeElement;
   byId('large-view').hidden = false;
   byId('large-close').focus();
 }
-byId('large-close').addEventListener('click', closeOverlays);
 function openFieldJump() {
   if (!selected) return;
   fieldJumpReturnFocus = document.activeElement;
@@ -965,7 +985,7 @@ document.addEventListener('keydown', event => {
     return;
   }
   if (!byId('field-jump').hidden) {
-    if (event.key === 'Tab') { event.preventDefault(); return; }
+    if (event.key === 'Tab') { event.preventDefault(); byId('field-jump').querySelector('.overlay-close').focus(); return; }
     if (event.key === 'Escape') { event.preventDefault(); closeOverlays(); }
     else if (/^[puwne]$/i.test(event.key)) { event.preventDefault(); jumpField(event.key.toLowerCase()); }
     return;
@@ -973,7 +993,12 @@ document.addEventListener('keydown', event => {
   if (!byId('large-view').hidden) {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p') { event.preventDefault(); closeOverlays(); openPalette(); }
     else if (event.shiftKey && event.key.toLowerCase() === 'l') { event.preventDefault(); lockVault(); }
-    else if (event.key === 'Tab') { event.preventDefault(); byId('large-close').focus(); }
+    else if (event.key === 'Tab') {
+      event.preventDefault();
+      const close = byId('large-close');
+      const copy = byId('large-actions').querySelector('button');
+      (document.activeElement === close ? copy : close).focus();
+    }
     else if (event.key === 'Escape' || event.key === 'Enter') { event.preventDefault(); closeOverlays(); }
     return;
   }

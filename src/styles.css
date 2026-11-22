@@ -220,8 +220,14 @@ dd button.field-action { @apply size-8 shrink-0 p-2; }
 .otp progress::-webkit-progress-value { @apply bg-primary; }
 .otp progress::-moz-progress-bar { @apply bg-primary; }
 .overlay { @apply fixed inset-0 z-50 grid place-items-center overflow-auto bg-black/50 p-4; }
-.overlay-card { @apply grid w-full max-w-lg gap-4 overflow-auto rounded-lg border border-border bg-background p-6 shadow-lg; max-height: 85dvh; }
-.overlay-card h2 { @apply text-lg leading-none font-semibold; }
+.overlay-card { @apply relative grid w-full max-w-sm gap-4 overflow-auto rounded-xl border-0 bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10; max-height: 85dvh; }
+.overlay-card h2 { @apply pe-8 text-base leading-none font-medium; }
+.overlay-close { @apply absolute end-2 top-2 size-7 border-transparent bg-transparent p-0 text-xl text-muted-foreground shadow-none hover:bg-muted hover:text-foreground; }
+#large-content { display: flex; flex-wrap: wrap; gap: 2px; font-family: "Geist Mono", ui-monospace, monospace; }
+.large-character { display: grid; min-width: 2.25rem; padding: .3rem .4rem; text-align: center; background: var(--muted); white-space: pre; }
+.large-character > span { font-size: 1.5rem; }
+.large-character small { color: var(--muted-foreground); font-size: .7rem; }
+#large-actions { @apply flex justify-end; }
 .commands-menu { @apply fixed inset-auto m-0 w-56 max-w-[calc(100%-1rem)] overflow-auto rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10; }
 .commands-menu [role="separator"] { @apply -mx-1 my-1 border-0 border-t border-border; }
 .commands-menu [role="menuitem"] { @apply flex h-7 w-full cursor-default justify-between gap-2 rounded-md border-0 bg-transparent px-1.5 py-1 text-left font-normal shadow-none hover:bg-accent focus:bg-accent focus:text-accent-foreground focus-visible:ring-0; }
