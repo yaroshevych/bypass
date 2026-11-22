@@ -9,7 +9,6 @@ const byId = id => document.getElementById(id);
 const form = byId('unlock-form');
 const master = byId('master');
 const vaultFile = byId('vault-file');
-const keyFile = byId('key-file');
 const drop = byId('drop');
 const search = byId('search');
 const groups = byId('groups');
@@ -175,7 +174,7 @@ function field(entry, key) {
 function showMaster(visible) {
   const toggle = byId('show-master');
   master.type = visible ? 'text' : 'password';
-  toggle.textContent = visible ? 'Hide' : 'Show';
+  setActionIcon(toggle, visible ? 'eyeOff' : 'eye');
   toggle.setAttribute('aria-label', visible ? 'Hide master password' : 'Show master password');
   toggle.setAttribute('aria-pressed', String(visible));
 }
@@ -227,17 +226,17 @@ function unlockError(error) {
   if (error instanceof UnsupportedArgon2) return 'This vault uses an Argon2 version or variant the viewer cannot open.';
   switch (error.code) {
     case 'InvalidKey':
-      return 'The vault could not be unlocked. Check the password and keyfile.';
+      return 'The vault could not be unlocked. Check the password.';
     case 'FileCorrupt':
     case 'BadSignature':
     case 'InvalidArg':
-      return 'The vault or keyfile is damaged or is not a valid KeePass file.';
+      return 'The vault is damaged or is not a valid KeePass file.';
     case 'InvalidVersion':
     case 'Unsupported':
     case 'NotImplemented':
       return 'This vault uses a KeePass format or encryption setting the viewer cannot open.';
     default:
-      return 'The vault could not be read or decrypted. Check the files and try again.';
+      return 'The vault could not be read or decrypted. Check the file and try again.';
   }
 }
 
@@ -260,17 +259,14 @@ form.addEventListener('submit', async event => {
   byId('credentials').disabled = true;
   byId('error').textContent = '';
   byId('progress').textContent = 'Decrypting vault…';
-  const key = keyFile.files[0];
   const name = file.name;
-  const password = master.value === '' && key ? null : ProtectedValue.fromString(master.value);
+  const password = ProtectedValue.fromString(master.value);
   master.value = '';
   showMaster(false);
-  let keyBytes;
   let credentials;
   try {
     const data = await file.arrayBuffer();
-    keyBytes = key ? await key.arrayBuffer() : undefined;
-    credentials = new Credentials(password, keyBytes);
+    credentials = new Credentials(password);
     database = await Kdbx.load(data, credentials);
     workspace = vaultWorkspace(database);
     vaultFileInfo = { name, size: file.size, modified: file.lastModified };
@@ -288,10 +284,8 @@ form.addEventListener('submit', async event => {
     clearVault();
     byId('error').textContent = unlockError(error);
   } finally {
-    if (keyBytes) new Uint8Array(keyBytes).fill(0);
     if (credentials) {
       credentials.setPassword(null);
-      credentials.setKeyFile(null);
     }
     unlocking = false;
     byId('credentials').disabled = false;
@@ -1019,7 +1013,7 @@ document.addEventListener('keydown', event => {
 if (__BYPASS_DEBUG__) {
   const { base64, modified } = __BYPASS_DEBUG_VAULT__;
   const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
-  document.title = 'bypass-web · Debug';
+  document.title = 'Bypass Secrets Manager · Debug';
   chooseFile(new File([bytes], 'test-vault.kdbx', { lastModified: modified }));
   master.value = 'password';
   form.requestSubmit();

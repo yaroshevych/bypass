@@ -6,7 +6,6 @@ import { argon2d, argon2id } from 'hash-wasm';
 
 const viewer = new URL('../dist/index.html', import.meta.url).href;
 const password = 'fixture password';
-const keyfile = Buffer.alloc(32, 7);
 const fixtures = new Map();
 const sha1Seed = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
 const sha256Seed = 'GEZDGNBVGY3TQOJQ'.repeat(3) + 'GEZA====';
@@ -24,9 +23,8 @@ kdbx.CryptoEngine.setArgon2Impl(async (password, salt, memorySize, iterations, h
   })).buffer;
 });
 
-async function fixture(version, variant, keyOnly = false) {
-  const key = variant ? new Uint8Array(keyfile) : undefined;
-  const credentials = new kdbx.Credentials(keyOnly ? null : kdbx.ProtectedValue.fromString(password), key);
+async function fixture(version, variant) {
+  const credentials = new kdbx.Credentials(kdbx.ProtectedValue.fromString(password));
   const database = kdbx.Kdbx.create(credentials, 'Test vault');
   database.setVersion(version);
   if (variant) {
@@ -69,7 +67,7 @@ test.beforeAll(async () => {
   for (const [name, args] of [
     ['KDBX 3', [3]],
     ['Argon2d', [4, 'Argon2d']],
-    ['Argon2id', [4, 'Argon2id', true]]
+    ['Argon2id', [4, 'Argon2id']]
   ]) {
     fixtures.set(name, await fixture(...args));
   }
@@ -84,16 +82,11 @@ test.beforeEach(async ({ page, context }) => {
   });
 });
 
-async function openFile(page, buffer, withKey = false) {
+async function openFile(page, buffer) {
   await page.goto(viewer);
   await page.locator('#vault-file').setInputFiles({
     name: 'fixture.kdbx', mimeType: 'application/octet-stream', buffer
   });
-  if (withKey) {
-    await page.locator('#key-file').setInputFiles({
-      name: 'fixture.key', mimeType: 'application/octet-stream', buffer: keyfile
-    });
-  }
 }
 
 async function unlock(page, value = password) {
@@ -108,8 +101,8 @@ for (const name of ['KDBX 3', 'Argon2d', 'Argon2id']) {
     const errors = [];
     page.on('request', request => requests.push(request.url()));
     page.on('pageerror', error => errors.push(error.message));
-    await openFile(page, fixtures.get(name), name !== 'KDBX 3');
-    await unlock(page, name === 'Argon2id' ? '' : password);
+    await openFile(page, fixtures.get(name));
+    await unlock(page);
     await expect(page.getByText('Deleted login')).toHaveCount(0);
     expect(requests).toEqual([viewer]);
     expect(errors).toEqual([]);
@@ -120,7 +113,7 @@ test('reports wrong credentials and a corrupt file', async ({ page }) => {
   await openFile(page, fixtures.get('KDBX 3'));
   await page.getByLabel('Master password', { exact: true }).fill('wrong');
   await page.getByRole('button', { name: 'Unlock vault' }).click();
-  await expect(page.getByRole('alert')).toContainText('Check the password and keyfile');
+  await expect(page.getByRole('alert')).toContainText('Check the password');
   await openFile(page, Buffer.alloc(16));
   await page.getByRole('button', { name: 'Unlock vault' }).click();
   await expect(page.getByRole('alert')).toContainText('damaged');

@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'">
-<title>bypass-web</title>
+<title>Bypass Secrets Manager</title>
 <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
 <main id="unlock-screen" class="unlock">
   <section class="card" data-slot="card" aria-labelledby="unlock-title">
-    <h1 id="unlock-title">bypass-web</h1>
-    <p class="muted">Open a KeePass database on this device.</p>
+    <h1 id="unlock-title">Bypass Secrets Manager</h1>
+    <p class="muted">Open a KeePass database with offline viewer.</p>
     <form id="unlock-form" autocomplete="off">
       <fieldset id="credentials">
         <label class="drop" id="drop">KeePass database
@@ -22,12 +22,9 @@
           <label for="master">Master password</label>
           <div class="inline">
             <input data-slot="input" id="master" type="password" autocomplete="off" spellcheck="false">
-            <button data-slot="button" id="show-master" type="button" aria-controls="master" aria-label="Show master password" aria-pressed="false">Show</button>
+            <button data-slot="button" id="show-master" type="button" aria-controls="master" aria-label="Show master password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
           </div>
         </div>
-        <label>Keyfile <small>Optional</small>
-          <input data-slot="input" id="key-file" type="file">
-        </label>
         <button data-slot="button" class="primary" id="unlock-button" type="submit">Unlock vault</button>
       </fieldset>
       <p id="progress" role="status"></p>
