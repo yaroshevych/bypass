@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import * as kdbx from 'kdbxweb';
 import { argon2d, argon2id } from 'hash-wasm';
 
 const viewer = new URL('../dist/index.html', import.meta.url).href;
+const kdbx = createRequire(import.meta.url)('kdbxweb');
 const password = 'fixture password';
 const fixtures = new Map();
 const sha1Seed = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
@@ -298,7 +298,7 @@ test('shows file metadata and vault counts from the Info menu', async ({ page })
   await expect(value('Tags')).toHaveText('1');
   await expect(value('Entries in Bin')).toHaveText('1');
   const close = info.getByRole('button', { name: 'Close' });
-  await expect(close).toBeFocused();
+  await expect(info.getByRole('heading', { name: 'Vault information' })).toBeFocused();
   await expect(close).toHaveText('');
   await close.click();
   await expect(info).toBeHidden();
