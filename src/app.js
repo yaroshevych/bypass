@@ -910,7 +910,6 @@ function openLargeView(fieldKey) {
   byId('large-actions').replaceChildren(copy);
   largeReturnFocus = document.activeElement;
   byId('large-view').showModal();
-  byId('large-close').focus();
 }
 function openFieldJump() {
   if (!selected) return;
