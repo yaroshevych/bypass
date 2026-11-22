@@ -1,3 +1,4 @@
+import { installDialogDismissal } from './dialogs.js';
 import { setActionIcon } from './action-icons.js';
 import './themes.js';
 import { vaultWorkspace } from './workspace.js';
@@ -731,16 +732,10 @@ vaultInfoDialog.addEventListener('close', () => {
   vaultInfoFields.replaceChildren();
   if (database) vaultSwitcher.focus();
 });
-for (const dialog of document.querySelectorAll('dialog')) {
-  dialog.addEventListener('click', event => {
-    const rect = dialog.getBoundingClientRect();
-    if (event.target.closest('.overlay-close') || (event.target === dialog &&
-      (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom))) {
-      if (dialog === vaultInfoDialog) dialog.close();
-      else closeOverlays();
-    }
-  });
-}
+installDialogDismissal(document.querySelectorAll('dialog'), dialog => {
+  if (dialog === vaultInfoDialog) dialog.close();
+  else closeOverlays();
+});
 byId('open-another').addEventListener('click', () => {
   vaultMenu.hidePopover();
   openVault();
