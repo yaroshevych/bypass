@@ -7,6 +7,7 @@
     "@playwright/test": "1.65.1",
     "@tailwindcss/cli": "4.3.5",
     "esbuild": "0.28.2",
+    "geist": "1.9.2",
     "tailwindcss": "4.3.5"
   },
   "name": "bypass-web",

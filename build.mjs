@@ -16,12 +16,24 @@ const html = await readFile(htmlPath, 'utf8');
 const cliPackage = createRequire(import.meta.url).resolve('@tailwindcss/cli/package.json');
 const { bin } = JSON.parse(await readFile(cliPackage, 'utf8'));
 const tailwind = resolve(dirname(cliPackage), bin.tailwindcss);
-const [js, { stdout: css }] = await Promise.all([
+const geist = dirname(fileURLToPath(import.meta.resolve('geist/font')));
+const [js, { stdout: css }, sans, mono, geistLicense, shadcnLicense] = await Promise.all([
   build({ entryPoints: [resolve(source, 'app.js')], bundle: true, minify: true, legalComments: 'inline', write: false, format: 'iife', platform: 'browser', target: ['es2020'], alias: { crypto: resolve(source, 'node-crypto-shim.js') } }),
-  promisify(execFile)(process.execPath, [tailwind, '-i', resolve(source, 'styles.css'), '--minify'], { cwd: root })
+  promisify(execFile)(process.execPath, [tailwind, '-i', resolve(source, 'styles.css'), '--minify'], { cwd: root }),
+  readFile(resolve(geist, 'fonts/geist-sans/Geist-Variable.woff2')),
+  readFile(resolve(geist, 'fonts/geist-mono/GeistMono-Regular.woff2')),
+  readFile(resolve(geist, '../LICENSE.txt'), 'utf8'),
+  readFile(resolve(root, 'licenses/shadcn-ui.txt'), 'utf8'),
 ]);
 const script = js.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
-const stylesheet = css.replace(/<\/style/gi, '\\3c /style');
+const fontFace = (family, file, weight) =>
+  `@font-face{font-family:"${family}";src:url(data:font/woff2;base64,${file.toString('base64')}) format("woff2");font-weight:${weight};font-display:swap;}`;
+const stylesheet = [
+  `/*!\n${shadcnLicense}\n${geistLicense}\n*/`,
+  fontFace('Geist', sans, '100 900'),
+  fontFace('Geist Mono', mono, '400'),
+  css
+].join('\n').replace(/<\/style/gi, '\\3c /style');
 
 function replaceExactlyOnce(input, pattern, replacement, name) {
   const matches = input.match(pattern);

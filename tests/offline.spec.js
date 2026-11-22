@@ -148,9 +148,19 @@ test('shows and copies a live OTP without exposing its seed or rendering entry H
   await expect(page.getByText('359152', { exact: true })).toHaveCount(0);
 });
 
-test('release artifact is a single HTML file', async () => {
+test('release is a single HTML file with fonts that load offline', async ({ page }) => {
   const { readdir } = await import('node:fs/promises');
   expect(await readdir(fileURLToPath(new URL('../dist/', import.meta.url)))).toEqual(['index.html']);
+  await page.goto(viewer);
+  await expect(page.locator('body')).toHaveCSS('font-family', /^Geist,/);
+  const loaded = await page.evaluate(async () => {
+    const fonts = await Promise.all([
+      document.fonts.load('500 14px Geist'),
+      document.fonts.load('400 14px "Geist Mono"'),
+    ]);
+    return fonts.map(faces => faces.map(face => face.status));
+  });
+  expect(loaded).toEqual([['loaded'], ['loaded']]);
 });
 
 test('matches the RFC 6238 Appendix B test vectors', async ({ page }) => {
