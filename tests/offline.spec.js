@@ -191,16 +191,14 @@ test('uses the palette and keyboard to search, copy, reveal, and lock', async ({
   const search = page.getByRole('searchbox', { name: 'Search entries' });
   await search.fill('find me');
   await page.keyboard.press('Control+p');
-  const palette = page.getByRole('dialog', { name: 'Command palette' });
+  const palette = page.getByRole('menu', { name: 'Commands' });
   await expect(palette).toBeVisible();
-  await expect(palette.getByPlaceholder('Search commands')).toBeFocused();
-  await page.keyboard.press('Shift+Tab');
-  await expect(palette.getByRole('button', { name: 'Close command palette' })).toBeFocused();
-  await page.keyboard.press('Space');
-  await expect(palette).toBeHidden();
-  await expect(search).toBeFocused();
-  await page.keyboard.press('Control+p');
+  await expect(palette.getByRole('menuitem', { name: 'Open vault' })).toBeFocused();
+  await expect(palette.getByRole('searchbox')).toHaveCount(0);
+  await page.keyboard.press('ArrowDown');
+  await expect(palette.getByRole('menuitem', { name: 'Lock Vault' })).toBeFocused();
   await page.keyboard.press('Escape');
+  await expect(palette).toBeHidden();
   await expect(search).toBeFocused();
   await expect(search).toHaveValue('find me');
   await page.keyboard.press('Escape');
@@ -249,10 +247,17 @@ test('keeps tab selection and search independent across switching and closing', 
   await page.keyboard.press('2');
   await expect(search).toHaveValue('other login');
 
-  await page.getByRole('button', { name: 'Commands' }).click();
-  const commandSearch = page.getByPlaceholder('Search commands');
-  await commandSearch.fill('close');
-  await commandSearch.press('Enter');
+  const commands = page.getByRole('button', { name: 'Commands' });
+  const menu = page.getByRole('menu', { name: 'Commands' });
+  await commands.click();
+  await expect(menu).toBeVisible();
+  const triggerBox = await commands.boundingBox();
+  const menuBox = await menu.boundingBox();
+  expect(menuBox.y).toBeGreaterThan(triggerBox.y + triggerBox.height);
+  await commands.click();
+  await expect(menu).toBeHidden();
+  await commands.click();
+  await page.getByRole('menuitem', { name: 'Close Tab' }).click();
   await expect(page.getByRole('tab')).toHaveCount(1);
   await expect(search).toHaveValue('find me');
   await expect(page.getByText('find me in notes', { exact: true })).toBeVisible();
@@ -353,9 +358,7 @@ test('opens with a selected entry and navigates TUI views, tags, and groups', as
   await page.getByRole('searchbox', { name: 'Search entries' }).fill('other login');
   await expect(entries).toHaveCount(0);
   await page.keyboard.press('Control+p');
-  const commands = page.getByPlaceholder('Search commands');
-  await commands.fill('Search');
-  await commands.press('Enter');
+  await page.getByRole('menuitem', { name: 'Search', exact: true }).click();
   await expect(entries).toContainText(['Other login']);
 });
 

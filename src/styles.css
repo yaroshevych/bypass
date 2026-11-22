@@ -139,6 +139,7 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 #tabs button[aria-selected="true"] { @apply bg-background text-foreground shadow-sm; }
 .vault-header kbd { @apply rounded border border-border bg-muted px-1 font-mono text-xs leading-5 text-muted-foreground; }
 #commands { @apply h-8 px-2; }
+#commands[aria-expanded="true"] { @apply bg-accent text-accent-foreground; }
 .theme-switch { @apply size-8 p-0; }
 .theme-switch svg { @apply size-4; }
 .theme-switch[aria-checked="false"] .theme-moon,
@@ -221,14 +222,11 @@ dd button { @apply h-8 px-3; }
 .overlay { @apply fixed inset-0 z-50 grid place-items-center overflow-auto bg-black/50 p-4; }
 .overlay-card { @apply grid w-full max-w-lg gap-4 overflow-auto rounded-lg border border-border bg-background p-6 shadow-lg; max-height: 85dvh; }
 .overlay-card h2 { @apply text-lg leading-none font-semibold; }
-.palette-header { @apply flex items-center justify-between gap-4; }
-#palette-close { @apply size-8 border-transparent bg-transparent p-0 text-xl text-muted-foreground shadow-none hover:bg-accent hover:text-foreground; }
-.palette-command { @apply min-w-0 rounded-md border border-border bg-popover text-popover-foreground; }
-#palette-search { @apply h-10 rounded-b-none border-0 border-b border-border bg-transparent px-3 shadow-none; }
-.command-list { @apply max-h-[min(300px,40dvh)] overflow-auto p-1; }
-.command { @apply flex h-auto w-full cursor-default justify-between rounded-sm border-transparent bg-transparent px-2 py-1.5 text-left shadow-none; }
-.command[aria-current="true"] { @apply bg-accent text-accent-foreground; }
-.command[aria-disabled="true"] { @apply opacity-50; }
+.commands-menu { @apply fixed inset-auto m-0 w-56 max-w-[calc(100%-1rem)] overflow-auto rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10; }
+.commands-menu [role="separator"] { @apply -mx-1 my-1 border-0 border-t border-border; }
+.commands-menu [role="menuitem"] { @apply flex h-7 w-full cursor-default justify-between gap-2 rounded-md border-0 bg-transparent px-1.5 py-1 text-left font-normal shadow-none hover:bg-accent focus:bg-accent focus:text-accent-foreground focus-visible:ring-0; }
+.commands-menu [role="menuitem"][aria-disabled="true"] { @apply opacity-50; }
+.commands-menu [data-slot="menubar-shortcut"] { @apply ms-auto text-xs tracking-wider text-muted-foreground; }
 #large-content { white-space: pre-wrap; overflow-wrap: anywhere; font: 1.35rem/1.5 "Geist Mono", ui-monospace, monospace; }
 @media (max-width: 740px) {
   .viewer { height: auto; min-height: 100dvh; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto 1fr auto; }

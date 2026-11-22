@@ -40,6 +40,8 @@ const panes = [groups.closest('.pane'), entries.closest('.pane'), detail];
 const sidebarTriggers = [...document.querySelectorAll('[data-slot="sidebar-trigger"]')];
 const vaultSwitcher = byId('vault-switcher');
 const vaultMenu = byId('vault-menu');
+const commandsTrigger = byId('commands');
+const commandsMenu = byId('palette');
 const vaultInfoDialog = byId('vault-info-dialog');
 const vaultInfoFields = byId('vault-info-fields');
 
@@ -685,13 +687,14 @@ function clearVault() {
   detail.replaceChildren();
   byId('vault-name').textContent = '';
   byId('result-count').textContent = '';
-  byId('large-content').textContent = ''; byId('palette-search').value = ''; byId('palette-items').replaceChildren();
+  byId('large-content').textContent = '';
+  commandsMenu.replaceChildren();
   byId('tabs').replaceChildren(); byId('viewer').classList.remove('zoomed');
 }
 
 search.addEventListener('focus', rememberSearch);
 search.addEventListener('blur', () => {
-  if (byId('palette').hidden) searchOrigin = null;
+  if (!commandsMenu.matches(':popover-open')) searchOrigin = null;
 });
 search.addEventListener('input', () => {
   if (database) renderEntries();
@@ -720,13 +723,25 @@ byId('open-another').addEventListener('click', () => {
   openVault();
 });
 
-function openPalette() {
+function openPalette(focusFirst = true) {
   if (!byId('large-view').hidden) closeOverlays();
+  if (commandsMenu.matches(':popover-open')) {
+    closeOverlays();
+    return;
+  }
   paletteReturnFocus = document.activeElement;
   hideReveals();
-  const box = byId('palette'); box.hidden = false;
-  renderPalette(''); byId('palette-search').value = ''; byId('palette-search').focus();
+  renderCommands();
+  const trigger = commandsTrigger.getBoundingClientRect();
+  commandsMenu.showPopover({ source: commandsTrigger });
+  const menu = commandsMenu.getBoundingClientRect();
+  const gutter = 8;
+  commandsMenu.style.left = `${Math.max(gutter, Math.min(trigger.left, document.documentElement.clientWidth - menu.width - gutter))}px`;
+  commandsMenu.style.top = `${trigger.bottom + 4}px`;
+  commandsMenu.style.maxHeight = `${Math.max(0, document.documentElement.clientHeight - trigger.bottom - 4 - gutter)}px`;
+  if (focusFirst) commandsMenu.querySelector('[role="menuitem"]:not([aria-disabled])')?.focus();
 }
+
 function openVault() {
   vaultFile.click();
 }
@@ -759,10 +774,12 @@ function showVaultInfo() {
 
 function closeOverlays() {
   const active = document.activeElement;
-  const returnFocus = active?.closest('#palette') ? paletteReturnFocus
+  const menuOpen = commandsMenu.matches(':popover-open');
+  const returnFocus = menuOpen ? paletteReturnFocus
     : active?.closest('#field-jump') ? fieldJumpReturnFocus
     : active?.closest('#large-view') ? largeReturnFocus : null;
-  for (const id of ['palette', 'field-jump', 'large-view']) byId(id).hidden = true;
+  if (menuOpen) commandsMenu.hidePopover();
+  for (const id of ['field-jump', 'large-view']) byId(id).hidden = true;
   byId('large-title').textContent = 'Large View';
   byId('large-content').textContent = '';
   paletteReturnFocus = null;
@@ -770,40 +787,70 @@ function closeOverlays() {
   largeReturnFocus = null;
   returnFocus?.focus();
 }
-function commandDefs() {
+function commandGroups() {
   const needsEntry = selected ? undefined : 'Select an entry first.';
   return [
-    ['Open vault', 'o', openVault], ['Jump to field', 'Shift+J', openFieldJump, needsEntry],
-    ['Lock Vault', 'Shift+L', lockVault], ['Close Tab', '', closeView],
-    ['New Tab', 't', newView], ['Previous Tab', '[', () => switchView(activeView - 1)], ['Next Tab', ']', () => switchView(activeView + 1)],
-    ['Search', '/', searchAllEntries], ['Toggle dark mode', '', () => byId('theme').click()], ['Copy focused field', 'c', copyFocusedField, needsEntry], ['Reveal focused field', 'v', revealFocusedField, needsEntry],
-    ['Large View', 'Shift+G', openLargeView, needsEntry], ['Toggle zoom', 'z', toggleZoom]
+    [['Open vault', 'o', openVault], ['Lock Vault', 'Shift+L', lockVault]],
+    [['New Tab', 't', newView], ['Close Tab', '', closeView],
+      ['Previous Tab', '[', () => switchView(activeView - 1)], ['Next Tab', ']', () => switchView(activeView + 1)]],
+    [['Search', '/', searchAllEntries], ['Jump to field', 'Shift+J', openFieldJump, needsEntry],
+      ['Copy focused field', 'c', copyFocusedField, needsEntry], ['Reveal focused field', 'v', revealFocusedField, needsEntry],
+      ['Large View', 'Shift+G', openLargeView, needsEntry]],
+    [['Toggle zoom', 'z', toggleZoom], ['Toggle dark mode', '', () => byId('theme').click()]],
   ];
 }
-function renderPalette(query) {
-  const host = byId('palette-items');
-  const filter = query.trim().toLowerCase();
-  const filtered = commandDefs().filter(([name, keys]) => `${name} ${keys}`.toLowerCase().includes(filter));
-  host.replaceChildren(...filtered.map(([name, keys, run, disabledReason]) => {
-    const row = button(name, () => {
-      if (disabledReason) return;
-      closeOverlays();
-      run();
-    });
-    row.className = 'command';
-    row.dataset.slot = 'command-item';
-    if (keys) row.append(element('small', keys));
-    if (disabledReason) {
-      row.setAttribute('aria-disabled', 'true');
-      row.append(element('small', disabledReason));
+
+function renderCommands() {
+  const fragment = document.createDocumentFragment();
+  for (const definitions of commandGroups()) {
+    if (fragment.childNodes.length) {
+      const separator = element('hr');
+      separator.setAttribute('role', 'separator');
+      fragment.append(separator);
     }
-    return row;
-  }));
-  host.querySelector('button')?.setAttribute('aria-current', 'true');
+    const group = element('div');
+    group.setAttribute('role', 'group');
+    for (const [name, keys, run, disabledReason] of definitions) {
+      const row = button(name, () => {
+        if (disabledReason) return;
+        closeOverlays();
+        run();
+      });
+      row.setAttribute('role', 'menuitem');
+      row.dataset.slot = 'menubar-item';
+      row.tabIndex = -1;
+      if (keys) {
+        const shortcut = element('kbd', keys);
+        shortcut.dataset.slot = 'menubar-shortcut';
+        shortcut.setAttribute('aria-hidden', 'true');
+        row.append(shortcut);
+      }
+      if (disabledReason) {
+        row.setAttribute('aria-disabled', 'true');
+        row.setAttribute('aria-description', disabledReason);
+        row.title = disabledReason;
+      }
+      group.append(row);
+    }
+    fragment.append(group);
+  }
+  commandsMenu.replaceChildren(fragment);
 }
-byId('commands').addEventListener('click', openPalette);
-byId('palette-close').addEventListener('click', closeOverlays);
-byId('palette-search').addEventListener('input', event => renderPalette(event.target.value));
+
+commandsTrigger.addEventListener('click', event => {
+  event.preventDefault();
+  openPalette(event.detail === 0);
+});
+commandsMenu.addEventListener('beforetoggle', event => {
+  commandsTrigger.setAttribute('aria-expanded', String(event.newState === 'open'));
+});
+commandsMenu.addEventListener('toggle', event => {
+  if (event.newState === 'closed' && !commandsMenu.matches(':popover-open')) {
+    paletteReturnFocus = null;
+    if (document.activeElement !== search) searchOrigin = null;
+  }
+});
+
 function activeField() { return document.activeElement?.closest('[data-field-key]')?.dataset.fieldKey; }
 function hideReveals() {
   const focused = document.activeElement;
@@ -861,43 +908,21 @@ function jumpField(letter) {
 }
 
 function handlePaletteKey(event) {
-  const input = byId('palette-search');
-  const close = byId('palette-close');
-  const options = [...byId('palette-items').querySelectorAll('button')];
-  const index = options.findIndex(option => option.hasAttribute('aria-current'));
-  const { key, shiftKey, ctrlKey, metaKey, altKey } = event;
-
-  if (key === 'Escape') {
-    event.preventDefault();
+  const { key } = event;
+  if (key === 'Escape' || key === 'Tab') {
+    if (key === 'Escape') event.preventDefault();
     closeOverlays();
-  } else if (key === 'Enter' && event.target !== close) {
-    event.preventDefault();
-    options[index]?.click();
-  } else if (key === 'Tab') {
-    event.preventDefault();
-    const controls = [close, input, ...options];
-    const direction = shiftKey ? -1 : 1;
-    const current = controls.indexOf(event.target);
-    const next = controls[(current + direction + controls.length) % controls.length];
-    if (options.includes(next)) {
-      options[index]?.removeAttribute('aria-current');
-      next.setAttribute('aria-current', 'true');
-    }
-    next.focus();
-  } else if (key === 'ArrowDown' || key === 'ArrowUp') {
-    event.preventDefault();
-    if (!options.length) return;
-    const direction = key === 'ArrowUp' ? -1 : 1;
-    const next = options[(index + direction + options.length) % options.length];
-    options[index]?.removeAttribute('aria-current');
-    next.setAttribute('aria-current', 'true');
-    next.focus();
-  } else if (options.includes(event.target) && !ctrlKey && !metaKey && !altKey && (key.length === 1 || key === 'Backspace')) {
-    event.preventDefault();
-    input.value = key === 'Backspace' ? input.value.slice(0, -1) : input.value + key;
-    renderPalette(input.value);
-    input.focus();
+    return;
   }
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(key)) return;
+  event.preventDefault();
+  const options = [...commandsMenu.querySelectorAll('[role="menuitem"]:not([aria-disabled])')];
+  const current = options.indexOf(document.activeElement);
+  const last = options.length - 1;
+  if (key === 'Home') options[0]?.focus();
+  else if (key === 'End') options[last]?.focus();
+  else if (key === 'ArrowDown') options[(current + 1) % options.length]?.focus();
+  else options[current <= 0 ? last : current - 1]?.focus();
 }
 
 function moveWithinPane(event) {
@@ -923,7 +948,7 @@ document.addEventListener('keydown', event => {
   if (vaultMenu.matches(':popover-open')) return;
   const target = event.target;
   const editing = target.matches('input, textarea, select, [contenteditable="true"]');
-  if (!byId('palette').hidden) {
+  if (commandsMenu.matches(':popover-open')) {
     handlePaletteKey(event);
     return;
   }
