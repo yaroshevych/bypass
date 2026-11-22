@@ -2,6 +2,11 @@
 
 A read-only KeePass viewer with keyboard workflows from Bypass. Download the built `index.html` and open it directly in a modern browser. The viewer opens KDBX 3 and 4 vaults on your device using a password. It can display live TOTP codes, search entries, and copy selected fields. The page needs no server or network connection.
 
+
+| <img width="1792" height="1016" alt="dark" src="https://github.com/user-attachments/assets/833bb366-5b0e-4be5-85d8-8426702a902c" /> | <img width="1802" height="1012" alt="light" src="https://github.com/user-attachments/assets/7a8a14d2-8795-497e-bbdd-546a89917605" />
+| --- | --- |
+| Dark theme | Light theme |
+
 ## Keyboard workflow
 
 | Keys | Action |
