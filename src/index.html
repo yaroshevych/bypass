@@ -36,26 +36,33 @@
   </section>
 </main>
 <main id="viewer" class="viewer" hidden>
-  <header>
-    <div><p class="muted">Read-only vault</p><h1 id="vault-name"></h1></div>
-    <div class="toolbar"><button id="commands" type="button">Commands</button><div id="tabs" role="tablist" aria-label="Vault views"></div><button id="lock" type="button">Lock Vault</button></div>
+  <header class="vault-header justify-between">
+    <h1 id="vault-name"></h1>
+    <div class="toolbar">
+      <div class="flex items-center gap-2"><span class="muted" id="theme-label">Dark mode</span><button id="theme" class="theme-switch" type="button" role="switch" aria-checked="false" aria-labelledby="theme-label"><span aria-hidden="true"></span></button></div>
+      <button id="lock" type="button">Lock Vault</button>
+    </div>
   </header>
-  <label>Search entries
-    <input id="search" type="search" placeholder="Title, username, URL or notes" autocomplete="off" spellcheck="false">
-  </label>
-  <div class="layout">
-    <nav class="pane stack" aria-label="Vault groups">
-      <h2>Groups</h2>
-      <ul class="tree" id="groups"></ul>
-    </nav>
-    <section class="pane stack" aria-labelledby="entry-heading">
-      <h2 id="entry-heading">Entries</h2>
-      <p id="result-count" class="muted" role="status"></p>
+  <div class="workspace-bar">
+    <div id="tabs" role="tablist" aria-label="Vault views"></div>
+    <label class="search-control"><span class="sr-only">Search entries</span>
+      <input id="search" type="search" placeholder="Filter entries" autocomplete="off" spellcheck="false">
+    </label>
+  </div>
+  <div class="layout min-h-0">
+    <nav id="groups" class="pane tree" aria-label="Vault views, tags and groups"></nav>
+    <section class="pane entry-pane" aria-label="Entries">
+      <div class="entry-columns column-headings"><span>Title</span><span>Username</span><span>Website</span></div>
       <ul id="entries"></ul>
     </section>
     <section class="pane stack" id="detail" aria-label="Entry details"></section>
   </div>
-  <p id="copy-status" role="status"></p>
+  <footer class="workspace-footer">
+    <button id="commands" type="button">Commands <kbd>Ctrl+P</kbd></button>
+    <span class="muted"><kbd>/</kbd> Filter</span>
+    <p id="copy-status" role="status"></p>
+    <p id="result-count" class="muted ms-auto" role="status"></p>
+  </footer>
   <section id="palette" class="overlay" role="dialog" aria-modal="true" aria-labelledby="palette-title" hidden><div class="overlay-card"><h2 id="palette-title">Command palette</h2><input id="palette-search" type="search" placeholder="Search commands" autocomplete="off"><div id="palette-items" class="command-list"></div></div></section>
   <section id="field-jump" class="overlay" role="dialog" aria-modal="true" aria-labelledby="jump-title" tabindex="-1" hidden><div class="overlay-card"><h2 id="jump-title">Jump to field</h2><p>p Password · u Username · w URL · n Notes · e Email</p></div></section>
   <section id="large-view" class="overlay" role="dialog" aria-modal="true" aria-labelledby="large-title" hidden><div class="overlay-card"><h2 id="large-title">Large View</h2><pre id="large-content"></pre><button id="large-close" type="button">Close</button></div></section>

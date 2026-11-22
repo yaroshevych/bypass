@@ -40,6 +40,7 @@ async function fixture(version, variant, keyOnly = false) {
   const group = database.createGroup(root, 'Work');
   const entry = database.createEntry(group);
   entry.fields.set('Title', 'Example login');
+  entry.tags = ['Favorite', 'work'];
   entry.fields.set('UserName', 'example-user');
   entry.fields.set('Password', kdbx.ProtectedValue.fromString('entry-secret'));
   entry.fields.set('Notes', 'find me in notes');
@@ -186,8 +187,10 @@ test('uses the palette and keyboard to search, copy, reveal, and lock', async ({
   await expect(search).toBeFocused();
   await expect(search).toHaveValue('find me');
   await page.keyboard.press('Escape');
+  await expect(search).toHaveValue('');
   await page.keyboard.press('/');
   await expect(search).toBeFocused();
+  await search.fill('find me');
   await page.keyboard.press('ArrowDown');
   await expect(page.getByRole('button', { name: /Example login/ })).toBeFocused();
   await page.keyboard.press('Enter');
@@ -250,4 +253,46 @@ test('opens another vault from the keyboard after a file is selected', async ({ 
   await expect(page.getByLabel('Master password', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Test vault' })).toHaveCount(0);
   await unlock(page);
+});
+
+test('opens with a selected entry and navigates TUI views, tags, and groups', async ({ page }) => {
+  await openFile(page, fixtures.get('KDBX 3'));
+  await unlock(page);
+  const nav = page.getByRole('navigation');
+  const list = page.getByRole('region', { name: 'Entries', exact: true });
+  const entries = list.getByRole('button');
+  await expect(entries.first()).toHaveAttribute('aria-current', 'true');
+  await expect(list.getByText('Website', { exact: true })).toBeVisible();
+  await nav.getByRole('button', { name: /All Entries/ }).press('ArrowDown');
+  await expect(nav.getByRole('button', { name: /Favorites/ })).toHaveAttribute('aria-current', 'true');
+  await expect(entries).toHaveCount(1);
+  await nav.getByRole('button', { name: /Bin/ }).click();
+  await expect(entries).toContainText(['Deleted login']);
+  await nav.getByRole('button', { name: /^work\s*1$/ }).click();
+  await expect(entries).toContainText(['Example login']);
+  await page.getByRole('searchbox', { name: 'Search entries' }).fill('other login');
+  await expect(entries).toHaveCount(0);
+  await page.keyboard.press('Control+p');
+  const commands = page.getByPlaceholder('Search commands');
+  await commands.fill('Search');
+  await commands.press('Enter');
+  await expect(entries).toContainText(['Other login']);
+});
+
+test('follows the system theme and remembers the header switch preference', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await openFile(page, fixtures.get('KDBX 3'));
+  await unlock(page);
+  const theme = page.getByRole('switch', { name: 'Dark mode' });
+  await expect(theme).toHaveAttribute('aria-checked', 'false');
+  const background = () => page.locator('body').evaluate(body => getComputedStyle(body).backgroundColor);
+  const light = await background();
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(theme).toHaveAttribute('aria-checked', 'true');
+  expect(await background()).not.toEqual(light);
+  await theme.press('Space');
+  await expect(theme).toHaveAttribute('aria-checked', 'false');
+  expect(await background()).toEqual(light);
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 });

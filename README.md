@@ -7,7 +7,7 @@ A read-only KeePass viewer with keyboard workflows from Bypass. Download the bui
 | Keys | Action |
 | --- | --- |
 | `Ctrl+P` or `?` | Open Commands. Use the Commands button if the browser handles `Ctrl+P`. |
-| `/` | Search entries |
+| `/` | Filter the current view. Choose Search in Commands to search All Entries. |
 | Arrows, Tab, Enter | Navigate panes, groups, entries, fields, and commands |
 | `Shift+J` | Jump to a field |
 | `c`, `v` | Copy or reveal the focused field |
@@ -17,6 +17,8 @@ A read-only KeePass viewer with keyboard workflows from Bypass. Download the bui
 | Esc | Dismiss an overlay or leave search |
 
 The viewer keeps the vault in memory while unlocked. Locking clears the session and its views. Copied secrets may remain on the system clipboard after locking. Entry URLs open when you follow them. The viewer supports Argon2d and Argon2id version 1.3.
+
+The sidebar includes All Entries, Favorites, Recent, Bin, Tags, and Groups. Recent uses vault modification dates and activity from the current unlocked session. The Tailwind theme follows your system preference until you choose light or dark with the header switch.
 
 ## Build and verify
 

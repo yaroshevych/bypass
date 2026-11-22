@@ -1,4 +1,7 @@
 import { build } from 'esbuild';
+import { execFile } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { promisify } from 'node:util';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,12 +13,15 @@ await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 const htmlPath = resolve(source, 'index.html');
 const html = await readFile(htmlPath, 'utf8');
-const [js, css] = await Promise.all([
+const cliPackage = createRequire(import.meta.url).resolve('@tailwindcss/cli/package.json');
+const { bin } = JSON.parse(await readFile(cliPackage, 'utf8'));
+const tailwind = resolve(dirname(cliPackage), bin.tailwindcss);
+const [js, { stdout: css }] = await Promise.all([
   build({ entryPoints: [resolve(source, 'app.js')], bundle: true, minify: true, legalComments: 'inline', write: false, format: 'iife', platform: 'browser', target: ['es2020'], alias: { crypto: resolve(source, 'node-crypto-shim.js') } }),
-  build({ entryPoints: [resolve(source, 'styles.css')], bundle: true, minify: true, legalComments: 'inline', write: false, target: ['safari15'] })
+  promisify(execFile)(process.execPath, [tailwind, '-i', resolve(source, 'styles.css'), '--minify'], { cwd: root })
 ]);
 const script = js.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
-const stylesheet = css.outputFiles[0].text.replace(/<\/style/gi, '\\3c /style');
+const stylesheet = css.replace(/<\/style/gi, '\\3c /style');
 
 function replaceExactlyOnce(input, pattern, replacement, name) {
   const matches = input.match(pattern);

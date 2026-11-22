@@ -1,3 +1,5 @@
+import './themes.js';
+import { vaultWorkspace } from './workspace.js';
 import { Credentials, Kdbx, ProtectedValue, UnsupportedArgon2 } from './crypto.js';
 import { generateOtp, parseTotpSettings } from './totp.js';
 
@@ -17,6 +19,7 @@ const standardFields = new Set([...searchFields, 'Password']);
 const otpFields = new Set(['otp', 'TimeOtp-Secret-Base32', 'TimeOtp-Length', 'TimeOtp-Period', 'TimeOtp-Algorithm']);
 let file = null;
 let database = null;
+let workspace = null;
 let group = null;
 let selected = null;
 let unlocking = false;
@@ -30,6 +33,7 @@ let paletteReturnFocus = null;
 let fieldJumpReturnFocus = null;
 let largeReturnFocus = null;
 let zoomed = false;
+let searchOrigin = null;
 
 const panes = [groups.closest('.pane'), entries.closest('.pane'), detail];
 
@@ -44,12 +48,17 @@ function syncViews() {
   const wasTabsFocused = tabs.contains(document.activeElement);
   tabs.replaceChildren();
   views.forEach((view, index) => {
-    const tab = button(`Tab ${index + 1}`, () => switchView(index));
+    const title = view.selected ? field(view.selected, 'Title') : '';
+    const tab = button(title ? `${index + 1} ${title}` : String(index + 1), () => switchView(index));
     tab.setAttribute('role', 'tab');
     tab.setAttribute('aria-selected', String(index === activeView));
     tab.setAttribute('aria-label', `Tab ${index + 1}${view.selected ? ': ' + (field(view.selected, 'Title') || 'Untitled entry') : ''}`);
     tabs.append(tab);
   });
+  const add = button('+', newView);
+  add.setAttribute('aria-label', 'New Tab');
+  add.disabled = views.length >= 9;
+  tabs.append(add);
   if (wasTabsFocused) tabs.querySelector('[aria-selected="true"]')?.focus();
 }
 
@@ -199,6 +208,7 @@ form.addEventListener('submit', async event => {
     keyBytes = key ? await key.arrayBuffer() : undefined;
     credentials = new Credentials(password, keyBytes);
     database = await Kdbx.load(data, credentials);
+    workspace = vaultWorkspace(database);
     views = [{ group: null, selected: null, query: '', zoomed: false }]; activeView = 0;
     byId('vault-name').textContent = database.meta.name || name;
     renderGroups();
@@ -206,7 +216,7 @@ form.addEventListener('submit', async event => {
     resetCredentials();
     byId('unlock-screen').hidden = true;
     byId('viewer').hidden = false;
-    search.focus();
+    (entries.querySelector('[aria-current]') ?? search).focus();
   } catch (error) {
     clearVault();
     byId('error').textContent = unlockError(error);
@@ -223,79 +233,98 @@ form.addEventListener('submit', async event => {
   }
 });
 
-function visibleGroup(candidate) {
-  return candidate.uuid.id !== database.meta.recycleBinUuid?.id;
-}
-
 function renderGroups() {
-  function groupButton(name, value) {
-    const node = button(name, () => {
-      group = value;
-      search.value = '';
-      selected = null;
-      saveView();
-      for (const item of groups.querySelectorAll('button[aria-current]')) item.removeAttribute('aria-current');
-      node.setAttribute('aria-current', 'true');
-      renderEntries();
-    });
-    if (group === value) node.setAttribute('aria-current', 'true');
-    return node;
-  }
-
-  function groupRow(value) {
-    const row = element('li');
-    row.append(groupButton(value.name || 'Unnamed group', value));
-    const children = value.groups.filter(visibleGroup);
-    if (children.length) {
-      const branch = element('details');
-      branch.open = true;
-      const list = element('ul');
-      for (const child of children) list.append(groupRow(child));
-      branch.append(element('summary', 'Subgroups of ' + (value.name || 'unnamed group')), list);
-      row.append(branch);
+  groups.replaceChildren();
+  for (const [label, items] of [['Views', workspace.builtIn], ['Tags', workspace.tags], ['Groups', workspace.groups]]) {
+    if (!items.length) continue;
+    const section = element('section');
+    const list = element('ul');
+    section.append(element('h2', label), list);
+    for (const item of items) {
+      const row = element('li');
+      const node = button(undefined, () => {
+        group = item === workspace.builtIn[0] ? null : item;
+        search.value = '';
+        selected = null;
+        const previous = groups.querySelector('[aria-current]');
+        previous?.removeAttribute('aria-current');
+        if (previous) previous.tabIndex = -1;
+        node.setAttribute('aria-current', 'true');
+        node.tabIndex = 0;
+        entries.closest('.pane').scrollTop = 0;
+        renderEntries();
+        saveView();
+      });
+      if (item === (group ?? workspace.builtIn[0])) node.setAttribute('aria-current', 'true');
+      node.tabIndex = node.hasAttribute('aria-current') ? 0 : -1;
+      node.style.paddingInlineStart = `${0.55 + (item.depth ?? 0) * 0.8}rem`;
+      node.append(element('span', item.name), element('small', String(item.rows.length), 'count'));
+      row.append(node);
+      list.append(row);
     }
-    return row;
+    groups.append(section);
   }
-
-  const all = element('li');
-  all.append(groupButton('All entries', null));
-  groups.replaceChildren(all);
-  for (const root of database.groups.filter(visibleGroup)) groups.append(groupRow(root));
-  syncViews();
 }
 
-function* walkGroups(roots, parents = []) {
-  for (const node of roots) {
-    if (!visibleGroup(node)) continue;
-    const path = [...parents, node.name || 'Unnamed group'];
-    for (const entry of node.entries) yield { entry, path };
-    yield* walkGroups(node.groups, path);
+function website(url) {
+  try {
+    const target = new URL(url);
+    if (target.protocol === 'http:' || target.protocol === 'https:') return target.host;
+  } catch { /* Display the stored text when it is not an absolute URL. */ }
+  return url;
+}
+
+function searchAllEntries() {
+  rememberSearch();
+  group = null;
+  renderGroups();
+  renderEntries();
+  search.focus();
+}
+
+function rememberSearch() {
+  searchOrigin ??= { group, selected, query: search.value };
+}
+
+function cancelSearch() {
+  if (searchOrigin) {
+    ({ group, selected } = searchOrigin);
+    search.value = searchOrigin.query;
+    searchOrigin = null;
+    renderGroups();
+    renderEntries();
   }
+  entries.querySelector('[aria-current]')?.focus();
+  if (document.activeElement === search) search.blur();
 }
 
 function renderEntries() {
   const query = search.value.trim().toLowerCase();
-  const rows = !query && group
-    ? group.entries.map(entry => ({ entry, path: [group.name] }))
-    : [...walkGroups(database.groups)];
-  const matches = rows.filter(({ entry }) =>
-    !query || searchFields.some(key => field(entry, key).toLowerCase().includes(query))
+  const matches = workspace.rows(group).filter(({ entry, searchable }) =>
+    !query || ((searchable || group?.bin) && searchFields.some(key => field(entry, key).toLowerCase().includes(query)))
   );
-  if (!matches.some(({ entry }) => entry === selected)) selected = null;
+  if (!matches.some(({ entry }) => entry === selected)) selected = matches[0]?.entry ?? null;
   const fragment = document.createDocumentFragment();
-  for (const { entry, path } of matches) {
+  for (const { entry } of matches) {
     const row = element('li');
     const node = button(undefined, () => {
       selected = entry;
       saveView(); syncViews();
-      entries.querySelector('[aria-current]')?.removeAttribute('aria-current');
+      const previous = entries.querySelector('[aria-current]');
+      previous?.removeAttribute('aria-current');
+      if (previous) previous.tabIndex = -1;
       node.setAttribute('aria-current', 'true');
+      node.tabIndex = 0;
       renderDetails();
     });
-    node.append(element('span', field(entry, 'Title') || 'Untitled entry'));
-    const subtitle = [field(entry, 'UserName'), path.join(' / ')].filter(Boolean).join(' · ');
-    if (subtitle) node.append(element('small', subtitle));
+    node.className = 'entry-columns';
+    node.append(
+      element('span', field(entry, 'Title') || 'Untitled entry'),
+      element('span', field(entry, 'UserName')),
+      element('span', website(field(entry, 'URL')))
+    );
     if (selected === entry) node.setAttribute('aria-current', 'true');
+    node.tabIndex = selected === entry ? 0 : -1;
     row.append(node);
     fragment.append(row);
   }
@@ -351,6 +380,7 @@ function copyButton(readValue, label, caption = 'Copy') {
       message = 'Clipboard unavailable';
     }
     if (attempt !== copyAttempt) return;
+    if (message === 'Copied!') workspace?.recordUse(selected);
     node.textContent = message;
     copyStatus.textContent = message;
     clearTimeout(copyTimers.get(node));
@@ -466,6 +496,19 @@ function renderDetails() {
     detail.append(element('p', 'Select an entry to view its details.', 'muted'));
     return;
   }
+  const summary = element('div', undefined, 'detail-summary');
+  const title = field(entry, 'Title') || 'Untitled entry';
+  const tags = element('div', undefined, 'tags');
+  for (const tag of entry.tags) tags.append(element('span', tag));
+  const heading = element('div', undefined, 'detail-heading');
+  heading.append(element('h2', title), tags);
+  summary.append(heading);
+  const row = workspace.rows(group).find(candidate => candidate.entry === entry);
+  if (row) summary.append(element('p', row.path.join(' / '), 'muted'));
+  if (Number.isFinite(entry.lastModTime) && entry.times.lastModTime) {
+    summary.append(element('p', 'Modified ' + entry.times.lastModTime.toISOString().slice(0, 10), 'muted'));
+  }
+  detail.replaceChildren(summary);
   const list = element('dl');
   function add(label, value, ...actions) {
     const contents = element('dd', undefined, actions.length ? 'inline' : undefined);
@@ -486,6 +529,7 @@ function renderDetails() {
     const toggle = button('Reveal', () => {
       const visible = toggle.getAttribute('aria-pressed') === 'true';
       value.textContent = visible ? '••••••••' : field(entry, key);
+      if (!visible) workspace.recordUse(entry);
       toggle.textContent = visible ? 'Reveal' : 'Hide';
       toggle.setAttribute('aria-pressed', String(!visible));
     });
@@ -528,6 +572,8 @@ function renderDetails() {
 function clearVault() {
   clearOtp();
   database = null;
+  workspace = null;
+  searchOrigin = null;
   group = null;
   selected = null;
   resetCopyStatus();
@@ -541,6 +587,10 @@ function clearVault() {
   byId('tabs').replaceChildren(); byId('viewer').classList.remove('zoomed');
 }
 
+search.addEventListener('focus', rememberSearch);
+search.addEventListener('blur', () => {
+  if (byId('palette').hidden) searchOrigin = null;
+});
 search.addEventListener('input', () => {
   if (database) { renderEntries(); saveView(); }
 });
@@ -588,7 +638,7 @@ function commandDefs() {
     ['Open vault', 'o', openVault], ['Jump to field', 'Shift+J', openFieldJump, needsEntry],
     ['Lock Vault', 'Shift+L', lockVault], ['Close Tab', '', closeView],
     ['New Tab', 't', newView], ['Previous Tab', '[', () => switchView(activeView - 1)], ['Next Tab', ']', () => switchView(activeView + 1)],
-    ['Focus search', '/', () => search.focus()], ['Copy focused field', 'c', copyFocusedField, needsEntry], ['Reveal focused field', 'v', revealFocusedField, needsEntry],
+    ['Search', '/', searchAllEntries], ['Toggle dark mode', '', () => byId('theme').click()], ['Copy focused field', 'c', copyFocusedField, needsEntry], ['Reveal focused field', 'v', revealFocusedField, needsEntry],
     ['Large View', 'Shift+G', openLargeView, needsEntry], ['Toggle zoom', 'z', toggleZoom]
   ];
 }
@@ -638,6 +688,7 @@ function revealFocusedField() {
 function openLargeView() {
   const key = activeField() || (selected?.fields.has('Password') ? 'Password' : selected?.fields.has('UserName') ? 'UserName' : null);
   if (!key) return;
+  workspace.recordUse(selected);
   hideReveals();
   const text = actionNode(key, 'reveal') ? field(selected, key) : fieldValueNode(key)?.textContent;
   byId('large-title').textContent = key;
@@ -702,7 +753,9 @@ function moveWithinPane(event) {
   if (index < 0) return false;
   event.preventDefault();
   const next = index + (key === 'ArrowDown' ? 1 : -1);
-  items[next]?.focus();
+  const item = items[next];
+  item?.focus();
+  if (list) item?.click();
   return true;
 }
 
@@ -726,7 +779,7 @@ document.addEventListener('keydown', event => {
     else if (event.key === 'Escape' || event.key === 'Enter') { event.preventDefault(); closeOverlays(); }
     return;
   }
-  if (target === search && event.key === 'Escape') { event.preventDefault(); search.blur(); return; }
+  if (target === search && event.key === 'Escape') { event.preventDefault(); cancelSearch(); return; }
   if (event.key === 'Escape') { closeOverlays(); return; }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p' && database) { event.preventDefault(); openPalette(); return; }
   if (database && target === search && event.key === 'ArrowDown') { event.preventDefault(); (entries.querySelector('[aria-current]') || entries.querySelector('button'))?.focus(); return; }

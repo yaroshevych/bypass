@@ -5,7 +5,9 @@
   },
   "devDependencies": {
     "@playwright/test": "1.65.1",
-    "esbuild": "0.28.2"
+    "@tailwindcss/cli": "4.3.5",
+    "esbuild": "0.28.2",
+    "tailwindcss": "4.3.5"
   },
   "name": "bypass-web",
   "private": true,
