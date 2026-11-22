@@ -948,3 +948,12 @@ document.addEventListener('keydown', event => {
   else if (event.key === ']') switchView(activeView + 1);
   else if (/^[1-9]$/.test(event.key) && views[Number(event.key) - 1]) switchView(Number(event.key) - 1);
 });
+
+if (__BYPASS_DEBUG__) {
+  const { base64, modified } = __BYPASS_DEBUG_VAULT__;
+  const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
+  document.title = 'bypass-web · Debug';
+  chooseFile(new File([bytes], 'test-vault.kdbx', { lastModified: modified }));
+  master.value = 'password';
+  form.requestSubmit();
+}

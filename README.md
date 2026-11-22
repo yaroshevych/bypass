@@ -32,3 +32,10 @@ npm test
 ```
 
 Share `dist/index.html`. It contains all JavaScript, styles, and dependencies. The browser tests open this exact file with networking disabled and synthetic vaults. GitHub Actions also makes the verified file available as a workflow artifact.
+
+## Local debug build
+
+Run `npm run build:debug` and open `dist-debug/index.html`. On each load it
+automatically unlocks the embedded `../test-vault.kdbx` fixture with `password`.
+Rebuild after editing the fixture. The debug file contains both the fixture and
+its password, so keep it local. Git ignores `dist-debug/`.

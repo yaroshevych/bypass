@@ -2,13 +2,20 @@ import { build } from 'esbuild';
 import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const source = resolve(root, 'src');
-const output = resolve(root, 'dist');
+const debug = process.argv.includes('--debug');
+const output = resolve(root, debug ? 'dist-debug' : 'dist');
+let debugVault = null;
+if (debug) {
+  const fixture = resolve(root, '../test-vault.kdbx');
+  const [bytes, info] = await Promise.all([readFile(fixture), stat(fixture)]);
+  debugVault = { base64: bytes.toString('base64'), modified: info.mtime.getTime() };
+}
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 const htmlPath = resolve(source, 'index.html');
@@ -18,7 +25,12 @@ const { bin } = JSON.parse(await readFile(cliPackage, 'utf8'));
 const tailwind = resolve(dirname(cliPackage), bin.tailwindcss);
 const geist = dirname(fileURLToPath(import.meta.resolve('geist/font')));
 const [js, { stdout: css }, sans, mono, geistLicense, shadcnLicense] = await Promise.all([
-  build({ entryPoints: [resolve(source, 'app.js')], bundle: true, minify: true, legalComments: 'inline', write: false, format: 'iife', platform: 'browser', target: ['es2020'], alias: { crypto: resolve(source, 'node-crypto-shim.js') } }),
+  build({
+    entryPoints: [resolve(source, 'app.js')], bundle: true, minify: true, legalComments: 'inline',
+    write: false, format: 'iife', platform: 'browser', target: ['es2020'],
+    alias: { crypto: resolve(source, 'node-crypto-shim.js') },
+    define: { __BYPASS_DEBUG__: String(debug), __BYPASS_DEBUG_VAULT__: JSON.stringify(debugVault) }
+  }),
   promisify(execFile)(process.execPath, [tailwind, '-i', resolve(source, 'styles.css'), '--minify'], { cwd: root }),
   readFile(resolve(geist, 'fonts/geist-sans/Geist-Variable.woff2')),
   readFile(resolve(geist, 'fonts/geist-mono/GeistMono-Regular.woff2')),
@@ -55,4 +67,4 @@ bundled = replaceExactlyOnce(
   `<script>\n${script}\n</script>`,
   'application script'
 );
-await writeFile(resolve(output, 'index.html'), bundled);
+await writeFile(resolve(output, 'index.html'), bundled, { mode: debug ? 0o600 : 0o644 });

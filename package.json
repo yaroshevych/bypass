@@ -15,6 +15,7 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
+    "build:debug": "node build.mjs --debug",
     "test": "npm run build && playwright test"
   },
   "overrides": {
