@@ -286,6 +286,8 @@ test('opens with a selected entry and navigates TUI views, tags, and groups', as
   await navigationSidebar.click();
   await expect(nav).toBeVisible();
   await expect(nav.getByRole('button', { name: /All Entries/ })).toHaveCSS('height', '32px');
+  const workGroup = nav.locator('[data-slot="sidebar-menu-sub"]').getByRole('button', { name: /^Work\s/i }).filter({ hasText: /^Work/ });
+  await expect(workGroup).toHaveCSS('height', '28px');
   const list = page.getByRole('region', { name: 'Entries', exact: true });
   const entries = list.getByRole('button');
   await expect(entries.first()).toHaveAttribute('aria-current', 'true');

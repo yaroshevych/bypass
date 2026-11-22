@@ -278,9 +278,18 @@ function renderGroups() {
     list.dataset.slot = 'sidebar-menu';
     content.append(list);
     section.append(heading, content);
+    const menus = [list];
     for (const item of items) {
+      const depth = item.depth ?? 0;
+      if (!menus[depth]) {
+        const submenu = element('ul');
+        submenu.dataset.slot = 'sidebar-menu-sub';
+        menus[depth - 1].lastElementChild.append(submenu);
+        menus.push(submenu);
+      }
+      menus.length = depth + 1;
       const row = element('li');
-      row.dataset.slot = 'sidebar-menu-item';
+      row.dataset.slot = depth ? 'sidebar-menu-sub-item' : 'sidebar-menu-item';
       const node = button(undefined, () => {
         group = item === workspace.builtIn[0] ? null : item;
         search.value = '';
@@ -293,13 +302,12 @@ function renderGroups() {
         renderEntries();
         panes[1].scrollTop = 0;
       });
-      node.dataset.slot = 'sidebar-menu-button';
+      node.dataset.slot = depth ? 'sidebar-menu-sub-button' : 'sidebar-menu-button';
       if (item === (group ?? workspace.builtIn[0])) node.setAttribute('aria-current', 'true');
       node.tabIndex = node.hasAttribute('aria-current') ? 0 : -1;
-      if (item.depth) node.style.paddingInlineStart = `${0.5 + item.depth * 0.8}rem`;
       node.append(element('span', item.name), element('small', String(item.rows.length), 'count'));
       row.append(node);
-      list.append(row);
+      menus[depth].append(row);
     }
     groups.append(section);
   }
