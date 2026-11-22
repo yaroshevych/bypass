@@ -359,6 +359,15 @@ test('follows the system theme and remembers the header switch preference', asyn
   await openFile(page, fixtures.get('KDBX 3'));
   await unlock(page);
   const theme = page.getByRole('switch', { name: 'Dark mode' });
+  const controls = await page.locator('.vault-header').evaluate(header =>
+    [...header.children].map(control => {
+      const box = control.getBoundingClientRect();
+      return { x: box.x, center: box.y + box.height / 2 };
+    })
+  );
+  expect(controls).toHaveLength(4);
+  expect(controls.map(control => control.x)).toEqual(controls.map(control => control.x).sort((a, b) => a - b));
+  expect(Math.max(...controls.map(control => control.center)) - Math.min(...controls.map(control => control.center))).toBeLessThan(1);
   await expect(theme).toHaveAttribute('aria-checked', 'false');
   const background = () => page.locator('body').evaluate(body => getComputedStyle(body).backgroundColor);
   const light = await background();

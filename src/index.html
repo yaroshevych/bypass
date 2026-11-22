@@ -56,17 +56,22 @@
     <nav id="groups" class="pane sidebar-content" data-slot="sidebar-content" aria-label="Vault views, tags and groups"></nav>
   </aside>
   <header class="vault-header">
-    <div class="toolbar">
-      <button data-slot="button" id="commands" type="button">Commands</button>
-      <div class="flex items-center gap-2"><span class="muted" id="theme-label">Dark mode</span><button data-slot="switch" id="theme" class="theme-switch" type="button" role="switch" aria-checked="false" aria-labelledby="theme-label"><span data-slot="switch-thumb" aria-hidden="true"></span></button></div>
-    </div>
-  </header>
-  <div class="workspace-bar">
     <div id="tabs" data-slot="tabs-list" role="tablist" aria-label="Vault views"></div>
     <label class="search-control"><span class="sr-only">Search entries</span>
-      <input data-slot="input" id="search" type="search" placeholder="Filter entries" autocomplete="off" spellcheck="false">
+      <input data-slot="input" id="search" type="search" placeholder="Filter entries" aria-keyshortcuts="/" autocomplete="off" spellcheck="false">
+      <kbd aria-hidden="true">/</kbd>
     </label>
-  </div>
+    <button data-slot="button" id="commands" type="button" aria-keyshortcuts="Control+P Meta+P">Commands <kbd aria-hidden="true">Ctrl+P</kbd></button>
+    <button data-slot="switch" id="theme" class="theme-switch" type="button" role="switch" aria-checked="false" aria-label="Dark mode" title="Toggle light/dark mode">
+      <svg class="theme-sun" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="4"></circle>
+        <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19m0-14-1.5 1.5m-11 11L5 19"></path>
+      </svg>
+      <svg class="theme-moon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.9 13.4A9 9 0 0 1 10.6 3.1 9 9 0 1 0 20.9 13.4Z"></path>
+      </svg>
+    </button>
+  </header>
   <section class="pane entry-pane" aria-label="Entries">
     <table class="entry-table" data-slot="table" aria-label="Vault entries">
       <thead data-slot="table-header">

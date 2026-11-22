@@ -127,32 +127,28 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .viewer {
   --left-width: minmax(9rem, .8fr);
   --right-width: minmax(14rem, 1.35fr);
-  @apply grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)];
+  @apply grid h-dvh grid-rows-[auto_minmax(0,1fr)];
   grid-template-columns: var(--left-width) minmax(0, 1.4fr) var(--right-width);
 }
 .viewer.zoomed { --right-width: minmax(16rem, 2.5fr); }
 .viewer:has(#navigation-sidebar[hidden]) { --left-width: 0px; }
 .viewer:has(#detail[hidden]) { --right-width: 0px; }
-.vault-header, .workspace-bar, .toolbar, #tabs {
-  @apply flex flex-wrap items-center gap-2;
-}
-.vault-header { @apply col-start-2 col-end-4 row-start-1 justify-end pt-3; }
-.vault-header, .workspace-bar { @apply px-2; }
-.workspace-bar { @apply col-start-2 col-end-4 row-start-2 justify-between border-b border-border; padding-block: .45rem; }
-.toolbar button:not(.theme-switch) { @apply h-8 px-3; }
-#tabs { @apply w-fit gap-0.5 rounded-lg bg-muted p-[3px]; }
-#tabs button { @apply block h-7 max-w-52 truncate rounded-md border-transparent bg-transparent px-2 py-1 text-muted-foreground shadow-none hover:text-foreground; }
+.vault-header { @apply col-start-2 col-end-4 row-start-1 flex min-w-0 items-center gap-2 overflow-x-auto border-b border-border p-2; }
+#tabs { @apply flex w-fit min-w-0 items-center gap-0.5 overflow-x-auto rounded-lg bg-muted p-[3px]; }
+#tabs button { @apply block h-7 max-w-52 shrink-0 truncate rounded-md border-transparent bg-transparent px-2 py-1 text-muted-foreground shadow-none hover:text-foreground; }
 #tabs button[aria-selected="true"] { @apply bg-background text-foreground shadow-sm; }
-#lock { white-space: nowrap; }
-.theme-switch { @apply relative inline-flex h-5 w-9 shrink-0 items-center justify-start rounded-full border-transparent bg-input p-0 shadow-xs transition-colors; }
-.theme-switch span { @apply pointer-events-none ms-px size-4 rounded-full bg-background transition-transform; }
-.theme-switch[aria-checked="true"] { @apply bg-primary; }
-.theme-switch[aria-checked="true"] span { @apply translate-x-4 bg-primary-foreground; }
-.search-control { width: min(100%, 22rem); }
-#search { padding: .25rem .55rem; }
+.vault-header kbd { @apply rounded border border-border bg-muted px-1 font-mono text-xs leading-5 text-muted-foreground; }
+#commands { @apply h-8 px-2; }
+.theme-switch { @apply size-8 p-0; }
+.theme-switch svg { @apply size-4; }
+.theme-switch[aria-checked="false"] .theme-moon,
+.theme-switch[aria-checked="true"] .theme-sun { display: none; }
+.search-control { @apply relative ms-auto min-w-24 max-w-88 flex-1; }
+.search-control kbd { @apply pointer-events-none absolute end-2 top-1/2 -translate-y-1/2; }
+#search { @apply h-8 pe-8; }
 .pane { @apply min-w-0 overflow-auto bg-card p-2.5; }
 .sidebar { @apply bg-sidebar p-3 text-sidebar-foreground; }
-.sidebar[data-side="left"] { @apply col-start-1 row-start-1 row-span-3 flex min-h-0 min-w-0 flex-col border-e border-sidebar-border p-0; }
+.sidebar[data-side="left"] { @apply col-start-1 row-start-1 row-span-2 flex min-h-0 min-w-0 flex-col border-e border-sidebar-border p-0; }
 .sidebar-header { @apply p-2; }
 .vault-switcher { @apply h-auto min-h-12 w-full justify-start gap-2 overflow-hidden border-0 bg-transparent p-2 text-left shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground; }
 .vault-switcher[aria-expanded="true"] { @apply bg-sidebar-accent text-sidebar-accent-foreground; }
@@ -168,8 +164,8 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .vault-info-dialog dl { @apply mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2; }
 .vault-info-dialog dd { @apply m-0 wrap-anywhere; }
 .vault-info-dialog form { @apply m-0 mt-4 flex justify-end; }
-.sidebar[data-side="right"] { @apply col-start-3 row-start-3 border-s border-sidebar-border; }
-.entry-sidebar-controls { @apply pointer-events-none z-20 col-start-2 row-start-3 flex items-end justify-between gap-2 self-end p-2; }
+.sidebar[data-side="right"] { @apply col-start-3 row-start-2 border-s border-sidebar-border; }
+.entry-sidebar-controls { @apply pointer-events-none z-20 col-start-2 row-start-2 flex items-end justify-between gap-2 self-end p-2; }
 [data-slot="sidebar-trigger"] { @apply pointer-events-auto size-8 p-0 shadow-sm; }
 [data-slot="sidebar-trigger"] svg { @apply pointer-events-none size-4; }
 .stack { @apply grid content-start gap-2.5; }
@@ -185,7 +181,7 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 :is([data-slot="sidebar-menu-button"], [data-slot="sidebar-menu-sub-button"]) span { @apply min-w-0 truncate; }
 :is([data-slot="sidebar-menu-button"], [data-slot="sidebar-menu-sub-button"])[aria-current="true"] { @apply bg-sidebar-accent font-medium text-sidebar-accent-foreground; }
 .count { @apply shrink-0 tabular-nums; color: inherit; opacity: .8; }
-.entry-pane { @apply col-start-2 row-start-3 bg-background pt-0 pb-12; }
+.entry-pane { @apply col-start-2 row-start-2 bg-background pt-0 pb-12; }
 .entry-table { @apply w-full table-fixed caption-bottom text-sm; }
 .entry-table thead { @apply sticky top-0 z-10 bg-background; }
 .entry-table tr { @apply border-b border-border transition-colors; }
@@ -226,10 +222,11 @@ dd button { @apply h-8 px-3; }
 .command[aria-disabled="true"] { @apply opacity-50; }
 #large-content { white-space: pre-wrap; overflow-wrap: anywhere; font: 1.35rem/1.5 "Geist Mono", ui-monospace, monospace; }
 @media (max-width: 740px) {
-  .viewer { height: auto; min-height: 100dvh; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto 1fr auto; }
-  .vault-header, .workspace-bar { grid-column: 2; }
-  .viewer:has(#navigation-sidebar[hidden]) :is(.vault-header, .workspace-bar, .entry-pane, .entry-sidebar-controls) { grid-column: 1 / -1; }
-  .sidebar[data-side="right"] { grid-column: 1 / -1; grid-row: 4; border-inline-start: 0; border-top: 1px solid var(--line); max-height: none; }
+  .viewer { height: auto; min-height: 100dvh; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto 1fr auto; }
+  .vault-header { grid-column: 2; }
+  #tabs { min-width: max-content; }
+  .viewer:has(#navigation-sidebar[hidden]) :is(.vault-header, .entry-pane, .entry-sidebar-controls) { grid-column: 1 / -1; }
+  .sidebar[data-side="right"] { grid-column: 1 / -1; grid-row: 3; border-inline-start: 0; border-top: 1px solid var(--line); max-height: none; }
   .pane { max-height: 37vh; }
   .entry-table :is(th, td):last-child { display: none; }
 }
