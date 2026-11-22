@@ -70,6 +70,7 @@ dd button { font-size: .84rem; }
 .zoomed .layout { grid-template-columns: minmax(10rem, .7fr) minmax(14rem, 1fr) minmax(16rem, 2.5fr); }
 @media (max-width: 740px) {
   .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .zoomed .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   #detail { grid-column: 1/-1; border-left: 0; border-top: 1px solid var(--line); max-height: none; }
   .pane { max-height: 38vh; padding: .75rem; }
 }

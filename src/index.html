@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
-<title>Offline Vault</title>
+<title>bypass-web</title>
 <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
 <main id="unlock-screen" class="unlock">
   <section class="card" aria-labelledby="unlock-title">
-    <h1 id="unlock-title">Offline Vault</h1>
+    <h1 id="unlock-title">bypass-web</h1>
     <p class="muted">Open a KeePass database on this device.</p>
     <form id="unlock-form" autocomplete="off">
       <fieldset id="credentials">
@@ -57,7 +57,7 @@
   </div>
   <p id="copy-status" role="status"></p>
   <section id="palette" class="overlay" role="dialog" aria-modal="true" aria-labelledby="palette-title" hidden><div class="overlay-card"><h2 id="palette-title">Command palette</h2><input id="palette-search" type="search" placeholder="Search commands" autocomplete="off"><div id="palette-items" class="command-list"></div></div></section>
-  <section id="field-jump" class="overlay" role="dialog" aria-modal="true" aria-labelledby="jump-title" hidden><div class="overlay-card"><h2 id="jump-title">Jump to field</h2><p>p Password · u Username · w URL · n Notes · e Email</p></div></section>
+  <section id="field-jump" class="overlay" role="dialog" aria-modal="true" aria-labelledby="jump-title" tabindex="-1" hidden><div class="overlay-card"><h2 id="jump-title">Jump to field</h2><p>p Password · u Username · w URL · n Notes · e Email</p></div></section>
   <section id="large-view" class="overlay" role="dialog" aria-modal="true" aria-labelledby="large-title" hidden><div class="overlay-card"><h2 id="large-title">Large View</h2><pre id="large-content"></pre><button id="large-close" type="button">Close</button></div></section>
 </main>
 <script type="module" src="./app.js"></script>

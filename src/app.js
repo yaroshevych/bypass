@@ -1,4 +1,6 @@
 import { Credentials, Kdbx, ProtectedValue, UnsupportedArgon2 } from './crypto.js';
+import { generateOtp, parseTotpSettings } from './totp.js';
+
 const byId = id => document.getElementById(id);
 const form = byId('unlock-form');
 const master = byId('master');
@@ -26,31 +28,56 @@ let views = [];
 let activeView = 0;
 let paletteReturnFocus = null;
 let fieldJumpReturnFocus = null;
+let largeReturnFocus = null;
 let zoomed = false;
-let fieldJumpPending = false;
 
-function saveView() { if (views[activeView]) Object.assign(views[activeView], { group, selected, query: search.value, zoomed }); }
+const panes = [groups.closest('.pane'), entries.closest('.pane'), detail];
+
+function saveView() {
+  const view = views[activeView];
+  if (!view) return;
+  Object.assign(view, { group, selected, query: search.value, zoomed, scroll: panes.map(pane => pane.scrollTop) });
+}
+
 function syncViews() {
-  const tabs = byId('tabs'); const wasTabsFocused = tabs.contains(document.activeElement); tabs.replaceChildren();
+  const tabs = byId('tabs');
+  const wasTabsFocused = tabs.contains(document.activeElement);
+  tabs.replaceChildren();
   views.forEach((view, index) => {
     const tab = button(`Tab ${index + 1}`, () => switchView(index));
-    tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(index === activeView));
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-selected', String(index === activeView));
     tab.setAttribute('aria-label', `Tab ${index + 1}${view.selected ? ': ' + (field(view.selected, 'Title') || 'Untitled entry') : ''}`);
     tabs.append(tab);
   });
-  if (wasTabsFocused) tabs.querySelector(`[role="tab"][aria-selected="true"]`)?.focus();
+  if (wasTabsFocused) tabs.querySelector('[aria-selected="true"]')?.focus();
 }
-function switchView(index) {
+
+function switchView(index, saveCurrent = true) {
   if (!views.length) return;
-  saveView(); activeView = (index + views.length) % views.length;
-  const view = views[activeView]; group = view.group; selected = view.selected; zoomed = view.zoomed;
-  search.value = view.query; byId('viewer').classList.toggle('zoomed', zoomed);
-  renderGroups(); renderEntries(); syncViews();
+  if (saveCurrent) saveView();
+  activeView = (index + views.length) % views.length;
+  const view = views[activeView];
+  ({ group, selected, zoomed } = view);
+  search.value = view.query;
+  byId('viewer').classList.toggle('zoomed', zoomed);
+  renderGroups();
+  renderEntries();
+  syncViews();
+  panes.forEach((pane, i) => { pane.scrollTop = view.scroll?.[i] ?? 0; });
 }
-function newView() { saveView(); views.push({ group: null, selected: null, query: '', zoomed: false }); switchView(views.length - 1); }
+
+function newView() {
+  if (views.length >= 9) { copyStatus.textContent = 'Maximum of nine views.'; return; }
+  saveView();
+  views.push({ ...views[activeView] });
+  switchView(views.length - 1, false);
+}
+
 function closeView() {
   if (views.length < 2) { lockVault(); return; }
-  views.splice(activeView, 1); activeView = Math.min(activeView, views.length - 1); switchView(activeView);
+  views.splice(activeView, 1);
+  switchView(Math.min(activeView, views.length - 1), false);
 }
 
 function element(tag, text, className) {
@@ -93,7 +120,17 @@ function chooseFile(candidate) {
   if (file) byId('file-hint').textContent = file.name;
 }
 
-vaultFile.addEventListener('change', () => chooseFile(vaultFile.files[0]));
+vaultFile.addEventListener('change', () => {
+  const candidate = vaultFile.files[0];
+  if (!database) {
+    chooseFile(candidate);
+  } else if (candidate && /\.kdbx$/i.test(candidate.name)) {
+    lockVault(candidate);
+    master.focus();
+  } else {
+    vaultFile.value = '';
+  }
+});
 byId('show-master').addEventListener('click', () => showMaster(master.type === 'password'));
 document.addEventListener('dragover', event => {
   if (event.dataTransfer.types.includes('Files')) event.preventDefault();
@@ -328,80 +365,24 @@ function copyButton(readValue, label, caption = 'Copy') {
   return node;
 }
 
-function decodeBase32(secret) {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  const normalized = secret.toUpperCase().replace(/\s/g, '');
-  const [, body, padding] = /^([A-Z2-7]+)(=*)$/.exec(normalized) ?? [];
-  if (!body || ![0, 2, 4, 5, 7].includes(body.length % 8)
-      || (padding && padding.length !== (8 - body.length % 8) % 8)) {
-    throw new Error('Invalid Base32 secret');
-  }
-  const bytes = new Uint8Array(Math.floor(body.length * 5 / 8));
-  let bits = 0;
-  let buffer = 0;
-  let offset = 0;
-  for (const character of body) {
-    buffer = (buffer << 5) | alphabet.indexOf(character);
-    bits += 5;
-    if (bits >= 8) {
-      bits -= 8;
-      bytes[offset++] = buffer >> bits;
-      buffer &= (1 << bits) - 1;
-    }
-  }
-  if (buffer !== 0) {
-    bytes.fill(0);
-    throw new Error('Invalid Base32 padding bits');
-  }
-  return bytes;
-}
-
-function otpSettings(entry) {
-  let secret = field(entry, 'TimeOtp-Secret-Base32');
-  let digits = field(entry, 'TimeOtp-Length');
-  let period = field(entry, 'TimeOtp-Period');
-  let algorithm = field(entry, 'TimeOtp-Algorithm');
-  const uri = field(entry, 'otp').trim();
-  if (uri) {
-    const url = new URL(uri);
-    if (url.protocol !== 'otpauth:' || url.hostname.toLowerCase() !== 'totp') {
-      throw new Error('Invalid TOTP URI');
-    }
-    secret = url.searchParams.get('secret') ?? '';
-    digits = url.searchParams.get('digits') ?? '';
-    period = url.searchParams.get('period') ?? '';
-    algorithm = url.searchParams.get('algorithm') ?? '';
-  }
-  digits = digits.trim() || '6';
-  period = period.trim() || '30';
-  const hash = /^(?:HMAC-)?SHA-?(1|256|512)$/i.exec(algorithm.trim() || 'SHA1');
-  if (!/^[6-8]$/.test(digits) || !/^\d+$/.test(period)
-      || !Number.isSafeInteger(Number(period) * 1000) || Number(period) < 1 || !hash) {
-    throw new Error('Invalid TOTP settings');
-  }
-  return { secret: decodeBase32(secret), digits: Number(digits), period: Number(period), hash: 'SHA-' + hash[1] };
-}
-
-async function generateOtp(key, counter, digits) {
-  const message = new DataView(new ArrayBuffer(8));
-  message.setBigUint64(0, BigInt(counter));
-  const signature = new DataView(await crypto.subtle.sign('HMAC', key, message));
-  const offset = signature.getUint8(signature.byteLength - 1) & 15;
-  const value = signature.getUint32(offset) & 0x7fffffff;
-  return String(value % 10 ** digits).padStart(digits, '0');
-}
-
 function otpDisplay(entry) {
   const row = element('div', undefined, 'otp');
   let settings;
   try {
-    settings = otpSettings(entry);
+    settings = parseTotpSettings({
+      uri: field(entry, 'otp'),
+      secret: field(entry, 'TimeOtp-Secret-Base32'),
+      digits: field(entry, 'TimeOtp-Length'),
+      period: field(entry, 'TimeOtp-Period'),
+      algorithm: field(entry, 'TimeOtp-Algorithm')
+    });
   } catch {
     row.textContent = 'Invalid TOTP settings.';
     return row;
   }
   const { secret, digits, period, hash } = settings;
   const code = element('span', '—', 'otp-code');
+  code.dataset.fieldKey = 'otp';
   const countdown = element('small');
   const progress = element('progress');
   progress.max = period;
@@ -414,6 +395,7 @@ function otpDisplay(entry) {
   let displayedStep;
   const currentStep = () => Math.floor(Date.now() / stepMs);
   const copy = copyButton(() => displayedStep === currentStep() ? code.textContent : null, 'OTP', 'Copy OTP');
+  copy.dataset.fieldKey = 'otp';
   copy.disabled = true;
   const actions = element('div', undefined, 'inline');
   actions.append(code, copy);
@@ -488,6 +470,9 @@ function renderDetails() {
   function add(label, value, ...actions) {
     const contents = element('dd', undefined, actions.length ? 'inline' : undefined);
     contents.dataset.fieldLabel = label;
+    const fieldKey = label === 'Username' ? 'UserName' : label === 'One-time password (TOTP)' ? 'otp' : label;
+    contents.dataset.fieldKey = fieldKey; contents.tabIndex = 0;
+    value.dataset.fieldValueKey = fieldKey;
     contents.append(value, ...actions);
     list.append(element('dt', label), contents);
   }
@@ -534,7 +519,7 @@ function renderDetails() {
   const notes = field(entry, 'Notes'); const notesNode = element('span', notes || '—'); notesNode.dataset.fieldKey = 'Notes'; add('Notes', notesNode, ...(notes ? [copyButton(() => field(entry, 'Notes'), 'Notes')] : []));
   for (const [key, value] of entry.fields) {
     if (standardFields.has(key) || otpFields.has(key)) continue;
-    if (value instanceof ProtectedValue) masked(key, key);
+    if (value instanceof ProtectedValue) masked(key, key, true);
     else { const custom = element('span', value || '—'); custom.dataset.fieldKey = key; add(key, custom, ...(value ? [copyButton(() => field(entry, key), key)] : [])); }
   }
   detail.append(list);
@@ -553,52 +538,90 @@ function clearVault() {
   byId('vault-name').textContent = '';
   byId('result-count').textContent = '';
   byId('large-content').textContent = ''; byId('palette-search').value = ''; byId('palette-items').replaceChildren();
+  byId('tabs').replaceChildren(); byId('viewer').classList.remove('zoomed');
 }
 
 search.addEventListener('input', () => {
   if (database) { renderEntries(); saveView(); }
 });
-function lockVault() {
-  closeOverlays(); views = []; activeView = 0; zoomed = false;
+function lockVault(preserveFile = null) {
+  closeOverlays();
+  views = [];
+  activeView = 0;
+  zoomed = false;
   clearVault();
   resetCredentials();
+  if (preserveFile) chooseFile(preserveFile);
   byId('viewer').hidden = true;
   byId('unlock-screen').hidden = false;
   vaultFile.focus();
 }
-byId('lock').addEventListener('click', lockVault);
+byId('lock').addEventListener('click', () => lockVault());
 
 function openPalette() {
+  if (!byId('large-view').hidden) closeOverlays();
   paletteReturnFocus = document.activeElement;
+  hideReveals();
   const box = byId('palette'); box.hidden = false;
   renderPalette(''); byId('palette-search').value = ''; byId('palette-search').focus();
 }
+function openVault() {
+  vaultFile.click();
+}
+
 function closeOverlays() {
   const active = document.activeElement;
+  const returnFocus = active?.closest('#palette') ? paletteReturnFocus
+    : active?.closest('#field-jump') ? fieldJumpReturnFocus
+    : active?.closest('#large-view') ? largeReturnFocus : null;
   for (const id of ['palette', 'field-jump', 'large-view']) byId(id).hidden = true;
-  fieldJumpPending = false;
+  byId('large-title').textContent = 'Large View';
   byId('large-content').textContent = '';
-  if (active?.closest('#palette')) paletteReturnFocus?.focus();
-  else if (active?.closest('#field-jump')) fieldJumpReturnFocus?.focus();
-  else if (active?.closest('#large-view')) largeReturnFocus?.focus();
+  paletteReturnFocus = null;
+  fieldJumpReturnFocus = null;
+  largeReturnFocus = null;
+  returnFocus?.focus();
 }
-const commandDefs = [
-  ['Lock vault', 'Shift+L', lockVault], ['Close current view', 'Ctrl+W', closeView],
-  ['New view', 't', newView], ['Previous view', '[', () => switchView(activeView - 1)], ['Next view', ']', () => switchView(activeView + 1)],
-  ['Focus search', '/', () => search.focus()], ['Copy focused field', 'c', copyFocusedField], ['Reveal focused field', 'v', revealFocusedField],
-  ['Large View', 'Shift+G', openLargeView], ['Toggle zoom', 'z', toggleZoom]
-];
+function commandDefs() {
+  const needsEntry = selected ? undefined : 'Select an entry first.';
+  return [
+    ['Open vault', 'o', openVault], ['Jump to field', 'Shift+J', openFieldJump, needsEntry],
+    ['Lock Vault', 'Shift+L', lockVault], ['Close Tab', '', closeView],
+    ['New Tab', 't', newView], ['Previous Tab', '[', () => switchView(activeView - 1)], ['Next Tab', ']', () => switchView(activeView + 1)],
+    ['Focus search', '/', () => search.focus()], ['Copy focused field', 'c', copyFocusedField, needsEntry], ['Reveal focused field', 'v', revealFocusedField, needsEntry],
+    ['Large View', 'Shift+G', openLargeView, needsEntry], ['Toggle zoom', 'z', toggleZoom]
+  ];
+}
 function renderPalette(query) {
-  const host = byId('palette-items'); const filtered = commandDefs.filter(([name, keys]) => `${name} ${keys}`.toLowerCase().includes(query.toLowerCase()));
-  host.replaceChildren(...filtered.map(([name, keys, run]) => {
-    const row = button(name, () => { byId('palette').hidden = true; run(); }); row.className = 'command'; row.append(element('small', keys)); return row;
+  const host = byId('palette-items');
+  const filter = query.trim().toLowerCase();
+  const filtered = commandDefs().filter(([name, keys]) => `${name} ${keys}`.toLowerCase().includes(filter));
+  host.replaceChildren(...filtered.map(([name, keys, run, disabledReason]) => {
+    const row = button(name, () => {
+      if (disabledReason) return;
+      closeOverlays();
+      run();
+    });
+    row.className = 'command';
+    if (keys) row.append(element('small', keys));
+    if (disabledReason) {
+      row.setAttribute('aria-disabled', 'true');
+      row.append(element('small', disabledReason));
+    }
+    return row;
   }));
   host.querySelector('button')?.setAttribute('aria-current', 'true');
 }
 byId('commands').addEventListener('click', openPalette);
 byId('palette-search').addEventListener('input', event => renderPalette(event.target.value));
 function activeField() { return document.activeElement?.closest('[data-field-key]')?.dataset.fieldKey; }
+function hideReveals() {
+  const focused = document.activeElement;
+  for (const toggle of detail.querySelectorAll('[data-field-action="reveal"][aria-pressed="true"]')) toggle.click();
+  focused?.focus?.();
+}
 function fieldNode(key) { return [...detail.querySelectorAll('[data-field-key]')].find(node => node.dataset.fieldKey.toLowerCase() === key.toLowerCase()); }
+function fieldValueNode(key) { return [...detail.querySelectorAll('[data-field-value-key]')].find(node => node.dataset.fieldValueKey.toLowerCase() === key.toLowerCase()); }
 function focusField(key) { const node = fieldNode(key); if (!node) return false; node.tabIndex = 0; node.focus(); node.scrollIntoView({ block: 'nearest' }); return true; }
 function actionNode(key, action) { return detail.querySelector(`[data-field-action="${action}"][data-field-key="${CSS.escape(key)}"]`); }
 function copyFocusedField() {
@@ -612,56 +635,111 @@ function revealFocusedField() {
   const node = key && [...detail.querySelectorAll('button[aria-label^="Reveal or hide "]')].find(item => item.dataset.fieldKey === key);
   node?.click();
 }
-let largeReturnFocus = null;
 function openLargeView() {
   const key = activeField() || (selected?.fields.has('Password') ? 'Password' : selected?.fields.has('UserName') ? 'UserName' : null);
   if (!key) return;
-  const node = fieldNode(key); const reveal = actionNode(key, 'reveal');
-  const text = reveal?.getAttribute('aria-pressed') === 'true' ? node.textContent : (key === 'Password' ? '••••••••' : node?.textContent);
-  byId('large-title').textContent = key; byId('large-content').textContent = text || '—';
-  largeReturnFocus = document.activeElement; byId('large-view').hidden = false; byId('large-close').focus();
+  hideReveals();
+  const text = actionNode(key, 'reveal') ? field(selected, key) : fieldValueNode(key)?.textContent;
+  byId('large-title').textContent = key;
+  byId('large-content').textContent = text || '—';
+  largeReturnFocus = document.activeElement;
+  byId('large-view').hidden = false;
+  byId('large-close').focus();
 }
 byId('large-close').addEventListener('click', closeOverlays);
 function toggleZoom() { zoomed = !zoomed; byId('viewer').classList.toggle('zoomed', zoomed); saveView(); }
-function openFieldJump() { fieldJumpReturnFocus = document.activeElement; byId('field-jump').hidden = false; fieldJumpPending = true; }
-function jumpField(letter) { const names = { p: 'Password', u: 'UserName', w: 'URL', n: 'Notes', e: 'Email' }; byId('field-jump').hidden = true; fieldJumpPending = false; focusField(names[letter]); }
+function openFieldJump() {
+  if (!selected) return;
+  fieldJumpReturnFocus = document.activeElement;
+  hideReveals();
+  byId('field-jump').hidden = false;
+  byId('field-jump').focus();
+}
+
+function jumpField(letter) {
+  const names = { p: 'Password', u: 'UserName', w: 'URL', n: 'Notes', e: 'Email' };
+  closeOverlays();
+  focusField(names[letter]);
+}
+
+function handlePaletteKey(event) {
+  const input = byId('palette-search');
+  const options = [...byId('palette-items').querySelectorAll('button')];
+  const index = options.findIndex(option => option.hasAttribute('aria-current'));
+  const { key, shiftKey, ctrlKey, metaKey, altKey } = event;
+
+  if (key === 'Escape') {
+    event.preventDefault();
+    closeOverlays();
+  } else if (key === 'Enter') {
+    event.preventDefault();
+    options[index]?.click();
+  } else if (['ArrowDown', 'ArrowUp', 'Tab'].includes(key)) {
+    event.preventDefault();
+    if (!options.length) return;
+    const direction = key === 'ArrowUp' || (key === 'Tab' && shiftKey) ? -1 : 1;
+    const next = options[(index + direction + options.length) % options.length];
+    options[index]?.removeAttribute('aria-current');
+    next.setAttribute('aria-current', 'true');
+    next.focus();
+  } else if (event.target !== input && !ctrlKey && !metaKey && !altKey && (key.length === 1 || key === 'Backspace')) {
+    event.preventDefault();
+    input.value = key === 'Backspace' ? input.value.slice(0, -1) : input.value + key;
+    renderPalette(input.value);
+    input.focus();
+  }
+}
+
+function moveWithinPane(event) {
+  const { key, target } = event;
+  if (key !== 'ArrowDown' && key !== 'ArrowUp') return false;
+  const list = target.closest('#groups, #entries');
+  const row = target.closest('#detail dd');
+  const items = list
+    ? [...list.querySelectorAll('button')].filter(button => button.getClientRects().length)
+    : row ? [...detail.querySelectorAll('dd')] : [];
+  const index = items.indexOf(row ?? target);
+  if (index < 0) return false;
+  event.preventDefault();
+  const next = index + (key === 'ArrowDown' ? 1 : -1);
+  items[next]?.focus();
+  return true;
+}
 
 document.addEventListener('keydown', event => {
   const target = event.target;
   const editing = target.matches('input, textarea, select, [contenteditable="true"]');
-  const palette = !byId('palette').hidden;
-  if (palette) {
-    const options = [...byId('palette-items').querySelectorAll('button')]; let index = options.findIndex(item => item.getAttribute('aria-current') === 'true');
-    if (event.key === 'Escape') { event.preventDefault(); closeOverlays(); }
-    else if (event.key === 'ArrowDown' || event.key === 'Tab' && !event.shiftKey) { event.preventDefault(); if (options.length) { index = (index + 1) % options.length; options.forEach((item, i) => item.setAttribute('aria-current', String(i === index))); options[index].focus(); } }
-    else if (event.key === 'ArrowUp' || event.key === 'Tab' && event.shiftKey) { event.preventDefault(); if (options.length) { index = (index <= 0 ? options.length : index) - 1; options.forEach((item, i) => item.setAttribute('aria-current', String(i === index))); options[index].focus(); } }
-    else if (event.key === 'Enter') { event.preventDefault(); options[index]?.click(); }
+  if (!byId('palette').hidden) {
+    handlePaletteKey(event);
     return;
   }
-  if (fieldJumpPending) {
+  if (!byId('field-jump').hidden) {
+    if (event.key === 'Tab') { event.preventDefault(); return; }
     if (event.key === 'Escape') { event.preventDefault(); closeOverlays(); }
     else if (/^[puwne]$/i.test(event.key)) { event.preventDefault(); jumpField(event.key.toLowerCase()); }
     return;
   }
-  if (!byId('large-view').hidden) { if (event.key === 'Escape' || event.key === 'Enter') { event.preventDefault(); closeOverlays(); } return; }
+  if (!byId('large-view').hidden) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p') { event.preventDefault(); closeOverlays(); openPalette(); }
+    else if (event.shiftKey && event.key.toLowerCase() === 'l') { event.preventDefault(); lockVault(); }
+    else if (event.key === 'Tab') { event.preventDefault(); byId('large-close').focus(); }
+    else if (event.key === 'Escape' || event.key === 'Enter') { event.preventDefault(); closeOverlays(); }
+    return;
+  }
   if (target === search && event.key === 'Escape') { event.preventDefault(); search.blur(); return; }
   if (event.key === 'Escape') { closeOverlays(); return; }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p' && database) { event.preventDefault(); openPalette(); return; }
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'w' && database) { event.preventDefault(); closeView(); return; }
   if (database && target === search && event.key === 'ArrowDown') { event.preventDefault(); (entries.querySelector('[aria-current]') || entries.querySelector('button'))?.focus(); return; }
   if (database && target === search && event.key === 'Enter') { const first = entries.querySelector('[aria-current]') || entries.querySelector('button'); if (first) { event.preventDefault(); first.click(); first.focus(); return; } }
   if (editing || !database) return;
   if (event.ctrlKey || event.metaKey || event.altKey) return;
-  const list = target.closest('#groups, #entries');
-  if (list && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
-    const options = [...list.querySelectorAll('button')]; const current = options.indexOf(target);
-    if (current >= 0) { event.preventDefault(); options[Math.max(0, Math.min(options.length - 1, current + (event.key === 'ArrowDown' ? 1 : -1)))]?.focus(); return; }
-  }
+  if (moveWithinPane(event)) return;
   if (event.key === '?' && !event.ctrlKey && !event.metaKey) { event.preventDefault(); openPalette(); }
   else if (event.key === '/') { event.preventDefault(); search.focus(); }
   else if (event.shiftKey && event.key.toLowerCase() === 'j') { event.preventDefault(); openFieldJump(); }
   else if (event.shiftKey && event.key.toLowerCase() === 'l') { event.preventDefault(); lockVault(); }
   else if (event.shiftKey && event.key.toLowerCase() === 'g') { event.preventDefault(); openLargeView(); }
+  else if (event.key.toLowerCase() === 'o') openVault();
   else if (event.key.toLowerCase() === 'c') copyFocusedField();
   else if (event.key.toLowerCase() === 'v') revealFocusedField();
   else if (event.key.toLowerCase() === 'z') toggleZoom();
