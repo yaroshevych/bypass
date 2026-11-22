@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>Offline Vault</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<main id="unlock-screen" class="unlock">
+  <section class="card" aria-labelledby="unlock-title">
+    <h1 id="unlock-title">Offline Vault</h1>
+    <p class="muted">Open a KeePass database on this device.</p>
+    <form id="unlock-form" autocomplete="off">
+      <fieldset id="credentials">
+        <label class="drop" id="drop">KeePass database
+          <input id="vault-file" type="file" accept=".kdbx">
+          <small id="file-hint">Choose or drop a .kdbx file</small>
+        </label>
+        <div class="stack">
+          <label for="master">Master password</label>
+          <div class="inline">
+            <input id="master" type="password" autocomplete="off" spellcheck="false">
+            <button id="show-master" type="button" aria-controls="master" aria-label="Show master password" aria-pressed="false">Show</button>
+          </div>
+        </div>
+        <label>Keyfile <small>Optional</small>
+          <input id="key-file" type="file">
+        </label>
+        <button class="primary" id="unlock-button" type="submit">Unlock vault</button>
+      </fieldset>
+      <p id="progress" role="status"></p>
+      <p id="error" role="alert"></p>
+    </form>
+  </section>
+</main>
+<main id="viewer" class="viewer" hidden>
+  <header>
+    <div><p class="muted">Read-only vault</p><h1 id="vault-name"></h1></div>
+    <div class="toolbar"><button id="commands" type="button">Commands</button><div id="tabs" role="tablist" aria-label="Vault views"></div><button id="lock" type="button">Lock Vault</button></div>
+  </header>
+  <label>Search entries
+    <input id="search" type="search" placeholder="Title, username, URL or notes" autocomplete="off" spellcheck="false">
+  </label>
+  <div class="layout">
+    <nav class="pane stack" aria-label="Vault groups">
+      <h2>Groups</h2>
+      <ul class="tree" id="groups"></ul>
+    </nav>
+    <section class="pane stack" aria-labelledby="entry-heading">
+      <h2 id="entry-heading">Entries</h2>
+      <p id="result-count" class="muted" role="status"></p>
+      <ul id="entries"></ul>
+    </section>
+    <section class="pane stack" id="detail" aria-label="Entry details"></section>
+  </div>
+  <p id="copy-status" role="status"></p>
+  <section id="palette" class="overlay" role="dialog" aria-modal="true" aria-labelledby="palette-title" hidden><div class="overlay-card"><h2 id="palette-title">Command palette</h2><input id="palette-search" type="search" placeholder="Search commands" autocomplete="off"><div id="palette-items" class="command-list"></div></div></section>
+  <section id="field-jump" class="overlay" role="dialog" aria-modal="true" aria-labelledby="jump-title" hidden><div class="overlay-card"><h2 id="jump-title">Jump to field</h2><p>p Password · u Username · w URL · n Notes · e Email</p></div></section>
+  <section id="large-view" class="overlay" role="dialog" aria-modal="true" aria-labelledby="large-title" hidden><div class="overlay-card"><h2 id="large-title">Large View</h2><pre id="large-content"></pre><button id="large-close" type="button">Close</button></div></section>
+</main>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
