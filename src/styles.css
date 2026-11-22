@@ -135,13 +135,13 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 [data-slot="sidebar-trigger"] { @apply h-8 border-transparent bg-transparent px-2 shadow-none; }
 [data-slot="sidebar-trigger"][aria-expanded="true"] { @apply bg-muted text-foreground; }
 .stack { @apply grid content-start gap-2.5; }
-.tree ul { list-style: none; padding: 0; margin: 0; }
+.tree ul { @apply m-0 flex list-none flex-col gap-1 p-0; }
 .tree section + section { margin-top: 1rem; }
 .tree h2 { color: var(--muted-foreground); font-size: .76rem; text-transform: uppercase; letter-spacing: .07em; }
 .tree h2 { display: flex; align-items: center; gap: .45rem; margin-bottom: .18rem; }
 .tree h2::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
 .tree button { width: 100%; text-align: left; border-color: transparent; border-radius: .375rem; padding: .16rem .45rem; background: transparent; height: auto; min-height: 1.9rem; box-shadow: none; white-space: normal; }
-.tree button { display: flex; justify-content: space-between; gap: .4rem; overflow-wrap: anywhere; }
+.tree button { @apply flex justify-between gap-2 transition-none; overflow-wrap: anywhere; }
 .tree button:hover { background: var(--soft); }
 .tree button[aria-current=true] { @apply bg-accent font-semibold; }
 .count { color: inherit; opacity: .8; font-variant-numeric: tabular-nums; }

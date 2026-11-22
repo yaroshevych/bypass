@@ -12,25 +12,41 @@ export function vaultWorkspace(database) {
   }
   for (const root of database.groups) visit(root);
 
-  const tags = new Set(entries.filter(row => !row.recycled).flatMap(({ entry }) =>
-    entry.tags.map(tag => tag.trim()).filter(tag => tag && tag.toLowerCase() !== 'favorite')
-  ));
+  const byEntry = new Map(entries.map(row => [row.entry, row]));
+  const byGroup = new Map(groups.map(({ group }) => [group, []]));
+  const byTag = new Map();
   const used = new Map();
-  const active = entries.filter(row => !row.recycled);
+  const active = [];
+  const favorites = [];
+  const bin = [];
+  for (const row of entries) {
+    if (row.recycled) {
+      bin.push(row);
+      continue;
+    }
+    active.push(row);
+    byGroup.get(row.group).push(row);
+    const tags = new Set(row.entry.tags.map(tag => tag.trim()).filter(Boolean));
+    if ([...tags].some(tag => tag.toLowerCase() === 'favorite')) favorites.push(row);
+    for (const tag of tags) {
+      if (tag.toLowerCase() === 'favorite') continue;
+      if (!byTag.has(tag)) byTag.set(tag, []);
+      byTag.get(tag).push(row);
+    }
+  }
   const builtIn = [
     { name: 'All Entries', rows: active },
-    { name: 'Favorites', rows: active.filter(({ entry }) => entry.tags.some(tag => tag.trim().toLowerCase() === 'favorite')) },
+    { name: 'Favorites', rows: favorites },
     { name: 'Recent', rows: active, recent: true },
-    { name: 'Bin', rows: entries.filter(row => row.recycled), bin: true }
+    { name: 'Bin', rows: bin, bin: true }
   ];
   return {
     builtIn,
-    tags: [...tags].sort().map(name => ({
-      name, rows: active.filter(({ entry }) => entry.tags.some(tag => tag.trim() === name))
-    })),
+    tags: [...byTag.keys()].sort().map(name => ({ name, rows: byTag.get(name) })),
     groups: groups.map(({ name, depth, group }) => ({
-      name, depth, rows: active.filter(row => row.group === group)
+      name, depth, rows: byGroup.get(group)
     })),
+    row(entry) { return byEntry.get(entry); },
     recordUse(entry) { if (entry) used.set(entry, Date.now()); },
     rows(view) {
       const { rows, recent } = view ?? builtIn[0];

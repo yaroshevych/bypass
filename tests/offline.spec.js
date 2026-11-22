@@ -285,6 +285,7 @@ test('opens with a selected entry and navigates TUI views, tags, and groups', as
   await nav.getByRole('button', { name: /All Entries/ }).press('ArrowDown');
   await expect(nav.getByRole('button', { name: /Favorites/ })).toHaveAttribute('aria-current', 'true');
   await expect(entries).toHaveCount(1);
+  await expect(page.getByRole('tab', { name: 'Tab 1: Example login' })).toBeVisible();
   await nav.getByRole('button', { name: /Bin/ }).click();
   await expect(entries).toContainText(['Deleted login']);
   await nav.getByRole('button', { name: /^work\s*1$/ }).click();

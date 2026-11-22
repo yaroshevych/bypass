@@ -52,10 +52,23 @@ for (const trigger of sidebarTriggers) {
   });
 }
 
-function saveView() {
+function saveView(captureScroll = false) {
   const view = views[activeView];
   if (!view) return;
-  Object.assign(view, { group, selected, query: search.value, zoomed, scroll: panes.map(pane => pane.scrollTop) });
+  Object.assign(view, { group, selected, query: search.value, zoomed });
+  if (captureScroll) view.scroll = panes.map(pane => pane.scrollTop);
+}
+
+function updateTabLabel(tab, index, entry) {
+  if (!tab) return;
+  const title = entry ? field(entry, 'Title') || 'Untitled entry' : '';
+  tab.textContent = title ? `${index + 1} ${title}` : String(index + 1);
+  tab.setAttribute('aria-label', title ? `Tab ${index + 1}: ${title}` : `Tab ${index + 1}`);
+}
+
+function updateActiveTab() {
+  saveView();
+  updateTabLabel(byId('tabs').querySelector('[aria-selected="true"]'), activeView, selected);
 }
 
 function syncViews() {
@@ -63,12 +76,11 @@ function syncViews() {
   const wasTabsFocused = tabs.contains(document.activeElement);
   tabs.replaceChildren();
   views.forEach((view, index) => {
-    const title = view.selected ? field(view.selected, 'Title') : '';
-    const tab = button(title ? `${index + 1} ${title}` : String(index + 1), () => switchView(index));
+    const tab = button(undefined, () => switchView(index));
     tab.dataset.slot = 'tabs-trigger';
     tab.setAttribute('role', 'tab');
     tab.setAttribute('aria-selected', String(index === activeView));
-    tab.setAttribute('aria-label', `Tab ${index + 1}${view.selected ? ': ' + (field(view.selected, 'Title') || 'Untitled entry') : ''}`);
+    updateTabLabel(tab, index, view.selected);
     tabs.append(tab);
   });
   const add = button('+', newView);
@@ -80,7 +92,7 @@ function syncViews() {
 
 function switchView(index, saveCurrent = true) {
   if (!views.length) return;
-  if (saveCurrent) saveView();
+  if (saveCurrent) saveView(true);
   activeView = (index + views.length) % views.length;
   const view = views[activeView];
   ({ group, selected, zoomed } = view);
@@ -94,7 +106,7 @@ function switchView(index, saveCurrent = true) {
 
 function newView() {
   if (views.length >= 9) { copyStatus.textContent = 'Maximum of nine views.'; return; }
-  saveView();
+  saveView(true);
   views.push({ ...views[activeView] });
   switchView(views.length - 1, false);
 }
@@ -231,6 +243,7 @@ form.addEventListener('submit', async event => {
     byId('vault-name').textContent = database.meta.name || name;
     renderGroups();
     renderEntries();
+    syncViews();
     resetCredentials();
     byId('unlock-screen').hidden = true;
     byId('viewer').hidden = false;
@@ -269,9 +282,8 @@ function renderGroups() {
         if (previous) previous.tabIndex = -1;
         node.setAttribute('aria-current', 'true');
         node.tabIndex = 0;
-        entries.closest('.pane').scrollTop = 0;
         renderEntries();
-        saveView();
+        panes[1].scrollTop = 0;
       });
       if (item === (group ?? workspace.builtIn[0])) node.setAttribute('aria-current', 'true');
       node.tabIndex = node.hasAttribute('aria-current') ? 0 : -1;
@@ -328,7 +340,7 @@ function renderEntries() {
     row.dataset.slot = 'table-row';
     const node = button(undefined, () => {
       selected = entry;
-      saveView(); syncViews();
+      updateActiveTab();
       const previous = entries.querySelector('[aria-current]');
       previous?.removeAttribute('aria-current');
       if (previous) previous.tabIndex = -1;
@@ -355,7 +367,7 @@ function renderEntries() {
   entries.replaceChildren(fragment);
   byId('result-count').textContent = matches.length === 1 ? '1 entry' : `${matches.length} entries`;
   renderDetails();
-  syncViews();
+  updateActiveTab();
 }
 
 function copyFallback(value) {
@@ -532,7 +544,7 @@ function renderDetails() {
   const heading = element('div', undefined, 'detail-heading');
   heading.append(element('h2', title), tags);
   summary.append(heading);
-  const row = workspace.rows(group).find(candidate => candidate.entry === entry);
+  const row = workspace.row(entry);
   if (row) summary.append(element('p', row.path.join(' / '), 'muted'));
   if (Number.isFinite(entry.lastModTime) && entry.times.lastModTime) {
     summary.append(element('p', 'Modified ' + entry.times.lastModTime.toISOString().slice(0, 10), 'muted'));
@@ -621,7 +633,7 @@ search.addEventListener('blur', () => {
   if (byId('palette').hidden) searchOrigin = null;
 });
 search.addEventListener('input', () => {
-  if (database) { renderEntries(); saveView(); }
+  if (database) renderEntries();
 });
 function lockVault(preserveFile = null) {
   closeOverlays();
@@ -797,7 +809,7 @@ function moveWithinPane(event) {
   const list = target.closest('#groups, #entries');
   const row = target.closest('#detail dd');
   const items = list
-    ? [...list.querySelectorAll('button')].filter(button => button.getClientRects().length)
+    ? [...list.querySelectorAll('button')]
     : row ? [...detail.querySelectorAll('dd')] : [];
   const index = items.indexOf(row ?? target);
   if (index < 0) return false;
