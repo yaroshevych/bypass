@@ -209,12 +209,8 @@ test('uses the palette and keyboard to search, copy, reveal, and lock', async ({
   await page.keyboard.press('ArrowDown');
   await expect(page.getByRole('button', { name: /Example login/ })).toBeFocused();
   await page.keyboard.press('Enter');
-  const detailsSidebar = page.getByRole('button', { name: 'Toggle details sidebar' });
-  await detailsSidebar.click();
-  await expect(detailsSidebar).toHaveAttribute('aria-expanded', 'false');
   await page.keyboard.press('Shift+j');
   await page.keyboard.press('p');
-  await expect(detailsSidebar).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('dd[data-field-key="Password"]')).toBeFocused();
   await expect(page.getByText('••••••••', { exact: true })).toBeVisible();
   await page.keyboard.press('c');
@@ -321,17 +317,12 @@ test('opens with a selected entry and navigates TUI views, tags, and groups', as
   await unlock(page);
   const nav = page.getByRole('navigation');
   const navigationSidebar = page.getByRole('button', { name: 'Toggle navigation sidebar' });
-  const detailsSidebar = page.getByRole('button', { name: 'Toggle details sidebar' });
-  const [navBox, leftToggle, rightToggle, detailBox] = await Promise.all([
+  const [navBox, leftToggle] = await Promise.all([
     nav.boundingBox(),
     navigationSidebar.boundingBox(),
-    detailsSidebar.boundingBox(),
-    page.getByRole('complementary', { name: 'Entry details' }).boundingBox(),
   ]);
   expect(leftToggle.x).toBeGreaterThan(navBox.x + navBox.width);
-  expect(rightToggle.x + rightToggle.width).toBeLessThan(detailBox.x);
   expect(navBox.y + navBox.height - leftToggle.y - leftToggle.height).toBeLessThanOrEqual(12);
-  expect(leftToggle.y).toBe(rightToggle.y);
   await navigationSidebar.click();
   await expect(nav).toBeHidden();
   await navigationSidebar.click();

@@ -221,8 +221,9 @@ dd button.field-action { @apply size-8 shrink-0 p-2; }
 .otp progress::-webkit-progress-bar { @apply bg-primary/20; }
 .otp progress::-webkit-progress-value { @apply bg-primary; }
 .otp progress::-moz-progress-bar { @apply bg-primary; }
-.overlay { @apply fixed inset-0 z-50 grid place-items-center overflow-auto bg-black/50 p-4; }
-.overlay-card { @apply relative grid w-full max-w-sm gap-4 overflow-auto rounded-xl border-0 bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10; max-height: 85dvh; }
+.overlay-card { @apply relative m-auto w-[calc(100%-2rem)] max-w-sm overflow-auto rounded-xl border-0 bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10; max-height: 85dvh; }
+.overlay-card[open] { @apply grid gap-4; }
+.overlay-card::backdrop { @apply bg-black/50; }
 .overlay-card h2 { @apply pe-8 text-base leading-none font-medium; }
 .overlay-close { @apply absolute end-2 top-2 size-7 border-transparent bg-transparent p-0 text-xl text-muted-foreground shadow-none hover:bg-muted hover:text-foreground; }
 #large-content { display: flex; flex-wrap: wrap; gap: 2px; font-family: "Geist Mono", ui-monospace, monospace; }

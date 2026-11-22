@@ -740,12 +740,14 @@ vaultInfoDialog.addEventListener('close', () => {
   vaultInfoFields.replaceChildren();
   if (database) vaultSwitcher.focus();
 });
-vaultInfoDialog.addEventListener('click', event => {
-  if (event.target === vaultInfoDialog) vaultInfoDialog.close();
-});
-for (const overlay of document.querySelectorAll('.overlay')) {
-  overlay.addEventListener('click', event => {
-    if (event.target === overlay || event.target.closest('.overlay-close')) closeOverlays();
+for (const dialog of document.querySelectorAll('dialog')) {
+  dialog.addEventListener('click', event => {
+    const rect = dialog.getBoundingClientRect();
+    if (event.target.closest('.overlay-close') || (event.target === dialog &&
+      (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom))) {
+      if (dialog === vaultInfoDialog) dialog.close();
+      else closeOverlays();
+    }
   });
 }
 byId('open-another').addEventListener('click', () => {
@@ -754,7 +756,7 @@ byId('open-another').addEventListener('click', () => {
 });
 
 function openPalette(focusFirst = true) {
-  if (!byId('large-view').hidden) closeOverlays();
+  if (byId('large-view').open) closeOverlays();
   if (commandsMenu.matches(':popover-open')) {
     closeOverlays();
     return;
@@ -809,9 +811,10 @@ function closeOverlays() {
     : active?.closest('#field-jump') ? fieldJumpReturnFocus
     : active?.closest('#large-view') ? largeReturnFocus : null;
   if (menuOpen) commandsMenu.hidePopover();
-  for (const id of ['field-jump', 'large-view']) byId(id).hidden = true;
+  for (const id of ['field-jump', 'large-view']) if (byId(id).open) byId(id).close();
   byId('large-title').textContent = 'Large View';
   byId('large-content').textContent = '';
+  byId('large-actions').replaceChildren();
   paletteReturnFocus = null;
   fieldJumpReturnFocus = null;
   largeReturnFocus = null;
@@ -926,15 +929,14 @@ function openLargeView(fieldKey) {
   const copy = copyButton(() => text, key, 'Copy');
   byId('large-actions').replaceChildren(copy);
   largeReturnFocus = document.activeElement;
-  byId('large-view').hidden = false;
+  byId('large-view').showModal();
   byId('large-close').focus();
 }
 function openFieldJump() {
   if (!selected) return;
   fieldJumpReturnFocus = document.activeElement;
   hideReveals();
-  byId('field-jump').hidden = false;
-  byId('field-jump').focus();
+  byId('field-jump').showModal();
 }
 
 function jumpField(letter) {
@@ -988,13 +990,13 @@ document.addEventListener('keydown', event => {
     handlePaletteKey(event);
     return;
   }
-  if (!byId('field-jump').hidden) {
+  if (byId('field-jump').open) {
     if (event.key === 'Tab') { event.preventDefault(); byId('field-jump').querySelector('.overlay-close').focus(); return; }
     if (event.key === 'Escape') { event.preventDefault(); closeOverlays(); }
     else if (/^[puwne]$/i.test(event.key)) { event.preventDefault(); jumpField(event.key.toLowerCase()); }
     return;
   }
-  if (!byId('large-view').hidden) {
+  if (byId('large-view').open) {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p') { event.preventDefault(); closeOverlays(); openPalette(); }
     else if (event.shiftKey && event.key.toLowerCase() === 'l') { event.preventDefault(); lockVault(); }
     else if (event.key === 'Tab') {
