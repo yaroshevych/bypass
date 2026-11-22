@@ -536,6 +536,7 @@ function otpDisplay(entry) {
   const currentStep = () => Math.floor(Date.now() / stepMs);
   const copy = copyButton(() => displayedStep === currentStep() ? code.textContent : null, 'OTP');
   copy.dataset.fieldKey = 'otp';
+  copy.dataset.fieldAction = 'copy';
   copy.disabled = true;
   const actions = element('div', undefined, 'inline');
   actions.append(code, copy);
@@ -630,6 +631,10 @@ function renderDetails() {
     const fieldKey = label === 'Username' ? 'UserName' : label === 'One-time password (TOTP)' ? 'otp' : label;
     contents.dataset.fieldKey = fieldKey; contents.tabIndex = 0;
     value.dataset.fieldValueKey = fieldKey;
+    for (const action of actions) {
+      if (!action.dataset.fieldAction) action.dataset.fieldAction = 'copy';
+      action.dataset.fieldKey = fieldKey;
+    }
     if (fieldKey !== 'otp' && value.textContent !== '—') {
       const large = button(undefined, () => openLargeView(fieldKey));
       large.classList.add('field-action');
@@ -901,13 +906,11 @@ function actionNode(key, action) { return detail.querySelector(`[data-field-acti
 function copyFocusedField() {
   const key = activeField() || (selected && selected.fields.has('Password') ? 'Password' : selected && selected.fields.has('UserName') ? 'UserName' : null);
   if (!key) return;
-  const node = [...detail.querySelectorAll('button[aria-label^="Copy "]')].find(item => item.getAttribute('aria-label').toLowerCase() === `copy ${key === 'UserName' ? 'username' : key}`.toLowerCase());
-  node?.click();
+  actionNode(key, 'copy')?.click();
 }
 function revealFocusedField() {
   const key = activeField() || (selected?.fields.has('Password') ? 'Password' : null);
-  const node = key && [...detail.querySelectorAll('button[aria-label^="Reveal or hide "]')].find(item => item.dataset.fieldKey === key);
-  node?.click();
+  if (key) actionNode(key, 'reveal')?.click();
 }
 function openLargeView(fieldKey) {
   const key = typeof fieldKey === 'string' ? fieldKey : activeField() || (selected?.fields.has('Password') ? 'Password' : selected?.fields.has('UserName') ? 'UserName' : null);
