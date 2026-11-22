@@ -308,7 +308,8 @@ function renderEntries() {
   if (!matches.some(({ entry }) => entry === selected)) selected = matches[0]?.entry ?? null;
   const fragment = document.createDocumentFragment();
   for (const { entry } of matches) {
-    const row = element('li');
+    const row = element('tr');
+    row.dataset.slot = 'table-row';
     const node = button(undefined, () => {
       selected = entry;
       saveView(); syncViews();
@@ -319,15 +320,20 @@ function renderEntries() {
       node.tabIndex = 0;
       renderDetails();
     });
-    node.className = 'entry-columns';
-    node.append(
-      element('span', field(entry, 'Title') || 'Untitled entry'),
-      element('span', field(entry, 'UserName')),
-      element('span', website(field(entry, 'URL')))
-    );
+    node.textContent = field(entry, 'Title') || 'Untitled entry';
     if (selected === entry) node.setAttribute('aria-current', 'true');
     node.tabIndex = selected === entry ? 0 : -1;
-    row.append(node);
+    const title = element('td');
+    title.append(node);
+    const username = element('td', field(entry, 'UserName'));
+    const url = element('td', website(field(entry, 'URL')));
+    for (const cell of [title, username, url]) cell.dataset.slot = 'table-cell';
+    row.append(title, username, url);
+    row.addEventListener('click', event => {
+      if (node.contains(event.target)) return;
+      node.focus({ preventScroll: true });
+      node.click();
+    });
     fragment.append(row);
   }
   entries.replaceChildren(fragment);

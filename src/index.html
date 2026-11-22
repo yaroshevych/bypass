@@ -52,8 +52,16 @@
   <div class="layout min-h-0">
     <nav id="groups" class="pane tree" aria-label="Vault views, tags and groups"></nav>
     <section class="pane entry-pane" aria-label="Entries">
-      <div class="entry-columns column-headings"><span>Title</span><span>Username</span><span>Website</span></div>
-      <ul id="entries"></ul>
+      <table class="entry-table" data-slot="table" aria-label="Vault entries">
+        <thead data-slot="table-header">
+          <tr data-slot="table-row">
+            <th scope="col" data-slot="table-head">Title</th>
+            <th scope="col" data-slot="table-head">Username</th>
+            <th scope="col" data-slot="table-head">Website</th>
+          </tr>
+        </thead>
+        <tbody id="entries" data-slot="table-body"></tbody>
+      </table>
     </section>
     <section class="pane stack" id="detail" aria-label="Entry details"></section>
   </div>

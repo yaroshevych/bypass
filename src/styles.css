@@ -120,20 +120,28 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .pane { @apply min-w-0 overflow-auto bg-card p-2.5; }
 .pane + .pane { border-left: 1px solid var(--line); }
 .stack { @apply grid content-start gap-2.5; }
-.tree ul, #entries { list-style: none; padding: 0; margin: 0; }
+.tree ul { list-style: none; padding: 0; margin: 0; }
 .tree section + section { margin-top: 1rem; }
-.tree h2, .column-headings { color: var(--muted-foreground); font-size: .76rem; text-transform: uppercase; letter-spacing: .07em; }
+.tree h2 { color: var(--muted-foreground); font-size: .76rem; text-transform: uppercase; letter-spacing: .07em; }
 .tree h2 { display: flex; align-items: center; gap: .45rem; margin-bottom: .18rem; }
 .tree h2::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
-.tree button, #entries button { width: 100%; text-align: left; border-color: transparent; border-radius: .375rem; padding: .16rem .45rem; background: transparent; height: auto; min-height: 1.9rem; box-shadow: none; white-space: normal; }
+.tree button { width: 100%; text-align: left; border-color: transparent; border-radius: .375rem; padding: .16rem .45rem; background: transparent; height: auto; min-height: 1.9rem; box-shadow: none; white-space: normal; }
 .tree button { display: flex; justify-content: space-between; gap: .4rem; overflow-wrap: anywhere; }
-.tree button:hover, #entries button:hover, #entries button[aria-current=true] { background: var(--soft); }
+.tree button:hover { background: var(--soft); }
 .tree button[aria-current=true] { @apply bg-accent font-semibold; }
 .count { color: inherit; opacity: .8; font-variant-numeric: tabular-nums; }
 .entry-pane { padding-top: 0; }
-.entry-columns { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1.05fr); gap: .45rem; }
-.entry-columns span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.column-headings { position: sticky; top: 0; background: var(--paper); padding: .55rem .45rem .2rem; }
+.entry-table { @apply w-full table-fixed caption-bottom text-sm; }
+.entry-table thead { @apply sticky top-0 z-10 bg-card; }
+.entry-table tr { @apply border-b border-border transition-colors; }
+.entry-table tbody tr { @apply cursor-pointer hover:bg-muted/50; }
+.entry-table tbody tr:has(button[aria-current="true"]) { @apply bg-muted; }
+.entry-table tbody tr:last-child { @apply border-b-0; }
+.entry-table th { @apply h-9 px-2 text-left align-middle font-medium text-muted-foreground; }
+.entry-table th:first-child { @apply w-[40%]; }
+.entry-table td { @apply truncate px-2 py-1 align-middle; }
+.entry-table td:first-child { @apply p-0; }
+.entry-table button { @apply block h-auto w-full truncate rounded-none border-0 bg-transparent p-2 text-left shadow-none hover:bg-transparent focus-visible:ring-inset; }
 .detail-summary { padding: .05rem 0 .65rem; border-bottom: 1px solid var(--line); }
 .detail-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .35rem; }
 .detail-heading h2 { font-size: 1rem; }
@@ -169,6 +177,5 @@ dd button { @apply h-8 px-3; }
   #detail { grid-column: 1/-1; border-left: 0; border-top: 1px solid var(--line); max-height: none; }
   .pane { max-height: 37vh; }
   .viewer { height: auto; min-height: 100dvh; grid-template-rows: auto auto 1fr auto; }
-  .entry-columns { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
-  .entry-columns span:last-child { display: none; }
+  .entry-table :is(th, td):last-child { display: none; }
 }
