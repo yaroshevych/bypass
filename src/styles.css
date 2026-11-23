@@ -156,6 +156,8 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .vault-chevron { @apply ms-auto text-muted-foreground; }
 #vault-name { @apply min-w-0 truncate font-semibold; }
 .sidebar-content { @apply min-h-0 flex-1 bg-transparent p-0; }
+.sidebar-footer { @apply shrink-0 p-3; }
+.github-badge { @apply inline-flex h-5 w-fit shrink-0 items-center justify-center rounded-4xl border border-transparent bg-primary px-2 py-0.5 text-xs font-medium whitespace-nowrap text-primary-foreground no-underline transition-all hover:bg-primary/80; }
 .vault-menu { @apply fixed inset-auto m-0 rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10; }
 .vault-menu [data-slot="dropdown-menu-label"] { @apply px-1.5 py-1 text-xs font-medium text-muted-foreground; }
 .vault-menu [data-slot="dropdown-menu-separator"] { @apply -mx-1 my-1 border-0 border-t border-border; }
