@@ -46,7 +46,7 @@ npx playwright install chromium
 npm test
 ```
 
-Share `dist/index.html`. It contains all JavaScript, styles, and dependencies. The browser tests open this exact file with networking disabled and synthetic vaults. GitHub Actions also makes the verified file available as a workflow artifact.
+Share `dist/index.html`. It contains all JavaScript, styles, and dependencies. The browser tests open this exact file with networking disabled and synthetic vaults. Tagged releases publish the verified file as `bypass-web.html` with a SHA-256 checksum. GitHub Actions also provides it as a workflow artifact.
 
 ## Local debug build
 

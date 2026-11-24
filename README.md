@@ -109,7 +109,7 @@ npm ci
 npm run build
 ```
 
-Open or share `dist/index.html`. The [web guide](web/README.md) covers its keyboard shortcuts, security, and verification. The web CI workflow also provides the verified HTML as an artifact.
+Open or share `dist/index.html`. The [web guide](web/README.md) covers its keyboard shortcuts, security, and verification. Download `bypass-web.html` from a [GitHub release](https://github.com/yaroshevych/bypass/releases), or use the web CI workflow artifact.
 
 ## Security
 

@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(fileURLToPath(import.meta.url));
 const source = resolve(root, 'src');
 const debug = process.argv.includes('--debug');
+const version = process.env.BYPASS_VERSION || '0.3.3';
+if (!/^[0-9A-Za-z.+-]+$/.test(version)) throw new Error('Invalid BYPASS_VERSION');
 const output = resolve(root, debug ? 'dist-debug' : 'dist');
 let debugVault = null;
 if (debug) {
@@ -55,8 +57,11 @@ function replaceExactlyOnce(input, pattern, replacement, name) {
   return input.replace(pattern, () => replacement);
 }
 
+const versionMatches = html.match(/__BYPASS_VERSION__/g);
+if (versionMatches?.length !== 2) throw new Error('Expected two version placeholders in src/index.html');
+const versionedHtml = html.replaceAll('__BYPASS_VERSION__', version);
 let bundled = replaceExactlyOnce(
-  html,
+  versionedHtml,
   /<link rel="stylesheet" href="\.\/styles\.css">/g,
   `<style>\n${stylesheet}\n</style>`,
   'stylesheet'

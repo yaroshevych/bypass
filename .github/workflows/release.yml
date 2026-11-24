@@ -64,15 +64,62 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  build-web:
+    name: Build and test web viewer
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6.1.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Set release version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="0.0.0-dev"
+          fi
+          printf 'BYPASS_VERSION=%s\n' "$version" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Build and test offline viewer
+        run: npm test
+
+      - name: Prepare release asset
+        run: cp dist/index.html dist/bypass-web.html
+
+      - name: Upload web release asset
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: bypass-web-release
+          path: web/dist/bypass-web.html
+          if-no-files-found: error
+          retention-days: 7
+
   publish:
     name: Publish GitHub release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build, build-web]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download all release archives
+      - name: Download release assets
         uses: actions/download-artifact@v8.0.2
         with:
           pattern: bypass-*
@@ -81,7 +128,7 @@ jobs:
 
       - name: Generate SHA256SUMS
         working-directory: dist
-        run: sha256sum *.tar.gz > SHA256SUMS
+        run: sha256sum *.tar.gz bypass-web.html > SHA256SUMS
 
       - name: Publish release
         env:
