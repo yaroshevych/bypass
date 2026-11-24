@@ -395,7 +395,9 @@ for (const name of ['KDBX 3', 'Argon2id']) {
     await expect(page.getByLabel('Edit title')).toHaveCount(0);
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(page.locator('#detail .field-action')).toHaveCount(0);
+    await expect(page.locator('#unsaved-badge')).toBeHidden();
     await page.getByLabel('Edit title').fill('Updated login');
+    await expect(page.locator('#unsaved-badge')).toBeVisible();
     await page.getByLabel('Edit username').fill('updated-user');
     const passwordInput = page.getByLabel('Edit password');
     await expect(passwordInput).toHaveAttribute('type', 'password');
@@ -415,6 +417,7 @@ for (const name of ['KDBX 3', 'Argon2id']) {
     await expect(page.getByRole('menuitemcheckbox', { name: /Read only/ })).toHaveAttribute('aria-checked', 'false');
     await page.getByRole('menuitem', { name: 'Save vault as…' }).click();
     await expect.poll(() => page.evaluate(() => window.savedVault?.length || 0)).toBeGreaterThan(0);
+    await expect(page.locator('#unsaved-badge')).toBeHidden();
     const bytes = Uint8Array.from(await page.evaluate(() => window.savedVault));
     const saved = await kdbx.Kdbx.load(bytes.buffer, new kdbx.Credentials(kdbx.ProtectedValue.fromString(password)));
     expect(saved.header.versionMajor).toBe(name === 'KDBX 3' ? 3 : 4);

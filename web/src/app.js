@@ -673,6 +673,7 @@ function renderDetails() {
           ? ProtectedValue.fromString(input.value) : input.value);
         entry.times.update();
         dirty = true;
+        byId('unsaved-badge').hidden = false;
         revision++;
         if (key === 'Title') {
           const row = entries.querySelector('[aria-current]');
@@ -762,6 +763,7 @@ function clearVault() {
   database = null;
   readOnly = true;
   dirty = false;
+  byId('unsaved-badge').hidden = true;
   revision = 0;
   workspace = null;
   searchOrigin = null;
@@ -920,7 +922,10 @@ async function saveVault() {
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     }
-    if (handle && revision === savedRevision) dirty = false;
+    if (handle && revision === savedRevision) {
+      dirty = false;
+      byId('unsaved-badge').hidden = true;
+    }
   } catch (error) {
     if (error.name !== 'AbortError') alert('Could not save the vault. Your changes are still open.');
   } finally {
