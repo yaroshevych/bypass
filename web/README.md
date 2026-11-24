@@ -1,6 +1,6 @@
-# bypass/web
+# Bypass Web
 
-Part of [Bypass](../README.md), a multi-interface secrets manager.
+KeePass client in a single HTML file, offline and portable in any desktop browser.
 
 A read-only KeePass viewer with keyboard workflows from Bypass. Download the built `index.html` and open it directly in a modern browser. The viewer opens KDBX 3 and 4 vaults on your device using a password. It can display live TOTP codes, search entries, and copy selected fields. The page needs no server or network connection.
 
