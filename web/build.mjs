@@ -12,7 +12,7 @@ const debug = process.argv.includes('--debug');
 const output = resolve(root, debug ? 'dist-debug' : 'dist');
 let debugVault = null;
 if (debug) {
-  const fixture = resolve(root, '../test-vault.kdbx');
+  const fixture = resolve(root, '../../test-vault.kdbx');
   const [bytes, info] = await Promise.all([readFile(fixture), stat(fixture)]);
   debugVault = { base64: bytes.toString('base64'), modified: info.mtime.getTime() };
 }

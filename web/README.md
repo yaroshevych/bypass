@@ -1,4 +1,6 @@
-# bypass-web
+# bypass/web
+
+Part of [Bypass](../README.md), a multi-interface secrets manager.
 
 A read-only KeePass viewer with keyboard workflows from Bypass. Download the built `index.html` and open it directly in a modern browser. The viewer opens KDBX 3 and 4 vaults on your device using a password. It can display live TOTP codes, search entries, and copy selected fields. The page needs no server or network connection.
 
@@ -49,6 +51,10 @@ Share `dist/index.html`. It contains all JavaScript, styles, and dependencies. T
 ## Local debug build
 
 Run `npm run build:debug` and open `dist-debug/index.html`. On each load it
-automatically unlocks the embedded `../test-vault.kdbx` fixture with `password`.
+automatically unlocks the embedded `../../test-vault.kdbx` fixture (relative to `web/`) with `password`.
 Rebuild after editing the fixture. The debug file contains both the fixture and
 its password, so keep it local. Git ignores `dist-debug/`.
+
+## History
+
+The web project was imported with its original Git history. To inspect commits from before the import, run `git log <web-import-commit>^2 -- src/` from the repository root, using the subtree merge commit as `<web-import-commit>`.

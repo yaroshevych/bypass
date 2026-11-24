@@ -1,13 +1,18 @@
 # Bypass Secrets Manager
 
-**Private, modern secrets manager.**
+**A local secrets manager for your KeePass vaults.**
 
-Use your KeePass vaults from the terminal. Enjoy a modern, beautiful interface
-where each detail is crafted: navigation, controls, keyboard shortcuts, and themes.
+Bypass brings your vaults to multiple interfaces:
+
+- **bypass/terminal** — browse and manage vaults in the terminal.
+- **bypass/cli** — provide secrets to commands and agents with your approval.
+- **[bypass/web](web/README.md)** — view vaults in a browser with a self-contained, offline HTML file. The web viewer is read-only.
+
+The terminal and CLI share the `bypass` executable. The web viewer is built and distributed independently.
 
 Bypass supports KDBX 3.x and 4.x vaults. See the [CLI reference](CLI.md) for compatibility and write behavior.
 
-Beta for Linux and macOS.
+The terminal and CLI are in beta for Linux and macOS.
 
 https://github.com/user-attachments/assets/5d8a0287-4225-40f2-9566-9e1c9029e827
 
@@ -18,7 +23,9 @@ https://github.com/user-attachments/assets/5d8a0287-4225-40f2-9566-9e1c9029e827
 | Vesper theme with Compact layout | Latte theme with Command palette | Mocha theme with Settings dialog |
 
 
-## Install
+## bypass/terminal and bypass/cli
+
+### Install
 
 Homebrew (default):
 ```sh
@@ -40,7 +47,7 @@ make install
 make install PREFIX="$HOME/.local"
 ```
 
-## Open a vault
+### Open a vault
 
 ```sh
 bypass work.kdbx
@@ -50,7 +57,7 @@ Or run `bypass` to open or create a vault. The command menu (`ctrl+p`) provides
 vault actions, themes, and layout settings. See the [TUI reference](TUI.md) for
 the available actions.
 
-## Let agents run commands that need secrets
+### Let agents run commands that need secrets
 
 Keep Bypass open with the required vault unlocked. Create an `.env.deploy` file
 containing the references needed by your deployment script:
@@ -78,7 +85,7 @@ and keep session permissions separate by agent.
 Commands keep their terminal behavior and exit status. Locking a vault or closing
 Bypass does not interrupt a launched command.
 
-## CLI reference
+### CLI reference
 
 ```text
 bypass run [--identity-token NAME-SECRET] [--env-file FILE]... [--timeout DURATION] -- COMMAND [ARGS...]
@@ -98,6 +105,18 @@ Commands and other received paths must not contain symlinks.
 See the [full command reference](CLI.md) for reference syntax, environment
 rules, permissions, and timeout configuration.
 
+## bypass/web
+
+Build the offline viewer with Node.js 22 or newer:
+
+```sh
+cd web
+npm ci
+npm run build
+```
+
+Open or share `dist/index.html`. The [web guide](web/README.md) covers its keyboard shortcuts, security, and verification. The web CI workflow also provides the verified HTML as an artifact.
+
 ## Security
 
 **Bypass relies on mature gokeepasslib for vault encryption and saving rather than
@@ -109,7 +128,7 @@ If saving would discard unsupported vault information, Bypass explains what will
 be lost and asks for confirmation. Approval applies only to that save, and the
 backup must succeed first.
 
-See [SECURITY.md](SECURITY.md) for security assumptions and limitations.
+See [SECURITY.md](SECURITY.md) and the [web security notes](web/README.md#security) for security assumptions and limitations.
 
 ## License
 
