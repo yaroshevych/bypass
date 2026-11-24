@@ -373,3 +373,35 @@ test('follows the system theme and remembers the header switch preference', asyn
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 });
+
+for (const name of ['KDBX 3', 'Argon2id']) {
+  test(`edits a title and saves a readable ${name} vault`, async ({ page }) => {
+    await page.addInitScript(() => {
+      window.showSaveFilePicker = async options => {
+        window.saveOptions = options;
+        return { createWritable: async () => ({
+          write: async bytes => { window.savedVault = Array.from(new Uint8Array(bytes)); },
+          close: async () => {}, abort: async () => {}
+        }) };
+      };
+    });
+    await openFile(page, fixtures.get(name));
+    await unlock(page);
+    await page.getByRole('button', { name: 'Example login' }).click();
+    await page.getByRole('button', { name: 'Menu' }).click();
+    await expect(page.getByRole('menuitemcheckbox', { name: /Read only/ })).toHaveAttribute('aria-checked', 'true');
+    await page.getByRole('menuitemcheckbox', { name: /Read only/ }).click();
+    await page.getByLabel('Edit title').fill('Updated login');
+    await page.getByRole('button', { name: 'Menu' }).click();
+    await expect(page.getByRole('menuitemcheckbox', { name: /Read only/ })).toHaveAttribute('aria-checked', 'false');
+    await page.getByRole('menuitem', { name: 'Save vault as…' }).click();
+    await expect.poll(() => page.evaluate(() => window.savedVault?.length || 0)).toBeGreaterThan(0);
+    const bytes = Uint8Array.from(await page.evaluate(() => window.savedVault));
+    const saved = await kdbx.Kdbx.load(bytes.buffer, new kdbx.Credentials(kdbx.ProtectedValue.fromString(password)));
+    expect(saved.header.versionMajor).toBe(name === 'KDBX 3' ? 3 : 4);
+    const entry = saved.getDefaultGroup().groups.find(group => group.name === 'Work').entries[0];
+    expect(entry.fields.get('Title')).toBe('Updated login');
+    expect(entry.fields.get('Password').getText()).toBe('entry-secret');
+    expect(entry.history.at(-1).fields.get('Title')).toBe('Example login');
+  });
+}

@@ -2,7 +2,7 @@
 
 KeePass client in a single HTML file, offline and portable in any desktop browser.
 
-A read-only KeePass viewer with keyboard workflows from Bypass. Download the built `index.html` and open it directly in a modern browser. The viewer opens KDBX 3 and 4 vaults on your device using a password. It can display live TOTP codes, search entries, and copy selected fields. The page needs no server or network connection.
+A KeePass viewer with keyboard workflows from Bypass. It opens vaults read-only by default and can edit entry titles when read-only mode is turned off. Download the built `index.html` and open it directly in a modern browser. The viewer opens KDBX 3 and 4 vaults on your device using a password. It can display live TOTP codes, search entries, and copy selected fields. The page needs no server or network connection.
 
 
 | <img width="1792" height="1016" alt="dark" src="https://github.com/user-attachments/assets/833bb366-5b0e-4be5-85d8-8426702a902c" /> | <img width="1802" height="1012" alt="light" src="https://github.com/user-attachments/assets/7a8a14d2-8795-497e-bbdd-546a89917605" />
@@ -27,9 +27,9 @@ The sidebar includes All Entries, Favorites, Recent, Bin, Tags, and Groups. Rece
 
 ## Security
 
-**Bypass Web is a read-only viewer: it does not modify or save the vault file.**
+**Bypass Web opens vaults read-only by default.** To edit an entry title, turn off Read only in Menu. Use Save vault as… to save an encrypted copy. Your original file is not changed unless you choose to overwrite it. Browsers without a save picker download the file using their download settings.
 
-The built HTML file runs locally and does not need a server or network connection. Vault decryption happens on your device. Entry URLs open when you follow them.
+The built HTML file runs locally and does not need a server or network connection. Vault decryption and saving happen on your device. Entry URLs open when you follow them.
 
 The viewer uses [kdbxweb](https://github.com/keeweb/kdbxweb) to read and decrypt KeePass vaults and [hash-wasm](https://github.com/Daninet/hash-wasm) for Argon2d and Argon2id version 1.3 key derivation.
 

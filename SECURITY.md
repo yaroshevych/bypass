@@ -1,4 +1,4 @@
-Bypass is a local secrets manager supporting KeePass vaults. The points below describe the terminal and CLI. For the read-only offline viewer, see the [web security notes](web/README.md#security).
+Bypass is a local secrets manager supporting KeePass vaults. The points below describe the terminal and CLI. For the offline web client, see the [web security notes](web/README.md#security).
 
 - Bypass relies on [gokeepasslib](https://github.com/tobischo/gokeepasslib) to encrypt and save KeePass vaults.
 - The optional PIN protects the screen; it does not encrypt or lock the vault.

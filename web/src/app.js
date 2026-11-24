@@ -25,6 +25,10 @@ let vaultFileInfo = null;
 let group = null;
 let selected = null;
 let unlocking = false;
+let readOnly = true;
+let dirty = false;
+let revision = 0;
+let saving = false;
 const copyTimers = new Map();
 let copyStatusTimer;
 let copyAttempt = 0;
@@ -197,8 +201,8 @@ vaultFile.addEventListener('change', () => {
   if (!database) {
     chooseFile(candidate);
   } else if (candidate && /\.kdbx$/i.test(candidate.name)) {
-    lockVault(candidate);
-    master.focus();
+    if (lockVault(candidate)) master.focus();
+    else vaultFile.value = '';
   } else {
     vaultFile.value = '';
   }
@@ -284,7 +288,7 @@ form.addEventListener('submit', async event => {
     clearVault();
     byId('error').textContent = unlockError(error);
   } finally {
-    if (credentials) {
+    if (credentials && !database) {
       credentials.setPassword(null);
     }
     unlocking = false;
@@ -648,7 +652,28 @@ function renderDetails() {
     toggle.dataset.fieldKey = key; toggle.dataset.fieldAction = 'reveal';
     add(label, value, toggle, ...(copy ? [copyButton(() => field(entry, key), label)] : []));
   }
-  add('Title', element('span', field(entry, 'Title') || 'Untitled entry'));
+  if (readOnly) {
+    add('Title', element('span', field(entry, 'Title') || 'Untitled entry'));
+  } else {
+    const title = element('input');
+    title.type = 'text';
+    title.disabled = saving;
+    title.value = field(entry, 'Title');
+    title.setAttribute('aria-label', 'Edit title');
+    let historySaved = false;
+    title.addEventListener('input', () => {
+      if (!historySaved) { entry.pushHistory(); historySaved = true; }
+      const oldTitle = entry.fields.get('Title');
+      entry.fields.set('Title', oldTitle instanceof ProtectedValue ? ProtectedValue.fromString(title.value) : title.value);
+      entry.times.update();
+      dirty = true;
+      revision++;
+      const row = entries.querySelector('[aria-current]');
+      if (row) row.textContent = title.value || 'Untitled entry';
+      summary.querySelector('h2').textContent = title.value || 'Untitled entry';
+    });
+    add('Title', title);
+  }
   const username = field(entry, 'UserName');
   const usernameNode = element('span', username || '—', 'value'); usernameNode.dataset.fieldKey = 'UserName';
   add('Username', usernameNode, ...(username ? [copyButton(() => field(entry, 'UserName'), 'username')] : []));
@@ -684,7 +709,11 @@ function clearVault() {
   vaultInfoFields.replaceChildren();
   vaultFileInfo = null;
   clearOtp();
+  database?.credentials?.setPassword(null);
   database = null;
+  readOnly = true;
+  dirty = false;
+  revision = 0;
   workspace = null;
   searchOrigin = null;
   group = null;
@@ -709,6 +738,8 @@ search.addEventListener('input', () => {
   if (database) renderEntries();
 });
 function lockVault(preserveFile = null) {
+  if (saving) return false;
+  if (dirty && !confirm('Discard unsaved changes?')) return false;
   if (vaultMenu.matches(':popover-open')) vaultMenu.hidePopover();
   closeOverlays();
   views = [];
@@ -719,6 +750,7 @@ function lockVault(preserveFile = null) {
   byId('viewer').hidden = true;
   byId('unlock-screen').hidden = false;
   vaultFile.focus();
+  return true;
 }
 byId('lock').addEventListener('click', () => lockVault());
 byId('vault-info').addEventListener('click', showVaultInfo);
@@ -751,7 +783,7 @@ function openPalette(focusFirst = true) {
   commandsMenu.style.left = `${Math.max(gutter, Math.min(trigger.left, document.documentElement.clientWidth - menu.width - gutter))}px`;
   commandsMenu.style.top = `${trigger.bottom + 4}px`;
   commandsMenu.style.maxHeight = `${Math.max(0, document.documentElement.clientHeight - trigger.bottom - 4 - gutter)}px`;
-  if (focusFirst) commandsMenu.querySelector('[role="menuitem"]:not([aria-disabled])')?.focus();
+  if (focusFirst) commandsMenu.querySelector('[role^="menuitem"]:not([aria-disabled])')?.focus();
 }
 
 function openVault() {
@@ -800,10 +832,54 @@ function closeOverlays() {
   largeReturnFocus = null;
   returnFocus?.focus();
 }
+async function saveVault() {
+  if (!database || saving) return;
+  const current = database;
+  const savedRevision = revision;
+  saving = true;
+  const titleInput = detail.querySelector('input[aria-label="Edit title"]');
+  if (titleInput) titleInput.disabled = true;
+  try {
+    let handle;
+    if (window.showSaveFilePicker) {
+      handle = await window.showSaveFilePicker({
+        suggestedName: vaultFileInfo.name,
+        types: [{ description: 'KeePass database', accept: { 'application/x-keepass2': ['.kdbx'] } }]
+      });
+    }
+    const bytes = await current.save();
+    if (handle) {
+      const stream = await handle.createWritable();
+      try { await stream.write(bytes); await stream.close(); }
+      catch (error) { await stream.abort(); throw error; }
+    } else {
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/x-keepass2' }));
+      const link = element('a');
+      link.href = url;
+      link.download = vaultFileInfo.name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+    if (handle && revision === savedRevision) dirty = false;
+  } catch (error) {
+    if (error.name !== 'AbortError') alert('Could not save the vault. Your changes are still open.');
+  } finally {
+    saving = false;
+    const currentTitleInput = detail.querySelector('input[aria-label="Edit title"]');
+    if (currentTitleInput) currentTitleInput.disabled = false;
+  }
+}
+
+window.addEventListener('beforeunload', event => {
+  if (dirty || saving) { event.preventDefault(); event.returnValue = ''; }
+});
+
 function commandGroups() {
   const needsEntry = selected ? undefined : 'Select an entry first.';
   return [
     [['Open vault', 'o', openVault], ['Lock Vault', 'Shift+L', lockVault]],
+    [['Read only', '', () => { readOnly = !readOnly; renderDetails(); }, undefined, readOnly],
+      ...(!readOnly ? [['Save vault as…', '', saveVault]] : [])],
     [['New Tab', 't', newView], ['Close Tab', '', closeView],
       ['Previous Tab', '[', () => switchView(activeView - 1)], ['Next Tab', ']', () => switchView(activeView + 1)]],
     [['Search', '/', searchAllEntries], ['Jump to field', 'Shift+J', openFieldJump, needsEntry],
@@ -823,13 +899,32 @@ function renderCommands() {
     }
     const group = element('div');
     group.setAttribute('role', 'group');
-    for (const [name, keys, run, disabledReason] of definitions) {
+    for (const [name, keys, run, disabledReason, checked] of definitions) {
       const row = button(name, () => {
         if (disabledReason) return;
         closeOverlays();
         run();
       });
-      row.setAttribute('role', 'menuitem');
+      row.setAttribute('role', checked === undefined ? 'menuitem' : 'menuitemcheckbox');
+      if (checked !== undefined) {
+        row.setAttribute('aria-checked', String(checked));
+        const indicator = element('span', undefined, 'menubar-check');
+        indicator.setAttribute('aria-hidden', 'true');
+        if (checked) {
+          const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          icon.setAttribute('viewBox', '0 0 24 24');
+          icon.setAttribute('fill', 'none');
+          icon.setAttribute('stroke', 'currentColor');
+          icon.setAttribute('stroke-width', '2');
+          icon.setAttribute('stroke-linecap', 'round');
+          icon.setAttribute('stroke-linejoin', 'round');
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', 'M20 6 9 17l-5-5');
+          icon.append(path);
+          indicator.append(icon);
+        }
+        row.prepend(indicator);
+      }
       row.dataset.slot = 'menubar-item';
       row.tabIndex = -1;
       if (keys) {
@@ -933,7 +1028,7 @@ function handlePaletteKey(event) {
   }
   if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(key)) return;
   event.preventDefault();
-  const options = [...commandsMenu.querySelectorAll('[role="menuitem"]:not([aria-disabled])')];
+  const options = [...commandsMenu.querySelectorAll('[role^="menuitem"]:not([aria-disabled])')];
   const current = options.indexOf(document.activeElement);
   const last = options.length - 1;
   if (key === 'Home') options[0]?.focus();

@@ -99,7 +99,9 @@ rules, permissions, and timeout configuration.
 
 ## Bypass Web
 
-Build the offline viewer with Node.js 22 or newer:
+The web client opens vaults read-only by default. Turn off Read only in Menu to edit entry titles, then use Save vault as… to save a copy.
+
+Build it with Node.js 22 or newer:
 
 ```sh
 cd web
