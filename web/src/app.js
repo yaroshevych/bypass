@@ -24,6 +24,7 @@ let workspace = null;
 let vaultFileInfo = null;
 let group = null;
 let selected = null;
+let editingEntry = null;
 let unlocking = false;
 let readOnly = true;
 let dirty = false;
@@ -587,6 +588,10 @@ function renderDetails() {
   resetCopyStatus();
   detail.replaceChildren(element('h2', 'Entry details'));
   const entry = selected;
+  if (editingEntry !== entry) editingEntry = null;
+  byId('edit-entry').hidden = readOnly;
+  byId('edit-entry').disabled = !entry || saving;
+  byId('edit-entry').lastChild.textContent = editingEntry === entry && entry ? ' Done' : ' Edit';
   if (!entry) {
     detail.append(element('p', 'Select an entry to view its details.', 'muted'));
     return;
@@ -652,28 +657,49 @@ function renderDetails() {
     toggle.dataset.fieldKey = key; toggle.dataset.fieldAction = 'reveal';
     add(label, value, toggle, ...(copy ? [copyButton(() => field(entry, key), label)] : []));
   }
-  if (readOnly) {
-    add('Title', element('span', field(entry, 'Title') || 'Untitled entry'));
-  } else {
-    const title = element('input');
-    title.type = 'text';
-    title.disabled = saving;
-    title.value = field(entry, 'Title');
-    title.setAttribute('aria-label', 'Edit title');
+  if (!readOnly && editingEntry === entry) {
     let historySaved = false;
-    title.addEventListener('input', () => {
-      if (!historySaved) { entry.pushHistory(); historySaved = true; }
-      const oldTitle = entry.fields.get('Title');
-      entry.fields.set('Title', oldTitle instanceof ProtectedValue ? ProtectedValue.fromString(title.value) : title.value);
-      entry.times.update();
-      dirty = true;
-      revision++;
-      const row = entries.querySelector('[aria-current]');
-      if (row) row.textContent = title.value || 'Untitled entry';
-      summary.querySelector('h2').textContent = title.value || 'Untitled entry';
-    });
-    add('Title', title);
+    function editable(key, label, multiline = false) {
+      const original = entry.fields.get(key);
+      const input = element(multiline ? 'textarea' : 'input');
+      if (!multiline) input.type = key === 'Password' || original instanceof ProtectedValue ? 'password' : 'text';
+      input.disabled = saving;
+      input.value = field(entry, key);
+      input.setAttribute('aria-label', 'Edit ' + label);
+      input.addEventListener('input', () => {
+        if (!historySaved) { entry.pushHistory(); historySaved = true; }
+        entry.fields.set(key, original instanceof ProtectedValue || key === 'Password'
+          ? ProtectedValue.fromString(input.value) : input.value);
+        entry.times.update();
+        dirty = true;
+        revision++;
+        if (key === 'Title') {
+          const row = entries.querySelector('[aria-current]');
+          if (row) row.textContent = input.value || 'Untitled entry';
+          summary.querySelector('h2').textContent = input.value || 'Untitled entry';
+        } else if (key === 'UserName') {
+          const row = entries.querySelector('[aria-current]')?.closest('tr');
+          if (row) row.cells[1].textContent = input.value;
+        } else if (key === 'URL') {
+          const row = entries.querySelector('[aria-current]')?.closest('tr');
+          if (row) row.cells[2].textContent = website(input.value);
+        }
+      });
+      const contents = element('dd', undefined, 'inline');
+      contents.append(input);
+      list.append(element('dt', label), contents);
+    }
+    for (const [key, label, multiline] of [
+      ['Title', 'title'], ['UserName', 'username'], ['Password', 'password'],
+      ['URL', 'URL'], ['Notes', 'notes', true]
+    ]) editable(key, label, multiline);
+    for (const [key] of entry.fields) {
+      if (!standardFields.has(key)) editable(key, key);
+    }
+    detail.append(list);
+    return;
   }
+  add('Title', element('span', field(entry, 'Title') || 'Untitled entry'));
   const username = field(entry, 'UserName');
   const usernameNode = element('span', username || '—', 'value'); usernameNode.dataset.fieldKey = 'UserName';
   add('Username', usernameNode, ...(username ? [copyButton(() => field(entry, 'UserName'), 'username')] : []));
@@ -718,6 +744,8 @@ function clearVault() {
   searchOrigin = null;
   group = null;
   selected = null;
+  editingEntry = null;
+  byId('edit-entry').hidden = true;
   resetCopyStatus();
   search.value = '';
   groups.replaceChildren();
@@ -752,6 +780,16 @@ function lockVault(preserveFile = null) {
   vaultFile.focus();
   return true;
 }
+byId('edit-entry').addEventListener('click', () => {
+  if (readOnly || !selected || saving) return;
+  const wasEditing = editingEntry === selected;
+  editingEntry = wasEditing ? null : selected;
+  renderDetails();
+  if (wasEditing) { byId('edit-entry').focus(); return; }
+  const input = detail.querySelector('input[aria-label="Edit title"]');
+  input?.focus();
+  input?.select();
+});
 byId('lock').addEventListener('click', () => lockVault());
 byId('vault-info').addEventListener('click', showVaultInfo);
 vaultInfoDialog.addEventListener('close', () => {
@@ -837,8 +875,7 @@ async function saveVault() {
   const current = database;
   const savedRevision = revision;
   saving = true;
-  const titleInput = detail.querySelector('input[aria-label="Edit title"]');
-  if (titleInput) titleInput.disabled = true;
+  for (const input of detail.querySelectorAll('input, textarea')) input.disabled = true;
   try {
     let handle;
     if (window.showSaveFilePicker) {
@@ -865,8 +902,7 @@ async function saveVault() {
     if (error.name !== 'AbortError') alert('Could not save the vault. Your changes are still open.');
   } finally {
     saving = false;
-    const currentTitleInput = detail.querySelector('input[aria-label="Edit title"]');
-    if (currentTitleInput) currentTitleInput.disabled = false;
+    for (const input of detail.querySelectorAll('input, textarea')) input.disabled = false;
   }
 }
 
@@ -878,7 +914,7 @@ function commandGroups() {
   const needsEntry = selected ? undefined : 'Select an entry first.';
   return [
     [['Open vault', 'o', openVault], ['Lock Vault', 'Shift+L', lockVault]],
-    [['Read only', '', () => { readOnly = !readOnly; renderDetails(); }, undefined, readOnly],
+    [['Read only', '', () => { readOnly = !readOnly; editingEntry = null; renderDetails(); }, undefined, readOnly],
       ...(!readOnly ? [['Save vault as…', '', saveVault]] : [])],
     [['New Tab', 't', newView], ['Close Tab', '', closeView],
       ['Previous Tab', '[', () => switchView(activeView - 1)], ['Next Tab', ']', () => switchView(activeView + 1)]],

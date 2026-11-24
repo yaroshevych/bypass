@@ -99,7 +99,7 @@ rules, permissions, and timeout configuration.
 
 ## Bypass Web
 
-The web client opens vaults read-only by default. Turn off Read only in Menu to edit entry titles, then use Save vault as… to save a copy.
+The web client opens vaults read-only by default. Turn off Read only in Menu and click Edit to change entry fields, then use Save vault as… to save a copy.
 
 Build it with Node.js 22 or newer:
 

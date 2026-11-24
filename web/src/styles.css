@@ -201,6 +201,8 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .entry-table td { @apply truncate px-2 py-1 align-middle; }
 .entry-table td:first-child { @apply p-0; }
 .entry-table button { @apply block h-auto w-full truncate rounded-none border-0 bg-transparent p-2 text-left shadow-none hover:bg-transparent focus-visible:ring-inset; }
+.edit-entry { @apply fixed bottom-5 right-5 z-10 flex items-center gap-2 rounded-full bg-primary px-4 text-primary-foreground shadow-lg; }
+.edit-entry svg { @apply size-4; }
 .detail-summary { padding: .05rem 0 .65rem; border-bottom: 1px solid var(--line); }
 .detail-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .35rem; }
 .detail-heading h2 { font-size: 1rem; }
@@ -208,6 +210,7 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .tags span { @apply inline-flex w-fit items-center rounded-full border border-transparent bg-muted px-2 py-0.5 text-xs font-medium text-foreground; overflow-wrap: anywhere; }
 dt { font-size: .84rem; color: var(--muted-foreground); font-weight: 600; }
 dd { margin: 0 0 .85rem; overflow-wrap: anywhere; white-space: pre-wrap; }
+dd textarea { @apply min-h-24 w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm; }
 dd .value { flex: 1 1 10rem; }
 dd.inline { display: flex; flex-wrap: wrap; gap: .25rem; }
 dd.inline > :first-child { flex: 1 1 10rem; min-width: 0; }
@@ -238,9 +241,9 @@ dialog h2[tabindex="-1"]:focus-visible { @apply ring-0; }
 #large-actions { @apply flex justify-end; }
 .commands-menu { @apply fixed inset-auto m-0 w-56 max-w-[calc(100%-1rem)] overflow-auto rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10; }
 .commands-menu [role="separator"] { @apply -mx-1 my-1 border-0 border-t border-border; }
-.commands-menu :is([role="menuitem"], [role="menuitemcheckbox"]) { @apply flex h-7 w-full cursor-default justify-between gap-2 rounded-md border-0 bg-transparent px-1.5 py-1 text-left font-normal shadow-none hover:bg-accent focus:bg-accent focus:text-accent-foreground focus-visible:ring-0; }
+.commands-menu :is([role="menuitem"], [role="menuitemcheckbox"]) { @apply flex h-7 w-full cursor-default justify-between gap-2 rounded-md border-0 bg-transparent py-1 pr-1.5 pl-7 text-left font-normal shadow-none hover:bg-accent focus:bg-accent focus:text-accent-foreground focus-visible:ring-0; }
 .commands-menu :is([role="menuitem"], [role="menuitemcheckbox"])[aria-disabled="true"] { @apply opacity-50; }
-.commands-menu [role="menuitemcheckbox"] { @apply relative justify-start pl-7; }
+.commands-menu [role="menuitemcheckbox"] { @apply relative justify-start; }
 .commands-menu .menubar-check { @apply pointer-events-none absolute left-1.5 flex size-4 items-center justify-center; }
 .commands-menu .menubar-check svg { @apply size-4; }
 .commands-menu [data-slot="menubar-shortcut"] { @apply ms-auto text-xs tracking-wider text-muted-foreground; }

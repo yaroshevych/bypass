@@ -375,7 +375,7 @@ test('follows the system theme and remembers the header switch preference', asyn
 });
 
 for (const name of ['KDBX 3', 'Argon2id']) {
-  test(`edits a title and saves a readable ${name} vault`, async ({ page }) => {
+  test(`edits fields and saves a readable ${name} vault`, async ({ page }) => {
     await page.addInitScript(() => {
       window.showSaveFilePicker = async options => {
         window.saveOptions = options;
@@ -388,10 +388,21 @@ for (const name of ['KDBX 3', 'Argon2id']) {
     await openFile(page, fixtures.get(name));
     await unlock(page);
     await page.getByRole('button', { name: 'Example login' }).click();
+    await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeHidden();
     await page.getByRole('button', { name: 'Menu' }).click();
     await expect(page.getByRole('menuitemcheckbox', { name: /Read only/ })).toHaveAttribute('aria-checked', 'true');
     await page.getByRole('menuitemcheckbox', { name: /Read only/ }).click();
+    await expect(page.getByLabel('Edit title')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    await expect(page.locator('#detail .field-action')).toHaveCount(0);
     await page.getByLabel('Edit title').fill('Updated login');
+    await page.getByLabel('Edit username').fill('updated-user');
+    await page.getByLabel('Edit password').fill('updated-secret');
+    await page.getByLabel('Edit notes').fill('updated notes');
+    await page.getByLabel('Edit Literal').fill('updated custom field');
+    await expect(page.getByLabel('Edit otp')).toHaveAttribute('type', 'password');
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+    await expect(page.getByLabel('Edit title')).toHaveCount(0);
     await page.getByRole('button', { name: 'Menu' }).click();
     await expect(page.getByRole('menuitemcheckbox', { name: /Read only/ })).toHaveAttribute('aria-checked', 'false');
     await page.getByRole('menuitem', { name: 'Save vault as…' }).click();
@@ -401,7 +412,10 @@ for (const name of ['KDBX 3', 'Argon2id']) {
     expect(saved.header.versionMajor).toBe(name === 'KDBX 3' ? 3 : 4);
     const entry = saved.getDefaultGroup().groups.find(group => group.name === 'Work').entries[0];
     expect(entry.fields.get('Title')).toBe('Updated login');
-    expect(entry.fields.get('Password').getText()).toBe('entry-secret');
+    expect(entry.fields.get('UserName')).toBe('updated-user');
+    expect(entry.fields.get('Password').getText()).toBe('updated-secret');
+    expect(entry.fields.get('Notes')).toBe('updated notes');
+    expect(entry.fields.get('Literal')).toBe('updated custom field');
     expect(entry.history.at(-1).fields.get('Title')).toBe('Example login');
   });
 }
