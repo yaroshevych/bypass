@@ -661,8 +661,9 @@ function renderDetails() {
     let historySaved = false;
     function editable(key, label, multiline = false) {
       const original = entry.fields.get(key);
-      const input = element(multiline ? 'textarea' : 'input');
-      if (!multiline) input.type = key === 'Password' || original instanceof ProtectedValue ? 'password' : 'text';
+      const secret = key === 'Password' || original instanceof ProtectedValue;
+      const input = element(multiline && !secret ? 'textarea' : 'input');
+      if (input.tagName === 'INPUT') input.type = secret ? 'password' : 'text';
       input.disabled = saving;
       input.value = field(entry, key);
       input.setAttribute('aria-label', 'Edit ' + label);
@@ -686,7 +687,29 @@ function renderDetails() {
         }
       });
       const contents = element('dd', undefined, 'inline');
-      contents.append(input);
+      if (secret) {
+        const group = element('div', undefined, 'edit-secret-group');
+        group.setAttribute('role', 'group');
+        group.setAttribute('aria-label', label);
+        group.dataset.slot = 'button-group';
+        input.dataset.slot = 'input';
+        group.append(input);
+        const toggle = button(undefined, () => {
+          const visible = input.type === 'text';
+          input.type = visible ? 'password' : 'text';
+          toggle.setAttribute('aria-label', (visible ? 'Show ' : 'Hide ') + label);
+          toggle.setAttribute('aria-pressed', String(!visible));
+          setActionIcon(toggle, visible ? 'eye' : 'eyeOff');
+        });
+        toggle.classList.add('edit-secret-toggle');
+        toggle.setAttribute('aria-label', 'Show ' + label);
+        toggle.setAttribute('aria-pressed', 'false');
+        setActionIcon(toggle, 'eye');
+        group.append(toggle);
+        contents.append(group);
+      } else {
+        contents.append(input);
+      }
       list.append(element('dt', label), contents);
     }
     for (const [key, label, multiline] of [
