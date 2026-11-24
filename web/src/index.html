@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'">
+<title>Bypass Secrets Manager</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<main id="unlock-screen" class="unlock">
+  <section class="card" data-slot="card" aria-labelledby="unlock-title">
+    <h1 id="unlock-title">Bypass Secrets Manager</h1>
+    <p class="muted">Open a KeePass database with offline viewer.</p>
+    <form id="unlock-form" autocomplete="off">
+      <fieldset id="credentials">
+        <label class="drop" id="drop">KeePass database
+          <input data-slot="input" id="vault-file" type="file" accept=".kdbx">
+          <small id="file-hint">Choose or drop a .kdbx file</small>
+        </label>
+        <div class="stack">
+          <label for="master">Master password</label>
+          <div class="inline">
+            <input data-slot="input" id="master" type="password" autocomplete="off" spellcheck="false">
+            <button data-slot="button" id="show-master" type="button" aria-controls="master" aria-label="Show master password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </div>
+        </div>
+        <button data-slot="button" class="primary" id="unlock-button" type="submit">Unlock vault</button>
+      </fieldset>
+      <p id="progress" role="status"></p>
+      <p id="error" role="alert"></p>
+    </form>
+  </section>
+</main>
+<main id="viewer" class="viewer" hidden>
+  <aside id="navigation-sidebar" class="sidebar" data-slot="sidebar" data-side="left" aria-label="Vault navigation">
+    <div class="sidebar-header" data-slot="sidebar-header">
+      <h1>
+        <button id="vault-switcher" class="vault-switcher" type="button" popovertarget="vault-menu" aria-controls="vault-menu" aria-expanded="false">
+          <span class="vault-icon">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 2h10"></path>
+              <path d="M5 6h14"></path>
+              <rect width="18" height="12" x="3" y="10" rx="2"></rect>
+            </svg>
+          </span>
+          <span id="vault-name"></span>
+          <svg class="vault-chevron" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m7 10 5-5 5 5m-10 4 5 5 5-5"></path>
+          </svg>
+        </button>
+      </h1>
+    </div>
+    <nav id="groups" class="pane sidebar-content" data-slot="sidebar-content" aria-label="Vault views, tags and groups"></nav>
+    <div class="sidebar-footer">
+      <a class="github-badge" data-slot="badge" href="https://github.com/yaroshevych/bypass-web" target="_blank" rel="noopener noreferrer">Bypass 0.1 · Github</a>
+    </div>
+  </aside>
+  <header class="vault-header">
+    <div id="tabs" data-slot="tabs-list" role="tablist" aria-label="Vault views"></div>
+    <label class="search-control"><span class="sr-only">Search entries</span>
+      <input data-slot="input" id="search" type="search" placeholder="Filter entries" aria-keyshortcuts="/" autocomplete="off" spellcheck="false">
+      <kbd aria-hidden="true">/</kbd>
+    </label>
+    <button data-slot="menubar-trigger" id="commands" type="button" popovertarget="palette" aria-haspopup="menu" aria-expanded="false" aria-controls="palette" aria-keyshortcuts="Control+P Meta+P">Menu <kbd aria-hidden="true">Ctrl+P</kbd></button>
+    <button data-slot="switch" id="theme" class="theme-switch" type="button" role="switch" aria-checked="false" aria-label="Dark mode" title="Toggle light/dark mode">
+      <svg class="theme-sun" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="4"></circle>
+        <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19m0-14-1.5 1.5m-11 11L5 19"></path>
+      </svg>
+      <svg class="theme-moon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.9 13.4A9 9 0 0 1 10.6 3.1 9 9 0 1 0 20.9 13.4Z"></path>
+      </svg>
+    </button>
+  </header>
+  <section class="pane entry-pane" aria-label="Entries">
+    <table class="entry-table" data-slot="table" aria-label="Vault entries">
+      <thead data-slot="table-header">
+        <tr data-slot="table-row">
+          <th scope="col" data-slot="table-head">Title</th>
+          <th scope="col" data-slot="table-head">Username</th>
+          <th scope="col" data-slot="table-head">Website</th>
+        </tr>
+      </thead>
+      <tbody id="entries" data-slot="table-body"></tbody>
+    </table>
+  </section>
+  <div class="entry-sidebar-controls">
+    <button data-slot="sidebar-trigger" type="button" aria-controls="navigation-sidebar" aria-expanded="true" aria-label="Toggle navigation sidebar" title="Toggle navigation sidebar">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+        <path d="M9 3v18"></path>
+      </svg>
+    </button>
+  </div>
+  <aside class="pane sidebar stack" id="detail" data-slot="sidebar" data-side="right" aria-label="Entry details"></aside>
+  <div id="vault-menu" class="vault-menu" data-slot="dropdown-menu-content" popover aria-labelledby="vault-menu-label">
+    <div data-slot="dropdown-menu-group">
+      <p id="vault-menu-label" data-slot="dropdown-menu-label">Vault</p>
+      <button id="vault-info" data-slot="dropdown-menu-item" type="button">
+        Info
+      </button>
+    </div>
+    <hr data-slot="dropdown-menu-separator">
+    <div data-slot="dropdown-menu-group">
+      <button id="open-another" data-slot="dropdown-menu-item" type="button">
+        Open another…
+      </button>
+      <button id="lock" data-slot="dropdown-menu-item" type="button">
+        Lock Vault
+      </button>
+    </div>
+  </div>
+  <dialog id="vault-info-dialog" class="vault-info-dialog" data-slot="dialog-content" aria-labelledby="vault-info-title">
+    <div data-slot="dialog-header">
+      <h2 id="vault-info-title" data-slot="dialog-title" tabindex="-1" autofocus>Vault information</h2>
+      <form method="dialog">
+        <button data-slot="dialog-close" type="submit" aria-label="Close">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="m18 6-12 12M6 6l12 12"></path>
+          </svg>
+        </button>
+      </form>
+    </div>
+    <dl id="vault-info-fields"></dl>
+  </dialog>
+  <dialog id="about-dialog" class="vault-info-dialog" aria-labelledby="about-title">
+    <div data-slot="dialog-header">
+      <h2 id="about-title" tabindex="-1" autofocus>About</h2>
+      <form method="dialog"><button data-slot="dialog-close" type="submit" aria-label="Close"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m18 6-12 12M6 6l12 12"></path></svg></button></form>
+    </div>
+    <p>Bypass Web - KeePass viewer in a single offline HTML file</p>
+    <a href="https://github.com/yaroshevych/bypass-web" target="_blank" rel="noopener noreferrer">bypass-web on GitHub</a>
+  </dialog>
+  <p id="copy-status" class="sr-only" role="status"></p>
+  <p id="result-count" class="sr-only" role="status"></p>
+  <div id="palette" class="commands-menu" data-slot="menubar-content" role="menu" aria-labelledby="commands" popover></div>
+  <dialog id="field-jump" class="overlay-card" aria-labelledby="jump-title"><h2 id="jump-title" tabindex="-1" autofocus>Jump to field</h2><button class="overlay-close" type="button" aria-label="Close">×</button><p>p Password · u Username · w URL · n Notes · e Email</p></dialog>
+  <dialog id="large-view" class="overlay-card" aria-labelledby="large-title"><h2 id="large-title" tabindex="-1" autofocus>Large View</h2><button class="overlay-close" id="large-close" type="button" aria-label="Close">×</button><div id="large-content"></div><div id="large-actions"></div></dialog>
+</main>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
