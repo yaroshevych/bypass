@@ -347,20 +347,24 @@ test('opens with a selected entry and navigates TUI views, tags, and groups', as
   await expect(entries).toContainText(['Other login']);
 });
 
-test('follows the system theme and remembers the header switch preference', async ({ page }) => {
+test('follows the system theme and remembers the floating switch preference', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' });
   await openFile(page, fixtures.get('KDBX 3'));
-  await unlock(page);
   const theme = page.getByRole('switch', { name: 'Dark mode' });
+  await expect(theme).toBeVisible();
+  await unlock(page);
   const controls = await page.locator('.vault-header').evaluate(header =>
     [...header.children].map(control => {
       const box = control.getBoundingClientRect();
       return { x: box.x, center: box.y + box.height / 2 };
     })
   );
-  expect(controls).toHaveLength(4);
+  expect(controls).toHaveLength(3);
   expect(controls.map(control => control.x)).toEqual(controls.map(control => control.x).sort((a, b) => a - b));
   expect(Math.max(...controls.map(control => control.center)) - Math.min(...controls.map(control => control.center))).toBeLessThan(1);
+  const themeBox = await theme.boundingBox();
+  expect(themeBox.x + themeBox.width).toBeCloseTo(page.viewportSize().width - 8, 0);
+  expect(themeBox.y).toBeCloseTo(8, 0);
   await expect(theme).toHaveAttribute('aria-checked', 'false');
   const background = () => page.locator('body').evaluate(body => getComputedStyle(body).backgroundColor);
   const light = await background();
