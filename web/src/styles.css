@@ -131,14 +131,14 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
   grid-template-columns: var(--left-width) minmax(0, 1.4fr) var(--right-width);
 }
 .viewer:has(#navigation-sidebar[hidden]) { --left-width: 0px; }
-.vault-header { @apply col-start-2 col-end-4 row-start-1 flex min-w-0 items-center gap-2 overflow-x-auto border-b border-border p-2; }
+.vault-header { @apply col-start-2 col-end-4 row-start-1 flex min-w-0 items-center gap-2 overflow-x-auto border-b border-border p-2 pr-12; }
 #tabs { @apply flex w-fit min-w-0 items-center gap-0.5 overflow-x-auto rounded-lg bg-muted p-[3px]; }
 #tabs button { @apply block h-7 max-w-52 shrink-0 truncate rounded-md border-transparent bg-transparent px-2 py-1 text-muted-foreground shadow-none hover:text-foreground; }
 #tabs button[aria-selected="true"] { @apply bg-background text-foreground shadow-sm; }
 .vault-header kbd { @apply rounded border border-border bg-muted px-1 font-mono text-xs leading-5 text-muted-foreground; }
 #commands { @apply h-8 px-2; }
 #commands[aria-expanded="true"] { @apply bg-accent text-accent-foreground; }
-.theme-switch { @apply size-8 p-0; }
+.theme-switch { @apply fixed right-2 top-2 z-10 size-8 p-0; }
 .theme-switch svg { @apply size-4; }
 .theme-switch[aria-checked="false"] .theme-moon,
 .theme-switch[aria-checked="true"] .theme-sun { display: none; }
@@ -155,8 +155,8 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .vault-icon svg, .vault-chevron { @apply size-4 shrink-0; }
 .vault-chevron { @apply ms-auto text-muted-foreground; }
 #vault-name { @apply min-w-0 truncate font-semibold; }
-.sidebar-content { @apply min-h-0 flex-1 bg-transparent p-0; }
-.sidebar-footer { @apply flex shrink-0 flex-wrap items-center gap-1.5 p-3; }
+.sidebar-content { @apply min-h-0 flex-1 bg-transparent p-0 pb-10; }
+.sidebar-footer { @apply fixed bottom-3 left-3 z-10 flex flex-wrap items-center gap-1.5; }
 .social-badge { @apply inline-flex h-5 w-fit shrink-0 items-center justify-center rounded-4xl border border-transparent bg-primary px-2 py-0.5 text-xs font-medium whitespace-nowrap text-primary-foreground no-underline transition-all hover:bg-primary/80; }
 .unsaved-badge { @apply inline-flex h-5 items-center rounded-full bg-red-600 px-2 text-xs font-medium text-white; }
 .vault-menu { @apply fixed inset-auto m-0 rounded-lg border-0 bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10; }
@@ -216,15 +216,13 @@ dd .value { flex: 1 1 10rem; }
 dd.inline { display: flex; flex-wrap: wrap; gap: .25rem; }
 dd.inline > :first-child { flex: 1 1 10rem; min-width: 0; }
 dd button { @apply h-8 px-3; }
-.edit-secret-group { @apply flex w-full items-stretch; }
-.edit-secret-group input { @apply min-w-0 flex-1 rounded-r-none; }
-.edit-secret-group :focus-visible { @apply relative z-10; }
-dd button.edit-secret-toggle { @apply size-9 shrink-0 rounded-l-none border-l-0 border-input bg-transparent p-2; }
-.edit-secret-toggle svg { width: 100%; height: 100%; }
+.secret-group { @apply flex w-full items-stretch; }
+.secret-group input { @apply min-w-0 flex-1 rounded-r-none; }
+.secret-group :focus-visible { @apply relative z-10; }
+.secret-group button { @apply size-9 shrink-0 rounded-l-none border-l-0 border-input bg-transparent p-2; }
+.secret-group button svg { width: 100%; height: 100%; }
 dd button.field-action { @apply size-8 shrink-0 p-2; }
 .field-action svg { width: 100%; height: 100%; }
-#show-master { @apply size-9 shrink-0 p-2; }
-#show-master svg { width: 100%; height: 100%; }
 #detail dd .field-action { opacity: 0; }
 #detail dd:hover .field-action, #detail dd:focus-within .field-action { opacity: 1; }
 @media (hover: none) { #detail dd .field-action { opacity: 1; } }

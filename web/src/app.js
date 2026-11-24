@@ -689,7 +689,7 @@ function renderDetails() {
       });
       const contents = element('dd', undefined, 'inline');
       if (secret) {
-        const group = element('div', undefined, 'edit-secret-group');
+        const group = element('div', undefined, 'secret-group');
         group.setAttribute('role', 'group');
         group.setAttribute('aria-label', label);
         group.dataset.slot = 'button-group';

@@ -8,9 +8,23 @@
 <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
+<div class="sidebar-footer">
+      <a class="social-badge" data-slot="badge" href="https://x.com/yaroshevych" target="_blank" rel="noopener noreferrer" aria-label="bypass __BYPASS_VERSION__ on X">bypass __BYPASS_VERSION__</a>
+      <a class="social-badge" data-slot="badge" href="https://github.com/yaroshevych/bypass" target="_blank" rel="noopener noreferrer">github</a>
+      <span id="unsaved-badge" class="unsaved-badge" role="status" hidden>unsaved</span>
+</div>
+    <button data-slot="switch" id="theme" class="theme-switch" type="button" role="switch" aria-checked="false" aria-label="Dark mode" title="Toggle light/dark mode">
+      <svg class="theme-sun" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="4"></circle>
+        <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19m0-14-1.5 1.5m-11 11L5 19"></path>
+      </svg>
+      <svg class="theme-moon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.9 13.4A9 9 0 0 1 10.6 3.1 9 9 0 1 0 20.9 13.4Z"></path>
+      </svg>
+    </button>
 <main id="unlock-screen" class="unlock">
   <section class="card" data-slot="card" aria-labelledby="unlock-title">
-    <h1 id="unlock-title">bypass/web</h1>
+    <h1 id="unlock-title">Bypass</h1>
     <p class="muted">Open a KeePass database with offline viewer.</p>
     <form id="unlock-form" autocomplete="off">
       <fieldset id="credentials">
@@ -20,7 +34,7 @@
         </label>
         <div class="stack">
           <label for="master">Master password</label>
-          <div class="inline">
+          <div class="secret-group" role="group" aria-label="Master password controls" data-slot="button-group">
             <input data-slot="input" id="master" type="password" autocomplete="off" spellcheck="false">
             <button data-slot="button" id="show-master" type="button" aria-controls="master" aria-label="Show master password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
           </div>
@@ -52,11 +66,6 @@
       </h1>
     </div>
     <nav id="groups" class="pane sidebar-content" data-slot="sidebar-content" aria-label="Vault views, tags and groups"></nav>
-    <div class="sidebar-footer">
-      <a class="social-badge" data-slot="badge" href="https://x.com/yaroshevych" target="_blank" rel="noopener noreferrer" aria-label="bypass __BYPASS_VERSION__ on X">bypass __BYPASS_VERSION__</a>
-      <a class="social-badge" data-slot="badge" href="https://github.com/yaroshevych/bypass" target="_blank" rel="noopener noreferrer">github</a>
-      <span id="unsaved-badge" class="unsaved-badge" role="status" hidden>unsaved</span>
-    </div>
   </aside>
   <header class="vault-header">
     <div id="tabs" data-slot="tabs-list" role="tablist" aria-label="Vault views"></div>
@@ -65,15 +74,6 @@
       <kbd aria-hidden="true">/</kbd>
     </label>
     <button data-slot="menubar-trigger" id="commands" type="button" popovertarget="palette" aria-haspopup="menu" aria-expanded="false" aria-controls="palette" aria-keyshortcuts="Control+P Meta+P">Menu <kbd aria-hidden="true">Ctrl+P</kbd></button>
-    <button data-slot="switch" id="theme" class="theme-switch" type="button" role="switch" aria-checked="false" aria-label="Dark mode" title="Toggle light/dark mode">
-      <svg class="theme-sun" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <circle cx="12" cy="12" r="4"></circle>
-        <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19m0-14-1.5 1.5m-11 11L5 19"></path>
-      </svg>
-      <svg class="theme-moon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M20.9 13.4A9 9 0 0 1 10.6 3.1 9 9 0 1 0 20.9 13.4Z"></path>
-      </svg>
-    </button>
   </header>
   <section class="pane entry-pane" aria-label="Entries">
     <table class="entry-table" data-slot="table" aria-label="Vault entries">
