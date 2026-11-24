@@ -4,7 +4,7 @@
 
 Bypass TUI: use your KeePass vaults from the terminal. Enjoy a modern, beautiful interface where each detail is crafted: navigation, controls, keyboard shortcuts, and themes.
 
-Bypass Web: KeePass client in a single HTML file, offline and portable in any desktop browser.
+[Bypass Web](web/README.md): KeePass client in a single HTML file, offline and portable in any desktop browser.
 
 https://github.com/user-attachments/assets/5d8a0287-4225-40f2-9566-9e1c9029e827
 
@@ -98,6 +98,10 @@ See the [full command reference](CLI.md) for reference syntax, environment
 rules, permissions, and timeout configuration.
 
 ## Bypass Web
+
+| <img width="2176" height="1040" alt="Bypass Web light theme" src="https://github.com/user-attachments/assets/1ad86843-cf99-4dc3-8140-563cad17744b" /> | <img width="2174" height="1038" alt="Bypass Web dark theme" src="https://github.com/user-attachments/assets/5455d8ed-f2a1-4977-a06f-5635ded9c23e" /> |
+| --- | --- |
+| Light theme | Dark theme |
 
 The web client opens vaults read-only by default. Turn off Read only in Menu and click Edit to change entry fields, then use Save vault as… to save a copy.
 
