@@ -6,16 +6,17 @@ Bypass TUI: use your KeePass vaults from the terminal. Enjoy a modern, beautiful
 
 [Bypass Web](web/README.md): KeePass client in a single HTML file, offline and portable in any desktop browser.
 
+## Bypass TUI
+
 https://github.com/user-attachments/assets/5d8a0287-4225-40f2-9566-9e1c9029e827
 
-10 themes supported, including dynamic Omarchy theme.
+Modern, responsive terminal interface which works equally well in both large windows and in small herdr panes. Full keyboard and mouse support. 10 themes supported, including dynamic Omarchy theme.
 
 | <img width="1006" height="579" alt="compact" src="https://github.com/user-attachments/assets/3833abf8-9bb6-4315-8fb6-82a0ca4296d6" /> | <img width="999" height="578" alt="light" src="https://github.com/user-attachments/assets/fedd1743-7315-48ff-8628-216cec0811a1" /> | <img width="1004" height="582" alt="mocha" src="https://github.com/user-attachments/assets/61abd94f-5606-40bf-9e19-2e00fefe0bdb" />
 | --- | --- | --- |
 | Vesper theme with Compact layout | Latte theme with Command palette | Mocha theme with Settings dialog |
 
 
-## Bypass TUI
 
 ### Install
 
@@ -102,6 +103,8 @@ rules, permissions, and timeout configuration.
 | <img width="2176" height="1040" alt="Bypass Web light theme" src="https://github.com/user-attachments/assets/1ad86843-cf99-4dc3-8140-563cad17744b" /> | <img width="2174" height="1038" alt="Bypass Web dark theme" src="https://github.com/user-attachments/assets/5455d8ed-f2a1-4977-a06f-5635ded9c23e" /> |
 | --- | --- |
 | Light theme | Dark theme |
+
+Bypass Web is a KeePass password manager in a single HTML file that can be downloaded locally and opened in any modern browser. It lets you view and edit KeePass vaults. It is fully offline and private.
 
 The web client opens vaults read-only by default. Turn off Read only in Menu and click Edit to change entry fields, then use Save vault as… to save a copy.
 
