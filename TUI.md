@@ -133,6 +133,10 @@ Deletion uses the vault's recycle bin when applicable. Items already in the bin
 are deleted permanently after confirmation. Root and recycle-bin groups have
 additional deletion restrictions.
 
+Image attachments appear below the entry fields. Select a filename and press `v`
+to preview PNG, JPEG, or GIF images in Ghostty or Kitty. Press `esc` to close the
+preview. The preview uses Kitty graphics and is unavailable inside tmux.
+
 ## Secrets
 
 | Action | Shortcut | Behavior |

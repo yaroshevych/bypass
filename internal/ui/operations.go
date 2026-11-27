@@ -1046,7 +1046,7 @@ func (m *Model) clearClipboard() tea.Cmd {
 }
 func (m *Model) toggleReveal() tea.Cmd {
 	if m.attachmentFocused() {
-		return nil
+		return m.openImagePreview()
 	}
 	e := m.selected()
 	s := m.ws.ActiveSession()

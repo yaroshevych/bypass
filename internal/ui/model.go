@@ -25,16 +25,17 @@ type RecentStore interface {
 }
 
 type Options struct {
-	Backend      vault.Backend
-	Store        RecentStore
-	InitialPath  string
-	Context      context.Context
-	Settings     platform.Settings
-	Clipboard    *clipboard.Manager
-	ReadOnly     bool
-	Now          func() time.Time
-	Warning      string
-	SaveSettings func(platform.Settings) error
+	KittyTerminal *KittyTerminal
+	Backend       vault.Backend
+	Store         RecentStore
+	InitialPath   string
+	Context       context.Context
+	Settings      platform.Settings
+	Clipboard     *clipboard.Manager
+	ReadOnly      bool
+	Now           func() time.Time
+	Warning       string
+	SaveSettings  func(platform.Settings) error
 }
 
 type screen int
@@ -96,6 +97,9 @@ func (m *Model) activeLayer() uiLayer {
 }
 
 type Model struct {
+	previewTerminal                         *KittyTerminal
+	previewMarker                           string
+	previewGeometry                         [4]int
 	runs                                    *runState
 	detailRequest                           uint64
 	detailCancel                            context.CancelFunc
@@ -232,7 +236,7 @@ func New(opts Options) *Model {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	m := &Model{service: session.NewService(opts.Backend), store: opts.Store, ctx: ctx, width: 100, height: 30}
+	m := &Model{service: session.NewService(opts.Backend), store: opts.Store, ctx: ctx, width: 100, height: 30, previewTerminal: opts.KittyTerminal}
 	m.now = opts.Now
 	if m.now == nil {
 		m.now = time.Now
@@ -394,6 +398,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.pointer(mouse)
 	}
 	model, cmd := m.update(msg)
+	m.syncImagePreviewTerminal()
 	m.pruneRunSessionGrants()
 	m.refreshSearchCache()
 	details := m.loadFocusedDetails()
@@ -595,6 +600,13 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	}
 	layer := m.activeLayer()
 	shortcutContext := (layer == layerWorkspace && m.screen == browse && !m.searching && (m.editor == nil || m.editor.focus >= editGenerate)) || layer == layerRequests || layer == layerGrand || layer == layerTiny || m.writing || m.busy || (m.lifecycle != nil && m.lifecycle.busy)
+	if layer == layerExtras && m.extras != nil && m.extras.mode == extraImagePreview {
+		shortcutContext = true
+		if key == "ctrl+c" {
+			m.Close()
+			return tea.Quit
+		}
+	}
 	if layer == layerLifecycle && m.lifecycle != nil && (m.lifecycle.confirm || m.lifecycle.kind == "info" || m.lifecycle.focus >= len(lifecycleVisibleInputs(m.lifecycle))) {
 		shortcutContext = true
 	}

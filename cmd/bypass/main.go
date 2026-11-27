@@ -19,6 +19,7 @@ import (
 	"bypass/internal/ui"
 	"bypass/internal/vault"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/mattn/go-isatty"
 )
 
 var version = "dev"
@@ -148,7 +149,12 @@ Run 'bypass help run' for command options.`)
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	vaultBackend := vault.NewBackend()
-	m := ui.New(ui.Options{Backend: vaultBackend, Store: store, InitialPath: path, Context: ctx, Settings: settings, ReadOnly: *readOnly, Clipboard: clipboard.New(clipboard.NewSystem()), Warning: warning, SaveSettings: saveSettings})
+	outputIsTTY := false
+	if file, ok := stdout.(*os.File); ok {
+		outputIsTTY = isatty.IsTerminal(file.Fd()) || isatty.IsCygwinTerminal(file.Fd())
+	}
+	terminal := ui.NewKittyTerminal(stdout, outputIsTTY && ui.KittyGraphicsAvailable())
+	m := ui.New(ui.Options{KittyTerminal: terminal, Backend: vaultBackend, Store: store, InitialPath: path, Context: ctx, Settings: settings, ReadOnly: *readOnly, Clipboard: clipboard.New(clipboard.NewSystem()), Warning: warning, SaveSettings: saveSettings})
 	defer func() {
 		m.Close()
 		if m.CleanupError() != nil {
@@ -159,7 +165,7 @@ Run 'bypass help run' for command options.`)
 	if err != nil {
 		return err
 	}
-	p := tea.NewProgram(model, tea.WithContext(ctx), tea.WithOutput(stdout), tea.WithAltScreen(), tea.WithMouseAllMotion())
+	p := tea.NewProgram(model, tea.WithContext(ctx), tea.WithOutput(terminal), tea.WithAltScreen(), tea.WithMouseAllMotion())
 	socketPath, socketErr := runpkg.SocketPath()
 	if socketErr == nil {
 		server, err := runpkg.Listen(socketPath, func(pending *runpkg.Pending) {

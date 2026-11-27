@@ -20,6 +20,7 @@ const (
 	extraAttachments
 	extraHistory
 	extraHistoryEntry
+	extraImagePreview
 )
 
 type extraState struct {
@@ -47,6 +48,9 @@ type extraState struct {
 	totpCode    []byte
 	totpExpires time.Time
 	totpPeriod  int
+
+	previewPNG                  []byte
+	previewWidth, previewHeight int
 
 	history       []vault.Entry
 	historyIndex  int
@@ -104,6 +108,9 @@ func (m *Model) clearExtras() {
 	if state == nil {
 		return
 	}
+	if state.mode == extraImagePreview {
+		m.clearImagePreviewTerminal()
+	}
 	if state.cancel != nil {
 		state.cancel()
 		state.cancel = nil
@@ -113,12 +120,38 @@ func (m *Model) clearExtras() {
 	state.totpCode = nil
 	wipebuf.Wipe(state.revealedValue)
 	state.revealedValue = nil
+	wipebuf.Wipe(state.previewPNG)
+	state.previewPNG = nil
 	state.history = nil
 	m.extras = nil
 }
 
 func (m *Model) updateExtras(msg tea.Msg) (tea.Cmd, bool) {
 	switch msg := msg.(type) {
+	case imagePreviewMsg:
+		data := takeSecret(msg.secret, msg.png)
+		if m.extras != msg.state || m.gate.Protected() || msg.state.requestID != msg.requestID {
+			wipebuf.Wipe(data)
+			return nil, true
+		}
+		state := m.extras
+		if state.cancel != nil {
+			state.cancel()
+			state.cancel = nil
+		}
+		state.loading = false
+		if _, entry := m.currentExtraEntry(state); entry == nil {
+			wipebuf.Wipe(data)
+			m.clearExtras()
+			return nil, true
+		}
+		if msg.err != nil {
+			wipebuf.Wipe(data)
+			state.err = msg.err.Error()
+			return nil, true
+		}
+		state.previewPNG, state.previewWidth, state.previewHeight = data, msg.width, msg.height
+		return nil, true
 	case extrasTOTPMsg:
 		msg.result.Code = takeSecret(msg.secret, msg.result.Code)
 		if m.extras != msg.state || m.gate.Protected() || msg.state.requestID != msg.requestID {
@@ -284,6 +317,11 @@ func (m *Model) extrasKey(k tea.KeyMsg) (tea.Cmd, bool) {
 			}
 		}
 		return nil, true
+	case extraImagePreview:
+		if k.String() == "esc" || k.String() == "v" {
+			m.clearExtras()
+		}
+		return nil, true
 	case extraAttachments:
 		return m.attachmentListKey(k), true
 	case extraHistory:
@@ -400,6 +438,8 @@ func (m *Model) extrasLines() []string {
 		return nil
 	}
 	switch state.mode {
+	case extraImagePreview:
+		return m.imagePreviewLines(state)
 	case extraTOTP:
 		return m.totpLines(state)
 	case extraAttachments:

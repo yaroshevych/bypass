@@ -107,6 +107,10 @@ func (m *Model) View() string {
 		colors := m.colorsForTheme(m.settings.Theme)
 		view = restoreThemeResets(view, colors.primary, colors.background)
 	}
+	if m.previewMarker != "" && m.activeLayer() == layerExtras {
+		i := strings.LastIndex(view, "\n")
+		view = view[:i+1] + m.previewMarker + view[i+1:]
+	}
 	return view
 }
 

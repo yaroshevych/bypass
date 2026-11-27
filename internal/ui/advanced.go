@@ -587,6 +587,9 @@ func (m *Model) footerContext() string {
 	case 1:
 		return "n new · e edit"
 	case 2:
+		if m.attachmentFocused() {
+			return "v preview · e edit"
+		}
 		return "c copy · v reveal · e edit"
 	}
 	return ""
@@ -598,7 +601,7 @@ func (m *Model) concealForPIN() {
 	m.hideReveal()
 	m.dragging = 0
 	if m.extras != nil {
-		if m.extras.mode == extraTOTP {
+		if m.extras.mode == extraTOTP || m.extras.mode == extraImagePreview {
 			m.clearExtras()
 		} else {
 			m.clearHistoryReveal(m.extras)
