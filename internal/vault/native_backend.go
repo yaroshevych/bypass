@@ -1510,7 +1510,13 @@ func (b *NativeBackend) ExportAttachment(ctx context.Context, db *Database, _ Cr
 			if bin == nil {
 				return nil, ErrMalformed
 			}
-			return bin.GetContentBytes()
+			data, err := bin.GetContentBytes()
+			if err != nil {
+				return nil, err
+			}
+			// GetContentBytes can return the native database's backing slice.
+			// Callers own and wipe the returned bytes, so never expose that slice.
+			return append([]byte(nil), data...), nil
 		}
 	}
 	return nil, ErrUnsupported

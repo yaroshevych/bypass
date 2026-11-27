@@ -410,6 +410,15 @@ func TestNativeBackendAttachmentRoundTrip(t *testing.T) {
 	if !bytes.Equal(exported, data) {
 		t.Fatal("attachment bytes changed during save and export")
 	}
+	zero(exported)
+	second, err := backend.ExportAttachment(context.Background(), db, creds, entryID, "sample.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zero(second)
+	if !bytes.Equal(second, data) {
+		t.Fatal("clearing an exported attachment changed the stored attachment")
+	}
 }
 
 func TestNativeAttachmentMutationRejectsAmbiguousNameAndSelectsOneReference(t *testing.T) {
