@@ -12,17 +12,16 @@ import (
 )
 
 type itemHeader struct {
-	exists          bool
-	title           string
-	tags            []string
-	hoveredTag      string
-	groupPath       string
-	modified        time.Time
-	expires         time.Time
-	expiryEnabled   bool
-	hasTOTP         bool
-	attachmentCount int
-	historyCount    int
+	exists        bool
+	title         string
+	tags          []string
+	hoveredTag    string
+	groupPath     string
+	modified      time.Time
+	expires       time.Time
+	expiryEnabled bool
+	hasTOTP       bool
+	historyCount  int
 }
 
 func newItemHeader(entry *vault.Entry) itemHeader {
@@ -30,16 +29,15 @@ func newItemHeader(entry *vault.Entry) itemHeader {
 		return itemHeader{}
 	}
 	return itemHeader{
-		exists:          true,
-		title:           visibleField(*entry, "Title"),
-		tags:            append([]string(nil), entry.Tags...),
-		groupPath:       entry.GroupPath,
-		modified:        entry.Modified,
-		expires:         entry.Expires,
-		expiryEnabled:   entry.ExpiryEnabled,
-		hasTOTP:         entry.HasTOTP,
-		attachmentCount: len(entry.AttachmentNames),
-		historyCount:    entry.HistoryCount,
+		exists:        true,
+		title:         visibleField(*entry, "Title"),
+		tags:          append([]string(nil), entry.Tags...),
+		groupPath:     entry.GroupPath,
+		modified:      entry.Modified,
+		expires:       entry.Expires,
+		expiryEnabled: entry.ExpiryEnabled,
+		hasTOTP:       entry.HasTOTP,
+		historyCount:  entry.HistoryCount,
 	}
 }
 
@@ -73,9 +71,7 @@ func (h itemHeader) renderWithIndent(styles *styleSet, width int, now time.Time,
 	if showNonPasswordVaultSecurity && h.hasTOTP {
 		lines = append(lines, styles.secondary.Render(padding+"TOTP configured · commands to view/copy"))
 	}
-	if h.attachmentCount > 0 {
-		lines = append(lines, styles.secondary.Render(fmt.Sprintf("%sAttachments: %d", padding, h.attachmentCount)))
-	}
+
 	if showNonPasswordVaultSecurity && h.historyCount > 0 {
 		lines = append(lines, styles.secondary.Render(fmt.Sprintf("%sHistory snapshots: %d", padding, h.historyCount)))
 	}

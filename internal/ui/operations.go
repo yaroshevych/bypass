@@ -933,6 +933,19 @@ func (m *Model) fieldNames() []string {
 	}
 	return names
 }
+func (m *Model) detailFocusCount() int {
+	count := len(m.fieldNames())
+	if e := m.selected(); e != nil {
+		count += len(e.AttachmentNames)
+	}
+	return count
+}
+
+func (m *Model) attachmentFocused() bool {
+	v := m.ws.ActiveView()
+	return v != nil && v.Focus == 2 && v.FieldIndex >= len(m.fieldNames()) && v.FieldIndex < m.detailFocusCount()
+}
+
 func (m *Model) focusedField() string {
 	v := m.ws.ActiveView()
 	names := m.fieldNames()
@@ -950,6 +963,9 @@ func (m *Model) copyField(name string) tea.Cmd {
 		return nil
 	}
 	if name == "" {
+		if m.attachmentFocused() {
+			return nil
+		}
 		name = m.focusedField()
 	}
 	m.recordItemUse()
@@ -1029,6 +1045,9 @@ func (m *Model) clearClipboard() tea.Cmd {
 	}
 }
 func (m *Model) toggleReveal() tea.Cmd {
+	if m.attachmentFocused() {
+		return nil
+	}
 	e := m.selected()
 	s := m.ws.ActiveSession()
 	if e == nil || s == nil {

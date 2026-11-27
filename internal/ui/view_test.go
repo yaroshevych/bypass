@@ -6,8 +6,59 @@ import (
 
 	"bypass/internal/vault"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 )
+
+func TestDetailShowsAttachmentNames(t *testing.T) {
+	m := New(Options{})
+	db := fixture("/tmp/attachments.kdbx")
+	db.Entries[0].AttachmentNames = []string{"document.pdf", "photo.png"}
+	m.ws.Open(db)
+	m.normalize()
+	lines, _ := m.detailLayout(40)
+	var plain []string
+	for _, line := range lines {
+		plain = append(plain, ansi.Strip(line))
+	}
+	view := strings.Join(plain, "\n")
+	if !strings.Contains(view, "ATTACHMENTS (2)\n document.pdf\n photo.png") {
+		t.Fatalf("attachment list missing from details: %q", view)
+	}
+	if strings.Count(view, "ATTACHMENTS (2)") != 1 {
+		t.Fatalf("attachment header repeated: %q", view)
+	}
+}
+
+func TestAttachmentFocusNavigation(t *testing.T) {
+	m := New(Options{})
+	m.width, m.height = 100, 30
+	db := fixture("/tmp/attachment-focus.kdbx")
+	db.Entries[0].AttachmentNames = []string{"first.pdf", "second.png"}
+	m.ws.Open(db)
+	m.normalize()
+	v := m.ws.ActiveView()
+	v.Focus, v.FieldIndex = 2, len(m.fieldNames())-1
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if v.FieldIndex != len(m.fieldNames()) || !m.attachmentFocused() {
+		t.Fatal("down did not focus the first attachment")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if v.FieldIndex != len(m.fieldNames())+1 {
+		t.Fatal("down did not focus the second attachment")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	if v.FieldIndex != len(m.fieldNames()) {
+		t.Fatal("up did not return to the first attachment")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if v.FieldIndex != len(m.fieldNames())+1 {
+		t.Fatal("tab did not focus the second attachment")
+	}
+	if m.copyField("") != nil || m.toggleReveal() != nil {
+		t.Fatal("attachment focus triggered a field action")
+	}
+}
 
 func TestEntryListColumnsFollowTerminalWidth(t *testing.T) {
 	m := New(Options{})

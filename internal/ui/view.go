@@ -1484,7 +1484,29 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 			}
 		}
 	}
-	if len(e.Tags) > 0 || len(e.AttachmentNames) > 0 {
+	if len(e.AttachmentNames) > 0 {
+		lines = append(lines, "", secondary.Render(fmt.Sprintf(" ATTACHMENTS (%d)", len(e.AttachmentNames))))
+		for index, name := range e.AttachmentNames {
+			positions = append(positions, len(lines))
+			focused := false
+			if v := m.ws.ActiveView(); v != nil {
+				focused = v.Focus == 2 && v.FieldIndex == len(names)+index
+			}
+			for _, line := range strings.Split(ansi.Wrap(safe(name), max(1, width-2), ""), "\n") {
+				valueLine := " " + line
+				if focused && compact && !m.settings.ASCII {
+					lines = append(lines, renderPillTight(line, width, active.Bold(true), primary, m.smallDialogScreenOrClassic()))
+				} else if focused && compact {
+					lines = append(lines, active.Bold(true).Render(fit("["+ansi.Truncate(line, max(0, width-2), "…")+"]", width-1)))
+				} else if focused {
+					lines = append(lines, active.Bold(true).Render(fit(valueLine, width-1)))
+				} else {
+					lines = append(lines, primary.Render(valueLine))
+				}
+			}
+		}
+	}
+	if len(e.Tags) > 0 {
 		lines = append(lines, "")
 	}
 	if len(e.Tags) > 0 {
@@ -1493,9 +1515,7 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 			lines = append(lines, secondary.Render(" "+line))
 		}
 	}
-	if len(e.AttachmentNames) > 0 {
-		lines = append(lines, secondary.Render(fmt.Sprintf(" Attachments: %d", len(e.AttachmentNames))))
-	} else if len(e.Tags) == 0 && len(names) > 0 && names[len(names)-1] == "Notes" && strings.Contains(e.Get("Notes"), "\n") {
+	if len(e.Tags) == 0 && len(names) > 0 && names[len(names)-1] == "Notes" && strings.Contains(e.Get("Notes"), "\n") {
 		lines = append(lines, "")
 	}
 	return lines, positions

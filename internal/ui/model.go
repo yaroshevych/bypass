@@ -748,7 +748,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 	switch key {
 	case "tab":
 		v.DetailManual = false
-		if v.Focus == 2 && v.FieldIndex < len(m.fieldNames())-1 {
+		if v.Focus == 2 && v.FieldIndex < m.detailFocusCount()-1 {
 			v.FieldIndex++
 		} else {
 			v.Focus = (v.Focus + 1) % 3
@@ -761,7 +761,7 @@ func (m *Model) key(k tea.KeyMsg) tea.Cmd {
 		} else {
 			v.Focus = (v.Focus + 2) % 3
 			if v.Focus == 2 {
-				v.FieldIndex = max(0, len(m.fieldNames())-1)
+				v.FieldIndex = max(0, m.detailFocusCount()-1)
 			}
 		}
 	case "left", "h":
