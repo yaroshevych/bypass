@@ -57,10 +57,10 @@ func TestImagePreviewOpenCloseAndGeometry(t *testing.T) {
 		t.Fatalf("preview did not load: %#v", m.extras)
 	}
 	g, _, _, _, _ := m.imagePreviewGeometry()
-	if g.Width != 80 || g.Height != 24 {
-		t.Fatalf("dialog dimensions = %dx%d, want 80x24", g.Width, g.Height)
+	if g.Width != 90 || g.Height != 27 {
+		t.Fatalf("dialog dimensions = %dx%d, want 90x27", g.Width, g.Height)
 	}
-	if terminal.cols != 76 || terminal.rows != 0 {
+	if terminal.cols != 86 || terminal.rows != 0 {
 		t.Fatalf("fitted image dimensions = %dx%d", terminal.cols, terminal.rows)
 	}
 	view := m.View()
@@ -143,7 +143,7 @@ func TestImagePreviewResizeAndLock(t *testing.T) {
 	m.Update(cmd())
 	old := m.previewMarker
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	if m.previewMarker == old || terminal.cols != 92 || terminal.rows != 0 {
+	if m.previewMarker == old || terminal.cols != 104 || terminal.rows != 0 {
 		t.Fatalf("preview was not resized: %dx%d", terminal.cols, terminal.rows)
 	}
 	out.Reset()

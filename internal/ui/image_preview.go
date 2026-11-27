@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"image/draw"
 	_ "image/gif"
@@ -24,6 +25,7 @@ type imagePreviewMsg struct {
 	requestID     uint64
 	png           []byte
 	width, height int
+	page, pages   int
 	secret        *secretValues
 	err           error
 }
@@ -43,7 +45,7 @@ func (m *Model) openImagePreview() tea.Cmd {
 	state := &extraState{mode: extraImagePreview, sessionID: session.ID, entryUUID: entry.UUID, groupUUID: entry.GroupUUID, targetName: name}
 	m.extras = state
 	if !m.previewTerminal.Supported() {
-		state.err = "Image preview requires a terminal with Kitty graphics support."
+		state.err = "Preview requires a terminal with Kitty graphics support."
 		return nil
 	}
 	for i, other := range entry.AttachmentNames {
@@ -56,6 +58,22 @@ func (m *Model) openImagePreview() tea.Cmd {
 		state.err = "Attachment preview is not supported by this backend."
 		return nil
 	}
+	return m.requestPreviewPage(state, 1)
+}
+
+func (m *Model) requestPreviewPage(state *extraState, page int) tea.Cmd {
+	session, entry := m.currentExtraEntry(state)
+	if session == nil || entry == nil || session.Core == nil {
+		return nil
+	}
+	if state.cancel != nil {
+		state.cancel()
+	}
+	m.clearImagePreviewTerminal()
+	wipebuf.Wipe(state.previewPNG)
+	state.previewPNG = nil
+	state.previewPage = page
+	state.err = ""
 	snapshot := session.Core.ReadSnapshot()
 	if snapshot == nil {
 		state.err = "Entry is no longer available."
@@ -65,7 +83,10 @@ func (m *Model) openImagePreview() tea.Cmd {
 	state.cancel, state.loading = cancel, true
 	state.requestID++
 	requestID := state.requestID
-	core, entryID := session.Core, entry.UUID
+	core, entryID, name := session.Core, entry.UUID, state.targetName
+	if page < 1 {
+		page = 1
+	}
 	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
 		msg := imagePreviewMsg{state: state, requestID: requestID}
@@ -81,7 +102,12 @@ func (m *Model) openImagePreview() tea.Cmd {
 			return msg
 		}
 		defer wipebuf.Wipe(data)
-		msg.png, msg.width, msg.height, msg.err = makePreviewPNG(ctx, data)
+		if isPDF(data) {
+			msg.page = page
+			msg.png, msg.width, msg.height, msg.pages, msg.err = makePDFPreview(ctx, data, page)
+		} else {
+			msg.png, msg.width, msg.height, msg.err = makePreviewPNG(ctx, data)
+		}
 		msg.secret = holdSecret(ctx, msg.png)
 		return msg
 	}
@@ -161,8 +187,8 @@ func clearDecodedImage(img image.Image) {
 
 // imagePreviewGeometry returns the dialog frame and the image's interior area.
 func (m *Model) imagePreviewGeometry() (dialogrender.OverlayGeometry, int, int, int, int) {
-	width := max(20, m.width*80/100)
-	height := max(5, m.height*80/100)
+	width := max(20, m.width*90/100)
+	height := max(5, m.height*90/100)
 	chrome := 5 // classic: frame, title, divider, and status
 	if m.compactAppearance() {
 		chrome = 3
@@ -176,13 +202,21 @@ func (m *Model) imagePreviewLines(state *extraState) []string {
 	g, _, _, _, bodyRows := m.imagePreviewGeometry()
 	body := make([]string, bodyRows)
 	if state.loading {
-		body[0] = m.colors().secondary.Render(" Loading image…")
+		body[0] = m.colors().secondary.Render(" Loading preview…")
 	}
 	if state.err != "" {
 		body[0] = m.colors().error.Render(" " + safe(state.err))
 	}
 	opts := m.dialogOptions()
-	opts.Mode, opts.Title, opts.Body, opts.StatusBar = dialogrender.Overlay, safe(state.targetName), body, "esc close"
+	footer := "esc close"
+	if state.previewPages > 0 {
+		arrows := "←→"
+		if m.settings.ASCII {
+			arrows = "left/right"
+		}
+		footer = fmt.Sprintf("page %d/%d · %s page · esc close", state.previewPage, state.previewPages, arrows)
+	}
+	opts.Mode, opts.Title, opts.Body, opts.StatusBar = dialogrender.Overlay, safe(state.targetName), body, footer
 	opts.Width, opts.X, opts.Y, opts.Backdrop, opts.Fullscreen = g.Width, g.X, g.Y, m.modalBackdrop(), false
 	return dialogrender.Render(opts)
 }

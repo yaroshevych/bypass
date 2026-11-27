@@ -51,6 +51,7 @@ type extraState struct {
 
 	previewPNG                  []byte
 	previewWidth, previewHeight int
+	previewPage, previewPages   int
 
 	history       []vault.Entry
 	historyIndex  int
@@ -151,6 +152,7 @@ func (m *Model) updateExtras(msg tea.Msg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		state.previewPNG, state.previewWidth, state.previewHeight = data, msg.width, msg.height
+		state.previewPage, state.previewPages = msg.page, msg.pages
 		return nil, true
 	case extrasTOTPMsg:
 		msg.result.Code = takeSecret(msg.secret, msg.result.Code)
@@ -318,8 +320,17 @@ func (m *Model) extrasKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		return nil, true
 	case extraImagePreview:
-		if k.String() == "esc" || k.String() == "v" {
+		switch k.String() {
+		case "esc", "v":
 			m.clearExtras()
+		case "left", "up", "pgup":
+			if !state.loading && state.previewPage > 1 {
+				return m.requestPreviewPage(state, state.previewPage-1), true
+			}
+		case "right", "down", "pgdown":
+			if !state.loading && state.previewPage < state.previewPages {
+				return m.requestPreviewPage(state, state.previewPage+1), true
+			}
 		}
 		return nil, true
 	case extraAttachments:
