@@ -210,11 +210,22 @@ func (m *Model) updateExtras(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		state.loading = false
 		if msg.err != nil {
-			if errors.Is(msg.err, session.ErrChanged) {
+			if state.action == "save" {
+				if errors.Is(msg.err, session.ErrChanged) {
+					state.err = "Vault changed. Start the save again to retry."
+				} else {
+					state.err = "Could not save attachment. Existing files were not overwritten."
+				}
+			} else if errors.Is(msg.err, session.ErrChanged) {
 				state.err = "Vault changed. Start the export again to retry."
 			} else {
 				state.err = "Attachment export failed. Existing files were not overwritten."
 			}
+			return nil, true
+		}
+		if state.action == "save" {
+			m.clearExtras()
+			m.setNotice("attachment saved", false)
 			return nil, true
 		}
 		state.phase = ""

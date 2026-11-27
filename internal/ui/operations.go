@@ -157,6 +157,11 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		}
 	}
 	switch k.String() {
+	case "s":
+		if m.attachmentFocused() {
+			return m.saveFocusedAttachment(), true
+		}
+		return nil, false
 	case keyNewEntry:
 		if !m.writable() {
 			return nil, true

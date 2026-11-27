@@ -30,6 +30,31 @@ func (m *Model) openAttachments() tea.Cmd {
 	return nil
 }
 
+// saveFocusedAttachment opens a destination field for the selected attachment.
+func (m *Model) saveFocusedAttachment() tea.Cmd {
+	session, entry := m.extraTarget()
+	if session == nil || entry == nil || !m.attachmentFocused() {
+		return nil
+	}
+	index := m.ws.ActiveView().FieldIndex - len(m.fieldNames())
+	if index < 0 || index >= len(entry.AttachmentNames) {
+		return nil
+	}
+	name := entry.AttachmentNames[index]
+	for i, other := range entry.AttachmentNames {
+		if i != index && other == name {
+			m.setNotice("can't save attachments with duplicate names", true)
+			return nil
+		}
+	}
+	m.hideReveal()
+	m.clearExtras()
+	state := &extraState{mode: extraAttachments, sessionID: session.ID, entryUUID: entry.UUID, groupUUID: entry.GroupUUID, action: "save", phase: "path", targetName: name, targetIndex: index}
+	state.input.set(filepath.Join(filepath.Dir(session.Path), filepath.Base(name)))
+	m.extras = state
+	return nil
+}
+
 func (m *Model) attachmentContent(state *extraState) ([]listComponentOutput, string, int, string) {
 	session, entry := m.currentExtraEntry(state)
 	if session == nil || entry == nil {
@@ -45,6 +70,8 @@ func (m *Model) attachmentContent(state *extraState) ([]listComponentOutput, str
 		label := "Import source path"
 		if state.action == "export" {
 			label = "Plaintext export destination"
+		} else if state.action == "save" {
+			label = "Save to"
 		}
 		fieldWidth := m.dialogInnerWidth(min(76, m.width-4))
 		appendText("")
@@ -95,7 +122,11 @@ func (m *Model) attachmentContent(state *extraState) ([]listComponentOutput, str
 	}
 	footer := "a add · r replace · d remove · e export"
 	if state.phase == "path" {
-		footer = ""
+		if state.action == "save" {
+			footer = "enter save · esc cancel"
+		} else {
+			footer = ""
+		}
 	} else if strings.HasPrefix(state.phase, "confirm-") {
 		footer = "←→ choose"
 	} else if state.loading {
@@ -107,7 +138,11 @@ func (m *Model) attachmentContent(state *extraState) ([]listComponentOutput, str
 func (m *Model) attachmentLines(state *extraState) []string {
 	rows, footer, width, message := m.attachmentContent(state)
 	body, _ := listContent(rows)
-	return m.overlayError("Attachments", body, footer, message, width, -1, -1)
+	title := "Attachments"
+	if state.action == "save" {
+		title = "Save Attachment"
+	}
+	return m.overlayError(title, body, footer, message, width, -1, -1)
 }
 
 func (m *Model) attachmentListCapacity() int {
@@ -203,6 +238,10 @@ func (m *Model) attachmentPathKey(k tea.KeyMsg) tea.Cmd {
 	state := m.extras
 	switch k.String() {
 	case "esc":
+		if state.action == "save" {
+			m.clearExtras()
+			return nil
+		}
 		state.phase, state.action, state.path, state.targetName = "", "", "", ""
 		state.input.clear()
 		state.err = ""
@@ -216,12 +255,15 @@ func (m *Model) attachmentPathKey(k tea.KeyMsg) tea.Cmd {
 		if !filepath.IsAbs(path) {
 			path, _ = filepath.Abs(path)
 		}
-		if state.action == "export" {
+		if state.action == "export" || state.action == "save" {
 			if _, err := os.Lstat(path); err == nil || !errors.Is(err, os.ErrNotExist) {
 				state.err = "Destination already exists or cannot be checked; choose another path."
 				return nil
 			}
 			state.path = path
+			if state.action == "save" {
+				return m.startAttachmentExport(state)
+			}
 			state.phase = "confirm-export"
 			state.confirmProceed = false
 			state.err = ""

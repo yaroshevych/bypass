@@ -588,7 +588,7 @@ func (m *Model) footerContext() string {
 		return "n new · e edit"
 	case 2:
 		if m.attachmentFocused() {
-			return "v preview · e edit"
+			return "s save · v preview · e edit"
 		}
 		return "c copy · v reveal · e edit"
 	}
