@@ -721,6 +721,7 @@ function renderDetails() {
       if (!standardFields.has(key)) editable(key, key);
     }
     detail.append(list);
+    renderAttachmentEditor(entry);
     return;
   }
   add('Title', element('span', field(entry, 'Title') || 'Untitled entry'));
@@ -770,6 +771,75 @@ function renderDetails() {
     attachments.append(names);
     detail.append(attachments);
   }
+}
+
+function renderAttachmentEditor(entry) {
+  const section = element('section', undefined, 'detail-attachments attachment-editor');
+  section.append(element('dt', 'Attachments'));
+  const names = element('ul');
+  for (const [name] of entry.binaries) {
+    const item = element('li', undefined, 'attachment-item');
+    const input = element('input');
+    input.value = name;
+    input.setAttribute('aria-label', `Rename attachment ${name}`);
+    const rename = button('Rename', () => {
+      const next = input.value.trim();
+      if (!next || (next !== name && entry.binaries.has(next))) {
+        input.setCustomValidity(!next ? 'Enter an attachment name.' : 'An attachment with this name already exists.');
+        input.reportValidity();
+        return;
+      }
+      input.setCustomValidity('');
+      if (next !== name) {
+        entry.pushHistory();
+        const binary = entry.binaries.get(name);
+        entry.binaries.delete(name);
+        entry.binaries.set(next, binary);
+        markEntryChanged(entry);
+        renderDetails();
+      }
+    });
+    const remove = button('Remove', () => {
+      if (!confirm(`Remove attachment “${name}”?`)) return;
+      entry.pushHistory();
+      entry.binaries.delete(name);
+      markEntryChanged(entry);
+      renderDetails();
+    });
+    item.append(input, rename, remove);
+    names.append(item);
+  }
+  section.append(names);
+  const fileInput = element('input');
+  fileInput.type = 'file';
+  fileInput.multiple = true;
+  fileInput.setAttribute('aria-label', 'Add attachments');
+  fileInput.addEventListener('change', async () => {
+    for (const file of fileInput.files || []) {
+      if (!file.name || entry.binaries.has(file.name)) {
+        alert(`Cannot add “${file.name}”: an attachment with that name already exists.`);
+        continue;
+      }
+      try {
+        const binary = await database.createBinary(await file.arrayBuffer());
+        entry.pushHistory();
+        entry.binaries.set(file.name, binary);
+        markEntryChanged(entry);
+      } catch {
+        alert(`Could not add “${file.name}”.`);
+      }
+    }
+    renderDetails();
+  });
+  section.append(fileInput);
+  detail.append(section);
+}
+
+function markEntryChanged(entry) {
+  entry.times.update();
+  dirty = true;
+  byId('unsaved-badge').hidden = false;
+  revision++;
 }
 
 function clearVault() {
