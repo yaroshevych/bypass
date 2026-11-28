@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	dialogrender "bypass/internal/ui/dialog"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -140,5 +142,33 @@ func TestTextPreviewWrapsLongLinesAndPreservesBlankLines(t *testing.T) {
 	lines := m.textPreviewLines(m.extras)
 	if len(lines) < 5 || lines[len(lines)-2] != "" || lines[len(lines)-1] != "end" {
 		t.Fatal("text wrapping or blank lines were not preserved")
+	}
+}
+
+func TestUnsupportedPreviewUsesCompactDialog(t *testing.T) {
+	for _, appearance := range []string{"classic", "compact"} {
+		for _, size := range [][2]int{{120, 40}, {48, 16}} {
+			m := textPreviewModel(t, []byte{0, 1, 2, 255})
+			m.width, m.height, m.settings.Appearance = size[0], size[1], appearance
+			cmd := m.toggleReveal()
+			m.Update(cmd())
+			if m.extras == nil || !strings.Contains(m.extras.err, "cannot be previewed") {
+				t.Fatal("unsupported attachment did not produce an error")
+			}
+			opts := m.previewErrorOptions(m.extras)
+			body, _ := dialogrender.PrepareBody(opts)
+			geometry := dialogrender.LayoutOverlay(opts.Width, m.width, m.height, len(body)+1, opts.Compact, -1, -1)
+			if opts.Fullscreen || geometry.Width > 60 || geometry.Height >= m.height*90/100 {
+				t.Errorf("%s %v: error dialog too large: %dx%d", appearance, size, geometry.Width, geometry.Height)
+			}
+			view := ansi.Strip(m.View())
+			if !strings.Contains(view, "attachment format") || !strings.Contains(view, "esc close") {
+				t.Errorf("%s %v: error or close hint missing", appearance, size)
+			}
+			m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			if m.extras != nil {
+				t.Fatal("escape did not close the error")
+			}
+		}
 	}
 }

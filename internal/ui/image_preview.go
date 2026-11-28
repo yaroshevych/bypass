@@ -125,7 +125,7 @@ func (m *Model) requestPreviewPage(state *extraState, page int) tea.Cmd {
 				msg.png = append([]byte(nil), data...)
 			}
 		} else {
-			msg.err = errors.New("This attachment is not a supported image or text file.")
+			msg.err = errors.New("This attachment format cannot be previewed.")
 		}
 		msg.secret = holdSecret(ctx, msg.png)
 		return msg
@@ -218,13 +218,13 @@ func (m *Model) imagePreviewGeometry() (dialogrender.OverlayGeometry, int, int, 
 }
 
 func (m *Model) imagePreviewLines(state *extraState) []string {
+	if state.err != "" {
+		return dialogrender.Render(m.previewErrorOptions(state))
+	}
 	g, _, _, _, bodyRows := m.imagePreviewGeometry()
 	body := make([]string, bodyRows)
 	if state.loading {
 		body[0] = m.colors().secondary.Render(" Loading preview…")
-	}
-	if state.err != "" {
-		body[0] = m.colors().error.Render(" " + safe(state.err))
 	}
 	if state.previewIsText && state.err == "" && !state.loading {
 		lines := m.textPreviewLines(state)
@@ -251,6 +251,15 @@ func (m *Model) imagePreviewLines(state *extraState) []string {
 	opts.Mode, opts.Title, opts.Body, opts.StatusBar = dialogrender.Overlay, safe(state.targetName), body, footer
 	opts.Width, opts.X, opts.Y, opts.Backdrop, opts.Fullscreen = g.Width, g.X, g.Y, m.modalBackdrop(), false
 	return dialogrender.Render(opts)
+}
+
+// previewErrorOptions keeps errors compact while the preview itself uses most of the viewport.
+func (m *Model) previewErrorOptions(state *extraState) dialogrender.Options {
+	opts := m.dialogOptions()
+	opts.Mode, opts.Title, opts.Error = dialogrender.Overlay, safe(state.targetName), safe(state.err)
+	opts.Width, opts.X, opts.Y = min(60, m.width-4), -1, -1
+	opts.StatusBar, opts.Backdrop, opts.Fullscreen = "esc close", m.modalBackdrop(), false
+	return opts
 }
 
 // syncImagePreviewTerminal keeps terminal graphics aligned with the active modal.

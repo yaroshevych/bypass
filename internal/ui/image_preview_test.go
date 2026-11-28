@@ -99,7 +99,7 @@ func TestImagePreviewRejectsDuplicatesAndUnsupportedData(t *testing.T) {
 		t.Fatal("missing read command")
 	}
 	m.Update(cmd())
-	if m.extras == nil || !strings.Contains(m.extras.err, "not a supported image") {
+	if m.extras == nil || !strings.Contains(m.extras.err, "cannot be previewed") {
 		t.Fatal("non-image was not rejected")
 	}
 }
