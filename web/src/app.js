@@ -783,7 +783,7 @@ function renderAttachmentEditor(entry) {
     const input = element('input');
     input.value = name;
     input.setAttribute('aria-label', `Rename attachment ${name}`);
-    const rename = button('Rename', () => {
+    const rename = () => {
       const next = input.value.trim();
       if (!next || (next !== name && entry.binaries.has(next))) {
         input.setCustomValidity(!next ? 'Enter an attachment name.' : 'An attachment with this name already exists.');
@@ -799,15 +799,23 @@ function renderAttachmentEditor(entry) {
         markEntryChanged(entry);
         renderDetails();
       }
+    };
+    input.addEventListener('change', rename);
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); rename(); }
     });
-    const remove = button('Remove', () => {
+    const remove = button(undefined, () => {
       if (!confirm(`Remove attachment “${name}”?`)) return;
       entry.pushHistory();
       entry.binaries.delete(name);
       markEntryChanged(entry);
       renderDetails();
     });
-    item.append(input, rename, remove);
+    remove.classList.add('field-action');
+    remove.setAttribute('aria-label', `Remove attachment ${name}`);
+    remove.title = 'Remove attachment';
+    setActionIcon(remove, 'trash');
+    item.append(input, remove);
     names.append(item);
   }
   section.append(names);
@@ -850,29 +858,49 @@ function renderCustomFieldEditor(entry) {
     valueInput.value = field(entry, name);
     valueInput.type = original instanceof ProtectedValue ? 'password' : 'text';
     valueInput.setAttribute('aria-label', `Custom field value ${name}`);
-    const protectLabel = element('label');
-    const protect = element('input');
-    protect.type = 'checkbox';
-    protect.checked = original instanceof ProtectedValue;
-    protect.setAttribute('aria-label', `Protect custom field ${name}`);
-    protect.addEventListener('change', () => { valueInput.type = protect.checked ? 'password' : 'text'; });
-    protectLabel.append(protect, document.createTextNode(' Protect'));
-    const save = button('Save field', () => {
+    const saveValue = () => {
+      const current = entry.fields.get(name);
+      const currentText = current instanceof ProtectedValue ? current.getText() : current;
+      const protectedValue = protect.getAttribute('aria-pressed') === 'true';
+      if (currentText === valueInput.value && (current instanceof ProtectedValue) === protectedValue) return;
+      entry.pushHistory();
+      entry.fields.set(name, protectedValue ? ProtectedValue.fromString(valueInput.value) : valueInput.value);
+      markEntryChanged(entry);
+    };
+    valueInput.addEventListener('change', saveValue);
+    const protect = button(undefined, () => {
+      const enabled = protect.getAttribute('aria-pressed') !== 'true';
+      protect.setAttribute('aria-pressed', String(enabled));
+      setActionIcon(protect, enabled ? 'lock' : 'unlock');
+      protect.title = enabled ? 'Remove field protection' : 'Protect field';
+      valueInput.type = enabled ? 'password' : 'text';
+      saveValue();
+    });
+    protect.setAttribute('aria-label', `Toggle protection for custom field ${name}`);
+    protect.setAttribute('aria-pressed', String(original instanceof ProtectedValue));
+    protect.classList.add('field-action');
+    protect.title = original instanceof ProtectedValue ? 'Remove field protection' : 'Protect field';
+    setActionIcon(protect, original instanceof ProtectedValue ? 'lock' : 'unlock');
+    const rename = () => {
       const nextName = nameInput.value.trim();
-      const nextValue = valueInput.value;
       if (!nextName || (nextName !== name && entry.fields.has(nextName))) {
         nameInput.setCustomValidity(!nextName ? 'Enter a field name.' : 'A field with this name already exists.');
         nameInput.reportValidity();
         return;
       }
       nameInput.setCustomValidity('');
-      const nextValueObject = protect.checked ? ProtectedValue.fromString(nextValue) : nextValue;
-      if (nextName === name && nextValue === field(entry, name) && (original instanceof ProtectedValue) === protect.checked) return;
-      entry.pushHistory();
-      if (nextName !== name) entry.fields.delete(name);
-      entry.fields.set(nextName, nextValueObject);
-      markEntryChanged(entry);
-      renderDetails();
+      if (nextName !== name) {
+        entry.pushHistory();
+        const value = entry.fields.get(name);
+        entry.fields.delete(name);
+        entry.fields.set(nextName, value);
+        markEntryChanged(entry);
+        renderDetails();
+      }
+    };
+    nameInput.addEventListener('change', rename);
+    nameInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); rename(); }
     });
     const remove = button('Remove', () => {
       if (!confirm(`Remove custom field “${name}”?`)) return;
@@ -881,7 +909,11 @@ function renderCustomFieldEditor(entry) {
       markEntryChanged(entry);
       renderDetails();
     });
-    row.append(nameInput, valueInput, protectLabel, save, remove);
+    remove.classList.add('field-action');
+    remove.setAttribute('aria-label', `Remove custom field ${name}`);
+    remove.title = 'Remove field';
+    setActionIcon(remove, 'trash');
+    row.append(nameInput, valueInput, protect, remove);
     fields.append(row);
   }
   section.append(fields);
@@ -892,12 +924,19 @@ function renderCustomFieldEditor(entry) {
   const valueInput = element('input');
   valueInput.placeholder = 'Field value';
   valueInput.setAttribute('aria-label', 'New custom field value');
-  const protectLabel = element('label');
-  const protect = element('input');
-  protect.type = 'checkbox';
+  const protect = button(undefined, () => {
+    const enabled = protect.getAttribute('aria-pressed') !== 'true';
+    protect.setAttribute('aria-pressed', String(enabled));
+    protect.setAttribute('aria-label', enabled ? 'Remove protection from new custom field' : 'Protect new custom field');
+    protect.title = enabled ? 'Remove protection' : 'Protect field';
+    setActionIcon(protect, enabled ? 'lock' : 'unlock');
+    valueInput.type = enabled ? 'password' : 'text';
+  });
   protect.setAttribute('aria-label', 'Protect new custom field');
-  protect.addEventListener('change', () => { valueInput.type = protect.checked ? 'password' : 'text'; });
-  protectLabel.append(protect, document.createTextNode(' Protect'));
+  protect.setAttribute('aria-pressed', 'false');
+  protect.classList.add('field-action');
+  protect.title = 'Protect field';
+  setActionIcon(protect, 'unlock');
   const add = button('Add field', () => {
     const name = nameInput.value.trim();
     if (!name || entry.fields.has(name)) {
@@ -906,11 +945,11 @@ function renderCustomFieldEditor(entry) {
       return;
     }
     entry.pushHistory();
-    entry.fields.set(name, protect.checked ? ProtectedValue.fromString(valueInput.value) : valueInput.value);
+    entry.fields.set(name, protect.getAttribute('aria-pressed') === 'true' ? ProtectedValue.fromString(valueInput.value) : valueInput.value);
     markEntryChanged(entry);
     renderDetails();
   });
-  addRow.append(nameInput, valueInput, protectLabel, add);
+  addRow.append(nameInput, valueInput, protect, add);
   section.append(addRow);
   detail.append(section);
 }

@@ -214,7 +214,8 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .custom-field-editor ul { @apply grid gap-2; }
 .custom-field-row { @apply grid items-center gap-2; grid-template-columns: minmax(6rem, 1fr) minmax(8rem, 2fr) auto auto auto; }
 .custom-field-row > input:not([type="checkbox"]) { @apply min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm; }
-.custom-field-row > label { @apply flex items-center gap-1 whitespace-nowrap text-xs; }
+.custom-field-row > button:not(.field-action) { @apply whitespace-nowrap px-2 text-xs; }
+.custom-field-row .field-action { @apply size-8 shrink-0 p-2; }
 @media (max-width: 740px) { .custom-field-row { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); } }
 .attachment-item .field-action { @apply size-8 shrink-0 p-2; }
 .attachment-preview { position: relative; }
