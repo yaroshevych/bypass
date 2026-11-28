@@ -45,7 +45,7 @@ func previewTestModel(t *testing.T, names []string, backend *extrasTestBackend) 
 func TestImagePreviewOpenCloseAndGeometry(t *testing.T) {
 	backend := &extrasTestBackend{exportData: previewTestImage(t)}
 	m, terminal, out := previewTestModel(t, []string{"image.png"}, backend)
-	if got := m.footerContext(); !strings.Contains(got, "v preview") || strings.Contains(got, "c copy") {
+	if got := m.footerContext(); got != "c copy filename · x export · v preview · e edit" {
 		t.Fatalf("footer: %s", got)
 	}
 	cmd := m.toggleReveal()

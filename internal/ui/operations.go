@@ -160,7 +160,7 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		}
 	}
 	switch k.String() {
-	case "s":
+	case "x":
 		if m.attachmentFocused() {
 			return m.saveFocusedAttachment(), true
 		}
@@ -1091,7 +1091,9 @@ func (m *Model) copyField(name string) tea.Cmd {
 	}
 	if name == "" {
 		if m.attachmentFocused() {
-			return nil
+			index := m.ws.ActiveView().FieldIndex - len(m.fieldNames())
+			m.recordItemUse()
+			return m.copyValue([]byte(e.AttachmentNames[index]), "Attachment filename")
 		}
 		name = m.focusedField()
 	}

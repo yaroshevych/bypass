@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"bypass/internal/clipboard"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -18,7 +20,7 @@ func TestSaveFocusedAttachment(t *testing.T) {
 	m.ws.ActiveSession().ReadOnly = true
 	v := m.ws.ActiveView()
 	v.Focus, v.FieldIndex = 2, len(m.fieldNames())
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
 	state := m.extras
 	dest := filepath.Join(dir, "document.pdf")
 	if state == nil || state.action != "save" || state.input.value() != dest {
@@ -43,7 +45,7 @@ func TestSaveFocusedAttachment(t *testing.T) {
 	if m.extras != nil {
 		t.Fatal("save dialog did not close after success")
 	}
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
 	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil || m.extras == nil || !strings.Contains(m.extras.err, "already exists") {
 		t.Fatal("existing file was not protected")
@@ -61,7 +63,7 @@ func TestSaveRejectsAmbiguousAttachment(t *testing.T) {
 	m := newExtrasTestModel(t, db, backend)
 	defer m.Close()
 	m.ws.ActiveView().Focus, m.ws.ActiveView().FieldIndex = 2, len(m.fieldNames())+1
-	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
 	if m.extras != nil || backend.exportCalls != 0 || !strings.Contains(m.notice, "duplicate") {
 		t.Fatal("ambiguous attachment save was not rejected")
 	}
@@ -82,5 +84,30 @@ func TestSaveDialogResponsive(t *testing.T) {
 			}
 			m.Close()
 		}
+	}
+}
+
+func TestCopyFocusedAttachmentFilename(t *testing.T) {
+	db := extrasEntryDB(filepath.Join(t.TempDir(), "vault.kdbx"))
+	db.Entries[0].AttachmentNames = []string{"first.pdf", "second file.txt"}
+	backend := &extrasTestBackend{}
+	m := newExtrasTestModel(t, db, backend)
+	driver := &memoryClipboard{}
+	m.clipboard = clipboard.New(driver)
+	defer m.Close()
+	m.ws.ActiveView().Focus, m.ws.ActiveView().FieldIndex = 2, len(m.fieldNames())+1
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	if cmd == nil {
+		t.Fatal("copy did not start")
+	}
+	execute(t, m, cmd)
+	if string(driver.value) != "second file.txt" {
+		t.Fatalf("copied %q", driver.value)
+	}
+	if backend.exportCalls != 0 {
+		t.Fatal("copy fetched attachment content")
+	}
+	if strings.Contains(m.notice, "second file.txt") {
+		t.Fatal("copy notice exposed filename")
 	}
 }

@@ -55,7 +55,7 @@ func TestAttachmentFocusNavigation(t *testing.T) {
 	if v.FieldIndex != len(m.fieldNames())+1 {
 		t.Fatal("tab did not focus the second attachment")
 	}
-	if m.copyField("") != nil || m.toggleReveal() != nil {
+	if m.toggleReveal() != nil {
 		t.Fatal("attachment focus triggered a field action")
 	}
 }
