@@ -39,6 +39,8 @@ let activeView = 0;
 let paletteReturnFocus = null;
 let fieldJumpReturnFocus = null;
 let largeReturnFocus = null;
+let entryItemReturnFocus = null;
+let entryItemEditState = null;
 let searchOrigin = null;
 
 const panes = [groups.closest('.pane'), entries.closest('.pane'), detail];
@@ -718,7 +720,7 @@ function renderDetails() {
       ['URL', 'URL'], ['Notes', 'notes', true]
     ]) editable(key, label, multiline);
     for (const [key] of entry.fields) {
-      if (!standardFields.has(key)) editable(key, key);
+      if (otpFields.has(key)) editable(key, key);
     }
     detail.append(list);
     renderCustomFieldEditor(entry);
@@ -780,30 +782,15 @@ function renderAttachmentEditor(entry) {
   const names = element('ul');
   for (const [name] of entry.binaries) {
     const item = element('li', undefined, 'attachment-item');
-    const input = element('input');
-    input.value = name;
-    input.setAttribute('aria-label', `Rename attachment ${name}`);
-    const rename = () => {
-      const next = input.value.trim();
-      if (!next || (next !== name && entry.binaries.has(next))) {
-        input.setCustomValidity(!next ? 'Enter an attachment name.' : 'An attachment with this name already exists.');
-        input.reportValidity();
-        return;
-      }
-      input.setCustomValidity('');
-      if (next !== name) {
-        entry.pushHistory();
-        const binary = entry.binaries.get(name);
-        entry.binaries.delete(name);
-        entry.binaries.set(next, binary);
-        markEntryChanged(entry);
-        renderDetails();
-      }
-    };
-    input.addEventListener('change', rename);
-    input.addEventListener('keydown', event => {
-      if (event.key === 'Enter') { event.preventDefault(); rename(); }
-    });
+    item.append(element('span', name));
+    const preview = button(undefined, () => openAttachmentPreview(name, entry.binaries.get(name)));
+    preview.classList.add('field-action');
+    preview.setAttribute('aria-label', `Preview attachment ${name}`);
+    setActionIcon(preview, 'eye');
+    const edit = button(undefined, () => openEntryItemEditor(entry, 'attachment', name));
+    edit.classList.add('field-action');
+    edit.setAttribute('aria-label', `Edit attachment ${name}`);
+    setActionIcon(edit, 'edit');
     const remove = button(undefined, () => {
       if (!confirm(`Remove attachment “${name}”?`)) return;
       entry.pushHistory();
@@ -815,94 +802,30 @@ function renderAttachmentEditor(entry) {
     remove.setAttribute('aria-label', `Remove attachment ${name}`);
     remove.title = 'Remove attachment';
     setActionIcon(remove, 'trash');
-    item.append(input, remove);
+    const actions = element('div', undefined, 'detail-item-actions');
+    actions.append(preview, edit, remove);
+    item.append(actions);
     names.append(item);
   }
   section.append(names);
-  const fileInput = element('input');
-  fileInput.type = 'file';
-  fileInput.multiple = true;
-  fileInput.setAttribute('aria-label', 'Add attachments');
-  fileInput.addEventListener('change', async () => {
-    for (const file of fileInput.files || []) {
-      if (!file.name || entry.binaries.has(file.name)) {
-        alert(`Cannot add “${file.name}”: an attachment with that name already exists.`);
-        continue;
-      }
-      try {
-        const binary = await database.createBinary(await file.arrayBuffer());
-        entry.pushHistory();
-        entry.binaries.set(file.name, binary);
-        markEntryChanged(entry);
-      } catch {
-        alert(`Could not add “${file.name}”.`);
-      }
-    }
-    renderDetails();
-  });
-  section.append(fileInput);
+  section.append(button('Add attachment', () => openEntryItemEditor(entry, 'attachment')));
   detail.append(section);
 }
 
 function renderCustomFieldEditor(entry) {
   const section = element('section', undefined, 'detail-attachments custom-field-editor');
   section.append(element('dt', 'Custom fields'));
-  const fields = element('ul');
+  const fields = element('dl');
   for (const [name, original] of entry.fields) {
     if (standardFields.has(name) || otpFields.has(name)) continue;
-    const row = element('li', undefined, 'custom-field-row');
-    const nameInput = element('input');
-    nameInput.value = name;
-    nameInput.setAttribute('aria-label', `Custom field name ${name}`);
-    const valueInput = element('input');
-    valueInput.value = field(entry, name);
-    valueInput.type = original instanceof ProtectedValue ? 'password' : 'text';
-    valueInput.setAttribute('aria-label', `Custom field value ${name}`);
-    const saveValue = () => {
-      const current = entry.fields.get(name);
-      const currentText = current instanceof ProtectedValue ? current.getText() : current;
-      const protectedValue = protect.getAttribute('aria-pressed') === 'true';
-      if (currentText === valueInput.value && (current instanceof ProtectedValue) === protectedValue) return;
-      entry.pushHistory();
-      entry.fields.set(name, protectedValue ? ProtectedValue.fromString(valueInput.value) : valueInput.value);
-      markEntryChanged(entry);
-    };
-    valueInput.addEventListener('change', saveValue);
-    const protect = button(undefined, () => {
-      const enabled = protect.getAttribute('aria-pressed') !== 'true';
-      protect.setAttribute('aria-pressed', String(enabled));
-      setActionIcon(protect, enabled ? 'lock' : 'unlock');
-      protect.title = enabled ? 'Remove field protection' : 'Protect field';
-      valueInput.type = enabled ? 'password' : 'text';
-      saveValue();
-    });
-    protect.setAttribute('aria-label', `Toggle protection for custom field ${name}`);
-    protect.setAttribute('aria-pressed', String(original instanceof ProtectedValue));
-    protect.classList.add('field-action');
-    protect.title = original instanceof ProtectedValue ? 'Remove field protection' : 'Protect field';
-    setActionIcon(protect, original instanceof ProtectedValue ? 'lock' : 'unlock');
-    const rename = () => {
-      const nextName = nameInput.value.trim();
-      if (!nextName || (nextName !== name && entry.fields.has(nextName))) {
-        nameInput.setCustomValidity(!nextName ? 'Enter a field name.' : 'A field with this name already exists.');
-        nameInput.reportValidity();
-        return;
-      }
-      nameInput.setCustomValidity('');
-      if (nextName !== name) {
-        entry.pushHistory();
-        const value = entry.fields.get(name);
-        entry.fields.delete(name);
-        entry.fields.set(nextName, value);
-        markEntryChanged(entry);
-        renderDetails();
-      }
-    };
-    nameInput.addEventListener('change', rename);
-    nameInput.addEventListener('keydown', event => {
-      if (event.key === 'Enter') { event.preventDefault(); rename(); }
-    });
-    const remove = button('Remove', () => {
+    const row = element('dd', undefined, 'inline custom-field-display');
+    const value = original instanceof ProtectedValue ? '••••••••' : (original || '—');
+    row.append(element('span', value));
+    const edit = button(undefined, () => openEntryItemEditor(entry, 'field', name));
+    edit.classList.add('field-action');
+    edit.setAttribute('aria-label', `Edit custom field ${name}`);
+    setActionIcon(edit, 'edit');
+    const remove = button(undefined, () => {
       if (!confirm(`Remove custom field “${name}”?`)) return;
       entry.pushHistory();
       entry.fields.delete(name);
@@ -913,44 +836,12 @@ function renderCustomFieldEditor(entry) {
     remove.setAttribute('aria-label', `Remove custom field ${name}`);
     remove.title = 'Remove field';
     setActionIcon(remove, 'trash');
-    row.append(nameInput, valueInput, protect, remove);
-    fields.append(row);
+    const actions = element('div', undefined, 'detail-item-actions');
+    actions.append(edit, remove);
+    row.append(actions);
+    fields.append(element('dt', name), row);
   }
-  section.append(fields);
-  const addRow = element('div', undefined, 'custom-field-row');
-  const nameInput = element('input');
-  nameInput.placeholder = 'Field name';
-  nameInput.setAttribute('aria-label', 'New custom field name');
-  const valueInput = element('input');
-  valueInput.placeholder = 'Field value';
-  valueInput.setAttribute('aria-label', 'New custom field value');
-  const protect = button(undefined, () => {
-    const enabled = protect.getAttribute('aria-pressed') !== 'true';
-    protect.setAttribute('aria-pressed', String(enabled));
-    protect.setAttribute('aria-label', enabled ? 'Remove protection from new custom field' : 'Protect new custom field');
-    protect.title = enabled ? 'Remove protection' : 'Protect field';
-    setActionIcon(protect, enabled ? 'lock' : 'unlock');
-    valueInput.type = enabled ? 'password' : 'text';
-  });
-  protect.setAttribute('aria-label', 'Protect new custom field');
-  protect.setAttribute('aria-pressed', 'false');
-  protect.classList.add('field-action');
-  protect.title = 'Protect field';
-  setActionIcon(protect, 'unlock');
-  const add = button('Add field', () => {
-    const name = nameInput.value.trim();
-    if (!name || entry.fields.has(name)) {
-      nameInput.setCustomValidity(!name ? 'Enter a field name.' : 'A field with this name already exists.');
-      nameInput.reportValidity();
-      return;
-    }
-    entry.pushHistory();
-    entry.fields.set(name, protect.getAttribute('aria-pressed') === 'true' ? ProtectedValue.fromString(valueInput.value) : valueInput.value);
-    markEntryChanged(entry);
-    renderDetails();
-  });
-  addRow.append(nameInput, valueInput, protect, add);
-  section.append(addRow);
+  section.append(fields, button('Add custom field', () => openEntryItemEditor(entry, 'field')));
   detail.append(section);
 }
 
@@ -959,6 +850,95 @@ function markEntryChanged(entry) {
   dirty = true;
   byId('unsaved-badge').hidden = false;
   revision++;
+}
+
+function openEntryItemEditor(entry, kind, name = null) {
+  entryItemEditState = { entry, kind, originalName: name };
+  entryItemReturnFocus = document.activeElement;
+  const dialog = byId('entry-item-editor');
+  const body = byId('entry-item-editor-fields');
+  body.replaceChildren();
+  byId('entry-item-editor-title').textContent = `${name ? 'Edit' : 'Add'} ${kind === 'field' ? 'custom field' : 'attachment'}`;
+  const nameInput = element('input');
+  nameInput.value = name || '';
+  nameInput.required = true;
+  nameInput.setAttribute('aria-label', kind === 'field' ? 'Custom field name' : 'Attachment name');
+  const nameLabel = element('label', kind === 'field' ? 'Name' : 'File name');
+  nameLabel.append(nameInput);
+  body.append(nameLabel);
+  if (kind === 'field') {
+    const current = name ? entry.fields.get(name) : null;
+    const valueInput = element('textarea');
+    valueInput.value = name ? field(entry, name) : '';
+    valueInput.setAttribute('aria-label', 'Custom field value');
+    const valueLabel = element('label', 'Value');
+    valueLabel.append(valueInput);
+    body.append(valueLabel);
+    const isProtected = current instanceof ProtectedValue;
+    const protectLabel = element('label', 'Protect value');
+    const protect = element('input');
+    protect.type = 'checkbox';
+    protect.checked = isProtected;
+    protect.setAttribute('aria-label', 'Protect custom field');
+    protect.addEventListener('change', () => valueInput.classList.toggle('protected-input', protect.checked));
+    protectLabel.prepend(protect);
+    body.append(protectLabel);
+    valueInput.classList.toggle('protected-input', isProtected);
+    byId('entry-item-save').onclick = () => {
+      const nextName = nameInput.value.trim();
+      if (!nextName || (nextName !== name && entry.fields.has(nextName))) {
+        nameInput.setCustomValidity(!nextName ? 'Enter a field name.' : 'A field with this name already exists.');
+        nameInput.reportValidity();
+        return;
+      }
+      entry.pushHistory();
+      if (name) entry.fields.delete(name);
+      const shouldProtect = protect.checked;
+      entry.fields.set(nextName, shouldProtect ? ProtectedValue.fromString(valueInput.value) : valueInput.value);
+      markEntryChanged(entry);
+      dialog.close(); renderDetails();
+    };
+  } else {
+    let file = null;
+    if (name) nameInput.value = name;
+    else {
+      const fileInput = element('input');
+      fileInput.type = 'file';
+      fileInput.setAttribute('aria-label', 'Choose attachment file');
+      fileInput.addEventListener('change', () => {
+        file = fileInput.files[0] || null;
+        if (file && !nameInput.value) nameInput.value = file.name;
+      });
+      const fileLabel = element('label', 'File');
+      fileLabel.append(fileInput);
+      body.append(fileLabel);
+    }
+    byId('entry-item-save').onclick = async () => {
+      const nextName = nameInput.value.trim();
+      if (!nextName || (nextName !== name && entry.binaries.has(nextName))) {
+        nameInput.setCustomValidity(!nextName ? 'Enter a file name.' : 'An attachment with this name already exists.');
+        nameInput.reportValidity();
+        return;
+      }
+      try {
+        let value;
+        if (name) value = entry.binaries.get(name);
+        else {
+          if (!file) { alert('Choose an attachment file.'); return; }
+          value = await database.createBinary(await file.arrayBuffer());
+        }
+        entry.pushHistory();
+        if (name) entry.binaries.delete(name);
+        entry.binaries.set(nextName, value);
+        markEntryChanged(entry);
+        dialog.close(); renderDetails();
+      } catch {
+        alert('Could not add the attachment.');
+      }
+    };
+  }
+  dialog.showModal();
+  nameInput.focus();
 }
 
 function clearVault() {
@@ -1149,9 +1129,10 @@ function closeOverlays() {
   const menuOpen = commandsMenu.matches(':popover-open');
   const returnFocus = menuOpen ? paletteReturnFocus
     : active?.closest('#field-jump') ? fieldJumpReturnFocus
-    : active?.closest('#large-view, #attachment-preview') ? largeReturnFocus : null;
+    : active?.closest('#large-view, #attachment-preview') ? largeReturnFocus
+    : active?.closest('#entry-item-editor') ? entryItemReturnFocus : null;
   if (menuOpen) commandsMenu.hidePopover();
-  for (const id of ['field-jump', 'large-view', 'attachment-preview']) if (byId(id).open) byId(id).close();
+  for (const id of ['field-jump', 'large-view', 'attachment-preview', 'entry-item-editor']) if (byId(id).open) byId(id).close();
   byId('large-title').textContent = 'Large View';
   byId('large-content').textContent = '';
   byId('large-actions').replaceChildren();

@@ -126,6 +126,7 @@ test('reports wrong credentials and a corrupt file', async ({ page }) => {
 });
 
 test('previews and edits attachments, then saves them to the vault', async ({ page }) => {
+  page.on('dialog', dialog => dialog.accept());
   await page.addInitScript(() => {
     window.showSaveFilePicker = async () => ({ createWritable: async () => ({
       write: async bytes => { window.savedVault = Array.from(new Uint8Array(bytes)); },
@@ -149,13 +150,16 @@ test('previews and edits attachments, then saves them to the vault', async ({ pa
   await page.getByRole('button', { name: 'Menu' }).click();
   await page.getByRole('menuitemcheckbox', { name: /Read only/ }).click();
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
-  const keyName = page.getByLabel('Rename attachment id_ed25519');
-  await keyName.fill('deploy_key.txt');
-  await keyName.press('Enter');
-  page.once('dialog', dialog => dialog.accept());
-  await page.getByLabel('Rename attachment sample.pdf').locator('..').getByRole('button', { name: 'Remove attachment sample.pdf' }).click();
-  await page.getByLabel('Add attachments').setInputFiles({ name: 'added.txt', mimeType: 'text/plain', buffer: Buffer.from('new attachment') });
-  await expect(page.getByLabel('Rename attachment added.txt')).toBeVisible();
+  await page.getByRole('button', { name: 'Edit attachment id_ed25519' }).click();
+  await page.getByLabel('Attachment name').fill('deploy_key.txt');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Edit attachment sample.pdf' }).click();
+  await page.getByRole('button', { name: 'Close' }).last().click();
+  await page.getByRole('button', { name: 'Remove attachment sample.pdf' }).click();
+  await page.getByRole('button', { name: 'Add attachment', exact: true }).click();
+  await page.getByLabel('Choose attachment file').setInputFiles({ name: 'added.txt', mimeType: 'text/plain', buffer: Buffer.from('new attachment') });
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('added.txt')).toBeVisible();
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByRole('button', { name: 'Menu' }).click();
   await page.getByRole('menuitem', { name: 'Save vault as…' }).click();
@@ -430,6 +434,7 @@ test('follows the system theme and remembers the floating switch preference', as
 
 for (const name of ['KDBX 3', 'Argon2id']) {
   test(`edits fields and saves a readable ${name} vault`, async ({ page }) => {
+    page.on('dialog', dialog => dialog.accept());
     await page.addInitScript(() => {
       window.showSaveFilePicker = async options => {
         window.saveOptions = options;
@@ -448,7 +453,8 @@ for (const name of ['KDBX 3', 'Argon2id']) {
     await page.getByRole('menuitemcheckbox', { name: /Read only/ }).click();
     await expect(page.getByLabel('Edit title')).toHaveCount(0);
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
-    await expect(page.locator('#detail dd .field-action')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Edit custom field Literal' })).toBeVisible();
+    await expect(page.getByLabel('Edit Literal')).toHaveCount(0);
     await expect(page.locator('#unsaved-badge')).toBeHidden();
     await page.getByLabel('Edit title').fill('Updated login');
     await expect(page.locator('#unsaved-badge')).toBeVisible();
@@ -461,20 +467,22 @@ for (const name of ['KDBX 3', 'Argon2id']) {
     await page.getByRole('button', { name: 'Hide password' }).click();
     await expect(passwordInput).toHaveAttribute('type', 'password');
     await page.getByLabel('Edit notes').fill('updated notes');
-    await page.getByLabel('Custom field value Literal').fill('updated custom field');
-    await page.getByLabel('Custom field name Literal').fill('Renamed field');
-    await page.getByLabel('Custom field name Literal').press('Enter');
-    await page.getByLabel('New custom field name').fill('Temporary field');
-    await page.getByLabel('New custom field value').fill('remove me');
-    await page.getByRole('button', { name: 'Add field' }).click();
-    page.once('dialog', dialog => dialog.accept());
-    const temporary = page.getByLabel('Custom field name Temporary field');
-    await temporary.locator('..').getByRole('button', { name: 'Remove custom field Temporary field' }).click();
-    await page.getByLabel('New custom field name').fill('API token');
-    await page.getByLabel('New custom field value').fill('custom-secret');
-    await page.getByRole('button', { name: 'Protect new custom field' }).click();
-    await expect(page.getByRole('button', { name: 'Remove protection from new custom field' })).toHaveAttribute('aria-pressed', 'true');
-    await page.getByRole('button', { name: 'Add field' }).click();
+    await page.getByRole('button', { name: 'Edit custom field Literal' }).click();
+    await page.getByLabel('Custom field value').fill('updated custom field');
+    await page.getByLabel('Custom field name').fill('Renamed field');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Add custom field' }).click();
+    await page.getByLabel('Custom field name').fill('Temporary field');
+    await page.getByLabel('Custom field value').fill('remove me');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Edit custom field Temporary field' }).click();
+    await page.getByRole('button', { name: 'Close' }).last().click();
+    await page.getByRole('button', { name: 'Remove custom field Temporary field' }).click();
+    await page.getByRole('button', { name: 'Add custom field' }).click();
+    await page.getByLabel('Custom field name').fill('API token');
+    await page.getByLabel('Custom field value').fill('custom-secret');
+    await page.getByLabel('Protect custom field').check();
+    await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByLabel('Edit otp')).toHaveAttribute('type', 'password');
     await page.getByRole('button', { name: 'Show otp' }).click();
     await expect(page.getByLabel('Edit otp')).toHaveAttribute('type', 'text');

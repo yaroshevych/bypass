@@ -208,16 +208,31 @@ label { @apply min-w-0 text-sm leading-none font-medium; }
 .detail-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .35rem; }
 .detail-heading h2 { font-size: 1rem; }
 .attachment-item { @apply flex items-center justify-between gap-2; }
-.attachment-editor .attachment-item input { @apply min-w-0 flex-1 rounded-md border border-input bg-transparent px-3 py-2 text-sm; }
-.attachment-editor ul { @apply grid gap-2; }
-.attachment-editor > input[type="file"] { @apply mt-2 block w-full text-sm; }
-.custom-field-editor ul { @apply grid gap-2; }
-.custom-field-row { @apply grid items-center gap-2; grid-template-columns: minmax(6rem, 1fr) minmax(8rem, 2fr) auto auto auto; }
-.custom-field-row > input:not([type="checkbox"]) { @apply min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-sm; }
-.custom-field-row > button:not(.field-action) { @apply whitespace-nowrap px-2 text-xs; }
-.custom-field-row .field-action { @apply size-8 shrink-0 p-2; }
-@media (max-width: 740px) { .custom-field-row { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); } }
-.attachment-item .field-action { @apply size-8 shrink-0 p-2; }
+.attachment-editor ul { @apply grid gap-1; }
+.attachment-editor > button, .custom-field-editor > button { @apply mt-2; }
+.detail-item-actions { @apply flex shrink-0 items-center gap-1; }
+.custom-field-display { align-items: center; }
+.custom-field-editor dl { @apply grid grid-cols-1 gap-y-0; }
+.custom-field-editor dt { @apply mt-2; }
+.custom-field-editor dd { @apply m-0 mb-2; }
+.custom-field-display > span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.custom-field-display .field-action, .attachment-item .field-action { @apply size-8 shrink-0 p-2; }
+.entry-item-editor { @apply w-[calc(100%-2rem)] max-w-lg; }
+.entry-item-editor label { @apply mt-2 mb-3 flex flex-col gap-2 text-sm font-medium; }
+.entry-item-editor input:not([type="file"]), .entry-item-editor textarea { @apply w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm; }
+.entry-item-editor textarea { @apply min-h-24; }
+.entry-item-editor input[type="file"] { @apply block w-full text-sm; }
+#entry-item-editor input[type="checkbox"] { appearance: none; width: 2rem; height: 2rem; min-width: 2rem; max-width: 2rem; flex: 0 0 2rem; padding: 0; @apply shrink-0 rounded-lg border border-input bg-background; display: grid; place-content: center; cursor: pointer; pointer-events: auto; }
+#entry-item-editor input[type="checkbox"]::before { content: ""; width: .8rem; height: .45rem; border-left: 2px solid var(--primary-foreground); border-bottom: 2px solid var(--primary-foreground); transform: rotate(-45deg) scale(0); transition: transform 100ms ease-in-out; }
+.entry-item-editor input[type="checkbox"]:checked { background: var(--primary); border-color: var(--primary); }
+.entry-item-editor input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
+.entry-item-editor input[type="checkbox"]:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.entry-item-editor label:has(input[type="checkbox"]) { @apply flex-row items-center gap-2; }
+#entry-item-editor input[type="checkbox"] { appearance: auto !important; width: 1rem !important; height: 1rem !important; min-width: 1rem !important; max-width: 1rem !important; flex: 0 0 1rem !important; padding: 0 !important; accent-color: var(--primary); cursor: pointer; }
+#entry-item-editor input[type="checkbox"]::before { content: none !important; }
+#entry-item-editor input[type="checkbox"]:checked { background: initial !important; border-color: initial !important; }
+.entry-item-editor-actions { @apply flex justify-end gap-2; }
+.protected-input { -webkit-text-security: disc; }
 .attachment-preview { position: relative; }
 #attachment-preview { width: min(90vw, 56rem); max-width: calc(100vw - 2rem); min-width: 20rem; min-height: 16rem; max-height: calc(100dvh - 2rem); overflow: auto; }
 #attachment-preview[open] { grid-template-rows: auto minmax(0, 1fr); }
