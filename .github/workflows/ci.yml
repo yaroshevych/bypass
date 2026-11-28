@@ -21,6 +21,9 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
+      - name: Install terminal test tools
+        run: sudo apt-get update && sudo apt-get install -y tmux
+
       - name: Check formatting
         run: test -z "$(gofmt -l cmd internal evals)"
 
@@ -32,3 +35,6 @@ jobs:
 
       - name: Test debug build
         run: go test -tags=debug ./internal/ui ./cmd/bypass
+
+      - name: Test attachment terminal journey
+        run: go test -race -tags=integration -count=1 -timeout=180s ./evals -run '^TestInteractiveAttachmentImportRenameExportAndReopen$'

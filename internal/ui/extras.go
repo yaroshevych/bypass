@@ -50,6 +50,8 @@ type extraState struct {
 	totpPeriod  int
 
 	previewPNG                  []byte
+	previewText                 []byte
+	previewIsText               bool
 	previewWidth, previewHeight int
 	previewPage, previewPages   int
 
@@ -123,6 +125,8 @@ func (m *Model) clearExtras() {
 	state.revealedValue = nil
 	wipebuf.Wipe(state.previewPNG)
 	state.previewPNG = nil
+	wipebuf.Wipe(state.previewText)
+	state.previewText = nil
 	state.history = nil
 	m.extras = nil
 }
@@ -151,7 +155,14 @@ func (m *Model) updateExtras(msg tea.Msg) (tea.Cmd, bool) {
 			state.err = msg.err.Error()
 			return nil, true
 		}
-		state.previewPNG, state.previewWidth, state.previewHeight = data, msg.width, msg.height
+		state.previewIsText = msg.text
+		if msg.text {
+			state.previewText = data
+		} else {
+			state.previewPNG = data
+		}
+		state.previewWidth, state.previewHeight = msg.width, msg.height
+		state.valueOffset = 0
 		state.previewPage, state.previewPages = msg.page, msg.pages
 		return nil, true
 	case extrasTOTPMsg:
@@ -331,6 +342,31 @@ func (m *Model) extrasKey(k tea.KeyMsg) (tea.Cmd, bool) {
 		}
 		return nil, true
 	case extraImagePreview:
+		if state.previewIsText {
+			_, _, _, _, capacity := m.imagePreviewGeometry()
+			maxOffset := max(0, len(m.textPreviewLines(state))-capacity)
+			state.valueOffset = min(max(0, state.valueOffset), maxOffset)
+			switch k.String() {
+			case "up", "k":
+				state.valueOffset = max(0, state.valueOffset-1)
+				return nil, true
+			case "down", "j":
+				state.valueOffset = min(maxOffset, state.valueOffset+1)
+				return nil, true
+			case "pgup":
+				state.valueOffset = max(0, state.valueOffset-capacity)
+				return nil, true
+			case "pgdown":
+				state.valueOffset = min(maxOffset, state.valueOffset+capacity)
+				return nil, true
+			case "home":
+				state.valueOffset = 0
+				return nil, true
+			case "end":
+				state.valueOffset = maxOffset
+				return nil, true
+			}
+		}
 		switch k.String() {
 		case "esc", "v":
 			m.clearExtras()
@@ -410,7 +446,7 @@ func (m *Model) extrasPointer(msg tea.MouseMsg) (tea.Cmd, bool) {
 	if state == nil {
 		return nil, false
 	}
-	if msg.Action == tea.MouseActionPress && (msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown) && !state.loading && (state.mode == extraHistory || (state.mode == extraAttachments && state.phase == "")) {
+	if msg.Action == tea.MouseActionPress && (msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown) && !state.loading && (state.mode == extraHistory || (state.mode == extraImagePreview && state.previewIsText) || (state.mode == extraAttachments && state.phase == "")) {
 		key := tea.KeyDown
 		if msg.Button == tea.MouseButtonWheelUp {
 			key = tea.KeyUp

@@ -135,12 +135,12 @@ additional deletion restrictions.
 
 Attachments appear below the entry fields. In the entry editor, select
 Attachments to add a file by path, rename an attachment, or delete it. Changes
-are applied when you save the entry. Select an attachment and press `c` to copy its filename or `x` to
-export it to a chosen path. Press `v` to
-preview PNG, JPEG, GIF, or PDF files in Ghostty or Kitty. Use Left and Right to
-change PDF pages; press `esc` to close the preview. PDF previews require Poppler
-(`pdfinfo` and `pdftoppm`). The preview uses Kitty graphics and is unavailable
-inside tmux.
+are applied when you save the entry. Select an attachment and press `c` to copy
+its filename or `x` to export it to a chosen path. Press `v` to preview plain
+text, PNG, JPEG, GIF, or PDF files. Use Up and Down or Page Up and Page Down to
+scroll text; use Left and Right to change PDF pages. Press `esc` to close the
+preview. Image and PDF previews require Ghostty or Kitty and are unavailable
+inside tmux. PDF previews also require Poppler (`pdfinfo` and `pdftoppm`).
 
 ## Secrets
 

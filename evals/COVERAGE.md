@@ -22,7 +22,9 @@ in-process backend. KeePassXC interoperability checks are optional oracle checks
 - Terminal journeys: Classic and Compact browsing, filtering, password copy/reveal,
   edits, new entries, saved-file readback, backups, database info, deletion,
   password rotation, lock/unlock, and clean exit. See
-  [native-session journeys](interactive_integration_test.go).
+  [native-session journeys](interactive_integration_test.go). The attachment
+  journey imports, renames, exports, locks, and reopens a file; see
+  [attachment journey](attachment_integration_test.go).
 - UI tests: supported dialog labels, layout, mouse hit targets, navigation,
   draft preservation, late async results, password masking, clipboard cleanup,
   PIN protection and configurable inactivity, and full locking.
@@ -42,7 +44,7 @@ Passing a run with skipped tests does not establish coverage for those features.
 | Tests | Reason to skip |
 |---|---|
 | Key-file-only creation and key-file rotation terminal journeys | Non-password authentication controls are hidden in beta |
-| TOTP, History, and attachment UI/terminal journeys | These features are hidden in beta |
+| Legacy TOTP, History, and attachment terminal journeys | Their older dialogs are hidden in beta |
 | ASCII toggle subtest | The toggle is hidden in beta |
 | Standalone CLI edit interception and staged-save failure injection | Persistent sessions send commands over stdin; the old wrappers cannot inject these failures |
 | Cached-credential reload journey | Native sessions require lock/unlock instead of reusing a retained master password |

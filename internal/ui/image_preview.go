@@ -11,10 +11,14 @@ import (
 	_ "image/jpeg"
 	"image/png"
 	"math"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	wipebuf "bypass/internal/secret"
 	dialogrender "bypass/internal/ui/dialog"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 )
 
 const maxPreviewBytes = 32 << 20
@@ -26,6 +30,7 @@ type imagePreviewMsg struct {
 	png           []byte
 	width, height int
 	page, pages   int
+	text          bool
 	secret        *secretValues
 	err           error
 }
@@ -44,10 +49,6 @@ func (m *Model) openImagePreview() tea.Cmd {
 	m.clearExtras()
 	state := &extraState{mode: extraImagePreview, sessionID: session.ID, entryUUID: entry.UUID, groupUUID: entry.GroupUUID, targetName: name}
 	m.extras = state
-	if !m.previewTerminal.Supported() {
-		state.err = "Preview requires a terminal with Kitty graphics support."
-		return nil
-	}
 	for i, other := range entry.AttachmentNames {
 		if i != index && other == name {
 			state.err = "Cannot preview attachments with duplicate names."
@@ -84,6 +85,7 @@ func (m *Model) requestPreviewPage(state *extraState, page int) tea.Cmd {
 	state.requestID++
 	requestID := state.requestID
 	core, entryID, name := session.Core, entry.UUID, state.targetName
+	supportsGraphics := m.previewTerminal.Supported()
 	if page < 1 {
 		page = 1
 	}
@@ -103,10 +105,27 @@ func (m *Model) requestPreviewPage(state *extraState, page int) tea.Cmd {
 		}
 		defer wipebuf.Wipe(data)
 		if isPDF(data) {
-			msg.page = page
-			msg.png, msg.width, msg.height, msg.pages, msg.err = makePDFPreview(ctx, data, page)
+			if !supportsGraphics {
+				msg.err = errors.New("Image and PDF previews require a terminal with Kitty graphics support.")
+			} else {
+				msg.page = page
+				msg.png, msg.width, msg.height, msg.pages, msg.err = makePDFPreview(ctx, data, page)
+			}
+		} else if _, _, err := image.DecodeConfig(bytes.NewReader(data)); err == nil {
+			if !supportsGraphics {
+				msg.err = errors.New("Image and PDF previews require a terminal with Kitty graphics support.")
+			} else {
+				msg.png, msg.width, msg.height, msg.err = makePreviewPNG(ctx, data)
+			}
+		} else if isPlaintextAttachment(data) {
+			msg.text = true
+			if len(data) > maxTextPreviewBytes {
+				msg.err = errors.New("Text attachment is too large to preview.")
+			} else {
+				msg.png = append([]byte(nil), data...)
+			}
 		} else {
-			msg.png, msg.width, msg.height, msg.err = makePreviewPNG(ctx, data)
+			msg.err = errors.New("This attachment is not a supported image or text file.")
 		}
 		msg.secret = holdSecret(ctx, msg.png)
 		return msg
@@ -207,8 +226,21 @@ func (m *Model) imagePreviewLines(state *extraState) []string {
 	if state.err != "" {
 		body[0] = m.colors().error.Render(" " + safe(state.err))
 	}
+	if state.previewIsText && state.err == "" && !state.loading {
+		lines := m.textPreviewLines(state)
+		start := min(max(0, state.valueOffset), max(0, len(lines)-bodyRows))
+		for i := 0; i < bodyRows && start+i < len(lines); i++ {
+			body[i] = m.colors().primary.Render(" " + lines[start+i])
+		}
+	}
 	opts := m.dialogOptions()
 	footer := "esc close"
+	if state.previewIsText {
+		footer = "↑↓ scroll · pgup/pgdn · esc close"
+		if m.settings.ASCII {
+			footer = "up/down scroll · pgup/pgdn · esc close"
+		}
+	}
 	if state.previewPages > 0 {
 		arrows := "←→"
 		if m.settings.ASCII {
@@ -264,4 +296,33 @@ func fitPreviewImage(x, y, cols, rows, imageWidth, imageHeight int, cellWidth, c
 	}
 	usedCols := min(cols, max(1, int(math.Ceil(float64(rows)*ratio/cellRatio))))
 	return x + (cols-usedCols)/2, y, 0, rows
+}
+
+const maxTextPreviewBytes = 1 << 20
+
+func isPlaintextAttachment(data []byte) bool {
+	if !utf8.Valid(data) {
+		return false
+	}
+	for len(data) > 0 {
+		r, size := utf8.DecodeRune(data)
+		if unicode.IsControl(r) && r != '\n' && r != '\r' && r != '\t' && r != '\x1b' {
+			return false
+		}
+		data = data[size:]
+	}
+	return true
+}
+
+func (m *Model) textPreviewLines(state *extraState) []string {
+	g, _, _, _, _ := m.imagePreviewGeometry()
+	text := strings.TrimPrefix(string(state.previewText), "\ufeff")
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	var lines []string
+	for _, line := range strings.Split(text, "\n") {
+		line = safe(strings.ReplaceAll(line, "\t", "    "))
+		lines = append(lines, strings.Split(ansi.Hardwrap(line, max(1, g.Width-4), true), "\n")...)
+	}
+	return lines
 }

@@ -87,7 +87,7 @@ func TestImagePreviewOpenCloseAndGeometry(t *testing.T) {
 }
 
 func TestImagePreviewRejectsDuplicatesAndUnsupportedData(t *testing.T) {
-	backend := &extrasTestBackend{exportData: []byte("not an image")}
+	backend := &extrasTestBackend{exportData: []byte{0, 1, 2, 255}}
 	m, _, _ := previewTestModel(t, []string{"same.png", "same.png"}, backend)
 	if cmd := m.toggleReveal(); cmd != nil || !strings.Contains(m.extras.err, "duplicate") || backend.exportCalls != 0 {
 		t.Fatal("duplicate name was not rejected")
