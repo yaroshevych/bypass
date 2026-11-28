@@ -850,6 +850,57 @@ byId('attachment-preview').addEventListener('close', () => {
   byId('attachment-preview-content').replaceChildren();
   largeReturnFocus?.focus();
 });
+const previewResize = byId('attachment-preview-resize');
+previewResize.addEventListener('pointerdown', event => {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  const dialog = byId('attachment-preview');
+  const start = dialog.getBoundingClientRect();
+  const originX = event.clientX, originY = event.clientY;
+  dialog.style.margin = '0';
+  dialog.style.position = 'fixed';
+  dialog.style.left = `${start.left}px`;
+  dialog.style.top = `${start.top}px`;
+  previewResize.setPointerCapture(event.pointerId);
+  const move = moveEvent => {
+    const width = Math.max(320, Math.min(innerWidth - 32, start.width + moveEvent.clientX - originX));
+    const height = Math.max(240, Math.min(innerHeight - 32, start.height + moveEvent.clientY - originY));
+    dialog.style.width = `${width}px`;
+    dialog.style.height = `${height}px`;
+  };
+  const finish = () => {
+    previewResize.removeEventListener('pointermove', move);
+    previewResize.removeEventListener('pointerup', finish);
+    previewResize.removeEventListener('pointercancel', finish);
+  };
+  previewResize.addEventListener('pointermove', move);
+  previewResize.addEventListener('pointerup', finish);
+  previewResize.addEventListener('pointercancel', finish);
+});
+const previewTitle = byId('attachment-preview-title');
+previewTitle.addEventListener('pointerdown', event => {
+  if (event.button !== 0) return;
+  const dialog = byId('attachment-preview');
+  const start = dialog.getBoundingClientRect();
+  const originX = event.clientX, originY = event.clientY;
+  previewTitle.setPointerCapture(event.pointerId);
+  const move = moveEvent => {
+    const left = Math.max(0, Math.min(innerWidth - start.width, start.left + moveEvent.clientX - originX));
+    const top = Math.max(0, Math.min(innerHeight - 48, start.top + moveEvent.clientY - originY));
+    dialog.style.margin = '0';
+    dialog.style.position = 'fixed';
+    dialog.style.left = `${left}px`;
+    dialog.style.top = `${top}px`;
+  };
+  const finish = () => {
+    previewTitle.removeEventListener('pointermove', move);
+    previewTitle.removeEventListener('pointerup', finish);
+    previewTitle.removeEventListener('pointercancel', finish);
+  };
+  previewTitle.addEventListener('pointermove', move);
+  previewTitle.addEventListener('pointerup', finish);
+  previewTitle.addEventListener('pointercancel', finish);
+});
 byId('open-another').addEventListener('click', () => {
   vaultMenu.hidePopover();
   openVault();
