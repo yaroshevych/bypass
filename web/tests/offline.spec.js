@@ -23,7 +23,7 @@ kdbx.CryptoEngine.setArgon2Impl(async (password, salt, memorySize, iterations, h
   })).buffer;
 });
 
-async function fixture(version, variant) {
+async function fixture(version, variant, includeAttachments = false) {
   const credentials = new kdbx.Credentials(kdbx.ProtectedValue.fromString(password));
   const database = kdbx.Kdbx.create(credentials, 'Test vault');
   database.setVersion(version);
@@ -47,6 +47,12 @@ async function fixture(version, variant) {
   entry.fields.set('otp', kdbx.ProtectedValue.fromString(
     'otpauth://totp/Example?secret=' + sha1Seed + '&digits=8'
   ));
+  if (includeAttachments) {
+    const image = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p7sAAAAASUVORK5CYII='), char => char.charCodeAt(0));
+    entry.binaries.set('pixel.png', await database.createBinary(image));
+    entry.binaries.set('sample.pdf', await database.createBinary(new TextEncoder().encode('%PDF-1.4\nfixture pdf\n%%EOF')));
+    entry.binaries.set('id_ed25519', await database.createBinary(new TextEncoder().encode('-----BEGIN OPENSSH PRIVATE KEY-----\nfixture private key text\n-----END OPENSSH PRIVATE KEY-----')));
+  }
   const other = database.createEntry(root);
   other.fields.set('Title', 'Other login');
   other.fields.set('TimeOtp-Secret-Base32', sha1Seed);
@@ -117,6 +123,50 @@ test('reports wrong credentials and a corrupt file', async ({ page }) => {
   await openFile(page, Buffer.alloc(16));
   await page.getByRole('button', { name: 'Unlock vault' }).click();
   await expect(page.getByRole('alert')).toContainText('damaged');
+});
+
+test('previews and edits attachments, then saves them to the vault', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.showSaveFilePicker = async () => ({ createWritable: async () => ({
+      write: async bytes => { window.savedVault = Array.from(new Uint8Array(bytes)); },
+      close: async () => {}, abort: async () => {}
+    }) });
+  });
+  await openFile(page, await fixture(4, 'Argon2id', true));
+  await unlock(page);
+  await page.getByRole('button', { name: 'Example login' }).click();
+
+  await page.getByRole('button', { name: 'Preview attachment pixel.png' }).click();
+  await expect(page.locator('#attachment-preview img')).toHaveAttribute('src', /^blob:/);
+  await page.getByRole('button', { name: 'Close' }).last().click();
+  await page.getByRole('button', { name: 'Preview attachment sample.pdf' }).click();
+  await expect(page.locator('#attachment-preview iframe')).toHaveAttribute('src', /^blob:/);
+  await page.getByRole('button', { name: 'Close' }).last().click();
+  await page.getByRole('button', { name: 'Preview attachment id_ed25519' }).click();
+  await expect(page.locator('#attachment-preview pre')).toContainText('BEGIN OPENSSH PRIVATE KEY');
+  await page.getByRole('button', { name: 'Close' }).last().click();
+
+  await page.getByRole('button', { name: 'Menu' }).click();
+  await page.getByRole('menuitemcheckbox', { name: /Read only/ }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  const keyName = page.getByLabel('Rename attachment id_ed25519');
+  await keyName.fill('deploy_key.txt');
+  await page.getByRole('button', { name: 'Rename' }).last().click();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByLabel('Rename attachment sample.pdf').locator('..').getByRole('button', { name: 'Remove' }).click();
+  await page.getByLabel('Add attachments').setInputFiles({ name: 'added.txt', mimeType: 'text/plain', buffer: Buffer.from('new attachment') });
+  await expect(page.getByLabel('Rename attachment added.txt')).toBeVisible();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByRole('button', { name: 'Menu' }).click();
+  await page.getByRole('menuitem', { name: 'Save vault as…' }).click();
+  await expect.poll(() => page.evaluate(() => window.savedVault?.length || 0)).toBeGreaterThan(0);
+
+  const bytes = Uint8Array.from(await page.evaluate(() => window.savedVault));
+  const saved = await kdbx.Kdbx.load(bytes.buffer, new kdbx.Credentials(kdbx.ProtectedValue.fromString(password)));
+  const savedEntry = saved.getDefaultGroup().groups.find(group => group.name === 'Work').entries[0];
+  expect([...savedEntry.binaries.keys()].sort()).toEqual(['added.txt', 'deploy_key.txt', 'pixel.png']);
+  const added = savedEntry.binaries.get('added.txt');
+  expect(new TextDecoder().decode(added.value instanceof kdbx.ProtectedValue ? added.value.getBinary() : added.value)).toBe('new attachment');
 });
 
 test('shows and copies a live OTP without exposing its seed or rendering entry HTML', async ({ page }) => {

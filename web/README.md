@@ -2,7 +2,7 @@
 
 KeePass client in a single HTML file, offline and portable in any desktop browser.
 
-A KeePass viewer with keyboard workflows from Bypass. It opens vaults read-only by default and can edit entry fields when read-only mode is turned off. Download the built `index.html` and open it directly in a modern browser. The viewer opens KDBX 3 and 4 vaults on your device using a password. It can display live TOTP codes, search entries, and copy selected fields. The page needs no server or network connection.
+A KeePass viewer with keyboard workflows from Bypass. It opens vaults read-only by default and can edit entry fields and attachments when read-only mode is turned off. Attachment names appear in entry details; previews support images, PDFs, and plain text. Download the built `index.html` and open it directly in a modern browser. The viewer opens KDBX 3 and 4 vaults on your device using a password. It can display live TOTP codes, search entries, and copy selected fields. The page needs no server or network connection.
 
 
 | <img width="2176" height="1040" alt="Bypass Web light theme" src="https://github.com/user-attachments/assets/1ad86843-cf99-4dc3-8140-563cad17744b" /> | <img width="2174" height="1038" alt="Bypass Web dark theme" src="https://github.com/user-attachments/assets/5455d8ed-f2a1-4977-a06f-5635ded9c23e" /> |
@@ -27,7 +27,7 @@ The sidebar includes All Entries, Favorites, Recent, Bin, Tags, and Groups. Rece
 
 ## Security
 
-**Bypass Web opens vaults read-only by default.** To edit entry fields, turn off Read only in Menu, select an entry, and click Edit. Use Save vault as… to save an encrypted copy. Your original file is not changed unless you choose to overwrite it. Browsers without a save picker download the file using their download settings.
+**Bypass Web opens vaults read-only by default.** To edit entry fields or attachments, turn off Read only in Menu, select an entry, and click Edit. You can add files, rename attachments, and remove them. Use Save vault as… to save an encrypted copy. Your original file is not changed unless you choose to overwrite it. Browsers without a save picker download the file using their download settings.
 
 The built HTML file runs locally and does not need a server or network connection. Vault decryption and saving happen on your device. Entry URLs open when you follow them.
 
