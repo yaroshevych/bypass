@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; font-src data:; img-src blob:; frame-src blob:; base-uri 'none'; form-action 'none'">
 <title>bypass/web · Bypass Secrets Manager</title>
 <link rel="stylesheet" href="./styles.css">
 </head>
@@ -143,6 +143,7 @@
   <div id="palette" class="commands-menu" data-slot="menubar-content" role="menu" aria-labelledby="commands" popover></div>
   <dialog id="field-jump" class="overlay-card" aria-labelledby="jump-title"><h2 id="jump-title" tabindex="-1" autofocus>Jump to field</h2><button class="overlay-close" type="button" aria-label="Close">×</button><p>p Password · u Username · w URL · n Notes · e Email</p></dialog>
   <dialog id="large-view" class="overlay-card" aria-labelledby="large-title"><h2 id="large-title" tabindex="-1" autofocus>Large View</h2><button class="overlay-close" id="large-close" type="button" aria-label="Close">×</button><div id="large-content"></div><div id="large-actions"></div></dialog>
+  <dialog id="attachment-preview" class="overlay-card attachment-preview" aria-labelledby="attachment-preview-title"><h2 id="attachment-preview-title" tabindex="-1"></h2><button class="overlay-close" type="button" aria-label="Close">×</button><div id="attachment-preview-content"></div><span id="attachment-preview-url" hidden></span></dialog>
 </main>
 <script type="module" src="./app.js"></script>
 </body>

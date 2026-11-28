@@ -756,7 +756,17 @@ function renderDetails() {
     const attachments = element('section', undefined, 'detail-attachments');
     attachments.append(element('dt', 'Attachments'));
     const names = element('ul');
-    for (const name of entry.binaries.keys()) names.append(element('li', name));
+    for (const [name, binary] of entry.binaries) {
+      const item = element('li', undefined, 'attachment-item');
+      item.append(element('span', name));
+      const preview = button(undefined, () => openAttachmentPreview(name, binary));
+      preview.classList.add('field-action');
+      preview.setAttribute('aria-label', 'Preview attachment ' + name);
+      preview.title = 'Preview attachment';
+      setActionIcon(preview, 'eye');
+      item.append(preview);
+      names.append(item);
+    }
     attachments.append(names);
     detail.append(attachments);
   }
@@ -833,6 +843,13 @@ installDialogDismissal(document.querySelectorAll('dialog'), dialog => {
   if (dialog === vaultInfoDialog || dialog.id === 'about-dialog') dialog.close();
   else closeOverlays();
 });
+byId('attachment-preview').addEventListener('close', () => {
+  const url = byId('attachment-preview-url').dataset.url;
+  if (url) URL.revokeObjectURL(url);
+  delete byId('attachment-preview-url').dataset.url;
+  byId('attachment-preview-content').replaceChildren();
+  largeReturnFocus?.focus();
+});
 byId('open-another').addEventListener('click', () => {
   vaultMenu.hidePopover();
   openVault();
@@ -892,9 +909,9 @@ function closeOverlays() {
   const menuOpen = commandsMenu.matches(':popover-open');
   const returnFocus = menuOpen ? paletteReturnFocus
     : active?.closest('#field-jump') ? fieldJumpReturnFocus
-    : active?.closest('#large-view') ? largeReturnFocus : null;
+    : active?.closest('#large-view, #attachment-preview') ? largeReturnFocus : null;
   if (menuOpen) commandsMenu.hidePopover();
-  for (const id of ['field-jump', 'large-view']) if (byId(id).open) byId(id).close();
+  for (const id of ['field-jump', 'large-view', 'attachment-preview']) if (byId(id).open) byId(id).close();
   byId('large-title').textContent = 'Large View';
   byId('large-content').textContent = '';
   byId('large-actions').replaceChildren();
@@ -1077,6 +1094,53 @@ function openLargeView(fieldKey) {
   byId('large-actions').replaceChildren(copy);
   largeReturnFocus = document.activeElement;
   byId('large-view').showModal();
+}
+function openAttachmentPreview(name, binary) {
+  const value = binary?.value ?? binary;
+  const bytes = value instanceof ProtectedValue ? value.getBinary() : value;
+  if (!(bytes instanceof ArrayBuffer) && !ArrayBuffer.isView(bytes)) return;
+  const data = bytes instanceof ArrayBuffer
+    ? new Uint8Array(bytes)
+    : new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const extension = name.split('.').pop().toLowerCase();
+  const types = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', csv: 'text/csv', json: 'application/json', xml: 'application/xml', html: 'text/html', htm: 'text/html', log: 'text/plain', yaml: 'text/yaml', yml: 'text/yaml' };
+  const starts = (...signature) => signature.every((byte, index) => data[index] === byte);
+  const type = starts(0x25, 0x50, 0x44, 0x46) ? 'application/pdf'
+    : starts(0x89, 0x50, 0x4e, 0x47) ? 'image/png'
+    : starts(0xff, 0xd8, 0xff) ? 'image/jpeg'
+    : starts(0x47, 0x49, 0x46, 0x38) ? 'image/gif'
+    : data.length >= 12 && String.fromCharCode(...data.subarray(0, 4)) === 'RIFF' && String.fromCharCode(...data.subarray(8, 12)) === 'WEBP' ? 'image/webp'
+    : types[extension] || 'application/octet-stream';
+  const content = byId('attachment-preview-content');
+  content.replaceChildren();
+  byId('attachment-preview-title').textContent = name;
+  const blob = new Blob([bytes], { type });
+  const url = URL.createObjectURL(blob);
+  byId('attachment-preview-url').dataset.url = url;
+  let preview;
+  if (type.startsWith('image/')) {
+    preview = element('img'); preview.src = url; preview.alt = name;
+  } else if (type === 'application/pdf') {
+    preview = element('iframe'); preview.src = url; preview.title = name;
+  } else if (type.startsWith('text/') || type === 'application/json' || type === 'application/xml' || looksLikeText(data)) {
+    preview = element('pre', new TextDecoder('utf-8', { fatal: true }).decode(data));
+  } else {
+    preview = element('p', 'Preview is not available for this file type.', 'muted');
+  }
+  content.append(preview);
+  largeReturnFocus = document.activeElement;
+  byId('attachment-preview').showModal();
+}
+function looksLikeText(data) {
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(data);
+    return !text.includes('\0') && (text.length === 0 || [...text].filter(char => {
+      const code = char.codePointAt(0);
+      return code === 9 || code === 10 || code === 13 || code >= 32;
+    }).length / text.length > 0.95);
+  } catch {
+    return false;
+  }
 }
 function openFieldJump() {
   if (!selected) return;
