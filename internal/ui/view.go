@@ -792,7 +792,9 @@ func (m *Model) layoutBody(layout viewLayout) []string {
 			contents[i] = m.entryLines(pane.Width, pane.Height, focused)
 		case 2:
 			if m.editor != nil {
-				if m.editor.customOpen {
+				if m.editor.attachmentsOpen {
+					contents[i] = m.editorAttachmentsDialog(pane.Width, pane.Height)
+				} else if m.editor.customOpen {
 					contents[i] = m.customFieldsDialog(pane.Width, pane.Height)
 				} else {
 					contents[i] = m.editor.renderAppearance(pane.Width, pane.Height, m.compactAppearance(), m.settings.ASCII)

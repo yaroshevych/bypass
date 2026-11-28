@@ -82,6 +82,28 @@ func validateChange(change Change) error {
 	} else if change.AttachmentName != "" || change.AttachmentData != nil {
 		return ErrUnsupported
 	}
+	if change.Attachments != nil {
+		if change.Kind != AddEntry && change.Kind != EditEntry {
+			return ErrUnsupported
+		}
+		seen := make(map[int]bool)
+		for _, attachment := range change.Attachments {
+			if !validAttachmentName(attachment.Name) || len(attachment.Data) > maxAttachmentBytes {
+				return ErrUnsupported
+			}
+			if attachment.OriginalIndex == nil {
+				if attachment.OriginalName != "" {
+					return ErrUnsupported
+				}
+			} else {
+				index := *attachment.OriginalIndex
+				if change.Kind == AddEntry || index < 0 || seen[index] || !validAttachmentName(attachment.OriginalName) || attachment.Data != nil {
+					return ErrUnsupported
+				}
+				seen[index] = true
+			}
+		}
+	}
 	if bytes.ContainsAny(change.Password, "\r\n\x00") {
 		return ErrUnsupported
 	}

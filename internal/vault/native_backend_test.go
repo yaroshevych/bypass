@@ -568,3 +568,113 @@ func TestNativeBackendTotpURLAndUnsupportedXMLDetection(t *testing.T) {
 		t.Fatal("modeled standard data was rejected")
 	}
 }
+
+func TestEntryAttachmentEditsAreAtomic(t *testing.T) {
+	path, creds, db, backend := nativeFixture(t)
+	defer func() { db.Clear() }()
+	backup := filepath.Join(t.TempDir(), "backups")
+	applyFixtureChange(t, backend, &db, creds, Change{Kind: AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "Original"}}, backup)
+	entryID := db.Entries[0].UUID
+	for _, data := range [][]byte{[]byte("first"), []byte("second"), []byte("remove")} {
+		name := "same.bin"
+		if string(data) == "remove" {
+			name = "remove.bin"
+		}
+		applyFixtureChange(t, backend, &db, creds, Change{Kind: AddAttachment, EntryUUID: entryID, AttachmentName: name, AttachmentData: data}, backup)
+	}
+	first, second := 0, 1
+	changes := []AttachmentEdit{
+		{Name: "renamed.bin", OriginalIndex: &second, OriginalName: "same.bin"},
+		{Name: "same.bin", OriginalIndex: &first, OriginalName: "same.bin"},
+		{Name: "added.bin", Data: []byte("new bytes")},
+	}
+	applyFixtureChange(t, backend, &db, creds, Change{Kind: EditEntry, EntryUUID: entryID, Values: map[string]string{"Title": "Updated"}, Attachments: changes}, backup)
+	reopened, err := backend.Open(context.Background(), path, creds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Clear()
+	_, native := findNativeEntry(reopened.native.db, entryID)
+	if native == nil || len(native.Binaries) != 3 {
+		t.Fatal("attachment count did not round trip")
+	}
+	for i, want := range []struct{ name, data string }{{"renamed.bin", "second"}, {"same.bin", "first"}, {"added.bin", "new bytes"}} {
+		ref := native.Binaries[i]
+		if ref.Name != want.name {
+			t.Fatalf("attachment %d has name %q", i, ref.Name)
+		}
+		bin := ref.Find(reopened.native.db)
+		if bin == nil {
+			t.Fatalf("attachment %d missing binary", i)
+		}
+		data, err := bin.GetContentBytes()
+		if err != nil || string(data) != want.data {
+			t.Fatalf("attachment %d content mismatch: %v", i, err)
+		}
+	}
+	if reopened.Entries[0].Get("Title") != "Updated" {
+		t.Fatal("field change was not committed with attachments")
+	}
+	sizes, err := backend.AttachmentSizes(context.Background(), reopened, creds, entryID)
+	if err != nil || len(sizes) != 3 || sizes[0] != 6 || sizes[1] != 5 || sizes[2] != 9 {
+		t.Fatalf("attachment sizes %v: %v", sizes, err)
+	}
+	// An invalid original reference cannot commit even the accompanying field edit.
+	invalid := 9
+	_, err = backend.Apply(context.Background(), db, creds, Change{Kind: EditEntry, EntryUUID: entryID, Values: map[string]string{"Title": "Must not save"}, Attachments: []AttachmentEdit{{Name: "bad.bin", OriginalIndex: &invalid, OriginalName: "bad.bin"}}}, backup)
+	if err == nil {
+		t.Fatal("invalid source reference was accepted")
+	}
+	again, err := backend.Open(context.Background(), path, creds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer again.Clear()
+	if again.Entries[0].Get("Title") != "Updated" {
+		t.Fatal("invalid attachment change saved entry fields")
+	}
+	applyFixtureChange(t, backend, &db, creds, Change{Kind: EditEntry, EntryUUID: entryID, Attachments: []AttachmentEdit{}}, backup)
+	if len(db.Entries[0].AttachmentNames) != 0 {
+		t.Fatal("empty list did not remove all attachments")
+	}
+}
+
+func TestEntryAttachmentConsentBindsContents(t *testing.T) {
+	change := Change{Kind: AddEntry, Attachments: []AttachmentEdit{{Name: "a", Data: []byte("one")}}}
+	hash := changeLossOperation("vault", [32]byte{}, change)
+	change.Attachments[0].Data = []byte("two")
+	if hash == changeLossOperation("vault", [32]byte{}, change) {
+		t.Fatal("consent did not bind attachment data")
+	}
+}
+
+func TestNewEntryAttachmentsAndCancellation(t *testing.T) {
+	path, creds, db, backend := nativeFixture(t)
+	defer func() { db.Clear() }()
+	backup := filepath.Join(t.TempDir(), "backups")
+	change := Change{Kind: AddEntry, GroupUUID: db.RootUUID, Values: map[string]string{"Title": "With files"}, Attachments: []AttachmentEdit{{Name: "first.bin", Data: []byte("one")}, {Name: "empty.bin", Data: []byte{}}}}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := backend.Apply(ctx, db, creds, change, backup); err == nil {
+		t.Fatal("cancelled change succeeded")
+	}
+	if len(db.Entries) != 0 {
+		t.Fatal("cancelled change modified the database")
+	}
+	applyFixtureChange(t, backend, &db, creds, change, backup)
+	reopened, err := backend.Open(context.Background(), path, creds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Clear()
+	if len(reopened.Entries) != 1 || len(reopened.Entries[0].AttachmentNames) != 2 {
+		t.Fatal("new entry attachments were not saved")
+	}
+	for _, tc := range []struct{ name, data string }{{"first.bin", "one"}, {"empty.bin", ""}} {
+		data, err := backend.ExportAttachment(context.Background(), reopened, creds, reopened.Entries[0].UUID, tc.name)
+		if err != nil || string(data) != tc.data {
+			t.Fatalf("attachment %s did not round trip: %v", tc.name, err)
+		}
+		clear(data)
+	}
+}

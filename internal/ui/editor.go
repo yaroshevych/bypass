@@ -22,6 +22,7 @@ const (
 	editGenerate
 	editTags
 	editCustomFields
+	editAttachments
 	editFavorite
 	editSave
 	editCancel
@@ -56,6 +57,15 @@ type entryEditor struct {
 	customFields         []vault.Field
 	originalCustomFields []vault.Field
 	customFieldsSnapshot []vault.Field
+	attachments          []editorAttachment
+	originalAttachments  []editorAttachment
+	attachmentSnapshot   []editorAttachment
+	attachmentsOpen      bool
+	attachmentEdit       bool
+	attachmentIndex      int
+	attachmentFocus      int
+	attachmentName       input
+	attachmentErr        string
 	customOpen           bool
 	customEdit           bool
 	customIndex          int
@@ -128,6 +138,10 @@ func newEntryEditor(e *vault.Entry, groupUUID string) *entryEditor {
 			}
 		}
 		editor.originalCustomFields = append([]vault.Field(nil), editor.customFields...)
+		for i, name := range e.AttachmentNames {
+			editor.attachments = append(editor.attachments, editorAttachment{Name: name, OriginalName: name, OriginalIndex: i, Size: -1})
+		}
+		editor.originalAttachments = append([]editorAttachment(nil), editor.attachments...)
 	}
 	return editor
 }
@@ -141,7 +155,7 @@ func (e *entryEditor) dirty() bool {
 			return true
 		}
 	}
-	return !runesEqual(e.inputs[editPassword].text, e.originalPassword) || e.tagsChanged() || !sameVaultFields(e.customFields, e.originalCustomFields)
+	return !runesEqual(e.inputs[editPassword].text, e.originalPassword) || e.tagsChanged() || !sameVaultFields(e.customFields, e.originalCustomFields) || e.attachmentsChanged()
 }
 
 func sameVaultFields(a, b []vault.Field) bool {
@@ -215,6 +229,8 @@ func (e *entryEditor) clear() {
 	}
 	e.customName.clear()
 	e.customValue.clear()
+	e.attachmentName.clear()
+	e.attachments, e.originalAttachments, e.attachmentSnapshot = nil, nil, nil
 	e.readonlyFields = nil
 	e.customFields = nil
 	for i := range e.originalCustomFields {
@@ -337,6 +353,10 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 		return editorNone
 	}
 	key := k.String()
+	if e.attachmentsOpen {
+		e.attachmentKey(k)
+		return editorNone
+	}
 	if e.customOpen {
 		e.customKey(k)
 		return editorNone
@@ -363,6 +383,9 @@ func (e *entryEditor) key(k tea.KeyMsg) editorAction {
 				return editorGenerate
 			case editTags:
 				return editorTags
+			case editAttachments:
+				e.openEditorAttachments()
+				return editorNone
 			case editCustomFields:
 				e.openCustomFields()
 				return editorCustomFields
@@ -442,6 +465,9 @@ func (e *entryEditor) pointer(row, width, height int, compact, ascii bool) edito
 		return editorGenerate
 	case editTags:
 		return editorTags
+	case editAttachments:
+		e.openEditorAttachments()
+		return editorNone
 	case editCustomFields:
 		e.openCustomFields()
 		return editorNone
@@ -457,7 +483,7 @@ func (e *entryEditor) pointer(row, width, height int, compact, ascii bool) edito
 }
 
 func (e *entryEditor) actionFocuses() []int {
-	actions := []int{editCustomFields, editGenerate, editTags}
+	actions := []int{editCustomFields, editAttachments, editGenerate, editTags}
 	if !e.isNew {
 		actions = append(actions, editFavorite)
 	}
@@ -868,7 +894,7 @@ func (e *entryEditor) renderFieldLines(lines []editorLine, width, height int) []
 		label    string
 		index    int
 		shortcut string
-	}{{fmt.Sprintf("Custom Fields (%d)…", len(e.customFields)), editCustomFields, ""}, {"Generate Password…", editGenerate, ""}}
+	}{{fmt.Sprintf("Custom Fields (%d)…", len(e.customFields)), editCustomFields, ""}, {fmt.Sprintf("Attachments (%d)…", len(e.attachments)), editAttachments, ""}, {"Generate Password…", editGenerate, ""}}
 	actions = append(actions, struct {
 		label    string
 		index    int

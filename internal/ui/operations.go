@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -20,6 +21,7 @@ import (
 
 type editorReadyMsg struct {
 	fields             []vault.Field
+	sizes              []int64
 	secret             *secretValues
 	id                 uint64
 	sessionID, entryID string
@@ -28,6 +30,7 @@ type editorReadyMsg struct {
 }
 
 type appliedMsg struct {
+	secret    *secretValues
 	id        uint64
 	sessionID string
 	db        *vault.Database
@@ -290,12 +293,12 @@ func (m *Model) operationKey(k tea.KeyMsg) (tea.Cmd, bool) {
 }
 
 func (m *Model) prepareEditor(entry vault.Entry) tea.Cmd {
-	session := m.ws.ActiveSession()
-	core := session.Core
+	activeSession := m.ws.ActiveSession()
+	core := activeSession.Core
 	snapshot := core.ReadSnapshot()
-	id := m.beginOperation(session.ID)
+	id := m.beginOperation(activeSession.ID)
 	ctx := m.operationContext()
-	sessionID := session.ID
+	sessionID := activeSession.ID
 	resources := newJobResources(ctx, snapshot.Clear)
 	return func() tea.Msg {
 		if !resources.start() {
@@ -313,7 +316,15 @@ func (m *Model) prepareEditor(entry vault.Entry) tea.Cmd {
 				break
 			}
 		}
-		return editorReadyMsg{id: id, sessionID: sessionID, entryID: entry.UUID, password: password, secret: holdSecret(ctx, password), fields: fields, err: err}
+		var sizes []int64
+		if err == nil && len(entry.AttachmentNames) > 0 {
+			var sizeErr error
+			sizes, sizeErr = core.AttachmentSizes(ctx, snapshot, entry.UUID)
+			if errors.Is(sizeErr, session.ErrChanged) || errors.Is(sizeErr, context.Canceled) {
+				err = sizeErr
+			}
+		}
+		return editorReadyMsg{id: id, sessionID: sessionID, entryID: entry.UUID, password: password, secret: holdSecret(ctx, password), fields: fields, sizes: sizes, err: err}
 	}
 }
 
@@ -407,7 +418,14 @@ func (m *Model) editorKey(k tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	}
-	switch m.editor.key(k) {
+	previousEdit, previousCount := m.editor.attachmentEdit, len(m.editor.attachments)
+	action := m.editor.key(k)
+	if m.editor.attachmentsOpen && ((!previousEdit && m.editor.attachmentEdit) || len(m.editor.attachments) > previousCount) {
+		if cmd := m.requestStagedAttachmentSize(); cmd != nil {
+			return cmd
+		}
+	}
+	switch action {
 	case editorSave:
 		return m.saveEditor()
 	case editorCancel:
@@ -445,12 +463,19 @@ func (m *Model) saveEditor() tea.Cmd {
 	if change.PasswordChanged {
 		change.Password = m.editor.password()
 	}
-	return m.apply(change)
+	var paths []string
+	change.Attachments, paths = m.editor.attachmentEdits()
+	return m.applyWithAttachmentPaths(change, paths)
 }
 
 func (m *Model) apply(change vault.Change) tea.Cmd {
+	return m.applyWithAttachmentPaths(change, nil)
+}
+
+func (m *Model) applyWithAttachmentPaths(change vault.Change, paths []string) tea.Cmd {
 	if !m.writable() {
 		wipebuf.Wipe(change.Password)
+		wipeAttachmentEdits(change.Attachments)
 		return nil
 	}
 	s := m.ws.ActiveSession()
@@ -464,18 +489,98 @@ func (m *Model) apply(change vault.Change) tea.Cmd {
 		snapshot.Clear()
 		wipebuf.Wipe(password)
 		wipebuf.Wipe(attachment)
+		wipeAttachmentEdits(change.Attachments)
 	})
 	return func() tea.Msg {
 		if !resources.start() {
 			return appliedMsg{id: id, sessionID: s.ID, err: ctx.Err()}
 		}
 		defer resources.done()
+		for index, path := range paths {
+			if path == "" {
+				continue
+			}
+			if index >= len(change.Attachments) {
+				return appliedMsg{id: id, sessionID: s.ID, err: errors.New("invalid attachment source")}
+			}
+			data, err := readEditorAttachment(ctx, path)
+			if err != nil {
+				return appliedMsg{id: id, sessionID: s.ID, err: err}
+			}
+			change.Attachments[index].Data = data
+		}
 		db, err := core.Apply(ctx, snapshot, change, backupDir)
 		resultChange := change
-		resultChange.Password = append([]byte(nil), change.Password...)
-		resultChange.AttachmentData = append([]byte(nil), change.AttachmentData...)
-		return appliedMsg{id: id, sessionID: s.ID, db: db, err: err, change: resultChange}
+		resultChange.Password, resultChange.AttachmentData = nil, nil
+		resultChange.Attachments = nil
+		var owner *secretValues
+		var loss *vault.DataLossError
+		if errors.As(err, &loss) {
+			resultChange = cloneChangeSecrets(change)
+			owner = newSecretValues(ctx)
+			owner.Put("password", resultChange.Password)
+			owner.Put("attachment", resultChange.AttachmentData)
+			for i := range resultChange.Attachments {
+				owner.Put(strconv.Itoa(i), resultChange.Attachments[i].Data)
+			}
+		}
+		return appliedMsg{id: id, sessionID: s.ID, db: db, err: err, change: resultChange, secret: owner}
 	}
+}
+
+func wipeAttachmentEdits(edits []vault.AttachmentEdit) {
+	for i := range edits {
+		wipebuf.Wipe(edits[i].Data)
+		edits[i].Data = nil
+	}
+}
+
+func cloneChangeSecrets(change vault.Change) vault.Change {
+	change.Password = append([]byte(nil), change.Password...)
+	change.AttachmentData = append([]byte(nil), change.AttachmentData...)
+	if change.Attachments != nil {
+		edits := make([]vault.AttachmentEdit, len(change.Attachments))
+		copy(edits, change.Attachments)
+		for i := range edits {
+			if edits[i].Data != nil {
+				edits[i].Data = append([]byte{}, edits[i].Data...)
+			}
+		}
+		change.Attachments = edits
+	}
+	return change
+}
+
+var errAttachmentSource = errors.New("attachment source unavailable")
+
+func readEditorAttachment(ctx context.Context, path string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	path = expandPath(path)
+	before, err := os.Stat(path)
+	if err != nil || !before.Mode().IsRegular() || before.Size() > attachmentInputLimit {
+		return nil, errAttachmentSource
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, errAttachmentSource
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() > attachmentInputLimit {
+		return nil, errAttachmentSource
+	}
+	data, err := io.ReadAll(io.LimitReader(file, attachmentInputLimit+1))
+	if err != nil || len(data) > attachmentInputLimit {
+		wipebuf.Wipe(data)
+		return nil, errAttachmentSource
+	}
+	if err := ctx.Err(); err != nil {
+		wipebuf.Wipe(data)
+		return nil, err
+	}
+	return data, nil
 }
 
 func (m *Model) beginOperation(session string) uint64 {
@@ -524,6 +629,14 @@ func (m *Model) reload(id string) tea.Cmd {
 
 func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 	switch msg := msg.(type) {
+	case stagedAttachmentSizeMsg:
+		if m.editor == msg.editor && msg.index >= 0 && msg.index < len(m.editor.attachments) {
+			item := &m.editor.attachments[msg.index]
+			if item.OriginalIndex < 0 && item.Path == msg.path {
+				item.Size = msg.size
+			}
+		}
+		return nil, true
 	case focusedDetailsMsg:
 		return m.acceptFocusedDetails(msg), true
 	case editorReadyMsg:
@@ -550,6 +663,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			if entry.UUID == msg.entryID {
 				applyEntryDetails(entry, msg.fields)
 				m.startEditor(entry, entry.GroupUUID)
+				m.editor.setAttachmentSizes(msg.sizes)
 				m.editor.setPassword(msg.password)
 				wipebuf.Wipe(m.editor.originalPassword)
 				m.editor.originalPassword = append([]rune(nil), m.editor.inputs[editPassword].text...)
@@ -558,8 +672,16 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		return nil, true
 	case appliedMsg:
+		if msg.secret != nil {
+			values := msg.secret.Take()
+			msg.change.Password, msg.change.AttachmentData = values["password"], values["attachment"]
+			for i := range msg.change.Attachments {
+				msg.change.Attachments[i].Data = values[strconv.Itoa(i)]
+			}
+		}
 		defer wipebuf.Wipe(msg.change.Password)
 		defer wipebuf.Wipe(msg.change.AttachmentData)
+		defer wipeAttachmentEdits(msg.change.Attachments)
 		if msg.id != m.operation {
 			m.discardDatabase(msg.sessionID, msg.db)
 			return nil, true
@@ -571,9 +693,7 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 			var loss *vault.DataLossError
 			if errors.As(msg.err, &loss) {
 				if session := m.ws.Sessions[msg.sessionID]; session != nil && session.Database() != nil && session.Database().Path == loss.Path && session.Database().Revision == loss.Revision && !session.ReadOnly && !session.Stale {
-					change := msg.change
-					change.Password = append([]byte(nil), msg.change.Password...)
-					change.AttachmentData = append([]byte(nil), msg.change.AttachmentData...)
+					change := cloneChangeSecrets(msg.change)
 					message := MetadataLossMessage(loss, "Saving", "An encrypted backup will be created before saving.")
 					m.dialog = &actionDialog{kind: "data-loss", title: "Confirm metadata loss", options: []string{"Cancel", "Save and lose metadata"}, selected: 0, sessionID: msg.sessionID, change: change, loss: loss, message: message}
 					m.setNotice("save needs metadata loss confirmation", true)
@@ -857,6 +977,8 @@ func (m *Model) updateOperation(msg tea.Msg) (tea.Cmd, bool) {
 
 func writeError(err error) string {
 	switch {
+	case errors.Is(err, errAttachmentSource):
+		return "attachment source unavailable · check file and 32 MiB limit"
 	case errors.Is(err, vault.ErrExternalChanged):
 		return "file changed externally · reload before saving"
 	case errors.Is(err, vault.ErrAmbiguous):

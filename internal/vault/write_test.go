@@ -57,3 +57,28 @@ func TestNativeGenerateBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateEntryAttachmentEdits(t *testing.T) {
+	index := 0
+	existing := AttachmentEdit{Name: "renamed", OriginalIndex: &index, OriginalName: "original"}
+	for _, change := range []Change{
+		{Kind: EditEntry, Attachments: []AttachmentEdit{existing, existing}},
+		{Kind: EditEntry, Attachments: []AttachmentEdit{{Name: "renamed", OriginalIndex: &index}}},
+		{Kind: EditEntry, Attachments: []AttachmentEdit{{Name: "file", Data: make([]byte, maxAttachmentBytes+1)}}},
+		{Kind: AddEntry, Attachments: []AttachmentEdit{existing}},
+		{Kind: RemoveAttachment, AttachmentName: "file", Attachments: []AttachmentEdit{}},
+	} {
+		if validateChange(change) == nil {
+			t.Fatalf("invalid attachment change accepted: kind %s", change.Kind)
+		}
+	}
+	for _, change := range []Change{
+		{Kind: EditEntry, Attachments: []AttachmentEdit{}},
+		{Kind: EditEntry, Attachments: []AttachmentEdit{existing}},
+		{Kind: AddEntry, Attachments: []AttachmentEdit{{Name: "empty", Data: nil}}},
+	} {
+		if err := validateChange(change); err != nil {
+			t.Fatalf("valid attachment change rejected: %v", err)
+		}
+	}
+}

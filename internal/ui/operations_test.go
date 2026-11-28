@@ -660,3 +660,40 @@ func TestUnrelatedEditPreservesUnsupportedExistingPassword(t *testing.T) {
 		t.Fatal("unrelated edit changed password")
 	}
 }
+
+func TestEditorMissingAttachmentSourcePreservesDraft(t *testing.T) {
+	m, backend := operationModel(t)
+	m.key(key("e"))
+	if m.editor == nil {
+		t.Fatal("editor did not open")
+	}
+	m.editor.attachments = append(m.editor.attachments, editorAttachment{Name: "missing.txt", Path: filepath.Join(t.TempDir(), "missing.txt"), OriginalIndex: -1})
+	cmd := m.saveEditor()
+	if cmd == nil {
+		t.Fatal("save did not start")
+	}
+	execute(t, m, cmd)
+	if backend.applied != 0 {
+		t.Fatal("vault changed despite missing source")
+	}
+	if m.editor == nil || !m.editor.dirty() || len(m.editor.attachments) != 1 {
+		t.Fatal("attachment draft was not preserved")
+	}
+	if !strings.Contains(m.editor.err, "attachment source unavailable") {
+		t.Fatalf("unexpected error: %q", m.editor.err)
+	}
+}
+
+func TestCloneChangeSecretsKeepsAttachmentDataIndependent(t *testing.T) {
+	change := vault.Change{Attachments: []vault.AttachmentEdit{{Name: "a", Data: []byte("payload")}, {Name: "empty", Data: []byte{}}}}
+	cloned := cloneChangeSecrets(change)
+	wipeAttachmentEdits(change.Attachments)
+	if string(cloned.Attachments[0].Data) != "payload" || cloned.Attachments[1].Data == nil {
+		t.Fatal("attachment data was not copied for consent retry")
+	}
+	wipeAttachmentEdits(cloned.Attachments)
+	empty := cloneChangeSecrets(vault.Change{Attachments: []vault.AttachmentEdit{}})
+	if empty.Attachments == nil {
+		t.Fatal("deleting all attachments lost its non-nil marker")
+	}
+}

@@ -469,6 +469,25 @@ func changeLossOperation(path string, revision [32]byte, change Change) [32]byte
 		binary.LittleEndian.PutUint64(count[:], uint64(*change.AttachmentIndex))
 		writeConsentBytes(h, count[:])
 	}
+	if change.Attachments == nil {
+		writeConsentBytes(h, []byte{0})
+	} else {
+		writeConsentBytes(h, []byte{1})
+		binary.LittleEndian.PutUint64(count[:], uint64(len(change.Attachments)))
+		writeConsentBytes(h, count[:])
+		for _, attachment := range change.Attachments {
+			writeConsentString(h, attachment.Name)
+			writeConsentString(h, attachment.OriginalName)
+			if attachment.OriginalIndex == nil {
+				writeConsentBytes(h, []byte{0})
+			} else {
+				writeConsentBytes(h, []byte{1})
+				binary.LittleEndian.PutUint64(count[:], uint64(*attachment.OriginalIndex))
+				writeConsentBytes(h, count[:])
+			}
+			writeConsentBytes(h, attachment.Data)
+		}
+	}
 	var result [32]byte
 	copy(result[:], h.Sum(nil))
 	return result
@@ -1198,6 +1217,9 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		if change.PasswordChanged || len(change.Password) > 0 {
 			setNativeValue(&e, "Password", string(change.Password), true)
 		}
+		if err := applyEntryAttachments(s.db, &e, change.Attachments); err != nil {
+			return nil, err
+		}
 		g.Entries = append(g.Entries, e)
 	case EditEntry:
 		_, e := findNativeEntry(s.db, change.EntryUUID)
@@ -1228,6 +1250,9 @@ func (b *NativeBackend) Apply(ctx context.Context, db *Database, _ Credentials, 
 		}
 		if change.PasswordChanged {
 			setNativeValue(e, "Password", string(change.Password), true)
+		}
+		if err := applyEntryAttachments(s.db, e, change.Attachments); err != nil {
+			return nil, err
 		}
 	case MoveEntry:
 		sg, e := findNativeEntry(s.db, change.EntryUUID)
@@ -1451,6 +1476,37 @@ func removeNativeRootGroup(db *gok.Database, g *gok.Group) bool {
 	return false
 }
 
+// applyEntryAttachments retains existing binary references and stages all changes
+// on the cloned database that will be committed with the rest of the entry.
+func applyEntryAttachments(db *gok.Database, entry *gok.Entry, attachments []AttachmentEdit) error {
+	if attachments == nil {
+		return nil
+	}
+	original := entry.Binaries
+	// Validate every source before adding any new binary to the candidate database.
+	for _, attachment := range attachments {
+		if attachment.OriginalIndex != nil {
+			index := *attachment.OriginalIndex
+			if index < 0 || index >= len(original) || original[index].Name != attachment.OriginalName {
+				return ErrUnsupported
+			}
+		}
+	}
+	desired := make([]gok.BinaryReference, 0, len(attachments))
+	for _, attachment := range attachments {
+		if attachment.OriginalIndex != nil {
+			ref := original[*attachment.OriginalIndex]
+			ref.Name = attachment.Name
+			desired = append(desired, ref)
+		} else {
+			bin := db.AddBinary(attachment.Data)
+			desired = append(desired, bin.CreateReference(attachment.Name))
+		}
+	}
+	entry.Binaries = desired
+	return nil
+}
+
 func selectedAttachmentIndex(e *gok.Entry, change Change) (int, error) {
 	if change.AttachmentIndex != nil {
 		i := *change.AttachmentIndex
@@ -1487,6 +1543,53 @@ func countNativeGroup(id string, db *Database, entries, groups *int) {
 		}
 	}
 }
+
+// AttachmentSizes reports the decoded size of each attachment in reference
+// order, including duplicate names. Missing or malformed binaries are unknown.
+func (b *NativeBackend) AttachmentSizes(ctx context.Context, db *Database, _ Credentials, entryID string) ([]int64, error) {
+	if err := contextError(ctx); err != nil {
+		return nil, err
+	}
+	if db == nil || db.native == nil {
+		return nil, ErrUnlock
+	}
+	s := db.native
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.db == nil {
+		return nil, ErrUnlock
+	}
+	_, entry := findNativeEntry(s.db, entryID)
+	if entry == nil {
+		return nil, ErrUnsupported
+	}
+	sizes := make([]int64, len(entry.Binaries))
+	for i, ref := range entry.Binaries {
+		if err := contextError(ctx); err != nil {
+			return nil, err
+		}
+		sizes[i] = -1
+		bin := ref.Find(s.db)
+		if bin == nil {
+			continue
+		}
+		if s.db.Header != nil && s.db.Header.IsKdbx4() {
+			sizes[i] = int64(len(bin.Content))
+			continue
+		}
+		// GetContentBytes may return its input buffer; work on a private copy.
+		cloned := *bin
+		cloned.Content = append([]byte(nil), bin.Content...)
+		decoded, err := cloned.GetContentBytes()
+		if err == nil {
+			sizes[i] = int64(len(decoded))
+		}
+		clear(decoded)
+		clear(cloned.Content)
+	}
+	return sizes, nil
+}
+
 func (b *NativeBackend) ExportAttachment(ctx context.Context, db *Database, _ Credentials, entryID, name string) ([]byte, error) {
 	if err := contextError(ctx); err != nil {
 		return nil, err

@@ -11,6 +11,53 @@ import (
 
 func (m *Model) pointer(msg tea.MouseMsg) tea.Cmd {
 	m.tabHovered = false
+	if m.editor != nil && m.editor.attachmentsOpen && m.activeLayer() == layerWorkspace {
+		if msg.Action != tea.MouseActionPress {
+			return nil
+		}
+		for _, pane := range m.layout().Panes {
+			if pane.Focus != 2 {
+				continue
+			}
+			if msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown {
+				if !m.editor.attachmentEdit {
+					key := tea.KeyDown
+					if msg.Button == tea.MouseButtonWheelUp {
+						key = tea.KeyUp
+					}
+					m.editor.attachmentKey(tea.KeyMsg{Type: key})
+				}
+				return nil
+			}
+			if msg.Button != tea.MouseButtonLeft {
+				return nil
+			}
+			opts, targets := m.editorAttachmentsDialogOptions(pane.Width, pane.Height)
+			hit := dialogrender.HitTest(opts, msg.X-pane.X, msg.Y-pane.Y, targets)
+			if !hit.Inside || hit.Target < 0 {
+				return nil
+			}
+			previousEdit, previousCount := m.editor.attachmentEdit, len(m.editor.attachments)
+			if m.editor.attachmentEdit {
+				m.editor.attachmentFocus = hit.Target
+				if hit.Target >= 1 {
+					m.editor.attachmentKey(tea.KeyMsg{Type: tea.KeyEnter})
+				}
+			} else {
+				if hit.Target >= 100000 {
+					m.editor.attachmentIndex = len(m.editor.attachments) + hit.Target - 100000
+				} else {
+					m.editor.attachmentIndex = hit.Target
+				}
+				m.editor.attachmentKey(tea.KeyMsg{Type: tea.KeyEnter})
+			}
+			if (!previousEdit && m.editor.attachmentEdit) || len(m.editor.attachments) > previousCount {
+				return m.requestStagedAttachmentSize()
+			}
+			return nil
+		}
+		return nil
+	}
 	if m.editor != nil && m.editor.customOpen && m.activeLayer() == layerWorkspace {
 		if msg.Action != tea.MouseActionPress {
 			return nil

@@ -133,7 +133,9 @@ Deletion uses the vault's recycle bin when applicable. Items already in the bin
 are deleted permanently after confirmation. Root and recycle-bin groups have
 additional deletion restrictions.
 
-Attachments appear below the entry fields. Select a filename and press `s` to
+Attachments appear below the entry fields. In the entry editor, select
+Attachments to add a file by path, rename an attachment, or delete it. Changes
+are applied when you save the entry. Select an attachment and press `s` to
 save it to a chosen path. Press `v` to
 preview PNG, JPEG, GIF, or PDF files in Ghostty or Kitty. Use Left and Right to
 change PDF pages; press `esc` to close the preview. PDF previews require Poppler

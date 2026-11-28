@@ -57,6 +57,16 @@ const (
 	RenameGroup        ChangeKind = "rename_group"
 )
 
+// AttachmentEdit describes one attachment in the desired final entry state.
+// Existing attachments identify their original reference by index and name;
+// new attachments have a nil OriginalIndex and carry their contents in Data.
+type AttachmentEdit struct {
+	Name          string
+	OriginalIndex *int
+	OriginalName  string
+	Data          []byte
+}
+
 type Change struct {
 	Kind            ChangeKind
 	EntryUUID       string
@@ -70,6 +80,7 @@ type Change struct {
 	TagName         string
 	AttachmentName  string
 	AttachmentData  []byte
+	Attachments     []AttachmentEdit
 	AttachmentIndex *int
 	AllowDataLoss   bool
 	DataLossConsent [32]byte

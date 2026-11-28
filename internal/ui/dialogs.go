@@ -55,6 +55,7 @@ func (m *Model) clearDialog() {
 		m.dialog.secret = nil
 		wipebuf.Wipe(m.dialog.change.Password)
 		wipebuf.Wipe(m.dialog.change.AttachmentData)
+		wipeAttachmentEdits(m.dialog.change.Attachments)
 		m.dialog.change.Values = nil
 		if m.dialog.credentials != nil {
 			m.dialog.credentials.Clear()
@@ -474,9 +475,7 @@ func (m *Model) dialogKey(k tea.KeyMsg) tea.Cmd {
 					m.clearDialog()
 					return m.rotateCredentialsWithLossConsent(d.sessionID, creds, loss)
 				}
-				change := d.change
-				change.Password = append([]byte(nil), d.change.Password...)
-				change.AttachmentData = append([]byte(nil), d.change.AttachmentData...)
+				change := cloneChangeSecrets(d.change)
 				change.AllowDataLoss = true
 				change.DataLossConsent = d.loss.Operation
 				m.clearDialog()

@@ -28,6 +28,9 @@ type fieldResolver interface {
 type totpResolver interface {
 	TOTP(context.Context, *vault.Database, vault.Credentials, string) (vault.TOTPResult, error)
 }
+type attachmentSizeReader interface {
+	AttachmentSizes(context.Context, *vault.Database, vault.Credentials, string) ([]int64, error)
+}
 type attachmentReader interface {
 	ExportAttachment(context.Context, *vault.Database, vault.Credentials, string, string) ([]byte, error)
 }
@@ -404,6 +407,22 @@ func (s *Session) CanTOTP() bool {
 	}
 	_, ok := s.backend.(totpResolver)
 	return ok
+}
+
+// AttachmentSizes reads sizes in the entry's original attachment order.
+func (s *Session) AttachmentSizes(ctx context.Context, snapshot *Snapshot, id string) ([]int64, error) {
+	if err := s.snapshotError(ctx, snapshot); err != nil {
+		return nil, err
+	}
+	reader, ok := s.backend.(attachmentSizeReader)
+	if !ok {
+		return nil, ErrUnsupported
+	}
+	sizes, err := reader.AttachmentSizes(ctx, snapshot.db, snapshot.credentials, id)
+	if stateErr := s.snapshotError(ctx, snapshot); stateErr != nil {
+		return nil, stateErr
+	}
+	return sizes, err
 }
 
 func (s *Session) CanExportAttachment() bool {
