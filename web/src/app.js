@@ -721,6 +721,7 @@ function renderDetails() {
       if (!standardFields.has(key)) editable(key, key);
     }
     detail.append(list);
+    renderCustomFieldEditor(entry);
     renderAttachmentEditor(entry);
     return;
   }
@@ -832,6 +833,85 @@ function renderAttachmentEditor(entry) {
     renderDetails();
   });
   section.append(fileInput);
+  detail.append(section);
+}
+
+function renderCustomFieldEditor(entry) {
+  const section = element('section', undefined, 'detail-attachments custom-field-editor');
+  section.append(element('dt', 'Custom fields'));
+  const fields = element('ul');
+  for (const [name, original] of entry.fields) {
+    if (standardFields.has(name) || otpFields.has(name)) continue;
+    const row = element('li', undefined, 'custom-field-row');
+    const nameInput = element('input');
+    nameInput.value = name;
+    nameInput.setAttribute('aria-label', `Custom field name ${name}`);
+    const valueInput = element('input');
+    valueInput.value = field(entry, name);
+    valueInput.type = original instanceof ProtectedValue ? 'password' : 'text';
+    valueInput.setAttribute('aria-label', `Custom field value ${name}`);
+    const protectLabel = element('label');
+    const protect = element('input');
+    protect.type = 'checkbox';
+    protect.checked = original instanceof ProtectedValue;
+    protect.setAttribute('aria-label', `Protect custom field ${name}`);
+    protect.addEventListener('change', () => { valueInput.type = protect.checked ? 'password' : 'text'; });
+    protectLabel.append(protect, document.createTextNode(' Protect'));
+    const save = button('Save field', () => {
+      const nextName = nameInput.value.trim();
+      const nextValue = valueInput.value;
+      if (!nextName || (nextName !== name && entry.fields.has(nextName))) {
+        nameInput.setCustomValidity(!nextName ? 'Enter a field name.' : 'A field with this name already exists.');
+        nameInput.reportValidity();
+        return;
+      }
+      nameInput.setCustomValidity('');
+      const nextValueObject = protect.checked ? ProtectedValue.fromString(nextValue) : nextValue;
+      if (nextName === name && nextValue === field(entry, name) && (original instanceof ProtectedValue) === protect.checked) return;
+      entry.pushHistory();
+      if (nextName !== name) entry.fields.delete(name);
+      entry.fields.set(nextName, nextValueObject);
+      markEntryChanged(entry);
+      renderDetails();
+    });
+    const remove = button('Remove', () => {
+      if (!confirm(`Remove custom field “${name}”?`)) return;
+      entry.pushHistory();
+      entry.fields.delete(name);
+      markEntryChanged(entry);
+      renderDetails();
+    });
+    row.append(nameInput, valueInput, protectLabel, save, remove);
+    fields.append(row);
+  }
+  section.append(fields);
+  const addRow = element('div', undefined, 'custom-field-row');
+  const nameInput = element('input');
+  nameInput.placeholder = 'Field name';
+  nameInput.setAttribute('aria-label', 'New custom field name');
+  const valueInput = element('input');
+  valueInput.placeholder = 'Field value';
+  valueInput.setAttribute('aria-label', 'New custom field value');
+  const protectLabel = element('label');
+  const protect = element('input');
+  protect.type = 'checkbox';
+  protect.setAttribute('aria-label', 'Protect new custom field');
+  protect.addEventListener('change', () => { valueInput.type = protect.checked ? 'password' : 'text'; });
+  protectLabel.append(protect, document.createTextNode(' Protect'));
+  const add = button('Add field', () => {
+    const name = nameInput.value.trim();
+    if (!name || entry.fields.has(name)) {
+      nameInput.setCustomValidity(!name ? 'Enter a field name.' : 'A field with this name already exists.');
+      nameInput.reportValidity();
+      return;
+    }
+    entry.pushHistory();
+    entry.fields.set(name, protect.checked ? ProtectedValue.fromString(valueInput.value) : valueInput.value);
+    markEntryChanged(entry);
+    renderDetails();
+  });
+  addRow.append(nameInput, valueInput, protectLabel, add);
+  section.append(addRow);
   detail.append(section);
 }
 

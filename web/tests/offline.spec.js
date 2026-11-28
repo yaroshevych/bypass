@@ -461,7 +461,19 @@ for (const name of ['KDBX 3', 'Argon2id']) {
     await page.getByRole('button', { name: 'Hide password' }).click();
     await expect(passwordInput).toHaveAttribute('type', 'password');
     await page.getByLabel('Edit notes').fill('updated notes');
-    await page.getByLabel('Edit Literal').fill('updated custom field');
+    await page.getByLabel('Custom field name Literal').fill('Renamed field');
+    await page.getByLabel('Custom field value Literal').fill('updated custom field');
+    await page.getByRole('button', { name: 'Save field' }).click();
+    await page.getByLabel('New custom field name').fill('Temporary field');
+    await page.getByLabel('New custom field value').fill('remove me');
+    await page.getByRole('button', { name: 'Add field' }).click();
+    page.once('dialog', dialog => dialog.accept());
+    const temporary = page.getByLabel('Custom field name Temporary field');
+    await temporary.locator('..').getByRole('button', { name: 'Remove' }).click();
+    await page.getByLabel('New custom field name').fill('API token');
+    await page.getByLabel('New custom field value').fill('custom-secret');
+    await page.getByLabel('Protect new custom field').check();
+    await page.getByRole('button', { name: 'Add field' }).click();
     await expect(page.getByLabel('Edit otp')).toHaveAttribute('type', 'password');
     await page.getByRole('button', { name: 'Show otp' }).click();
     await expect(page.getByLabel('Edit otp')).toHaveAttribute('type', 'text');
@@ -480,7 +492,10 @@ for (const name of ['KDBX 3', 'Argon2id']) {
     expect(entry.fields.get('UserName')).toBe('updated-user');
     expect(entry.fields.get('Password').getText()).toBe('updated-secret');
     expect(entry.fields.get('Notes')).toBe('updated notes');
-    expect(entry.fields.get('Literal')).toBe('updated custom field');
-    expect(entry.history.at(-1).fields.get('Title')).toBe('Example login');
+    expect(entry.fields.get('Literal')).toBeUndefined();
+    expect(entry.fields.get('Renamed field')).toBe('updated custom field');
+    expect(entry.fields.get('Temporary field')).toBeUndefined();
+    expect(entry.fields.get('API token').getText()).toBe('custom-secret');
+    expect(entry.history.some(item => item.fields.get('Title') === 'Example login')).toBe(true);
   });
 }
