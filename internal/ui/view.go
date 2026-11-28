@@ -1308,9 +1308,6 @@ func (m *Model) entryLines(width, height int, focused bool) []string {
 		if showNonPasswordVaultSecurity && e.HasTOTP {
 			title += " [2FA]"
 		}
-		if len(e.AttachmentNames) > 0 {
-			title += " [A]"
-		}
 		if e.ExpiryEnabled && !e.Expires.IsZero() && !m.now().Before(e.Expires) {
 			title += " [expired]"
 		}
@@ -1491,7 +1488,7 @@ func (m *Model) detailLayout(width int) ([]string, []int) {
 		}
 	}
 	if len(e.AttachmentNames) > 0 {
-		lines = append(lines, "", secondary.Render(fmt.Sprintf(" ATTACHMENTS (%d)", len(e.AttachmentNames))))
+		lines = append(lines, "", secondary.Render(" ATTACHMENTS"))
 		for index, name := range e.AttachmentNames {
 			positions = append(positions, len(lines))
 			focused := false

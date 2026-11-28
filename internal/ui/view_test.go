@@ -22,10 +22,10 @@ func TestDetailShowsAttachmentNames(t *testing.T) {
 		plain = append(plain, ansi.Strip(line))
 	}
 	view := strings.Join(plain, "\n")
-	if !strings.Contains(view, "ATTACHMENTS (2)\n document.pdf\n photo.png") {
+	if !strings.Contains(view, "ATTACHMENTS\n document.pdf\n photo.png") {
 		t.Fatalf("attachment list missing from details: %q", view)
 	}
-	if strings.Count(view, "ATTACHMENTS (2)") != 1 {
+	if strings.Count(view, "ATTACHMENTS") != 1 {
 		t.Fatalf("attachment header repeated: %q", view)
 	}
 }
