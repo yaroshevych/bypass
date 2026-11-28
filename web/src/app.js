@@ -752,6 +752,14 @@ function renderDetails() {
     else { const custom = element('span', value || '—'); custom.dataset.fieldKey = key; add(key, custom, ...(value ? [copyButton(() => field(entry, key), key)] : [])); }
   }
   detail.append(list);
+  if (entry.binaries.size > 0) {
+    const attachments = element('section', undefined, 'detail-attachments');
+    attachments.append(element('dt', 'Attachments'));
+    const names = element('ul');
+    for (const name of entry.binaries.keys()) names.append(element('li', name));
+    attachments.append(names);
+    detail.append(attachments);
+  }
 }
 
 function clearVault() {
